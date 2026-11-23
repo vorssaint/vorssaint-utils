@@ -297,8 +297,14 @@ final class WhatsAppDownloadManager: ObservableObject {
               values.isAliasFile != true,
               values.isHidden != true,
               let quarantine = values.quarantineProperties,
-              WhatsAppDownloadSupport.isWhatsAppAgent(
-                quarantine["LSQuarantineAgentName"] as? String),
+              // The cleanup's scope is the WhatsApp app and nothing else, and
+              // it is fixed in the support file rather than read from the
+              // routing preference: that preference says where a download is
+              // moved to, and letting it also say what may be trashed would
+              // widen a destructive policy with nobody asking for it.
+              WhatsAppDownloadSupport.matchesAgent(
+                quarantine["LSQuarantineAgentName"] as? String,
+                configured: WhatsAppDownloadSupport.cleanupSources),
               let downloadedAt = (quarantine["LSQuarantineTimeStamp"] as? Date)
                 ?? values.addedToDirectoryDate ?? values.creationDate,
               let fingerprint = fingerprint(for: standardizedURL)

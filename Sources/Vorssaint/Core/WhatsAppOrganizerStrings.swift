@@ -4,6 +4,13 @@
 import Foundation
 
 struct WhatsAppOrganizerStrings {
+    /// The apps whose downloads the organizer moves, and the file types it
+    /// moves. Both are typed by the person, so both are written as a plain
+    /// comma-separated list.
+    let sources: String
+    let sourcesCaption: String
+    let extensions: String
+    let extensionsCaption: String
     let title: String
     let experimental: String
     let description: String
@@ -58,6 +65,10 @@ struct WhatsAppOrganizerStrings {
 
 extension WhatsAppOrganizerStrings {
     static let enUS = WhatsAppOrganizerStrings(
+        sources: "Routing sources",
+        sourcesCaption: "The apps whose downloads are moved, separated by commas. Empty moves nothing.",
+        extensions: "File types to route",
+        extensionsCaption: "Only these types are moved, separated by commas, like pdf,zip. Empty moves every type.",
         title: "Automatic organization",
         experimental: "Experimental",
         description: "Moves stable WhatsApp downloads to a dedicated folder and detects exact repeat downloads.",
@@ -91,6 +102,10 @@ extension WhatsAppOrganizerStrings {
     )
 
     static let es = WhatsAppOrganizerStrings(
+        sources: "Orígenes del enrutamiento",
+        sourcesCaption: "Las aplicaciones cuyas descargas se mueven, separadas por comas. Vacío no mueve nada.",
+        extensions: "Tipos de archivo para enrutar",
+        extensionsCaption: "Solo se mueven estos tipos, separados por comas, como pdf,zip. Vacío mueve todos los tipos.",
         title: "Organización automática",
         experimental: "Experimental",
         description: "Mueve las descargas estables de WhatsApp a una carpeta específica y detecta las descargas repetidas exactas.",
@@ -124,6 +139,10 @@ extension WhatsAppOrganizerStrings {
     )
 
     static let sk = WhatsAppOrganizerStrings(
+        sources: "Zdroje smerovania",
+        sourcesCaption: "Aplikácie, ktorých stiahnuté súbory sa presúvajú, oddelené čiarkami. Prázdne hodnoty nepresúvajú nič.",
+        extensions: "Typy súborov na presmerovanie",
+        extensionsCaption: "Presúvajú sa iba tieto typy, oddelené čiarkami, napríklad pdf,zip. Prázdne hodnoty presúvajú všetky typy.",
         title: "Automatická organizácia",
         experimental: "Experimentálne",
         description: "Presúva stabilné stiahnuté súbory z WhatsAppu do vyhradeného priečinka a rozpoznáva presne opakované sťahovania.",
@@ -157,6 +176,10 @@ extension WhatsAppOrganizerStrings {
     )
 
     static let ptBR = WhatsAppOrganizerStrings(
+        sources: "Origens do roteamento",
+        sourcesCaption: "Os aplicativos cujos downloads são movidos, separados por vírgulas. Vazio não move nada.",
+        extensions: "Tipos de arquivo para rotear",
+        extensionsCaption: "Somente estes tipos são movidos, separados por vírgulas, como pdf,zip. Vazio move todos os tipos.",
         title: "Organização automática",
         experimental: "Experimental",
         description: "Move downloads estáveis do WhatsApp para uma pasta dedicada e detecta downloads repetidos idênticos.",
@@ -190,6 +213,10 @@ extension WhatsAppOrganizerStrings {
     )
 
     static let de = WhatsAppOrganizerStrings(
+        sources: "Routing-Quellen",
+        sourcesCaption: "Die Apps, deren Downloads verschoben werden, durch Komma getrennt. Leer verschiebt nichts.",
+        extensions: "Dateitypen zum Verschieben",
+        extensionsCaption: "Nur diese Typen werden verschoben, durch Komma getrennt, wie pdf,zip. Leer verschiebt jeden Typ.",
         title: "Automatische Organisation",
         experimental: "Experimentell",
         description: "Verschiebt stabile WhatsApp-Downloads in einen eigenen Ordner und erkennt exakte Wiederholungs-Downloads.",
@@ -223,6 +250,10 @@ extension WhatsAppOrganizerStrings {
     )
 
     static let fr = WhatsAppOrganizerStrings(
+        sources: "Sources de routage",
+        sourcesCaption: "Les applications dont les téléchargements sont déplacés, séparées par des virgules. Vide ne déplace rien.",
+        extensions: "Types de fichiers à router",
+        extensionsCaption: "Seuls ces types sont déplacés, séparés par des virgules, comme pdf,zip. Vide déplace tous les types.",
         title: "Organisation automatique",
         experimental: "Expérimental",
         description: "Déplace les téléchargements WhatsApp stables vers un dossier dédié et détecte les téléchargements répétés identiques.",
@@ -256,6 +287,10 @@ extension WhatsAppOrganizerStrings {
     )
 
     static let it = WhatsAppOrganizerStrings(
+        sources: "Origini del routing",
+        sourcesCaption: "Le app i cui download vengono spostati, separate da virgole. Vuoto non sposta nulla.",
+        extensions: "Tipi di file da instradare",
+        extensionsCaption: "Solo questi tipi vengono spostati, separati da virgole, come pdf,zip. Vuoto sposta ogni tipo.",
         title: "Organizzazione automatica",
         experimental: "Sperimentale",
         description: "Sposta i download WhatsApp stabili in una cartella dedicata e rileva i download ripetuti identici.",
@@ -289,6 +324,10 @@ extension WhatsAppOrganizerStrings {
     )
 
     static let tr = WhatsAppOrganizerStrings(
+        sources: "Yönlendirme kaynakları",
+        sourcesCaption: "İndirmeleri taşınan uygulamalar, virgülle ayrılmış. Boş bırakılırsa hiçbir şey taşınmaz.",
+        extensions: "Yönlendirilecek dosya türleri",
+        extensionsCaption: "Yalnızca bu türler taşınır, virgülle ayrılmış, örneğin pdf,zip. Boş bırakılırsa her tür taşınır.",
         title: "Otomatik düzenleme",
         experimental: "Deneysel",
         description: "Kararlı WhatsApp indirmelerini özel bir klasöre taşır ve birebir tekrar indirmeleri saptar.",
@@ -322,6 +361,10 @@ extension WhatsAppOrganizerStrings {
     )
 
     static let ru = WhatsAppOrganizerStrings(
+        sources: "Источники маршрутизации",
+        sourcesCaption: "Приложения, загрузки которых перемещаются, через запятую. Пусто значит, что ничего не перемещается.",
+        extensions: "Типы файлов для перемещения",
+        extensionsCaption: "Перемещаются только эти типы, через запятую, например pdf,zip. Пусто значит, что перемещаются все типы.",
         title: "Автоматическая организация",
         experimental: "Экспериментально",
         description: "Перемещает устоявшиеся загрузки WhatsApp в отдельную папку и распознаёт точные повторные загрузки.",
@@ -355,6 +398,10 @@ extension WhatsAppOrganizerStrings {
     )
 
     static let ja = WhatsAppOrganizerStrings(
+        sources: "ルーティング対象",
+        sourcesCaption: "ダウンロードを移動するアプリ名をカンマで区切って指定します。空欄では何も移動しません。",
+        extensions: "移動するファイル形式",
+        extensionsCaption: "移動する形式をカンマで区切って指定します（例：pdf,zip）。空欄ではすべての形式を移動します。",
         title: "自動整理",
         experimental: "実験的",
         description: "安定した WhatsApp のダウンロードを専用フォルダへ移動し、完全に同一の再ダウンロードを検出します。",
@@ -388,6 +435,10 @@ extension WhatsAppOrganizerStrings {
     )
 
     static let ko = WhatsAppOrganizerStrings(
+        sources: "라우팅 대상",
+        sourcesCaption: "다운로드를 옮길 앱 이름을 쉼표로 구분해 입력합니다. 비워 두면 아무것도 옮기지 않습니다.",
+        extensions: "이동할 파일 형식",
+        extensionsCaption: "이동할 형식을 쉼표로 구분해 입력합니다(예: pdf,zip). 비워 두면 모든 형식을 옮깁니다.",
         title: "자동 정리",
         experimental: "실험적",
         description: "안정된 WhatsApp 다운로드를 전용 폴더로 옮기고 완전히 동일한 재다운로드를 감지합니다.",
@@ -421,6 +472,10 @@ extension WhatsAppOrganizerStrings {
     )
 
     static let zhHans = WhatsAppOrganizerStrings(
+        sources: "路由来源",
+        sourcesCaption: "要移动其下载内容的应用，用逗号分隔。留空则不移动任何文件。",
+        extensions: "要路由的文件类型",
+        extensionsCaption: "只移动这些类型，用逗号分隔，例如 pdf,zip。留空则移动所有类型。",
         title: "自动整理",
         experimental: "实验性",
         description: "将稳定的 WhatsApp 下载移动到专用文件夹，并识别完全相同的重复下载。",
@@ -454,6 +509,10 @@ extension WhatsAppOrganizerStrings {
     )
 
     static let zhTW = WhatsAppOrganizerStrings(
+        sources: "路由來源",
+        sourcesCaption: "要移動其下載內容的應用程式，以逗號分隔。留空則不移動任何檔案。",
+        extensions: "要路由的檔案類型",
+        extensionsCaption: "只移動這些類型，以逗號分隔，例如 pdf,zip。留空則移動所有類型。",
         title: "自動整理",
         experimental: "實驗性",
         description: "將穩定的 WhatsApp 下載移到專用資料夾，並辨識完全相同的重複下載。",
@@ -487,6 +546,10 @@ extension WhatsAppOrganizerStrings {
     )
 
     static let zhHK = WhatsAppOrganizerStrings(
+        sources: "路由來源",
+        sourcesCaption: "要移動其下載內容的應用程式，以逗號分隔。留空則不移動任何檔案。",
+        extensions: "要路由的檔案類型",
+        extensionsCaption: "只移動這些類型，以逗號分隔，例如 pdf,zip。留空則移動所有類型。",
         title: "自動整理",
         experimental: "實驗性",
         description: "將穩定的 WhatsApp 下載移到專用資料夾，並辨識完全相同的重複下載。",
@@ -519,6 +582,10 @@ extension WhatsAppOrganizerStrings {
         privacyNote: "為辨識完全相同的重複檔案，檔案內容僅在本機計算加密摘要時被讀取。內容與聊天絕不會被儲存或上傳。"
     )
     static let uk = WhatsAppOrganizerStrings(
+        sources: "Джерела маршрутизації",
+        sourcesCaption: "Застосунки, завантаження яких переміщуються, через кому. Порожньо значить, що нічого не переміщується.",
+        extensions: "Типи файлів для переміщення",
+        extensionsCaption: "Переміщуються лише ці типи, через кому, наприклад pdf,zip. Порожньо значить, що переміщуються усі типи.",
         title: "Автоматичне впорядкування",
         experimental: "Експериментальне",
         description: "Переміщує повністю завантажені файли WhatsApp у спеціальну папку та виявляє точні дублікати повторно завантажених файлів.",
