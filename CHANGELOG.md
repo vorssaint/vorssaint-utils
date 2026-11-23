@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows
 This update reduces the work Vorssaint does at startup and improves window switching, microphone and display controls, clipboard history and screenshots. Cleaner also protects data it can match to installed audio plugins.
 
 ### Added
+- In Values mode, menu bar numbers for CPU, GPU, memory and disk usage take the usage bar's elevated and critical colors past the same thresholds. CPU, GPU and battery temperatures turn elevated from 80° and critical from 95°.
 - Save current preferences to the XDG settings file from Settings > Advanced > Backup. The confirmation shows where the file will be saved. Thanks to @whizzzkid.
 - Dynamic Island can show Cursor's active project, new turns and completion notices from local transcripts. Thanks to @Arhurpro77.
 - AI Agents shows Cursor token usage when a local transcript includes a dated response with usage counts. Thanks to @iva-zhu.

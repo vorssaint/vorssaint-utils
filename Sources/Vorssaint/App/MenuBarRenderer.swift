@@ -198,7 +198,8 @@ enum MenuBarSegment {
     case symbol(String)
     case largeSymbol(String)
     case metricBlock(label: String, value: String, minimumValue: String, style: MenuBarBlockStyle,
-                     pressure: MemoryPressure?, warning: BatteryWarning = .none)
+                     pressure: MemoryPressure?, warning: BatteryWarning = .none,
+                     tint: MenuBarUsageBarSupport.Level? = nil)
     case usageBarBlock(label: String, fraction: Double?, style: MenuBarBlockStyle, pressure: MemoryPressure?)
     case networkBlock(down: String, up: String, style: MenuBarBlockStyle)
     case diskActivityBlock(read: String, write: String, style: MenuBarBlockStyle)
@@ -374,7 +375,8 @@ enum MenuBarRenderer {
                                                     minimumValue: minimumCombinedValue(primary: usage != nil,
                                                                                        temperature: temperature != nil),
                                                     style: style,
-                                                    pressure: nil)])
+                                                    pressure: nil,
+                                                    tint: worstTint(usageTint(usageFraction), temperatureTint(enabled.contains(.cpuTemperature) ? snapshot.cpuTemperature : nil)))])
                     }
                     break
                 }
@@ -384,7 +386,8 @@ enum MenuBarRenderer {
                                                     value: temperatureCompact(temperature),
                                                     minimumValue: "999°",
                                                     style: style,
-                                                    pressure: nil)])
+                                                    pressure: nil,
+                                                    tint: temperatureTint(temperature))])
                     }
                     break
                 }
@@ -399,7 +402,8 @@ enum MenuBarRenderer {
                                                     value: percent(usage),
                                                     minimumValue: "100%",
                                                     style: style,
-                                                    pressure: nil)])
+                                                    pressure: nil,
+                                                    tint: usageTint(usage))])
                     }
                 }
             case .gpu, .gpuTemperature:
@@ -423,7 +427,8 @@ enum MenuBarRenderer {
                                                     minimumValue: minimumCombinedValue(primary: usage != nil,
                                                                                        temperature: temperature != nil),
                                                     style: style,
-                                                    pressure: nil)])
+                                                    pressure: nil,
+                                                    tint: worstTint(usageTint(usageFraction), temperatureTint(enabled.contains(.gpuTemperature) ? snapshot.gpuTemperature : nil)))])
                     }
                     break
                 }
@@ -433,7 +438,8 @@ enum MenuBarRenderer {
                                                     value: temperatureCompact(temperature),
                                                     minimumValue: "999°",
                                                     style: style,
-                                                    pressure: nil)])
+                                                    pressure: nil,
+                                                    tint: temperatureTint(temperature))])
                     }
                     break
                 }
@@ -448,7 +454,8 @@ enum MenuBarRenderer {
                                                     value: percent(usage),
                                                     minimumValue: "100%",
                                                     style: style,
-                                                    pressure: nil)])
+                                                    pressure: nil,
+                                                    tint: usageTint(usage))])
                     }
                 }
             case .memory:
@@ -468,7 +475,8 @@ enum MenuBarRenderer {
                                                 value: value,
                                                 minimumValue: memoryStyle.showsPercent ? "100%" : "",
                                                 style: style,
-                                                pressure: memoryStyle.showsDot ? snapshot.memoryPressure : nil)])
+                                                pressure: memoryStyle.showsDot ? snapshot.memoryPressure : nil,
+                                                tint: usageTint(MenuBarUsageBarSupport.memoryFraction(used: memoryValue, total: snapshot.memoryTotal)))])
                 }
             case .network:
                 if let down = snapshot.netDownBytesPerSec, let up = snapshot.netUpBytesPerSec {
@@ -489,7 +497,8 @@ enum MenuBarRenderer {
                                                     value: diskStyle.value(for: disk),
                                                     minimumValue: diskStyle.minimumValue,
                                                     style: style,
-                                                    pressure: nil)])
+                                                    pressure: nil,
+                                                    tint: usageTint(disk.usedFraction))])
                     }
                 }
             case .diskActivity:
@@ -729,13 +738,14 @@ enum MenuBarRenderer {
                 result.append(symbolAttachment(named: name, stacked: stacked))
             case let .largeSymbol(name):
                 result.append(symbolAttachment(named: name, stacked: stacked, enlarged: true))
-            case let .metricBlock(label, value, minimumValue, style, pressure, warning):
+            case let .metricBlock(label, value, minimumValue, style, pressure, warning, tint):
                 result.append(metricBlockAttachment(label: label,
                                                     value: value,
                                                     minimumValue: minimumValue,
                                                     style: style,
                                                     pressure: pressure,
-                                                    warning: warning))
+                                                    warning: warning,
+                                                    tint: tint))
             case let .usageBarBlock(label, fraction, style, pressure):
                 result.append(usageBarBlockAttachment(label: label,
                                                       fraction: fraction,
@@ -793,13 +803,15 @@ enum MenuBarRenderer {
                                               minimumValue: String,
                                               style: MenuBarBlockStyle,
                                               pressure: MemoryPressure?,
-                                              warning: BatteryWarning) -> NSAttributedString {
+                                              warning: BatteryWarning,
+                                              tint: MenuBarUsageBarSupport.Level? = nil) -> NSAttributedString {
         let image = metricBlockImage(label: label,
                                      value: value,
                                      minimumValue: minimumValue,
                                      style: style,
                                      pressure: pressure,
-                                     warning: warning)
+                                     warning: warning,
+                                     tint: tint)
         let attachment = NSTextAttachment()
         attachment.image = image
         attachment.bounds = NSRect(x: 0,
@@ -877,7 +889,8 @@ enum MenuBarRenderer {
                                          minimumValue reservedValue: String,
                                          style: MenuBarBlockStyle,
                                          pressure: MemoryPressure?,
-                                         warning: BatteryWarning) -> NSImage {
+                                         warning: BatteryWarning,
+                                         tint: MenuBarUsageBarSupport.Level? = nil) -> NSImage {
         // Compact spacing hugs the value's digit count (with a stability
         // floor, see MenuBarSpacingSupport) instead of the metric's absolute
         // maximum; the reserve participates in the cache key, so both modes
@@ -886,7 +899,7 @@ enum MenuBarRenderer {
             ? MenuBarSpacingSupport.compactReserve(label: label, value: value)
             : reservedValue
         let pressureKey = pressure.map(String.init(describing:)) ?? "none"
-        let cacheKey = "metric|\(label)|\(value)|\(minimumValue)|\(style)|\(pressureKey)|\(warning)" as NSString
+        let cacheKey = "metric|\(label)|\(value)|\(minimumValue)|\(style)|\(pressureKey)|\(warning)|\(valueTintHex(tint) ?? "plain")" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
         let labelFont = NSFont.systemFont(ofSize: style == .readable ? 7.2 : 6.6, weight: .medium)
@@ -909,7 +922,11 @@ enum MenuBarRenderer {
             rect.fill()
             let labelAttrs = dynamicTextAttributes(font: labelFont)
             var valueAttrs = dynamicTextAttributes(font: valueFont)
-            if let warningColor = nsColor(for: warning) { valueAttrs[.foregroundColor] = warningColor }
+            if let warningColor = nsColor(for: warning) {
+                valueAttrs[.foregroundColor] = warningColor
+            } else if let tintHex = valueTintHex(tint) {
+                valueAttrs[.foregroundColor] = usageBarColor(hex: tintHex)
+            }
             (label as NSString).draw(at: NSPoint(x: (width - labelSize.width) / 2,
                                      y: style == .readable ? 12.9 : 12.0),
                                      withAttributes: labelAttrs)
@@ -1147,6 +1164,36 @@ enum MenuBarRenderer {
     }
 
     /// The island's low battery warning, which the menu bar reading shares.
+    /// Values mode: the number keeps the label color while normal and takes
+    /// the bar's elevated/critical color past the same thresholds.
+    static func valueTintHex(_ tint: MenuBarUsageBarSupport.Level?) -> String? {
+        guard let tint, tint != .normal else { return nil }
+        return MenuBarUsageBarSupport.currentColorHex(for: tint)
+    }
+
+    private static func usageTint(_ fraction: Double?) -> MenuBarUsageBarSupport.Level? {
+        fraction.map { MenuBarUsageBarSupport.currentLevel(for: $0) }
+    }
+
+    /// Temperatures use fixed thresholds in °C: elevated from 80°, critical from 95°.
+    private static func temperatureTint(_ celsius: Double?) -> MenuBarUsageBarSupport.Level? {
+        guard let celsius else { return nil }
+        return MenuBarUsageBarSupport.level(for: celsius / 100, mediumPercent: 80, highPercent: 95)
+    }
+
+    private static func worstTint(_ a: MenuBarUsageBarSupport.Level?,
+                                  _ b: MenuBarUsageBarSupport.Level?) -> MenuBarUsageBarSupport.Level? {
+        func rank(_ level: MenuBarUsageBarSupport.Level?) -> Int {
+            switch level {
+            case .critical: return 3
+            case .elevated: return 2
+            case .normal: return 1
+            case nil: return 0
+            }
+        }
+        return rank(a) >= rank(b) ? a : b
+    }
+
     private static func batteryWarning(for power: PowerReading?) -> BatteryWarning {
         NotchSupport.menuBarBatteryWarning(percent: power?.chargePercent,
                                            externalConnected: power?.externalConnected ?? false)

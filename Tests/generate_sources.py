@@ -1840,7 +1840,8 @@ def main():
                         "    private static func batteryBlockImage(", "    private static func blockImageCost(",
                         "    private static func dynamicTextAttributes(", "    static func nsColor(for warning:",
                         "    static func nsColor(for pressure:", "    private static func temperatureCompact(",
-                        "    private static func temperatureLabel(", "    private static func combinedComponentValue("])
+                        "    private static func temperatureLabel(", "    private static func combinedComponentValue(",
+                        "    static func valueTintHex(", "    private static func usageBarColor("])
           + "}\n")
     metric_cases = "\n".join(line for line in declaration(metric_view, "enum MetricDetailKind:").splitlines()
                              if line.startswith("    case "))
