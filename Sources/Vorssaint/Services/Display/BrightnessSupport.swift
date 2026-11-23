@@ -935,7 +935,7 @@ enum BrightnessSupport {
     /// monitor reported. The transport checks the target before each write.
     static func applySpeakerChange(
         _ change: SpeakerChange, hasNativeMute: Bool, unmutesLeavingZero: Bool,
-        keySettings: MonitorVolumeKeySettings,
+        keySettings: MonitorVolumeKeySettings, unmuteCeiling: (UInt16) -> UInt16, canVerifyUnmute: () -> Bool,
         restore: inout SpeakerLevel?, needsUnmute: inout Bool,
         read: (UInt8) -> VCPReading?, write: (UInt8, UInt16) -> Bool
     ) -> (level: SpeakerLevel, muted: Bool?)? {
@@ -990,6 +990,9 @@ enum BrightnessSupport {
         func setNativeMute(_ value: Bool) -> Bool {
             write(audioMuteCode, muteDeviceValue(value)) && readMute() == value
         }
+        func silenceAfterUnmute() {
+            if !setNativeMute(true) { _ = write(audioVolumeCode, 0) }
+        }
         if hasNativeMute {
             if desiredMute == true, muted != true, !setNativeMute(true) { return nil }
         } else if desiredMute == true {
@@ -1006,7 +1009,11 @@ enum BrightnessSupport {
             guard target > 0 else { return (initial, muted) }
         }
 
-        if unmutesLeavingZero && initial.raw == 0 && target > 0 { needsUnmute = true }
+        let releasesZeroLatch = !hasNativeMute && unmutesLeavingZero && target > 0 && (initial.raw == 0 || needsUnmute)
+        if (hasNativeMute && desiredMute == false) || releasesZeroLatch {
+            guard canVerifyUnmute() else { return nil }
+        }
+        if releasesZeroLatch { needsUnmute = true }
         var confirmed = initial
         if target != initial.raw {
             guard write(audioVolumeCode, target),
@@ -1015,12 +1022,13 @@ enum BrightnessSupport {
             confirmed = actual
         }
         if !hasNativeMute {
-            if unmutesLeavingZero, needsUnmute, confirmed.raw > 0 {
+            if releasesZeroLatch {
                 guard confirmed.raw <= keySettings.ceiling(for: confirmed.maximum),
                       write(audioMuteCode, audioUnmutedValue) else { return nil }
                 // Firmware can restore its previous (loud) level as part of unmute.
-                guard readMute() == false, SpeakerLevel(read(audioVolumeCode)) == confirmed else {
-                    if !setNativeMute(true) { _ = write(audioVolumeCode, 0) }
+                guard readMute() == false, SpeakerLevel(read(audioVolumeCode)) == confirmed,
+                      confirmed.raw <= unmuteCeiling(confirmed.maximum) else {
+                    silenceAfterUnmute()
                     return nil
                 }
                 needsUnmute = false
@@ -1035,8 +1043,8 @@ enum BrightnessSupport {
             // change must still be present after that last command.
             let final = SpeakerLevel(read(audioVolumeCode))
             guard readMute() == false, let final, !requestsLevel || final == confirmed,
-                  final.raw <= keySettings.ceiling(for: final.maximum) else {
-                if muted == true || initial.raw == 0 { _ = setNativeMute(true) }
+                  final.raw <= unmuteCeiling(final.maximum) else {
+                if muted == true || initial.raw == 0 { silenceAfterUnmute() }
                 return nil
             }
             return (final, false)
@@ -1172,35 +1180,36 @@ enum BrightnessSupport {
                 return (displayIndex: display.index, serviceOrdinal: service.ordinal, score: score)
             }
         }
-        let usable = scores.filter { pair in
-            candidates.contains(pair.displayIndex) && pair.score > 0
-                && !scores.contains { other in
-                    other.serviceOrdinal == pair.serviceOrdinal && other.displayIndex != pair.displayIndex
-                        && other.score >= pair.score
-                }
-        }
-        let assigned = assignServices(scores: usable)
+        let assigned = assignServices(scores: scores)
         if assigned.isEmpty, displays.count == 1, services.count == 1, let display = displays.first,
            candidates.contains(display.index), let service = services.first {
             if let serial = display.identity.serialNumber, serial != 0, service.serialNumber != 0,
                serial != service.serialNumber { return [:] }
             return [display.index: service.ordinal]
         }
-        return assigned
+        return assigned.filter { candidates.contains($0.key) }
     }
 
-    /// Greedy assignment, best scores first: each display and each service is
-    /// used at most once, and zero-score pairs never match. Returns display
-    /// index to service ordinal.
+    /// Keep each service's strongest possible owners. A tie can resolve once
+    /// another display has claimed its own service, provided the remaining
+    /// display also has a unique best choice.
     static func assignServices(scores: [(displayIndex: Int, serviceOrdinal: Int, score: Int)])
         -> [Int: Int] {
+        var remaining = scores.filter { pair in
+            pair.score > 0 && !scores.contains {
+                $0.serviceOrdinal == pair.serviceOrdinal && $0.score > pair.score
+            }
+        }
         var assignment: [Int: Int] = [:]
-        var takenServices = Set<Int>()
-        for entry in scores.sorted(by: { $0.score > $1.score }) where entry.score > 0 {
-            guard assignment[entry.displayIndex] == nil,
-                  !takenServices.contains(entry.serviceOrdinal) else { continue }
-            assignment[entry.displayIndex] = entry.serviceOrdinal
-            takenServices.insert(entry.serviceOrdinal)
+        while let match = remaining.first(where: { pair in
+            !remaining.contains { other in
+                (other.serviceOrdinal == pair.serviceOrdinal && other.displayIndex != pair.displayIndex)
+                    || (other.displayIndex == pair.displayIndex && other.serviceOrdinal != pair.serviceOrdinal
+                        && other.score >= pair.score)
+            }
+        }) {
+            assignment[match.displayIndex] = match.serviceOrdinal
+            remaining.removeAll { $0.displayIndex == match.displayIndex || $0.serviceOrdinal == match.serviceOrdinal }
         }
         return assignment
     }
@@ -1216,5 +1225,89 @@ enum BrightnessSupport {
                       && $0.score >= best.score
               }) else { return nil }
         return best.serviceOrdinal
+    }
+}
+
+/// Each mounted slider waits for both the end of its edit and the monitor's
+/// confirmation of its last request. Either can arrive first.
+final class SpeakerSliderFeedback {
+    struct Endpoint {
+        let registryEntryID: UInt64?
+        let fallbackService: CFTypeRef?
+        let chipAddress: UInt32
+
+        func matches(_ live: Self, confirmedOwnWrite: Bool = false) -> Bool {
+            guard chipAddress == live.chipAddress else { return false }
+            if let id = registryEntryID, let liveID = live.registryEntryID {
+                return id == liveID
+            }
+            // A rescan can wrap the same proxy again. An unidentified wrapper
+            // cannot inherit another's write, but this request can confirm its own.
+            return confirmedOwnWrite || fallbackService === live.fallbackService
+        }
+    }
+
+    typealias Confirmation = (endpoint: Endpoint, wrote: Bool)
+
+    /// Consecutive requests from one drag can land on the same hardware step.
+    /// Only the serial DDC queue records and verifies these writes.
+    final class Writes {
+        private var endpoint: Endpoint?
+        var volume: BrightnessSupport.SpeakerLevel?
+        var muted: Bool?
+
+        func begin(on endpoint: Endpoint) {
+            guard self.endpoint?.matches(endpoint) != true else { return }
+            self.endpoint = endpoint
+            volume = nil
+            muted = nil
+        }
+    }
+
+    final class Request {
+        private weak var owner: SpeakerSliderFeedback?
+        private(set) weak var previous: Request?
+        var writes = Writes()
+
+        fileprivate init(owner: SpeakerSliderFeedback, previous: Request?) {
+            self.owner = owner
+            self.previous = previous
+        }
+
+        func confirmed(_ play: @escaping () -> Void) {
+            guard let owner, owner.latest === self else { return }
+            owner.playOnRelease = play
+            owner.playIfReady()
+        }
+    }
+
+    private var editing = false
+    private var latest: Request?
+    private var playOnRelease: (() -> Void)?
+
+    func request() -> Request {
+        // Arrow keys and accessibility actions may send a single value write.
+        let request = Request(owner: self, previous: editing ? latest : nil)
+        latest = request
+        playOnRelease = nil
+        return request
+    }
+
+    func editingChanged(_ editing: Bool) {
+        if editing { cancel() }
+        self.editing = editing
+        playIfReady()
+    }
+
+    func cancel() {
+        editing = false
+        latest = nil
+        playOnRelease = nil
+    }
+
+    private func playIfReady() {
+        guard !editing, let play = playOnRelease else { return }
+        cancel()
+        play()
     }
 }

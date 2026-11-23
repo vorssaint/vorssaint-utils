@@ -35,7 +35,7 @@ struct NotchAgentStrings {
     let empty: String
     let loading: String
     let noCards: String
-    let unpriced: String
+    let partialCostNote: String
     let streak: String
     let activeDays: String
     let busiestDay: String
@@ -106,6 +106,9 @@ struct NotchAgentStrings {
     func cached(_ share: String) -> String { String(format: cachedFormat, share) }
     func written(_ count: String) -> String { String(format: writtenFormat, count) }
     func saved(_ amount: String) -> String { String(format: savedFormat, amount) }
+    func costDescription(_ reading: String, partial: Bool) -> String {
+        partial ? reading + " · " + partialCostNote : reading
+    }
     func planMultiple(_ multiple: String, plan: String) -> String { String(format: planMultipleFormat, multiple, plan) }
     func finished(_ agent: String) -> String { String(format: finishedFormat, agent) }
     func left(_ share: String) -> String { String(format: leftFormat, share) }
@@ -220,7 +223,7 @@ extension NotchAgentStrings {
         empty: "No usage from Claude Code, Codex, OpenCode, GitHub Copilot or Cursor yet. It appears here as soon as any of them works on this Mac.",
         loading: "Reading usage…",
         noCards: "Choose what this page shows in Dynamic Island settings.",
-        unpriced: "Some models have no known price, so this is a minimum.",
+        partialCostNote: "Missing token counts or model prices can leave costs incomplete. Any amount shown is a lower bound. A dash means the cost is unknown.",
         streak: "Days in a row",
         activeDays: "Active days",
         busiestDay: "Busiest day",
@@ -319,7 +322,7 @@ extension NotchAgentStrings {
         empty: "Claude Code, Codex, OpenCode, GitHub Copilot або Cursor ще не використовувалися. Дані з’являться тут, щойно один із них почне працювати на цьому Mac.",
         loading: "Читання даних…",
         noCards: "Виберіть, що показувати на цій сторінці в налаштуваннях Dynamic Island.",
-        unpriced: "Ціна деяких моделей невідома, тому це мінімальна оцінка.",
+        partialCostNote: "Якщо бракує даних про кількість токенів або ціни моделей, сума може бути неповною. Показана сума є нижньою межею. Тире означає, що вартість невідома.",
         streak: "Днів поспіль",
         activeDays: "Активних днів",
         busiestDay: "Найактивніший день",
@@ -418,7 +421,7 @@ extension NotchAgentStrings {
         empty: "Ainda não há uso do Claude Code, do Codex, do OpenCode, do GitHub Copilot nem do Cursor. Ele aparece aqui assim que um deles trabalhar neste Mac.",
         loading: "Lendo o uso…",
         noCards: "Escolha o que esta página mostra nos ajustes do Dynamic Island.",
-        unpriced: "Alguns modelos não têm preço conhecido, então este é um valor mínimo.",
+        partialCostNote: "Podem faltar contagens de tokens ou preços de modelos. O valor exibido é um limite inferior. Um travessão indica custo desconhecido.",
         streak: "Dias seguidos",
         activeDays: "Dias ativos",
         busiestDay: "Dia mais intenso",
@@ -517,7 +520,7 @@ extension NotchAgentStrings {
         empty: "Aún no hay uso de Claude Code, Codex, OpenCode, GitHub Copilot ni de Cursor. Aparece aquí en cuanto cualquiera de ellos trabaje en este Mac.",
         loading: "Leyendo el uso…",
         noCards: "Elige qué muestra esta página en los ajustes del Dynamic Island.",
-        unpriced: "Algunos modelos no tienen precio conocido, así que es un mínimo.",
+        partialCostNote: "Pueden faltar recuentos de tokens o precios de modelos. El importe mostrado es un límite inferior. Una raya indica que se desconoce el coste.",
         streak: "Días seguidos",
         activeDays: "Días activos",
         busiestDay: "Día de más uso",
@@ -616,7 +619,7 @@ extension NotchAgentStrings {
         empty: "Zatiaľ žiadne využitie z Claude Code, Codexu, OpenCode, GitHub Copilot ani Cursor. Zobrazí sa tu hneď, ako niektorý z nich začne na tomto Macu pracovať.",
         loading: "Načítava sa využitie…",
         noCards: "V nastaveniach Dynamic Island vyberte, čo má táto stránka zobrazovať.",
-        unpriced: "Pri niektorých modeloch nie je známa cena, takže ide o minimum.",
+        partialCostNote: "Niektoré počty tokenov alebo ceny modelov môžu chýbať. Zobrazená suma je dolnou hranicou. Pomlčka znamená, že cena nie je známa.",
         streak: "Dni po sebe",
         activeDays: "Aktívne dni",
         busiestDay: "Najrušnejší deň",
@@ -715,7 +718,7 @@ extension NotchAgentStrings {
         empty: "Noch keine Nutzung von Claude Code, Codex, OpenCode, GitHub Copilot oder Cursor. Sie erscheint hier, sobald eines davon auf diesem Mac arbeitet.",
         loading: "Nutzung wird gelesen…",
         noCards: "Wähle in den Dynamic Island-Einstellungen, was diese Seite zeigt.",
-        unpriced: "Für einige Modelle ist kein Preis bekannt, daher ist dies ein Mindestwert.",
+        partialCostNote: "Tokenzahlen oder Modellpreise können fehlen. Der angezeigte Betrag ist eine Untergrenze. Ein Strich bedeutet, dass die Kosten unbekannt sind.",
         streak: "Tage in Folge",
         activeDays: "Aktive Tage",
         busiestDay: "Stärkster Tag",
@@ -814,7 +817,7 @@ extension NotchAgentStrings {
         empty: "Aucun usage de Claude Code, Codex, d’OpenCode, de GitHub Copilot ou de Cursor pour l’instant. Il apparaît ici dès que l’un d’eux travaille sur ce Mac.",
         loading: "Lecture de l’usage…",
         noCards: "Choisissez ce que montre cette page dans les réglages du Dynamic Island.",
-        unpriced: "Certains modèles n’ont pas de prix connu, ce montant est donc un minimum.",
+        partialCostNote: "Le décompte des jetons ou le tarif du modèle peut manquer pour certaines réponses. Le montant affiché est un minimum. Un tiret indique que le coût est inconnu.",
         streak: "Jours d’affilée",
         activeDays: "Jours actifs",
         busiestDay: "Jour le plus chargé",
@@ -913,7 +916,7 @@ extension NotchAgentStrings {
         empty: "Ancora nessun utilizzo di Claude Code, Codex, OpenCode, GitHub Copilot o Cursor. Compare qui appena uno di loro lavora su questo Mac.",
         loading: "Lettura dell’utilizzo…",
         noCards: "Scegli cosa mostra questa pagina nelle impostazioni del Dynamic Island.",
-        unpriced: "Alcuni modelli non hanno un prezzo noto, quindi questo è un minimo.",
+        partialCostNote: "Per alcune risposte potrebbero mancare il conteggio dei token o il prezzo del modello. L’importo mostrato è un limite inferiore. Un trattino indica che il costo è sconosciuto.",
         streak: "Giorni di fila",
         activeDays: "Giorni attivi",
         busiestDay: "Giorno più intenso",
@@ -1012,7 +1015,7 @@ extension NotchAgentStrings {
         empty: "Пока нет данных об использовании Claude Code, Codex, OpenCode, GitHub Copilot или Cursor. Они появятся здесь, как только один из них начнёт работу на этом Mac.",
         loading: "Чтение данных…",
         noCards: "Выберите, что показывает эта страница, в настройках Dynamic Island.",
-        unpriced: "Для некоторых моделей цена неизвестна, поэтому это минимальная сумма.",
+        partialCostNote: "Данные о количестве токенов или ценах моделей могут быть неполными. Общая стоимость не ниже указанной суммы. Тире означает, что стоимость неизвестна.",
         streak: "Дней подряд",
         activeDays: "Активные дни",
         busiestDay: "Самый активный день",
@@ -1111,7 +1114,7 @@ extension NotchAgentStrings {
         empty: "Henüz Claude Code, Codex, GitHub Copilot, OpenCode veya Cursor kullanımı yok. Herhangi biri bu Mac’te çalışır çalışmaz burada görünür.",
         loading: "Kullanım okunuyor…",
         noCards: "Bu sayfada nelerin görüneceğini Dynamic Island ayarlarından seçin.",
-        unpriced: "Bazı modellerin fiyatı bilinmediğinden bu bir alt sınırdır.",
+        partialCostNote: "Bazı yanıtların token sayısı veya model fiyatı bilinmeyebilir. Gösterilen tutar bir alt sınırdır. Çizgi, maliyetin bilinmediği anlamına gelir.",
         streak: "Art arda gün",
         activeDays: "Aktif günler",
         busiestDay: "En yoğun gün",
@@ -1210,7 +1213,7 @@ extension NotchAgentStrings {
         empty: "Claude Code、Codex、OpenCode、GitHub Copilot、Cursorの使用状況はまだありません。いずれかがこのMacで動作するとここに表示されます。",
         loading: "使用状況を読み込み中…",
         noCards: "このページに表示する内容はDynamic Islandの設定で選べます。",
-        unpriced: "一部のモデルは料金が不明なため、最低額を表示しています。",
+        partialCostNote: "応答によってはトークン数やモデルの料金が不明な場合があります。表示される金額は下限です。ダッシュは費用が不明なことを示します。",
         streak: "連続日数",
         activeDays: "アクティブな日数",
         busiestDay: "最も多かった日",
@@ -1309,7 +1312,7 @@ extension NotchAgentStrings {
         empty: "아직 Claude Code, Codex, OpenCode, GitHub Copilot, Cursor 사용량이 없습니다. 이 중 하나가 이 Mac에서 작업하면 바로 여기에 표시됩니다.",
         loading: "사용량을 읽는 중…",
         noCards: "Dynamic Island 설정에서 이 페이지에 표시할 항목을 선택하세요.",
-        unpriced: "일부 모델은 가격을 알 수 없어 최소 금액으로 표시합니다.",
+        partialCostNote: "일부 응답은 토큰 수나 모델 요금을 알 수 없습니다. 표시된 금액은 하한값입니다. 대시는 비용을 알 수 없다는 뜻입니다.",
         streak: "연속 일수",
         activeDays: "활동한 날",
         busiestDay: "가장 많이 쓴 날",
@@ -1408,7 +1411,7 @@ extension NotchAgentStrings {
         empty: "还没有 Claude Code、Codex、OpenCode、GitHub Copilot 或 Cursor 的用量。只要其中任何一个在这台 Mac 上工作，就会显示在这里。",
         loading: "正在读取用量…",
         noCards: "在 Dynamic Island 设置中选择此页面显示的内容。",
-        unpriced: "部分模型价格未知，因此这是最低金额。",
+        partialCostNote: "部分回复可能缺少令牌数或模型价格。显示的金额为下限。破折号表示费用未知。",
         streak: "连续天数",
         activeDays: "活跃天数",
         busiestDay: "用量最多的一天",
@@ -1507,7 +1510,7 @@ extension NotchAgentStrings {
         empty: "目前還沒有 Claude Code、Codex、OpenCode、GitHub Copilot 或 Cursor 的用量。只要其中一個在這台 Mac 上運作，就會顯示在這裡。",
         loading: "正在讀取用量…",
         noCards: "在 Dynamic Island 設定中選擇此頁面顯示的內容。",
-        unpriced: "部分模型價格不明，因此這是最低金額。",
+        partialCostNote: "部分回覆可能缺少 Token 數量或模型價格。顯示的金額為下限。破折號表示費用未知。",
         streak: "連續天數",
         activeDays: "活躍天數",
         busiestDay: "用量最多的一天",
@@ -1606,7 +1609,7 @@ extension NotchAgentStrings {
         empty: "目前還沒有 Claude Code、Codex、OpenCode、GitHub Copilot 或 Cursor 的用量。只要其中一個在這部 Mac 上運作，就會顯示在這裡。",
         loading: "正在讀取用量…",
         noCards: "在 Dynamic Island 設定中選擇此頁面顯示的內容。",
-        unpriced: "部分模型價格不明，因此這是最低金額。",
+        partialCostNote: "部分回覆可能缺少 Token 數量或模型價格。顯示的金額為下限。破折號表示費用不詳。",
         streak: "連續天數",
         activeDays: "活躍日數",
         busiestDay: "用量最多的一天",

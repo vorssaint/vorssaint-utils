@@ -3857,7 +3857,12 @@ enum PointerInputFeatureTests {
                     if depth == 0 { break }
                 }
             }
-            suite.expect(rearm.contains("SessionActivity.shared.isActive"),
+            let usesSwitcherPolicy = tapOwner.hasSuffix("/AppSwitcher.swift") && rearm.contains("if self.tapIsWanted,")
+            let sessionCheck = usesSwitcherPolicy
+                ? code.components(separatedBy: "private var tapIsWanted: Bool {").dropFirst().first?
+                    .components(separatedBy: "\n    }").first ?? ""
+                : rearm
+            suite.expect(sessionCheck.contains("SessionActivity.shared.isActive"),
                    "\(tapOwner) does not re-arm a disabled tap into a switched-away session")
             if tapOwner.contains("MouseNavigation")
                 || tapOwner.contains("MouseButtonShortcut")

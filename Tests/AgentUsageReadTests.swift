@@ -26,8 +26,8 @@ enum AgentUsageReadTests {
             }
         }
         static func readCursor(_ cursor: AgentLogCursor, into store: AgentUsageStore, now: Date,
-                               shouldContinue: () -> Bool, report: (AgentUsageEvent) -> Void) -> Bool {
-            AgentUsageProductionLogReader.readCursor(cursor, into: store, now: now,
+                               since horizon: Date = .distantPast, shouldContinue: () -> Bool, report: (AgentUsageEvent) -> Void) -> Bool {
+            AgentUsageProductionLogReader.readCursor(cursor, into: store, now: now, since: horizon,
                                                     shouldContinue: shouldContinue, report: report)
         }
         static func readAppended(_ cursor: AgentLogCursor, since horizon: Date = .distantPast, shouldContinue: () -> Bool,
@@ -44,9 +44,9 @@ enum AgentUsageReadTests {
     enum AgentUsageArchive {
         static func load() -> AgentUsageReadProductionArchive.Contents? { nil }
         static func resume(_ contents: AgentUsageReadProductionArchive.Contents, logs: Set<String>, since horizon: Date,
-                           cursorRoot: URL? = nil)
-            -> (store: AgentUsageStore, cursors: [String: AgentLogCursor], unchanged: Bool) {
-            AgentUsageReadProductionArchive.resume(contents, logs: logs, since: horizon, cursorRoot: cursorRoot)
+                           cursorRoot: URL?, shouldContinue: () -> Bool) -> AgentUsageReadProductionArchive.Resumed? {
+            AgentUsageReadProductionArchive.resume(contents, logs: logs, since: horizon, cursorRoot: cursorRoot,
+                                                  shouldContinue: shouldContinue)
         }
     }
 
@@ -82,7 +82,6 @@ enum AgentUsageReadTests {
         var publications: [AgentUsageSnapshot] = []
         var events: [AgentUsageEvent] = []
         var savedMark: Int?
-        var progressMark: Int { 0 }
         func saveProgress() {}
         func startTimer() {}
         func loadPrices() {}
