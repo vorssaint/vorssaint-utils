@@ -56,7 +56,11 @@ enum ScreenTextCompletionTests {
     }
     enum QuickToolHUD {
         static var messages: [String] = []
-        static func show(icon: String, message: String) { messages.append(message) }
+        static var details: [String?] = []
+        static func show(icon: String, message: String, detail: String? = nil) {
+            messages.append(message)
+            details.append(detail)
+        }
     }
     final class QRResultController {
         static let shared = QRResultController()
@@ -81,6 +85,10 @@ enum ScreenTextCompletionTests {
             return outcomes[image] ?? .text("capture \(image)")
         }
         static func copyToPasteboard(_ value: String) { NSPasteboard.general.write(value) }
+        static var offers: [(copied: String, toggled: String, removedBreaks: Bool)] = []
+        static func offerLineBreakChoice(copied: String, toggled: String, removedBreaks: Bool) {
+            offers.append((copied, toggled, removedBreaks))
+        }
     }
 
     static func reset() {
@@ -92,11 +100,13 @@ enum ScreenTextCompletionTests {
         NSPasteboard.general.value = "original"
         NSPasteboard.general.changeCount = 0
         QuickToolHUD.messages = []
+        QuickToolHUD.details = []
         QRResultController.shared.readings = []
         State.outcomes = [:]
         State.requests = []
         State.scaledImages = [:]
         State.boundedImages = []
+        State.offers = []
     }
 
     static func finish() {
@@ -105,6 +115,7 @@ enum ScreenTextCompletionTests {
     }
 
     static func run(_ suite: TestSuite) {
+        confirmationText(suite)
         defer { reset() }
         reset()
         let normal = ScreenTextService()
@@ -114,6 +125,8 @@ enum ScreenTextCompletionTests {
         finish()
         suite.expect(NSPasteboard.general.value == "capture 42" && QuickToolHUD.messages == ["copied"],
                      "an unchanged clipboard receives the recognized text and success feedback")
+        suite.expect(QuickToolHUD.details == ["capture 42"],
+                     "the confirmation shows the text that was copied")
         suite.expect(State.requests.count == 1 && State.requests[0].image == 42
                      && !State.requests[0].qr && State.requests[0].joinLines
                      && State.requests[0].languages == ["en-US"],
@@ -203,13 +216,28 @@ enum ScreenTextCompletionTests {
             }
         }
 
+        for removeBreaks in [false, true] {
+            reset()
+            UserDefaults.values[DefaultsKey.screenOCRRemoveLineBreaks] = removeBreaks
+            State.outcomes[3] = .text("copied", toggled: "other")
+            let service = ScreenTextService()
+            service.copyText(from: 3)
+            finish()
+            suite.expect(NSPasteboard.general.value == "copied" && QuickToolHUD.messages.isEmpty
+                         && State.offers.count == 1 && State.offers[0].copied == "copied"
+                         && State.offers[0].toggled == "other" && State.offers[0].removedBreaks == removeBreaks,
+                         "text with another line-break choice is copied and the choice offered, "
+                         + "removeBreaks=\(removeBreaks)")
+        }
+
         reset()
         State.outcomes[1] = .empty
         let empty = ScreenTextService()
         empty.copyText(from: 1)
         finish()
-        suite.expect(NSPasteboard.general.value == "original" && QuickToolHUD.messages == ["empty"],
-                     "no text leaves the clipboard intact and reports the empty result")
+        suite.expect(NSPasteboard.general.value == "original" && QuickToolHUD.messages == ["empty"]
+                     && QuickToolHUD.details == [nil],
+                     "no text leaves the clipboard intact and reports the empty result without a preview")
 
         reset()
         State.outcomes[1] = .qr("https://example.com")
@@ -220,5 +248,45 @@ enum ScreenTextCompletionTests {
                      && QRResultController.shared.readings == ["https://example.com"]
                      && NSPasteboard.general.value == "original",
                      "unified OCR still honors QR detection and presents its result without copying")
+    }
+
+    /// The text the confirmation shows and the line-break choice it offers.
+    static func confirmationText(_ suite: TestSuite) {
+        let lines = [QuickToolsSupport.RecognizedLine(text: "First line", x: 0, y: 0.9),
+                     QuickToolsSupport.RecognizedLine(text: "second line", x: 0, y: 0.5)]
+        let kept = QuickToolsSupport.recognizedTextVariants(lines, removingLineBreaks: false)
+        let removed = QuickToolsSupport.recognizedTextVariants(lines, removingLineBreaks: true)
+        suite.expect(kept.text == "First line\nsecond line" && kept.toggled == "First line second line"
+                     && removed.text == "First line second line" && removed.toggled == "First line\nsecond line",
+                     "the copied text and its other line-break choice swap places")
+        let single = QuickToolsSupport.recognizedTextVariants([lines[0]], removingLineBreaks: false)
+        suite.expect(single.text == "First line" && single.toggled == nil,
+                     "one line has no line breaks to offer")
+
+        typealias Preview = QuickToolsSupport
+        suite.expect(Preview.copiedTextPreview("  one  \n\n two\n") == "one\ntwo",
+                     "the preview trims each line and skips empty ones")
+        suite.expect(Preview.copiedTextPreview("a\nb\nc\nd\ne") == "a\nb\nc…",
+                     "three lines show, and more after them end in an ellipsis")
+        let long = String(repeating: "word ", count: 80)
+        let wrapped = Preview.copiedTextPreview(long, rows: 3, rowLength: 60)
+        suite.expect(wrapped.map { $0.count <= 180 && $0.hasSuffix("…") && !$0.contains("\n") } == true,
+                     "a long line without breaks fills the rows and ends in an ellipsis")
+        let mixed = Preview.copiedTextPreview("short\n" + long, rows: 3, rowLength: 60)
+        suite.expect(mixed.map { $0.hasPrefix("short\n") && $0.count <= 6 + 120 && $0.hasSuffix("…") } == true,
+                     "a long line after a short one gets only the rows left")
+        suite.expect(Preview.copiedTextPreview(" \n\t \n") == nil && Preview.copiedTextPreview("") == nil,
+                     "whitespace alone has no preview")
+        suite.expect(Preview.copiedTextPreview("a\nb\nc") == "a\nb\nc",
+                     "text that fits shows whole, with no ellipsis")
+
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.screenText(language)
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            suite.expect(values.count == 3 && values.allSatisfy { !$0.isEmpty }
+                         && values.allSatisfy { !$0.contains("\u{2014}") && !$0.contains("\u{2013}") && !$0.contains("'") },
+                         "the line-break choice is translated without long dashes or straight apostrophes "
+                         + "(\(language.rawValue))")
+        }
     }
 }
