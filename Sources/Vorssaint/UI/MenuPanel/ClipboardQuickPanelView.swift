@@ -9,6 +9,7 @@ struct ClipboardQuickPanelView: View {
     @AppStorage(DefaultsKey.clipboardHistoryShowSourceAppIcons) private var showSourceAppIcons = false
     @AppStorage(DefaultsKey.clipboardShelfPrivacyMode) private var privacyMode = false
     @AppStorage(DefaultsKey.clipboardShelfSuggestions) private var suggestionsEnabled = true
+    @AppStorage(DefaultsKey.clipboardShelfLinkPreviews) private var linkPreviewsEnabled = false
     @FocusState private var searchFocused: Bool
     @FocusState private var filterChoiceFocus: FilterChoice?
 
@@ -24,6 +25,8 @@ struct ClipboardQuickPanelView: View {
     @State private var shelfScrollerStyle = NSScroller.preferredScrollerStyle
     @State private var boardEditor: PinboardEditor.Mode?
     @State private var deletingBoard: ClipboardPinboard?
+    @State private var visibleShelfLinks: [URL] = []
+    @State private var failedShelfLinks: Set<URL> = []
 
     private var text: ClipboardFeatureStrings {
         FeatureStrings.clipboard(l10n.language)
@@ -73,6 +76,12 @@ struct ClipboardQuickPanelView: View {
         .ignoresSafeArea(.container, edges: .top)
         .onReceive(NotificationCenter.default.publisher(for: NSScroller.preferredScrollerStyleDidChangeNotification)) { _ in
             shelfScrollerStyle = NSScroller.preferredScrollerStyle
+        }
+        .onChange(of: history.quickWindowPresentationID) { _, _ in
+            failedShelfLinks.removeAll()
+        }
+        .onChange(of: linkPreviewsEnabled) { _, _ in
+            failedShelfLinks.removeAll()
         }
         .onChange(of: privacyMode) { _, enabled in
             if enabled { history.closeShelfPreview() }
@@ -627,23 +636,52 @@ struct ClipboardQuickPanelView: View {
             let size = ClipboardShelfCardLayout.cardSize(in: geometry.size, entryCount: entries.count,
                                                          vertical: vertical, legacyScrollerWidth: shelfScrollerWidth)
             let inset = ClipboardShelfCardLayout.inset
-            let spacing = ClipboardShelfCardLayout.spacing
+            let viewport = CGRect(origin: .zero, size: geometry.size)
 
-            if vertical {
-                ScrollView {
-                    LazyVStack(spacing: spacing) { cardStart; cards(entries, size: size) }
-                        .padding(.horizontal, inset)
-                        .padding(.top, inset - spacing)
-                        .padding(.bottom, inset)
-                }
-            } else {
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: spacing) { cardStart; cards(entries, size: size) }
-                        .padding(.vertical, inset)
-                        .padding(.leading, inset - spacing)
-                        .padding(.trailing, inset)
+            ScrollView(vertical ? .vertical : .horizontal) {
+                cardStack(entries, size: size, viewport: viewport)
+                    .padding(vertical ? .horizontal : .vertical, inset)
+                    .padding(vertical ? .top : .leading, inset - ClipboardShelfCardLayout.spacing)
+                    .padding(vertical ? .bottom : .trailing, inset)
+            }
+            .coordinateSpace(name: Self.cardViewport)
+            .onPreferenceChange(VisibleShelfLinks.self) { visibleShelfLinks = $0 }
+            .background { shelfThumbnail }
+            .onDisappear { visibleShelfLinks = [] }
+        }
+    }
+
+    @ViewBuilder
+    private func cardStack(_ entries: [ClipboardHistoryEntry], size: CGSize, viewport: CGRect) -> some View {
+        let spacing = ClipboardShelfCardLayout.spacing
+        if vertical {
+            LazyVStack(spacing: spacing) { cardStart; cards(entries, size: size, viewport: viewport) }
+        } else {
+            LazyHStack(spacing: spacing) { cardStart; cards(entries, size: size, viewport: viewport) }
+        }
+    }
+
+    private var nextShelfThumbnail: URL? {
+        guard linkPreviewsEnabled, !privacyMode, history.canLoadShelfThumbnails else { return nil }
+        return visibleShelfLinks.first {
+            history.quickLinkSnapshots[$0] == nil && !failedShelfLinks.contains($0)
+        }
+    }
+
+    @ViewBuilder
+    private var shelfThumbnail: some View {
+        if let url = nextShelfThumbnail {
+            let presentation = history.quickWindowPresentationID
+            ClipboardShelfThumbnail(url: url) { snapshot in
+                guard history.quickWindowPresentationID == presentation, nextShelfThumbnail == url else { return }
+                if let snapshot, snapshot.image != nil {
+                    history.rememberLinkSnapshot(snapshot, for: url, keeping: visibleShelfLinks)
+                } else {
+                    failedShelfLinks.insert(url)
                 }
             }
+            .id(url)
+            .id(presentation)
         }
     }
 
@@ -655,6 +693,15 @@ struct ClipboardQuickPanelView: View {
     private static let eagerRowLimit = 300
     private static let listVerticalInset: CGFloat = 6
     private static let topAnchorID = "clipboard-list-top"
+    private static let cardViewport = "clipboard-card-viewport"
+
+    private struct VisibleShelfLinks: PreferenceKey {
+        static let defaultValue: [URL] = []
+
+        static func reduce(value: inout [URL], nextValue: () -> [URL]) {
+            value.append(contentsOf: nextValue())
+        }
+    }
 
     private var listStart: some View {
         Color.clear.frame(height: Self.listVerticalInset).id(Self.topAnchorID)
@@ -703,13 +750,25 @@ struct ClipboardQuickPanelView: View {
         }
     }
 
-    private func cards(_ entries: [ClipboardHistoryEntry], size: CGSize) -> some View {
+    private func cards(_ entries: [ClipboardHistoryEntry], size: CGSize, viewport: CGRect) -> some View {
         let firstRecentID = recentBoundary(in: entries)
         return ForEach(entries) { entry in
             entryView(entry, cardSize: size)
                 .overlay(alignment: vertical ? .top : .leading) {
                     if entry.id == firstRecentID { cardGroupDivider }
                 }
+                .background { visibleLink(for: entry, in: viewport) }
+        }
+    }
+
+    @ViewBuilder
+    private func visibleLink(for entry: ClipboardHistoryEntry, in viewport: CGRect) -> some View {
+        if linkPreviewsEnabled, let url = entry.shelfLink {
+            GeometryReader { card in
+                let frame = card.frame(in: .named(Self.cardViewport))
+                Color.clear.preference(key: VisibleShelfLinks.self,
+                                       value: frame.intersects(viewport) ? [url] : [])
+            }
         }
     }
 

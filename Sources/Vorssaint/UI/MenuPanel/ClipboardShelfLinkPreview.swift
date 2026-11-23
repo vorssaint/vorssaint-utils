@@ -117,6 +117,37 @@ struct ClipboardShelfLinkPreview: View {
     }
 }
 
+struct ClipboardShelfThumbnail: View {
+    let url: URL
+    let onFinish: (ClipboardShelfLinkSnapshot?) -> Void
+
+    @State private var started = false
+
+    var body: some View {
+        Color.clear
+            .overlay { renderer }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .task {
+                try? await Task.sleep(for: .milliseconds(180))
+                guard !Task.isCancelled else { return }
+                started = true
+
+                try? await Task.sleep(for: .seconds(15))
+                if !Task.isCancelled { onFinish(nil) }
+            }
+    }
+
+    @ViewBuilder
+    private var renderer: some View {
+        if started {
+            ClipboardShelfWebView(url: url) { onFinish($0) } onFailure: { onFinish(nil) }
+                .frame(width: 720, height: 450)
+                .opacity(0.001)
+        }
+    }
+}
+
 private struct ClipboardShelfWebView: NSViewRepresentable {
     let url: URL
     let onSnapshot: (ClipboardShelfLinkSnapshot) -> Void
@@ -142,6 +173,7 @@ private struct ClipboardShelfWebView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {}
 
     static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
+        coordinator.cancelled = true
         webView.navigationDelegate = nil
         webView.stopLoading()
     }
@@ -150,6 +182,7 @@ private struct ClipboardShelfWebView: NSViewRepresentable {
         let onSnapshot: (ClipboardShelfLinkSnapshot) -> Void
         let onFailure: () -> Void
         private var displaying = false
+        var cancelled = false
 
         init(onSnapshot: @escaping (ClipboardShelfLinkSnapshot) -> Void, onFailure: @escaping () -> Void) {
             self.onSnapshot = onSnapshot
@@ -184,9 +217,10 @@ private struct ClipboardShelfWebView: NSViewRepresentable {
             let config = WKSnapshotConfiguration()
             config.snapshotWidth = 420
             webView.takeSnapshot(with: config) { [weak self, weak webView] image, _ in
+                guard let self, !self.cancelled else { return }
                 let title = webView?.title?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let label = title.flatMap { $0.isEmpty ? nil : String($0.prefix(300)) } ?? url.host ?? ""
-                self?.onSnapshot(ClipboardShelfLinkSnapshot(url: url, title: label, image: image))
+                self.onSnapshot(ClipboardShelfLinkSnapshot(url: url, title: label, image: image))
             }
         }
 

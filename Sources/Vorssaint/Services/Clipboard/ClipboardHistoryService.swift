@@ -113,7 +113,9 @@ final class ClipboardHistoryService: ObservableObject {
     private var copyInFlight = false
     private static let pasteboardTimeout: TimeInterval = 5
     private var panel: NSPanel?
-    private var shelfPreviewPanel: ClipboardShelfPreviewPanel?
+    @Published private var shelfPreviewPanel: ClipboardShelfPreviewPanel?
+
+    var canLoadShelfThumbnails: Bool { quickShelfPresented && shelfPreviewPanel == nil }
     private let shelfPasteSession = OSAllocatedUnfairLock(initialState: UUID())
     private var panelResizeObserver: NSObjectProtocol?
     private var panelMoveObserver: NSObjectProtocol?
@@ -1546,9 +1548,10 @@ final class ClipboardHistoryService: ObservableObject {
         preview.makeKeyAndOrderFront(nil)
     }
 
-    private func rememberLinkSnapshot(_ snapshot: ClipboardShelfLinkSnapshot, for url: URL) {
+    func rememberLinkSnapshot(_ snapshot: ClipboardShelfLinkSnapshot, for url: URL, keeping visible: [URL] = []) {
         var snapshots = quickLinkSnapshots
-        if snapshots.count >= 8, snapshots[url] == nil, let previous = snapshots.keys.first {
+        if snapshots.count >= 24, snapshots[url] == nil,
+           let previous = snapshots.keys.first(where: { !visible.contains($0) }) ?? snapshots.keys.first {
             snapshots.removeValue(forKey: previous)
         }
         snapshots[url] = snapshot
