@@ -858,6 +858,17 @@ final class MicMuteService: ObservableObject {
         var listedIDs: Set<AudioDeviceID> = []
         var unresolvedIDs: Set<AudioDeviceID> = []
         var inactiveIDs: Set<AudioDeviceID> = []
+
+        func explainsDeviceListChange(from previous: Self) -> Bool {
+            let unresolved = unresolvedIDs.union(previous.unresolvedIDs)
+            // An unreadable object can disappear from the resolved inputs
+            // without disconnecting. Only a change on an identified object
+            // can account for the notification.
+            let changedIDs = listedIDs.symmetricDifference(previous.listedIDs)
+            if changedIDs.contains(where: { !unresolved.contains($0) }) { return true }
+            let changedInputs = Set(devices).symmetricDifference(previous.devices)
+            return changedInputs.contains { !unresolved.contains($0.id) }
+        }
     }
 
     private static func inputInventory() -> InputInventory? {
@@ -1308,10 +1319,9 @@ final class MicMuteService: ObservableObject {
     /// ID and UID do not prove that its old listeners or quiet readings survived.
     private func observeDeviceList(_ inventory: InputInventory?, change: UInt64) {
         guard previousInventory == nil || change != observedDeviceListChange,
-              let inventory, inventory.unresolvedIDs.isEmpty else { return }
+              let inventory else { return }
         if let previousInventory, change &- observedDeviceListChange > 1
-            || (inventory.listedIDs == previousInventory.listedIDs
-                && Set(inventory.devices) == Set(previousInventory.devices)) {
+            || !inventory.explainsDeviceListChange(from: previousInventory) {
             listenersToRenew.formUnion(deviceListeners.keys)
             quietInputs.removeAll()
         }

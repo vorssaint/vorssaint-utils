@@ -2221,6 +2221,59 @@ enum MixerInputVolumeContract {
                          "a fresh unmute on the returning headset restores the original saved level")
         }
 
+        let devicesChanged = HAL.key(AudioObjectID(kAudioObjectSystemObject), 0, kAudioHardwarePropertyDevices,
+                                     scope: kAudioObjectPropertyScopeGlobal)
+        let otherStreams = HAL.key(30, 0, kAudioDevicePropertyStreams)
+        for followCalls in [false, true] {
+            prepare(followCalls)
+            HAL.devices = [10, 20, 30]
+            // Exercise both a partial first inventory and an input that
+            // becomes unreadable only when the headset reconnects.
+            if !followCalls { HAL.sizeReadFails = [otherStreams] }
+            HAL.levels[secondInput] = 0.75
+            mute()
+            record()
+
+            HAL.dropListeners(forDevice: 10)
+            HAL.sizeReadFails = [otherStreams]
+            HAL.levels[microphone] = 0.8
+            HAL.writes = []
+            suite.expect(HAL.notifyIfRegistered(devicesChanged), "the HAL announces the headset reconnection")
+            DispatchQueue.drain()
+            suite.expect(MicMuteService.shared.isMuted && HAL.levels[microphone] == 0
+                            && HAL.levels[secondInput] == 0 && !HAL.writes.contains(secondInput)
+                            && QuickToolHUD.messages.isEmpty,
+                         "a same-ID reconnect keeps both inputs muted during partial discovery (follow calls: \(followCalls))")
+
+            HAL.levels[microphone] = 0.7
+            suite.expect(HAL.notifyIfRegistered(microphone), "the reconnected headset delivers its next gain change")
+            DispatchQueue.drain()
+            if followCalls {
+                suite.expect(!MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.5
+                                && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
+                             "a fresh unmute from the call restores both saved gains during partial discovery")
+            } else {
+                suite.expect(MicMuteService.shared.isMuted && HAL.levels[microphone] == 0
+                                && HAL.levels[secondInput] == 0 && QuickToolHUD.messages.isEmpty,
+                             "with call following off, the next gain change still leaves both inputs muted")
+            }
+        }
+
+        prepare()
+        HAL.devices = [10, 20, 30]
+        HAL.sizeReadFails = [otherStreams]
+        HAL.levels[secondInput] = 0.75
+        mute()
+        record()
+        HAL.devices.append(40)
+        HAL.levels[microphone] = 0.7
+        suite.expect(HAL.notifyIfRegistered(devicesChanged) && HAL.notifyIfRegistered(microphone),
+                     "the HAL delivers the new device and the call's gain change before the next sweep")
+        DispatchQueue.drain()
+        suite.expect(!MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.5
+                        && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
+                     "an identified device arrival during partial discovery still allows a call to unmute")
+
         prepare()
         HAL.mute[10] = 0
         mute()
