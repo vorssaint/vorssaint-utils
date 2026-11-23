@@ -180,7 +180,7 @@ struct NotchNotificationPreviewView: View {
             }
             HStack(spacing: 8) {
                 if let item, notifications.canOpen(item) {
-                    Button(text.open) { service.activateNotice(notice) }
+                    Button(text.open) { service.openNotice(notice) }
                         .buttonStyle(.bordered).controlSize(.small)
                         .disabled(notifications.openingID != nil)
                 }

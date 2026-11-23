@@ -1581,7 +1581,7 @@ def main():
           + "func refreshPresentation(animated: Bool) { syncScreenEdgeClicks() }\n"
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    var stripNotice:", "    private var noticeCanPresent:", "    var acceptsUserInteraction:",
-              "    var acceptsSystemFeedback:", "    func activateNotice(",
+              "    var acceptsSystemFeedback:", "    func activateNotice(", "    func openNotice(",
               "    private func applyMenuSpace(",
               "    private var screenEdgeClickArea:", "    private func syncScreenEdgeClicks(",
               "    private func handleScreenEdgeEvent(", "    private func handleScreenEdgeClick(",

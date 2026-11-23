@@ -102,7 +102,8 @@ final class LyricsLockScreenService {
 
     private func hide() {
         model.pickerOpen = false
-        panels.forEach { $0.orderOut(nil) }
+        // Closed, not only ordered out: each lock builds new panels, and an ordered-out one stays alive.
+        panels.forEach { $0.orderOut(nil); $0.close() }
         space?.close()
         panels = []
         space = nil

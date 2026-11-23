@@ -46,6 +46,7 @@ final class CaptureRegionGuide {
 
     func hide() {
         panel?.orderOut(nil)
+        panel?.close()
         panel = nil
     }
 

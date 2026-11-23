@@ -327,6 +327,7 @@ final class AgentAskService: ObservableObject {
 
     private func closePanel() {
         panel?.orderOut(nil)
+        panel?.close()
         space?.close()
         panel = nil
         space = nil

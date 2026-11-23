@@ -115,7 +115,7 @@ final class WindowSnapAssist {
 
     private func fadeOut(_ panel: NSPanel) {
         NSAnimationContext.runAnimationGroup({ $0.duration = 0.14; panel.animator().alphaValue = 0 },
-                                             completionHandler: { panel.orderOut(nil) })
+                                             completionHandler: { panel.orderOut(nil); panel.close() })
     }
 
     /// Captures shrunk to card size: a full window capture can run to tens of megabytes.

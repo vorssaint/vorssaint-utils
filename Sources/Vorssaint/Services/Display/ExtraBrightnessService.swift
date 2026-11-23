@@ -177,11 +177,12 @@ final class ExtraBrightnessService: ObservableObject {
         pollTimer?.invalidate()
         pollTimer = nil
         if !preservingObservers { removeObserver() }
-        overlayWindows.forEach { $0.orderOut(nil) }
+        overlayWindows.forEach { $0.orderOut(nil); $0.close() }
         overlayWindows = []
         overlayLayers = []
         overlayDisplayID = nil
         triggerWindow?.orderOut(nil)
+        triggerWindow?.close()
         triggerWindow = nil
         triggerLayer = nil
         overlaySpace?.close()

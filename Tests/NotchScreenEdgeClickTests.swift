@@ -299,7 +299,7 @@ enum NotchScreenEdgeClickTests {
         capsule.handleScreenEdgeClick(.leftMouseUp, at: end, isNotchWindow: false)
         suite.expect(capsule.openings == 1 && capsule.opened == .music,
                      "a capsule's notice takes the menu bar's clicks along its whole width")
-        // A banner opens what it announces rather than the island.
+        // A banner opens the island on its notifications, as a phone does; the app is one click further.
         let id = UUID()
         let banner = Service()
         banner.notice = NotchNotice(event: .systemNotification, title: "Mail", detail: "", symbol: "bell",
@@ -308,8 +308,9 @@ enum NotchScreenEdgeClickTests {
         let bannerTop = CGPoint(x: banner.geometry.screen.midX, y: banner.geometry.screen.maxY)
         banner.handleScreenEdgeClick(.leftMouseDown, at: bannerTop, isNotchWindow: false)
         banner.handleScreenEdgeClick(.leftMouseUp, at: bannerTop, isNotchWindow: false)
-        suite.expect(NotchNotificationService.shared.requested.last == id && banner.openings == 0,
-                     "a top-edge click on a banner opens its notification, not the island")
+        suite.expect(NotchNotificationService.shared.requested.last != id && banner.openings == 1
+                        && banner.opened == .notifications,
+                     "a top-edge click on a banner opens the island's notifications rather than the app")
         banner.removeScreenEdgeClickMonitors()
     }
 
@@ -348,22 +349,28 @@ enum NotchScreenEdgeClickTests {
             suite.expect(notifications.requested.isEmpty && service.openings == 0,
                          "a replacement cancels the old press even if the replacement also expires")
         }
-        // A fresh click on the replacement is valid. Its completion may come after another arrival.
+        // A fresh click on the replacement opens the island on the notifications, asking no app.
         service.notice = next
-        notifications.delaysResult = true
         service.syncScreenEdgeClicks()
         menuBarEvent(.leftMouseDown, at: top)
         menuBarEvent(.leftMouseUp, at: top)
-        suite.expect(notifications.requested == [nextID] && service.openings == 0,
-                     "a new press opens the replacement notification by its own id")
+        suite.expect(notifications.requested.isEmpty && service.openings == 1 && service.opened == .notifications,
+                     "a new press opens the island's notifications rather than the app")
+        // Opening the app is the message's own button, by its own id; its completion may come after another arrival.
+        service.expanded = false
+        service.opened = nil
+        notifications.delaysResult = true
+        service.notice = next
+        service.openNotice(next)
+        suite.expect(notifications.requested == [nextID], "the message's Open button opens its app by its own id")
         service.notice = first
         notifications.finish(.unavailable)
-        suite.expect(service.notice == first && service.openings == 0, "a late failure leaves the next banner visible")
-        menuBarEvent(.leftMouseDown, at: top)
-        menuBarEvent(.leftMouseUp, at: top)
+        suite.expect(service.notice == first, "a late failure leaves the next banner visible")
+        service.notice = next
+        service.openNotice(next)
         notifications.finish(.uncertain)
         suite.expect(service.opened == .notifications && service.notice == nil,
-                     "a failed action for the banner still on screen opens the inbox")
+                     "a failed open for the banner still on screen shows the notifications instead")
     }
 
     private static func runMenuClearance(_ suite: TestSuite) {

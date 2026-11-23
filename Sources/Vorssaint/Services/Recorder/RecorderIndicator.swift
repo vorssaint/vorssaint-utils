@@ -103,6 +103,7 @@ final class RecorderIndicator {
             panel.animator().alphaValue = 0
         }, completionHandler: {
             panel.orderOut(nil)
+            panel.close()
         })
     }
 

@@ -40,6 +40,7 @@ final class PermissionGuideOverlay {
         staleWork = nil
         grantWatcher = nil
         panel?.orderOut(nil)
+        panel?.close()
         panel = nil
 
         let language = L10n.shared.language

@@ -2504,6 +2504,20 @@ final class NotchService: ObservableObject {
         let shown = stripNotice
         guard shown?.clickTarget == selectedNotice.clickTarget
             || (fromEdgePress && shown == nil) else { return }
+        // A message opens the island on its notifications, as a phone does;
+        // the app itself is one more click away, from the message there.
+        if selectedNotice.notificationID != nil {
+            settleNotificationHover()
+            open(.notifications)
+            if notice?.clickTarget == selectedNotice.clickTarget { dismissNotice() }
+            return
+        }
+        openNotice(selectedNotice)
+    }
+
+    /// Opens what a notice is about: a mirrored message's own app, or the page for anything else.
+    func openNotice(_ selectedNotice: NotchNotice) {
+        guard acceptsSystemFeedback, NotchSupport.routes(selectedNotice.event) else { return }
         if let id = selectedNotice.notificationID {
             guard NotchNotificationService.shared.openingID == nil else { return }
             // The pointer stays where the banner was; like a click on the
