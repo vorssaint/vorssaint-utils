@@ -56,6 +56,8 @@ enum CursorTranscriptReadTests {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try history(suite, directory)
             try meteredReplies(suite, directory)
+            try editedWhileGrowing(suite, directory)
+            try cancelVerification(suite, directory)
             try sharedMeteredReplies(suite, directory)
             try rewrites(suite, directory)
             try cache(suite, directory)
@@ -164,6 +166,168 @@ enum CursorTranscriptReadTests {
         try FileManager.default.removeItem(at: log.file)
         read(18)
         suite.expect(log.store.records.isEmpty, "a removed Cursor transcript takes its response counters back")
+    }
+
+    private static func editedWhileGrowing(_ suite: TestSuite, _ directory: URL) throws {
+        let name = "growing"
+        let log = Log(directory, name)
+        let quiet = Log(directory, name)
+        func reply(_ id: String, _ count: Int) -> String {
+            #"{"role":"assistant","timestamp":"2026-11-18T12:00:00Z","message":{"id":"\#(id)","usage":{"output_tokens":\#(count)}}}"#
+        }
+        func archive() -> Data {
+            let contents = AgentUsageArchive.Contents(providers: [.cursor], store: log.store.saved, cursors: [log.cursor.saved])
+            return AgentUsageArchive.encode(contents, build: "growing-test")
+        }
+        let padding = #"{"ignored":""# + String(repeating: "x", count: 160 << 10) + #""}"#
+        try log.write([padding, reply("middle", 20), padding, finished], at: 1)
+        log.read(at: 2)
+        quiet.read(at: 2)
+        let identity = log.cursor.identity
+        let before = archive()
+        let middle = UInt64(padding.utf8.count + 1)
+        var checked: UInt64 = 0
+        for second in 3...7 {
+            try log.write(["{}"], at: TimeInterval(second), append: true)
+            log.read(at: TimeInterval(second))
+            quiet.read(at: TimeInterval(second))
+            let next = log.cursor.cursorPrefix.checkedBytes
+            suite.expect(!log.cursor.restarted && next > checked && next - checked <= 64 << 10,
+                         "a small Cursor append advances a bounded prefix check without replaying history")
+            checked = next
+        }
+        suite.expect(checked > middle + UInt64(reply("middle", 20).utf8.count) && checked < log.cursor.offset,
+                     "the fixture edits an already checked region while the first pass is still running")
+
+        verifyQuietCheckpoint(suite, log: quiet, data: archive())
+        do {
+            let handle = try FileHandle(forWritingTo: log.file)
+            defer { try? handle.close() }
+            try handle.seek(toOffset: middle)
+            try handle.write(contentsOf: Data(reply("middle", 18).utf8))
+        }
+        try log.write([reply("appended", 7)], at: 8, append: true)
+        log.read(at: 9)
+        let during = archive()
+        let cold = Log(directory, name)
+        cold.read(at: 10)
+        let expected = cold.store.saved.records
+        suite.expect(log.cursor.identity == identity && log.cursor.cursorPrefix.needsVerification &&
+                     log.store.records.count == 2 && log.store.records.last?.tokens.output == 7 &&
+                     expected.map { $0.record.tokens.output } == [18, 7],
+                     "a small append counts the new reply while the same inode's old prefix is still being checked")
+
+        func checkRestore(_ data: Data, _ label: String, verified: Bool = false) {
+            guard let contents = AgentUsageArchive.decode(data, build: "growing-test") else {
+                return suite.expect(false, "the Cursor archive decodes \(label)")
+            }
+            let resumed = AgentUsageArchive.resume(contents, logs: [log.file.path], since: .distantPast, cursorRoot: log.root)
+            let launch = Log(directory, name)
+            if let cursor = resumed.cursors[log.file.path] { launch.cursor = cursor }
+            if verified {
+                suite.expect(launch.cursor.offset == log.cursor.offset, "the corrected checkpoint retains its verified offset")
+            }
+            launch.store = resumed.store
+            launch.read(at: 90)
+            suite.expect(launch.store.saved.records == expected && launch.events.isEmpty,
+                         "archive resume matches a cold Cursor read \(label)")
+        }
+        checkRestore(before, "from before the edit")
+        checkRestore(during, "while the old prefix is still being checked")
+
+        quiet.read(at: 9)
+        quiet.read(at: 10)
+        quiet.read(at: 11)
+        suite.expect(quiet.store.saved.records == expected && quiet.events.isEmpty,
+                     "verification corrects the Cursor count even when the writer goes quiet after the append")
+        for second in 12...36 {
+            if log.cursor.restarted { break }
+            try log.write(["{}"], at: TimeInterval(second), append: true)
+            log.read(at: TimeInterval(second))
+        }
+        suite.expect(log.cursor.restarted && log.store.saved.records == expected && log.events.isEmpty,
+                     "continued small appends recheck earlier bytes and converge to the cold Cursor reading")
+        checkRestore(archive(), "after correcting the running total", verified: true)
+    }
+
+    private static func verifyQuietCheckpoint(_ suite: TestSuite, log: Log, data: Data) {
+        let path = log.file.path
+        guard var contents = AgentUsageArchive.decode(data, build: "growing-test") else {
+            return suite.expect(false, "the pending Cursor checkpoint decodes")
+        }
+        let resumed = AgentUsageArchive.resume(contents, logs: [path], since: .distantPast, cursorRoot: log.root)
+        guard let cursor = resumed.cursors[path] else {
+            return suite.expect(false, "a pending checkpoint with a valid prefix restores its cursor")
+        }
+        suite.expect(contents.cursors.first?.cursorSample == nil && !resumed.unchanged && cursor.offset == log.cursor.offset
+                     && resumed.store.saved == contents.store && cursor.saved.cursorSample != nil,
+                     "restoring a valid pending checksum preserves the reading and schedules its verified checkpoint")
+        contents.cursors = [cursor.saved]
+        let stable = AgentUsageArchive.resume(contents, logs: [path], since: .distantPast, cursorRoot: log.root)
+        suite.expect(stable.unchanged, "reopening that verified checkpoint requires no further save")
+
+        let host = AgentUsageReadTests.Host()
+        host.watchedRoots = [AgentLogRoot(provider: .cursor, url: log.root)]
+        host.cursors[path] = log.cursor
+        host.store = log.store
+        let pendingMark = host.progressMark
+        _ = host.pollOpenLogs(within: 0)
+        _ = host.pollOpenLogs(within: 0)
+        suite.expect(!log.cursor.cursorPrefix.needsVerification && log.cursor.saved == cursor.saved
+                     && host.progressMark != pendingMark && host.store.saved == contents.store,
+                     "quiet polls complete verification and mark it for saving without another append or record change")
+    }
+
+    private static func cancelVerification(_ suite: TestSuite, _ directory: URL) throws {
+        let log = Log(directory, "cancel-verification")
+        let other = Log(directory, "cancel-between-files")
+        let padding = #"{"ignored":""# + String(repeating: "x", count: 2 << 20) + #""}"#
+        let metered = #"{"role":"assistant","timestamp":"2026-11-18T12:00:00Z","message":{"id":"one","usage":{"output_tokens":20}}}"#
+        let lines = [prompt("open"), metered, padding]
+        try log.write(lines, at: 1)
+        log.read(at: 2)
+        try other.write(["{}"], at: 1)
+        other.read(at: 2)
+        let checkpoint = log.cursor.saved
+        let saved = AgentUsageArchive.Contents(providers: [.cursor], store: log.store.saved, cursors: [checkpoint])
+        func allow(_ checks: Int) -> () -> Bool {
+            var remaining = checks
+            return {
+                remaining -= 1
+                return remaining >= 0
+            }
+        }
+        var both = saved
+        both.cursors.append(other.cursor.saved)
+        let partial = AgentUsageArchive.resume(both, logs: [log.file.path, other.file.path], since: .distantPast,
+                                               cursorRoot: log.root, shouldContinue: allow(1))
+        suite.expect(partial == nil, "stopping between two unchanged logs does not return a partial cache")
+
+        try log.write(["{}"], at: 3, append: true)
+        // The file check and two 1 MiB blocks succeed before cancellation.
+        let cancelled = AgentUsageArchive.resume(saved, logs: [log.file.path], since: .distantPast,
+                                                 cursorRoot: log.root, shouldContinue: allow(3))
+        suite.expect(cancelled == nil, "restoring a single grown transcript can stop between checksum blocks")
+        let resumed = AgentUsageArchive.resume(saved, logs: [log.file.path], since: .distantPast, cursorRoot: log.root)
+        guard let cursor = resumed.cursors[log.file.path] else {
+            return suite.expect(false, "the interrupted cache can be verified on retry")
+        }
+        log.cursor = cursor
+        log.store = resumed.store
+        log.store.reportsTransitions = true
+        suite.expect(cursor.saved == checkpoint && log.store.saved == saved.store && log.store.records.first?.tokens.output == 20,
+                     "retrying verification restores the original open turn, counted reply and offset")
+
+        try log.write(lines + ["{}", finished], at: 12)
+        let changed = AgentLogReader.readCursor(cursor, into: log.store, now: start.addingTimeInterval(13),
+                                                shouldContinue: allow(3)) { log.events.append($0) }
+        suite.expect(!changed && cursor.saved == checkpoint && log.store.saved == saved.store && log.events.isEmpty,
+                     "stopping during the restored prompt's prefix check preserves its checkpoint and usage")
+        log.read(at: 14)
+        log.read(at: 15)
+        suite.expect(!cursor.state.turnOpen && log.store.saved.records == saved.store.records &&
+                     log.events == [.finished(provider: .cursor, duration: 11, cost: 0, tokens: 0, project: "workspace")],
+                     "retrying the preserved prompt counts its reply once and reports its finish from the observed start")
     }
 
     private static func archiveRoot(_ suite: TestSuite, _ temp: URL) throws {
@@ -332,7 +496,31 @@ enum CursorTranscriptReadTests {
         suite.expect(store.forgetUsage(files: [large.file.path]) && store.records.first?.tokens.total == 30,
                      "removing the larger reading publishes the latest remaining copy instead of its former maximum")
         let paths: Set<String> = [large.file.path, small.file.path]
-        let restored = AgentUsageArchive.resume(saved, logs: paths, since: .distantPast, cursorRoot: small.root)
+        let stopped = AgentUsageArchive.resume(saved, logs: paths, since: .distantPast, cursorRoot: small.root)
+        guard let first = stopped.cursors[small.file.path] else {
+            return suite.expect(false, "the smaller shared copy is ready for replay before cancellation")
+        }
+        typealias RecordingArchive = AgentUsageArchiveSaveTests.AgentUsageArchive
+        let prior = RecordingArchive.saved
+        defer { RecordingArchive.saved = prior }
+        RecordingArchive.saved = [saved]
+        let host = AgentUsageArchiveSaveTests.Host()
+        host.enabled = [.cursor]
+        host.store = stopped.store
+        host.cursors = stopped.cursors
+        let now = start.addingTimeInterval(7)
+        _ = AgentLogReader.readCursor(first, into: host.store, now: now, shouldContinue: { false }) { _ in }
+        host.saveProgress()
+        suite.expect(host.store.records.isEmpty && RecordingArchive.saved == [saved],
+                     "stopping before shared Cursor replay keeps the last complete checkpoint")
+        _ = AgentLogReader.readCursor(first, into: host.store, now: now) { _ in }
+        host.saveProgress()
+        suite.expect(host.store.records.first?.tokens.total == 30 && RecordingArchive.saved == [saved],
+                     "stopping between shared copies preserves the checkpoint with the fuller reply")
+        guard let checkpoint = RecordingArchive.saved.last else {
+            return suite.expect(false, "a shared Cursor checkpoint survives shutdown")
+        }
+        let restored = AgentUsageArchive.resume(checkpoint, logs: paths, since: .distantPast, cursorRoot: small.root)
         guard let a = restored.cursors[large.file.path], let b = restored.cursors[small.file.path] else {
             return suite.expect(false, "both verified Cursor copies retain their progress for replay")
         }
@@ -349,7 +537,7 @@ enum CursorTranscriptReadTests {
         suite.expect(restored.store.records.count == 1 && restored.store.records.first?.tokens.total == 30
                      && restored.store.records.first?.project == "copy",
                      "deleting a shared Cursor source after restore uses the remaining copy's counters and project")
-        let one = AgentUsageArchive.resume(saved, logs: [small.file.path], since: .distantPast, cursorRoot: small.root)
+        let one = AgentUsageArchive.resume(checkpoint, logs: [small.file.path], since: .distantPast, cursorRoot: small.root)
         guard let remaining = one.cursors[small.file.path] else {
             return suite.expect(false, "the surviving Cursor transcript keeps its verified turn")
         }

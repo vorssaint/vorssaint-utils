@@ -44,9 +44,9 @@ enum AgentUsageReadTests {
     enum AgentUsageArchive {
         static func load() -> AgentUsageReadProductionArchive.Contents? { nil }
         static func resume(_ contents: AgentUsageReadProductionArchive.Contents, logs: Set<String>, since horizon: Date,
-                           cursorRoot: URL? = nil)
-            -> (store: AgentUsageStore, cursors: [String: AgentLogCursor], unchanged: Bool) {
-            AgentUsageReadProductionArchive.resume(contents, logs: logs, since: horizon, cursorRoot: cursorRoot)
+                           cursorRoot: URL?, shouldContinue: () -> Bool) -> AgentUsageReadProductionArchive.Resumed? {
+            AgentUsageReadProductionArchive.resume(contents, logs: logs, since: horizon, cursorRoot: cursorRoot,
+                                                  shouldContinue: shouldContinue)
         }
     }
 
@@ -82,7 +82,6 @@ enum AgentUsageReadTests {
         var publications: [AgentUsageSnapshot] = []
         var events: [AgentUsageEvent] = []
         var savedMark: Int?
-        var progressMark: Int { 0 }
         func saveProgress() {}
         func startTimer() {}
         func loadPrices() {}

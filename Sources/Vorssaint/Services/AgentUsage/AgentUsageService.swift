@@ -303,7 +303,12 @@ final class AgentUsageService: ObservableObject {
             let files = AgentLogReader.discover(roots, since: horizon)
             // Resumes where the last launch stopped, among the logs there now.
             if let saved = AgentUsageArchive.load(), saved.providers == providers {
-                let resumed = AgentUsageArchive.resume(saved, logs: Set(files.map(\.path)), since: horizon, cursorRoot: cursorRoot)
+                guard let resumed = AgentUsageArchive.resume(saved, logs: Set(files.map(\.path)), since: horizon, cursorRoot: cursorRoot,
+                                                            shouldContinue: { !cancellation.isCancelled }) else {
+                    // Stopping here keeps the last complete checkpoint on disk.
+                    readerSession = -1
+                    return
+                }
                 (store, cursors) = (resumed.store, resumed.cursors)
                 // What the resume took back leaves the disk at the next save.
                 if resumed.unchanged { savedMark = progressMark }
@@ -350,13 +355,15 @@ final class AgentUsageService: ObservableObject {
     /// Saves what was read, when reading moved on since the last save. Runs
     /// on `queue`.
     private func saveProgress() {
-        guard readerSession >= 0 else { return }
+        // Restored copies have no individual readings until replay. A stop
+        // between them must keep the archive that still contains their total.
+        guard readerSession >= 0, !cursors.values.contains(where: \.needsUsageReplay) else { return }
         let mark = progressMark
         lastSave = Date()
         guard mark != savedMark else { return }
         // A log that started over while running still counts what its old
         // contents gave. Left out, the next launch reads it as rewritten.
-        // Cursor has no usage records to undo when its transcript is rewritten.
+        // Cursor retracts the old readings when it replays a transcript.
         // Nothing from OpenCode's database is saved. Its open replies and
         // sessions live only in memory, so each launch reads it again.
         let kept = cursors.values.filter { $0.provider == .cursor || (!$0.restarted && $0.provider != .opencode) }
@@ -374,7 +381,11 @@ final class AgentUsageService: ObservableObject {
             hasher.combine(cursor.path)
             hasher.combine(cursor.offset)
             hasher.combine(cursor.identity)
-            if cursor.provider == .cursor { hasher.combine(cursor.modified) }
+            if cursor.provider == .cursor {
+                hasher.combine(cursor.modified)
+                hasher.combine(cursor.cursorPrefix.boundaryChecksum)
+                hasher.combine(cursor.cursorPrefix.needsVerification)
+            }
             return mark &+ hasher.finalize()
         }
     }
@@ -414,7 +425,7 @@ final class AgentUsageService: ObservableObject {
     private func syncPolling(now: Date = Date()) {
         guard let poller else { return }
         let wanted = !store.turns.isEmpty || !store.waiting.isEmpty
-            || cursors.values.contains { now.timeIntervalSince($0.modified) < Self.pollWindow }
+            || cursors.values.contains { $0.cursorPrefix.needsVerification || now.timeIntervalSince($0.modified) < Self.pollWindow }
         guard wanted != polling else { return }
         polling = wanted
         if wanted {
@@ -444,6 +455,10 @@ final class AgentUsageService: ObservableObject {
                 cursors[path] = nil
                 store.forget(files: [path])
                 changed = true
+                continue
+            }
+            if cursor.cursorPrefix.needsVerification {
+                if read(path, provider: cursor.provider) { changed = true }
                 continue
             }
             guard working.contains(path) || now.timeIntervalSince(cursor.modified) < window else { continue }
