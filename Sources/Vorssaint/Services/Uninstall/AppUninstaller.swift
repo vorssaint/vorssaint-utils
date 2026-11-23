@@ -943,7 +943,6 @@ final class AppUninstaller: ObservableObject {
         for case let url as URL in enumerator {
             let values = try? url.resourceValues(forKeys: keys)
             if values?.isSymbolicLink == true {
-                enumerator.skipDescendants()
                 continue
             }
             guard values?.isDirectory == true,
@@ -1075,7 +1074,6 @@ final class AppUninstaller: ObservableObject {
         for case let url as URL in enumerator {
             let values = try? url.resourceValues(forKeys: keys)
             if values?.isSymbolicLink == true {
-                enumerator.skipDescendants()
                 continue
             }
             guard values?.isDirectory == true,
@@ -1171,7 +1169,7 @@ final class AppUninstaller: ObservableObject {
         return out
     }
 
-    private static func directorySize(of url: URL, fm: FileManager) -> Int64 {
+    static func directorySize(of url: URL, fm: FileManager) -> Int64 {
         if UninstallerSupport.isSymbolicLink(url) { return fileSize(url) }
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: url.path, isDirectory: &isDir) else { return 0 }
@@ -1183,7 +1181,6 @@ final class AppUninstaller: ObservableObject {
                                           options: [], errorHandler: nil) {
             for case let item as URL in enumerator {
                 if UninstallerSupport.isSymbolicLink(item) {
-                    enumerator.skipDescendants()
                     continue
                 }
                 total += fileSize(item)

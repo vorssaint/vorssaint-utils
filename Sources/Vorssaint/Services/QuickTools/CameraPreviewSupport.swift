@@ -3,6 +3,18 @@
 
 import Foundation
 
+enum CameraPreviewLayout {
+    static let cornerRadius: CGFloat = 14
+    static let borderWidth: CGFloat = 1
+
+    /// Keep the corners of the rectangular video inside the rounded inner border.
+    static func videoSize(in surface: CGSize) -> CGSize {
+        let inset = cornerRadius / 2 + borderWidth
+        return CGSize(width: max(0, surface.width - 2 * inset),
+                      height: max(0, surface.height - 2 * inset))
+    }
+}
+
 /// Queued capture configuration can be cancelled before it touches a device.
 /// The serial capture queue still owns every actual session mutation.
 final class CameraPreviewRequest: @unchecked Sendable {

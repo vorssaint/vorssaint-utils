@@ -142,7 +142,7 @@ struct ShelfTilesView: NSViewRepresentable {
                           pinnedIDs: pinnedIDs, revealID: revealID, revealSerial: revealSerial, coordinator: context.coordinator)
     }
 
-    /// Lays out every tile from scratch. Shared with `ShelfTileView`, which
+    /// Updates the tile layout. Shared with `ShelfTileView`, which
     /// calls this directly (bypassing SwiftUI) right after a successful
     /// merge onto a tile, whether the drag came from outside the app or from
     /// another tile: SwiftUI's own `updateNSView` observably lags behind the
@@ -150,11 +150,10 @@ struct ShelfTilesView: NSViewRepresentable {
     /// merged tile otherwise stays visually stale until some later,
     /// unrelated event forces a redraw.
     ///
-    /// Skips the teardown/rebuild entirely when nothing has actually
+    /// Skips the layout pass entirely when nothing has actually
     /// changed since the last call for this view: SwiftUI calls updateNSView
     /// on every re-render of the enclosing view, not only when this view's
-    /// own inputs change, so without this guard every unrelated re-render
-    /// destroys and recreates every tile.
+    /// own inputs change.
     static func rebuildTiles(scroll: NSScrollView,
                              items: [ShelfService.Item],
                              selection: Set<UUID>,
@@ -209,22 +208,38 @@ struct ShelfTilesView: NSViewRepresentable {
             }
             return
         }
+        // Changing the selection retires the old gesture even if it still resolves
+        // to the same files (for example, when dragging an unselected tile).
+        let sameSelection = (coordinator?.lastRebuiltSelection ?? selection) == selection
         coordinator?.lastRebuiltItems = items
         coordinator?.lastRebuiltSelection = selection
         coordinator?.lastRebuiltExpandedBatches = expandedBatches
         coordinator?.lastRebuiltPinnedIDs = pinnedIDs
         coordinator?.lastRebuiltContentSize = scroll.contentSize
 
-        document.subviews.forEach { $0.removeFromSuperview() }
-
+        // AppKit sends the rest of a mouse gesture to the original view.
+        // Keep it attached through thumbnail updates, including a pile's new face.
+        let existing = document.subviews
         for (index, item) in items.enumerated() {
-            let view = ShelfTileView(item: item,
-                                     isSelected: selection.contains(item.id),
-                                     isExpanded: expandedBatches.contains(item.id),
-                                     isPinned: pinnedIDs.contains(item.id))
+            let selected = selection.contains(item.id)
+            let expanded = expandedBatches.contains(item.id)
+            let pinned = pinnedIDs.contains(item.id)
+            let old = index < existing.count ? existing[index] : nil
+            let view: ShelfTileView
+            if sameSelection, let tile = old as? ShelfTileView,
+               tile.updateContent(item, isSelected: selected, isExpanded: expanded, isPinned: pinned) {
+                view = tile
+            } else {
+                view = ShelfTileView(item: item, isSelected: selected, isExpanded: expanded, isPinned: pinned)
+                if let old {
+                    document.replaceSubview(old, with: view)
+                } else {
+                    document.addSubview(view)
+                }
+            }
             view.frame = frame(index)
-            document.addSubview(view)
         }
+        existing.dropFirst(items.count).forEach { $0.removeFromSuperview() }
         if sideways {
             let size = ShelfTileLayout.sidewaysDocumentSize(itemCount: items.count, rows: rows,
                                                              visibleSize: scroll.contentSize, tileSize: tile,
@@ -318,15 +333,19 @@ struct ShelfTilesView: NSViewRepresentable {
 /// selection (or just this tile if it isn't selected); a successful drop
 /// removes the dragged tiles from the shelf.
 final class ShelfTileView: NSView, NSDraggingSource {
-    private let item: ShelfService.Item
+    private var item: ShelfService.Item
     private let isSelected: Bool
     private let isExpanded: Bool
     private let isPinned: Bool
     private var mouseDownPoint: NSPoint = .zero
+    private var pendingDragEvent: NSEvent?
+    private var pendingDragID: UUID?
+    private var dragPreparation: DispatchWorkItem?
     private var didDrag = false
     private var draggedIDs: [UUID] = []
     private var isDropTargeted = false
     private var pendingRebuildAfterDrag = false
+    private let iconView = NSImageView()
     private var closeButton: NSButton!
     private var pinBadge: NSImageView?
     private var expandButton: NSButton?
@@ -348,6 +367,26 @@ final class ShelfTileView: NSView, NSDraggingSource {
     required init?(coder: NSCoder) { fatalError() }
 
     override var isFlipped: Bool { true }
+
+    fileprivate func updateContent(_ item: ShelfService.Item, isSelected: Bool,
+                                   isExpanded: Bool, isPinned: Bool) -> Bool {
+        // A pending tooltip was composed for the old item. Retiring its
+        // owner on a logical change also covers changes inside a pile.
+        guard self.isSelected == isSelected, self.isExpanded == isExpanded, self.isPinned == isPinned,
+              self.item.hasSameContent(as: item, ignoringThumbnails: true) else { return false }
+        let iconChanged = self.item.icon !== item.icon || self.item.hasContentThumbnail != item.hasContentThumbnail
+        self.item = item
+        if iconChanged { updateIcon() }
+        return true
+    }
+
+    private func updateIcon() {
+        guard let well = iconView.superview else { return }
+        // The fallback icon keeps its generic inset until a decoded frame arrives.
+        let hasThumbnail = item.hasContentThumbnail
+        iconView.frame = well.bounds.insetBy(dx: hasThumbnail ? 4 : 13, dy: hasThumbnail ? 4 : 8)
+        iconView.image = item.icon
+    }
 
     private func syncChrome() {
         layer?.backgroundColor = isSelected
@@ -377,16 +416,10 @@ final class ShelfTileView: NSView, NSDraggingSource {
         iconWell.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.06).cgColor
         addSubview(iconWell)
 
-        // Not `isImage`: an image whose thumbnail has not been decoded yet
-        // (or could not be) is still wearing the generic fallback icon, and
-        // that wants the generic inset until the real frame arrives.
-        let hasThumbnail = item.hasContentThumbnail
-        let imageView = NSImageView(frame: iconWell.bounds.insetBy(dx: hasThumbnail ? 4 : 13,
-                                                                   dy: hasThumbnail ? 4 : 8))
-        imageView.image = item.icon
-        imageView.imageScaling = .scaleProportionallyUpOrDown
-        imageView.autoresizingMask = [.width, .height]
-        iconWell.addSubview(imageView)
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        iconView.autoresizingMask = [.width, .height]
+        iconWell.addSubview(iconView)
+        updateIcon()
 
         if item.isBatch {
             let badge = NSTextField(labelWithString: "\(item.leafCount)")
@@ -606,11 +639,13 @@ final class ShelfTileView: NSView, NSDraggingSource {
         ShelfService.shared.noteInteraction()
         window?.makeKey()
         ShelfTooltipPopover.shared.hide()
+        cancelDragPreparation()
         mouseDownPoint = event.locationInWindow
         didDrag = false
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if pendingDragID != nil { pendingDragEvent = event }
         guard !didDrag else { return }
         let point = event.locationInWindow
         if hypot(point.x - mouseDownPoint.x, point.y - mouseDownPoint.y) > 4 {
@@ -620,6 +655,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
     }
 
     override func mouseUp(with event: NSEvent) {
+        cancelDragPreparation()
         guard !didDrag else { return }
         if item.isBatch, event.clickCount >= 2 {
             ShelfService.shared.toggleBatchExpansion(item.id)
@@ -684,31 +720,47 @@ final class ShelfTileView: NSView, NSDraggingSource {
             }
     }
 
+    private func cancelDragPreparation() {
+        dragPreparation?.cancel()
+        dragPreparation = nil
+        pendingDragID = nil
+        pendingDragEvent = nil
+    }
+
     private func beginItemDrag(with event: NSEvent) {
         let shelf = ShelfService.shared
-        let candidates = shelf.selection.contains(item.id) ? shelf.selectedItems() : [item]
-        let dragged = shelf.dragItems(for: candidates)
+        guard let source = window else { return }
+        let dragged = shelf.dragItemsForTile(item.id)
         guard !dragged.isEmpty else { return }
-        // A payload whose file vanished since it was shelved can never be
-        // dropped: every destination refuses the dead URL and the whole
-        // drag reads as broken. Only living payloads join the session; an
-        // all-dead grab explains itself instead of offering a ghost drag.
-        let living = shelf.livingDragItems(in: dragged)
-        guard !living.isEmpty else {
-            shelf.handleDeadDrag(dragged)
-            return
-        }
-        draggedIDs = living.map(\.id)
+        let selection = shelf.selection
+        let id = UUID()
+        pendingDragID = id
+        pendingDragEvent = event
+        dragPreparation = shelf.prepareDrag(dragged) { [weak self, weak source] prepared in
+            guard let self, self.pendingDragID == id, let event = self.pendingDragEvent else { return }
+            self.pendingDragID = nil
+            self.pendingDragEvent = nil
+            self.dragPreparation = nil
+            guard let source, self.window === source, source.isVisible, !self.isHiddenOrHasHiddenAncestor,
+                  NSEvent.pressedMouseButtons & 1 != 0, shelf.selection == selection else { return }
+            let leaves = shelf.dragItemsForTile(self.item.id)
+            guard leaves.count == dragged.count,
+                  zip(leaves, dragged).allSatisfy({ $0.id == $1.id && $0.payload == $1.payload })
+            else { return }
 
-        let draggingItems: [NSDraggingItem] = living.map { entry in
-            let draggingItem = NSDraggingItem(pasteboardWriter: shelf.pasteboardWriter(for: entry))
-            // Overlapping frames make AppKit stack them with a count badge.
-            draggingItem.setDraggingFrame(bounds, contents: entry.icon)
-            return draggingItem
+            shelf.finishPreparingDrag(prepared)
+            guard !prepared.living.isEmpty else { return }
+            self.draggedIDs = prepared.living.map(\.id)
+            let draggingItems = prepared.living.map { entry in
+                let draggingItem = NSDraggingItem(pasteboardWriter: shelf.pasteboardWriter(for: entry))
+                draggingItem.setDraggingFrame(self.bounds, contents: entry.icon)
+                return draggingItem
+            }
+            shelf.beginInternalDrag(items: prepared.living, from: source,
+                                    containsPackageContent: prepared.containsPackageContent)
+            shelf.beginInteraction()
+            self.beginDraggingSession(with: draggingItems, event: event, source: self)
         }
-        shelf.beginInternalDrag(items: living, from: window)
-        shelf.beginInteraction()
-        beginDraggingSession(with: draggingItems, event: event, source: self)
     }
 
     // MARK: NSDraggingSource

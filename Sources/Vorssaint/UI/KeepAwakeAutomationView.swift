@@ -8,6 +8,7 @@ struct KeepAwakeAutomationEditor: View {
     @ObservedObject private var awake = KeepAwakeManager.shared
     @AppStorage(DefaultsKey.keepAwakeExternalDisplay) private var externalDisplay = false
     @AppStorage(DefaultsKey.keepAwakeConnectedToPower) private var connectedToPower = false
+    @AppStorage(DefaultsKey.keepAwakePowerDisconnectDelay) private var powerDisconnectDelay = 0
     @AppStorage(DefaultsKey.keepAwakeRunningApps) private var runningApps = false
     @AppStorage(DefaultsKey.keepAwakeAutomationRequireAll) private var requireAll = false
 
@@ -56,6 +57,25 @@ struct KeepAwakeAutomationEditor: View {
                     awake.automationPreferencesDidChange()
                 }
             }
+            if connectedToPower {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(strings.powerDisconnectDelay)
+                        .font(.system(size: compact ? 10 : 12, weight: .medium))
+                    Spacer()
+                    Picker(strings.powerDisconnectDelay, selection: powerDisconnectDelaySelection) {
+                        ForEach(Defaults.allowedKeepAwakePowerDisconnectDelays, id: \.self) { seconds in
+                            Text(Duration.seconds(seconds).formatted(.units(
+                                allowed: [.seconds], width: .abbreviated
+                            ).locale(Locale(identifier: l10n.language.rawValue))))
+                                .tag(seconds)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .controlSize(compact ? .small : .regular)
+                    .fixedSize()
+                }
+            }
             if runningApps {
                 AppBundleList(title: strings.runningAppsListTitle,
                               caption: strings.runningAppsListCaption,
@@ -75,6 +95,13 @@ struct KeepAwakeAutomationEditor: View {
 
     private var strings: KeepAwakeAutomationStrings {
         FeatureStrings.keepAwakeAutomation(l10n.language)
+    }
+
+    private var powerDisconnectDelaySelection: Binding<Int> {
+        Binding(
+            get: { Defaults.sanitizedKeepAwakePowerDisconnectDelay(powerDisconnectDelay) },
+            set: { powerDisconnectDelay = $0 }
+        )
     }
 
     private func saveRunningApps(_ bundleIDs: [String]) {

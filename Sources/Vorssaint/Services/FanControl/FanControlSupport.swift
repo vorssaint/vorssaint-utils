@@ -35,6 +35,11 @@ struct FanControlTemperatureReading: Codable, Equatable, Sendable {
     let celsius: Double
 }
 
+struct FanControlTemperatureSample {
+    let readings: [FanControlTemperatureReading]
+    let gpuPoweredDown: Bool
+}
+
 struct FanControlCurvePoint: Codable, Equatable, Sendable {
     var temperature: Int
     var coolingLevel: Int
@@ -96,12 +101,19 @@ struct FanControlSnapshot: Codable, Equatable, Sendable {
     var coolingLevel: Int?
     var configuration: FanControlConfiguration?
     var temperatures: [FanControlTemperatureReading]?
+    var gpuPoweredDown: Bool?
 
     static let empty = FanControlSnapshot(fans: [], isCooling: false,
                                           endsAt: nil, stopReason: nil,
                                           coolingLevel: nil,
                                           configuration: nil,
                                           temperatures: nil)
+
+    var availableTemperatureSources: Set<FanControlTemperatureSource> {
+        var sources = Set((temperatures ?? []).map(\.source))
+        if gpuPoweredDown == true { sources.insert(.hottestGPU) }
+        return sources
+    }
 }
 
 enum FanControlStopReason: String, Codable, Equatable, Sendable {
@@ -278,26 +290,34 @@ enum FanControlPolicy {
 
     static func curveCoolingLevel(curves: [FanControlCurve],
                                   temperatures: [FanControlTemperatureReading],
+                                  gpuPoweredDown: Bool = false,
                                   previousLevel: Int? = nil) -> Int? {
         guard let requested = evaluatedCurveCoolingLevel(curves: curves,
-                                                         temperatures: temperatures) else { return nil }
+                                                         temperatures: temperatures,
+                                                         gpuPoweredDown: gpuPoweredDown) else { return nil }
         guard let previousLevel, requested < previousLevel else { return requested }
         let warmerReadings = temperatures.map {
             FanControlTemperatureReading(source: $0.source,
                                          celsius: $0.celsius + curveHysteresis)
         }
         guard let held = evaluatedCurveCoolingLevel(curves: curves,
-                                                    temperatures: warmerReadings) else { return nil }
+                                                    temperatures: warmerReadings,
+                                                    gpuPoweredDown: gpuPoweredDown) else { return nil }
         return min(previousLevel, max(requested, held))
     }
 
     private static func evaluatedCurveCoolingLevel(curves: [FanControlCurve],
-                                                   temperatures: [FanControlTemperatureReading]) -> Int? {
+                                                   temperatures: [FanControlTemperatureReading],
+                                                   gpuPoweredDown: Bool) -> Int? {
         guard validCurves(curves) else { return nil }
         let values = Dictionary(temperatures.map { ($0.source, $0.celsius) },
                                 uniquingKeysWith: { _, newest in newest })
         var levels: [Int] = []
         for curve in curves {
+            if curve.sensor == .hottestGPU, gpuPoweredDown, values[.hottestGPU] == nil {
+                levels.append(curve.points[0].coolingLevel)
+                continue
+            }
             guard let temperature = values[curve.sensor], validTemperature(temperature) else {
                 return nil
             }
@@ -331,6 +351,21 @@ enum FanControlPolicy {
 
     static func validTemperature(_ value: Double) -> Bool {
         value.isFinite && value >= 1 && value < 125
+    }
+
+    /// On MacBookPro18,3 these four keys reported 0.0 and 9.2 °C (to one
+    /// decimal place) during GPU sleep. Other M1 layouts can return zeros
+    /// when no working GPU sensor is available.
+    static func gpuIsPoweredDown(modelIdentifier: String?,
+                                 readings: [(key: String, value: Double?)]) -> Bool {
+        guard modelIdentifier == "MacBookPro18,3", readings.count == 4 else { return false }
+        let answers = readings.compactMap { reading in
+            reading.value.map { (reading.key, $0) }
+        }
+        let values = Dictionary(answers, uniquingKeysWith: { _, latest in latest })
+        guard values["Tg04"] == 0, values["Tg0C"] == 0,
+              let tg05 = values["Tg05"], let tg0D = values["Tg0D"] else { return false }
+        return (tg05 * 10).rounded() == 92 && (tg0D * 10).rounded() == 92
     }
 
     static func aggregatedTemperatures(

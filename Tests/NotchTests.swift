@@ -2762,16 +2762,26 @@ enum NotchTests {
                                                      flow: .rows(columns: columns), direction: .down) == columns,
                    "gallery Down follows the next visible row rather than the old sideways rail")
         }
-        for size in [CGSize(width: 304, height: 534), CGSize(width: 424, height: 180),
-                     CGSize(width: 504, height: 264), CGSize(width: 304, height: 144),
-                     CGSize(width: 424, height: 300)] {
-            let preview = NotchLayout.cameraPreviewSize(in: size)
-            let ratio = preview.width / preview.height
-            suite.expect(preview.width <= size.width && preview.height <= size.height
-                   && (preview.width == size.width || preview.height == size.height)
-                   && ratio > 4.0 / 3.0 - 0.001 && ratio < 16.0 / 9.0 + 0.001,
-                   "camera preview fills the page's width or height and crops no further than 16:9 or 4:3")
+        let outline = RoundedRectangle(cornerRadius: CameraPreviewLayout.cornerRadius, style: .continuous)
+        for size in [CGSize(width: 320, height: 240), CGSize(width: 320, height: 180),
+                     CGSize(width: 304, height: 534), CGSize(width: 424, height: 180),
+                     CGSize(width: 304, height: 140.5)] {
+            let bounds = CGRect(origin: .zero, size: size)
+            let innerPath = outline.inset(by: CameraPreviewLayout.borderWidth).path(in: bounds)
+            let video = CameraPreviewLayout.videoSize(in: size)
+            let left = (size.width - video.width) / 2
+            let top = (size.height - video.height) / 2
+            for x in [left, left + video.width] {
+                for y in [top, top + video.height] {
+                    suite.expect(innerPath.contains(CGPoint(x: x, y: y)),
+                                 "every corner of the video stays inside the rounded border at \(size)")
+                }
+            }
+            suite.expect(left < CameraPreviewLayout.cornerRadius && top < CameraPreviewLayout.cornerRadius,
+                         "the video uses the available width and height up to the corner clearance at \(size)")
         }
+        suite.expect(CameraPreviewLayout.videoSize(in: .zero) == .zero,
+                     "an empty preview during layout has no negative video dimensions")
         suite.expect(compact.contentSize(for: compact.sectionPickerSize(count: 0)).height == NotchLayout.emptyHeight
                && compact.contentSize(for: compact.sectionPickerSize(count: 1)).height == NotchLayout.sectionTileHeight,
                "an unmatched search keeps the recovery guidance's row and a match takes just its tiles, the search living in the header")
@@ -2979,6 +2989,48 @@ enum NotchTests {
         suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
             menuItems: [CGRect(x: 690, y: 924, width: 80, height: 32)], statusItems: []) == nil,
                "a menu occupying the island's center still hides it")
+        let shortMenu = CGRect(x: 0, y: 924, width: 300, height: 32)
+        let crowdedStatus = CGRect(x: 860, y: 924, width: 610, height: 32)
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [shortMenu], statusItems: [crowdedStatus]) == 27,
+               "short app menus do not let the island cover status items beside the camera")
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [CGRect(x: 0, y: 924, width: 610, height: 32)],
+            statusItems: [primaryStatus, CGRect(x: 700, y: 924, width: 30, height: 32)],
+            physicalCamera: CGRect(x: 645, y: 924, width: 180, height: 32)) == 27,
+               "a status item parked wholly behind the camera leaves the gaps unchanged")
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [shortMenu], statusItems: [CGRect(x: 810, y: 924, width: 40, height: 32)]) == nil,
+               "a status item partly beside the camera still hides the island")
+        let indicator = CGRect(x: 900, y: 892, width: 100, height: 32)
+        var reads = 0
+        let fromAX = NotchMenuBarLayout.statusFrames(screen: menuScreen, barHeight: 32,
+            windows: [indicator, secondaryMenu], requiresExtras: false) { reads += 1; return [primaryStatus] }
+        suite.expect(reads == 1 && fromAX == [primaryStatus],
+                     "a recording indicator below this bar and another monitor's icons cannot suppress the AX lookup")
+        let missing = NotchMenuBarLayout.statusFrames(screen: menuScreen, barHeight: 32,
+            windows: [primaryStatus], requiresExtras: true) { nil }
+        let wrongScreen = NotchMenuBarLayout.statusFrames(screen: menuScreen, barHeight: 32,
+            windows: [], requiresExtras: true) { [secondaryMenu] }
+        suite.expect(missing == nil && wrongScreen == nil, "a modern bar requires complete extras on the chosen display")
+        let interiorIcon = CGRect(x: 700, y: 924, width: 20, height: 32)
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [shortMenu], statusItems: [interiorIcon]) == nil,
+                     "a simulated island cannot hide a status item in its center")
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [shortMenu], statusItems: [interiorIcon],
+            physicalCamera: CGRect(x: 722, y: 924, width: 26, height: 32)) == nil,
+                     "manual width and outline padding never count as physical camera coverage")
+        let partial = NotchMenuBarLayout.completeFrames([0, 1], limit: 64) { $0 == 0 ? nil : primaryStatus }
+        let overflow = NotchMenuBarLayout.completeFrames([0, 1], limit: 1) { _ in primaryStatus }
+        suite.expect(partial == nil && overflow == nil, "an unreadable or over-limit item cannot silently free its space")
+        let probeGeometry = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180, menuBarHeight: 32)
+        suite.expect(NotchMenuBarSpace.measure(pid: getpid(), geometry: probeGeometry, primaryTop: 956,
+                                               ownWindow: -1, hasAccessibility: { false }) == nil,
+                     "an unavailable AX grant leaves the island without menu clearance")
+        let expired = NotchMenuBarAXReader(primaryTop: 956, deadline: ProcessInfo.processInfo.systemUptime - 1)
+        suite.expect(expired.extras(AXUIElementCreateApplication(getpid())) == nil,
+                     "an expired AX read cannot report an empty extras bar as free space")
         let constrained = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
                                         menuBarHeight: 24, compactSideRoom: freeRoom)
         suite.expect(constrained.collapsed.height == 32 && constrained.musicStrip.height == 32,

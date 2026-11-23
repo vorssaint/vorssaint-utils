@@ -200,6 +200,8 @@ extension Strings {
         micMuteName: "静音麦克风",
         micUnmuteName: "取消静音麦克风",
         micMuteCaption: "使用各个麦克风的静音或输入音量控制。Siri 和部分 App 仍可能听到你的声音。此功能无法阻止所有麦克风访问。",
+        micMuteFollowCallAppsToggle: "允许通话 App 取消麦克风静音",
+        micMuteFollowCallAppsCaption: "如果某个 App 正在通过麦克风录音，而该麦克风恢复了输入，Vorssaint 会恢复它之前静音的所有麦克风。自动增益调整也可能触发此操作。",
         micMutedHUD: "麦克风静音功能已开启",
         micUnmutedHUD: "麦克风静音功能已关闭",
         micMutePartialHUD: "部分麦克风未能静音",
@@ -652,6 +654,7 @@ extension Strings {
         audioPriorityMoveUp: "上移",
         audioPriorityMoveDown: "下移",
         audioPriorityUnavailable: "不可用",
+        audioPriorityRemove: "移除",
         audioPriorityCurrent: "使用中",
         audioPriorityCaption: "设备按优先级顺序选用。连接优先级更高的设备时，系统会切换到该设备；当前设备断开连接时，则切换到下一个可用设备。",
 

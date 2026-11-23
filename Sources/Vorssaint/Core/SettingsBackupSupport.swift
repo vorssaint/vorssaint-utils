@@ -222,6 +222,7 @@ enum SettingsBackupSupport {
         // a Mac that still holds its own stale verdicts.
         DefaultsKey.brightnessDDCWriteOnlyPathsRechecked,
         DefaultsKey.brightnessDDCReadChecksumRechecked,
+        DefaultsKey.brightnessDDCHDMIConverterRechecked,
         DefaultsKey.brightnessForcedSoftwarePaths,
         DefaultsKey.brightnessExtendedDimmingPaths,
         // A fit measured against one Mac's camera housing would misfit another's.
@@ -315,6 +316,29 @@ enum SettingsBackupSupport {
     /// them should take on the file's settings; only a plain launch does.
     static func appliesConfigFile(arguments: [String]) -> Bool {
         !arguments.dropFirst().contains { $0.hasPrefix("--") }
+    }
+
+    /// These portable values contain JSON re-encoded by both export and import.
+    /// Object key order can change even when the user has changed no setting.
+    static func matchesPortableValue(_ value: Any, local: Any?, key: String) -> Bool {
+        if value as? NSObject == local as? NSObject { return true }
+        let incoming: Data
+        let current: Data
+        switch key {
+        case DefaultsKey.screenshotWatermarkStyle, DefaultsKey.screenshotWatermarkPresets,
+             DefaultsKey.mediaImageProfiles:
+            guard let lhs = value as? String, let rhs = local as? String else { return false }
+            incoming = Data(lhs.utf8)
+            current = Data(rhs.utf8)
+        case DefaultsKey.recorderEditorPresets:
+            guard let lhs = value as? Data, let rhs = local as? Data else { return false }
+            incoming = lhs
+            current = rhs
+        default: return false
+        }
+        guard let lhs = try? JSONSerialization.jsonObject(with: incoming) as? NSObject,
+              let rhs = try? JSONSerialization.jsonObject(with: current) as? NSObject else { return false }
+        return lhs == rhs
     }
 
     /// These keys have no registered type for the ordinary backup validator

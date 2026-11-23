@@ -79,12 +79,16 @@ enum CleanerPolicy {
         "ms-playwright",
     ]
 
-    static func isExcludedCacheEntry(_ name: String) -> Bool {
+    static func isExcludedCacheEntry(_ name: String, audioPluginIDs: Set<String> = []) -> Bool {
         let lowered = name.lowercased()
         // A localization name is not evidence of disposable data. Keep the
         // leftover exclusion when the same entry is visited as caches or logs.
         if lowered.hasSuffix(".localized") { return true }
-        return hiddenCachePrefixes.contains { lowered.hasPrefix($0.lowercased()) }
+        if hiddenCachePrefixes.contains(where: { lowered.hasPrefix($0.lowercased()) }) { return true }
+        // A plugin can keep its activation in a cache named for its bundle.
+        // Other apps from the same vendor still have ordinary caches.
+        return !audioPluginIDs.isEmpty && CleanerSupport.looksLikeBundleID(name)
+            && CleanerSupport.isOwned(candidate: name, byInstalled: audioPluginIDs)
     }
 
     /// Plain named cache folders known to be pure downloads or build junk;
@@ -101,8 +105,8 @@ enum CleanerPolicy {
     /// the willing and pre checked for nobody. Third party caches start
     /// checked unless they hold content worth keeping, and plain named
     /// folders only when they are known download or build caches.
-    static func precheckCacheEntry(_ name: String) -> Bool {
-        guard !isExcludedCacheEntry(name) else { return false }
+    static func precheckCacheEntry(_ name: String, audioPluginIDs: Set<String> = []) -> Bool {
+        guard !isExcludedCacheEntry(name, audioPluginIDs: audioPluginIDs) else { return false }
         let lowered = name.lowercased()
         if sensitiveCachePrefixes.contains(where: { lowered.hasPrefix($0.lowercased()) }) { return false }
         if CleanerSupport.looksLikeBundleID(name) {
