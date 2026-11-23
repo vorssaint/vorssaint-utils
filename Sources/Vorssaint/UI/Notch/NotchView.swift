@@ -484,9 +484,6 @@ struct NotchView: View {
         case .clipboard:
             // A complete card with its action row; the search is in the top row.
             size.height = max(size.height, NotchLayout.clipboardCardHeight)
-        case .camera:
-            // Keep permission and error messages reachable.
-            size.height = max(size.height, 144)
         case .mixer:
             // Shorten the tracks before pushing mute and level controls offscreen.
             size.height = max(size.height, NotchLayout.mixerMinimumHeight)
