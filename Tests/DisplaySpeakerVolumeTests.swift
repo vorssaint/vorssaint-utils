@@ -22,17 +22,28 @@ enum DisplaySpeakerVolumeTests {
         var isActive = true
         var audio: Audio?
     }
-    enum AppVolumeMixer {
+    struct AppVolumeMixer {
+        static let shared = Self()
+        func refreshMonitorOutput() { Service.shared.onDisplayChange?() }
         static func hasSettableOutputVolume(for device: AudioObjectID) -> Bool { Service.shared.settable }
+    }
+    enum AppFeature {
+        case brightness
+        var isAvailable: Bool { true }
+    }
+    struct PreciseVolumeRollerService {
+        static let shared = Self()
+        func syncWithPreferences() {}
     }
     enum UserDefaults {
         static let standard = UserDefaults.self
         static func bool(forKey key: String) -> Bool {
-            key == DefaultsKey.displayVolumeKeysEnabled && Service.shared.wantsMonitorVolumeKeys
+            if key == DefaultsKey.brightnessControlEnabled { return Service.shared.brightnessControlsEnabled }
+            return key == DefaultsKey.displayVolumeKeysEnabled && Service.shared.wantsMonitorVolumeKeys
         }
     }
     static func CGDisplayIsActive(_ id: UInt32) -> UInt32 { 1 }
-    static func CGDisplayIsAsleep(_ id: UInt32) -> UInt32 { 0 }
+    static func CGDisplayIsAsleep(_ id: UInt32) -> UInt32 { Service.shared.displayIsAsleep ? 1 : 0 }
     struct Write: Equatable {
         let code: UInt8
         let value: UInt16
@@ -59,10 +70,13 @@ enum DisplaySpeakerVolumeTests {
         let stateLock = NSLock()
         let workQueue = Queue()
         var running = true
+        var brightnessControlsEnabled = true
+        var rebuildGeneration = 0
         var wantsMonitorVolume = true
         var wantsMonitorVolumeKeys = true
         var monitorVolumeKeySettings = MonitorVolumeKeySettings()
         var displayPowerIsSuspended = false
+        var displayIsAsleep = false
         var displays: [BrightnessDisplay] = [] { didSet { onDisplayChange?() } }
         var onDisplayChange: (() -> Void)?
         var hiddenDisplays: [(id: UInt32, name: String)] = []
@@ -73,6 +87,9 @@ enum DisplaySpeakerVolumeTests {
         var pendingSpeakerUnmutes: [String: UInt64] = [:]
         var speakerRestoreLevels: [String: BrightnessSupport.SpeakerLevel] = [:]
         var audioLifetime: UInt64 = 0
+        var disabledSpeakerLifetime: UInt64?
+        var scannedAudio = false
+        var audioScanQueued: Bool?
         var speakerLevelRevisions: [String: UInt64] = [:]
         var pendingAudio: [PendingAudio] = []
         var audioWriteInFlight = false
@@ -93,6 +110,8 @@ enum DisplaySpeakerVolumeTests {
         var afterUnmute: (() -> Void)?
         var onRead: ((UInt8) -> Void)?
         var displayFingerprint = "fixture-identity"
+        var connectedSpeakerEndpointID: UInt64 = 1
+        var onEndpointLookup: (() -> Void)?
         var volumeOnUnmute: UInt16?
         var writes: [Write] = []
         var writtenIDs: [UInt32] = []
@@ -104,6 +123,26 @@ enum DisplaySpeakerVolumeTests {
             (Service.shared.actualDevice, Service.shared.selectedAudioOutput?.name ?? "", kAudioDeviceTransportTypeHDMI)
         }
         static func restorationDisplayFingerprint(_ id: UInt32) -> String? { Service.shared.displayFingerprint }
+        static func speakerEndpointIsConnected(_ id: UInt64?) -> Bool {
+            let found = Service.shared.connectedSpeakerEndpointID == id
+            Service.shared.onEndpointLookup?()
+            return found
+        }
+        func start() { running = true }
+        func tearDownDisplayControls() {
+            running = false
+            removeAudioOutputObserver()
+            displays = []
+        }
+        func syncKeyTap() {}
+        func syncKeyboardBrightnessHotkeys() {}
+        func syncDisplayBrightnessHotkeys() {}
+        func installAudioOutputObserver() {}
+        func removeAudioOutputObserver() {
+            guard selectedAudioOutput != nil else { return }
+            audioOutputGeneration += 1
+            selectedAudioOutput = nil
+        }
         func refresh(force: Bool) { refreshes += 1 }
         func rescanForUnclaimedVolumeKey() { refreshes += 1 }
         func rememberedPaths(_ key: String) -> Set<String> { silentPaths }
@@ -154,7 +193,8 @@ enum DisplaySpeakerVolumeTests {
     @discardableResult
     static func connect(_ mixer: MixerOutputAdjustmentContract.Mixer,
                         raw: UInt16 = 40, maximum: UInt16 = 100, muted: Bool? = false,
-                        unmutedReads: UInt16 = 2, chip: UInt32 = BrightnessSupport.chipAddress) -> Service {
+                        unmutedReads: UInt16 = 2, chip: UInt32 = BrightnessSupport.chipAddress,
+                        registryEntryID: UInt64? = 1) -> Service {
         let service = Service()
         Service.shared = service
         service.raw = raw
@@ -164,8 +204,10 @@ enum DisplaySpeakerVolumeTests {
         let endpoint = NSObject()
         if let probed = service.probeAudio(for: 7, service: endpoint, chip: chip, path: "port-a") {
             service.audioRoutes[7] = AudioRoute(path: "port-a", fingerprint: service.displayFingerprint,
-                                                service: endpoint, chipAddress: chip, hasNativeMute: probed.hasNativeMute,
+                                                service: endpoint, registryEntryID: registryEntryID,
+                                                chipAddress: chip, hasNativeMute: probed.hasNativeMute,
                                                 unmutesLeavingZero: probed.unmutesLeavingZero)
+            service.scannedAudio = true
             service.displays = [BrightnessDisplay(id: 7, name: "Monitor A", audio: probed.state)]
         }
         service.onDisplayChange = { [weak service, weak mixer] in mixer?.monitorOutput = service?.monitorSpeakerOutput() }
