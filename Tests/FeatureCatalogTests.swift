@@ -2770,7 +2770,10 @@ enum FeatureCatalogTests {
             (displayIndex: 1, serviceOrdinal: 2, score: 4),
         ])
         suite.expect(assignment == [0: 2, 1: 1],
-               "greedy assignment gives each display its best free service")
+               "each display gets its strongest unambiguous service")
+        suite.expect(BrightnessSupport.assignServices(scores: [(0, 1, 11), (0, 2, 3), (1, 2, 1)])
+                == [0: 1],
+               "a spare service with stronger evidence for the first display cannot go to the second")
         suite.expect(BrightnessSupport.assignServices(scores: [(displayIndex: 0, serviceOrdinal: 1, score: 0)])
                 .isEmpty,
                "zero-score pairs never pair up")

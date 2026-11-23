@@ -7,37 +7,42 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-This update reduces the work Vorssaint does at startup and improves window switching, microphone and display controls, clipboard history and screenshots. Cleaner also protects data it can match to installed audio plugins.
+This update reduces the work Vorssaint does at startup and improves window switching, microphone and display controls, clipboard history and screenshots. Cleaner also protects data it can match to installed audio plugins. Keep Awake can wait through brief power interruptions, and the Command Bar can calculate with units.
 
 ### Added
-- Save current preferences to the XDG settings file from Settings > Advanced > Backup. The confirmation shows where the file will be saved. Thanks to @whizzzkid.
+- The Command Bar calculator can use quantities in arithmetic, convert rates and reuse a conversion in the next calculation. It also accepts expressions such as `2 to the power sqrt(9)` and `5 ft 11 in in cm`. Thanks to @iva-zhu and @andy-kelly.
+- Keep Awake can keep an automatic session active through a brief charger interruption. Choose a delay of up to 60 seconds in the Power rule. The default is zero. Thanks to @ywu73 and @Backware.
+- Save current preferences to the XDG settings file from Settings > Advanced > Backup. The confirmation shows where the file will be saved. Saved settings and exported backups are readable only by their owner. Use a destination that supports private files. Thanks to @whizzzkid.
 - Dynamic Island can show Cursor's active project, new turns and completion notices from local transcripts. Thanks to @Arhurpro77.
-- AI Agents shows Cursor token usage when a local transcript includes a dated response with usage counts. Thanks to @iva-zhu.
+- AI Agents shows Cursor token usage when a local transcript includes a dated response with usage counts. It picks up corrected counters. Spending, trends and activity identify partial costs when usage or pricing is missing. Thanks to @iva-zhu.
 
 ### Changed
 - Clipboard history searches index the start of long entries and search the remaining text in the background. Searches in different panels keep their own results. Thanks to @iva-zhu.
-- The window switcher keeps a list of windows in the background so repeated shortcuts can open it sooner. Current Space filtering and windowless Finder selections are preserved. Thanks to @LeLocTai.
+- The window switcher keeps a list of windows in the background so repeated shortcuts can open it sooner. Current Space filtering and windowless Finder selections are preserved. Moving a Vorssaint window to another display updates its listing. Opening the switcher refreshes titles for windows that cannot report title changes. Closing it stops its thumbnail captures while Dock Preview can keep loading its own. Thanks to @LeLocTai.
 - Vorssaint starts without loading unused Shelf, display and Command Bar services. Active shortcuts and recovery for displays previously left off still work. Thanks to @iva-zhu.
 - Window move gestures and edge snapping share pointer events. Starting another drag or handing it to macOS with Option cancels a pending snap. Thanks to @iva-zhu.
 - Low disk space alerts repeat at most once every six hours per volume, with an earlier alert if free space drops below half the warning threshold. Thanks to @ywu73.
 
 ### Fixed
+- Camera Preview fits the camera image inside the floating mirror and Dynamic Island, including wide and portrait video. Thanks to @iva-zhu and @amithm7.
+- The Homebrew installed-package filter fits the menu panel with long labels and package counts. The selected option keeps keyboard focus when the filter changes layout. Thanks to @blakster and @andrewcdelaney.
+- Dynamic Island keeps the Explore search text when a query has no matches, so typing and deleting continue from the cursor. Thanks to @imuhammadnadeem and @kaiwenfa.
 - After wake, fan control retries a saved curve if the hardware takes time to respond. It respects System mode and the hardware’s safety limits, and the panel shows when a curve could not be restored. Thanks to @SanRive.
 - The uninstaller and cleaner count files next to symbolic links. Nested app components are detected, and wallpaper scans still skip packages. Thanks to @retomi and @salvatoremiceli.
-- Cleaner keeps preferences, support files and caches it can match to audio plugins found in the standard plugin folders. It checks again before moving a selected item to the Trash. Thanks to @heisdanne and @imuhammadnadeem.
-- Monitor speakers that stay silent at zero volume can play again when you turn the volume up. Restoring sound respects the configured volume limit. Thanks to @trenaryja.
+- Cleaner keeps preferences, support files and caches it can match to audio plugins found in the standard plugin folders. It checks again before moving a selected item to the Trash. Caches and logs that only share a vendor with an installed plugin stay unchecked. Thanks to @heisdanne and @imuhammadnadeem.
+- Monitor speakers that stay silent at zero volume can play again when you turn the volume up. Restoring sound respects the configured volume limit. The limit still applies if you switch audio outputs or turn off speaker controls mid-adjustment. Vorssaint only sends an unmute when it can verify the monitor's connection. Thanks to @trenaryja.
 - Dynamic Island lets macOS handle volume keys on USB outputs that lack a compatible main volume control. If an output cannot provide a reliable volume step or confirm a change, subsequent presses also go to macOS, including fine steps. Thanks to @royhenengel and @Snrlx-Media.
-- Brightness and speaker controls can reach compatible monitors connected through the built-in HDMI converter on certain Macs. Thanks to @davidmessem.
+- Brightness and speaker controls can reach compatible monitors connected through the built-in HDMI converter on certain Macs. Brightness can control two identical monitors when their connection details identify one of them. Thanks to @davidmessem.
 - When Show over the menus is off, Dynamic Island leaves room for menu bar icons on macOS 27, including on displays without a camera notch. Thanks to @razeenwasif.
 - Drop images or videos from Finder onto the open Media tool in Dynamic Island. A new drop leaves an active conversion running. Thanks to @KushagraIndurkhya.
 - The disk image installer skips hidden mounts, temporary build images and folders marked with `.vorssaint-no-install`. For images outside Downloads that have no quarantine flag, the option to move the image to the Trash starts unchecked. Thanks to @Zekuath.
-- Mic Mute limits repeated writes to unresponsive virtual inputs, including the Teams loopback driver. It rechecks mute immediately on device notifications and keeps the observers for unchanged input controls. A failed manual unmute is reported. Thanks to @JosueM1109, @howardyu60211 and @hash00.
+- Mic Mute limits repeated writes to unresponsive virtual inputs, including the Teams loopback driver. It rechecks mute on gain changes and reports failed manual unmutes. Microphones stay muted if a headset reconnects while another device appears. With call-app following enabled, you can unmute from the call once the headset is ready. Thanks to @JosueM1109, @howardyu60211 and @hash00.
 - The volume mixer gives regular apps launched by another app their own controls and saved levels, including Steam games. Thanks to @binjamshid.
 - Clicking a control in the menu bar panel from another app activates the control and keeps the panel open. Thanks to @nodegan.
 - Window Layout still snaps a normal drag when macOS Option-drag tiling is enabled. Holding Option hands that drag to macOS. Thanks to @iva-zhu.
-- Shelf stays responsive while it prepares a file drag from iCloud or another slow volume. Files inside a package remain protected from moves. Thanks to @iva-zhu.
+- Shelf stays responsive while it prepares a file drag from iCloud or another slow volume. Files inside a package remain protected from moves. A thumbnail update during a drag preserves the gesture. Thanks to @iva-zhu.
 - Click a window in the frozen screenshot picker to capture its current contents, including visible video, without capturing overlapping apps. Dragging a region still uses the frozen image. Thanks to @iva-zhu.
-- The screenshot editor limits image memory across undo and redo, preserves history after a canceled drawing, and avoids keeping a full capture for a small crop. Thanks to @iva-zhu.
+- The screenshot editor limits image memory across undo and redo, preserves history after a canceled drawing, and avoids keeping a full capture for a small crop. Closing the editor asks before discarding a typed caption, even before you press Return. Thanks to @iva-zhu.
 - Audio device priority recognizes a returning AirPlay receiver when its session identifier changes and merges its existing duplicates. Other audio devices keep their saved priorities, including devices with the same name. Unavailable entries can be removed from either list. Thanks to @EugeneCarldotme and @TC-Virtuoso.
 - When a call app unmutes a microphone, Mic Mute can restore the saved levels for every microphone it muted. Enable this in Settings > Quick panel. It is off by default because an automatic gain change during recording can also trigger it. Thanks to @Narangor.
 - Clipboard history saves copied spreadsheet cells as text and preserves the tabs and line breaks supplied by the spreadsheet. Image and file copies keep their original types. Thanks to @ego1s1.
@@ -48,7 +53,7 @@ This update reduces the work Vorssaint does at startup and improves window switc
 - On the 14-inch M1 Pro MacBook Pro (MacBookPro18,3), Fan Control can keep a custom curve active while the GPU sleeps. It returns the fans to system control when it cannot verify a safe configuration. Thanks to @STUXKY.
 
 ### Contributors
-Thanks to @13v13reddy, @Arhurpro77, @binjamshid, @davidmessem, @ego1s1, @EugeneCarldotme, @GeezusChrotch, @hash00, @heisdanne, @howardyu60211, @imuhammadnadeem, @iva-zhu, @JosueM1109, @KushagraIndurkhya, @LeLocTai, @Narangor, @nh4ttruong, @nodegan, @razeenwasif, @retomi, @royhenengel, @salvatoremiceli, @SanRive, @Snrlx-Media, @STUXKY, @TC-Virtuoso, @trenaryja, @whizzzkid, @ywu73 and @Zekuath.
+Thanks to @13v13reddy, @amithm7, @andrewcdelaney, @andy-kelly, @Arhurpro77, @Backware, @binjamshid, @blakster, @davidmessem, @ego1s1, @EugeneCarldotme, @GeezusChrotch, @hash00, @heisdanne, @howardyu60211, @imuhammadnadeem, @iva-zhu, @JosueM1109, @kaiwenfa, @KushagraIndurkhya, @LeLocTai, @Narangor, @nh4ttruong, @nodegan, @razeenwasif, @retomi, @royhenengel, @salvatoremiceli, @SanRive, @Snrlx-Media, @STUXKY, @TC-Virtuoso, @trenaryja, @whizzzkid, @ywu73 and @Zekuath.
 
 ## [3.4.4] - 2026-11-11
 

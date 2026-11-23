@@ -128,17 +128,17 @@ final class JunkCleaner: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard !cancellation.isCancelled else { return }
             let audioPluginIDs = Self.installedAudioPluginBundleIDs()
-            let installed = Self.installedBundleIDs().union(audioPluginIDs)
+            let installedApps = Self.installedBundleIDs()
             // A path claimed by the leftover scan must not reappear under
             // caches or logs: one path, one row, one decision.
             var claimed = Set<String>()
             let categories: [(CleanerSupport.Category, () -> [Item])] = [
                 (.leftovers, {
-                    let found = Self.scanLeftovers(installed: installed)
+                    let found = Self.scanLeftovers(installedApps: installedApps, audioPluginIDs: audioPluginIDs)
                     claimed.formUnion(found.map { $0.url.standardizedFileURL.path })
                     return found
                 }),
-                (.loginItems, { Self.scanOrphanedLaunchPlists(installed: installed) }),
+                (.loginItems, { Self.scanOrphanedLaunchPlists(installed: installedApps.union(audioPluginIDs)) }),
                 (.caches, { Self.scanCaches(excluding: claimed, audioPluginIDs: audioPluginIDs) }),
                 (.logs, { Self.scanLogs(excluding: claimed) }),
                 (.developer, { Self.scanDeveloperJunk() }),
@@ -170,6 +170,17 @@ final class JunkCleaner: ObservableObject {
 
     // MARK: - Clean
 
+    /// Each cleanup shares one app inventory across its serial removal checks.
+    private static func cachedAppLookup(_ load: @escaping () -> Set<String>) -> () -> Set<String> {
+        var cached: Set<String>?
+        return {
+            if let cached { return cached }
+            let apps = load()
+            cached = apps
+            return apps
+        }
+    }
+
     /// `escalate: false` leaves whatever the Trash move refused in place
     /// instead of handing it to Finder, which is an administrator password
     /// prompt. No default: each caller says whether someone is there to answer.
@@ -180,13 +191,10 @@ final class JunkCleaner: ObservableObject {
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let fm = FileManager.default
-            // A plugin may have been installed since the scan, even if the
-            // only selected row was a recommended cache. Only leftovers
-            // also need the application inventory.
-            let hasLeftovers = chosen.contains { $0.category == .leftovers }
-            let needsPluginIDs = hasLeftovers || chosen.contains { $0.category == .caches }
+            // A recommended cache or log may have lost its owning app since the scan.
+            let needsPluginIDs = chosen.contains { [.leftovers, .caches, .logs].contains($0.category) }
             let audioPluginIDs = needsPluginIDs ? Self.installedAudioPluginBundleIDs() : []
-            let installed = hasLeftovers ? Self.installedBundleIDs().union(audioPluginIDs) : []
+            let installedApps = Self.cachedAppLookup(Self.installedBundleIDs)
             var freed: Int64 = 0
             var failed = 0
             var stubborn: [Item] = []
@@ -200,7 +208,7 @@ final class JunkCleaner: ObservableObject {
             }
 
             for item in chosen where item.category != .trash {
-                guard Self.mayRemove(item, installed: installed, audioPluginIDs: audioPluginIDs) else {
+                guard Self.mayRemove(item, installedApps: installedApps, audioPluginIDs: audioPluginIDs) else {
                     failed += 1
                     continue
                 }
@@ -208,7 +216,7 @@ final class JunkCleaner: ObservableObject {
                     // Retire the job first so nothing keeps running from a
                     // plist that is about to leave; then the regular move.
                     Self.bootoutUserAgent(item.url)
-                    guard Self.mayRemove(item, installed: installed, audioPluginIDs: audioPluginIDs) else {
+                    guard Self.mayRemove(item, installedApps: installedApps, audioPluginIDs: audioPluginIDs) else {
                         failed += 1
                         continue
                     }
@@ -231,7 +239,7 @@ final class JunkCleaner: ObservableObject {
                 failed += stubborn.count
             } else if !stubborn.isEmpty {
                 let stillSafe = stubborn.filter {
-                    Self.mayRemove($0, installed: installed, audioPluginIDs: audioPluginIDs)
+                    Self.mayRemove($0, installedApps: installedApps, audioPluginIDs: audioPluginIDs)
                 }
                 failed += stubborn.count - stillSafe.count
                 Self.trashViaFinder(stillSafe.map(\.url))
@@ -255,7 +263,8 @@ final class JunkCleaner: ObservableObject {
     /// Exact match guard against ever removing a critical root, even if a
     /// scanner bug produced one. Items are already scoped by construction;
     /// this is the last line of defense.
-    private static func mayRemove(_ item: Item, installed: Set<String>, audioPluginIDs: Set<String>) -> Bool {
+    private static func mayRemove(_ item: Item, installedApps: () -> Set<String>,
+                                  audioPluginIDs: Set<String>) -> Bool {
         let url = item.url
         let path = url.standardizedFileURL.path
         let home = NSHomeDirectory()
@@ -271,13 +280,23 @@ final class JunkCleaner: ObservableObject {
               UninstallerSupport.fileIdentity(at: url) == expectedIdentity,
               !UninstallerSupport.isSymbolicLink(url),
               url.resolvingSymlinksInPath().standardizedFileURL.path == path else { return false }
-        let isLeftoverCache = item.category == .leftovers
-            && url.deletingLastPathComponent().lastPathComponent == "Caches"
+        let parent = url.deletingLastPathComponent()
+        let isLeftoverCache = item.category == .leftovers && parent.lastPathComponent == "Caches"
         if item.category == .caches || isLeftoverCache {
             guard !CleanerPolicy.isExcludedCacheEntry(url.lastPathComponent,
                                                       audioPluginIDs: audioPluginIDs) else { return false }
         }
+        // A plugin alone cannot justify a recommendation that a fresh scan
+        // would now offer as an unchecked leftover.
+        if [.caches, .logs].contains(item.category), item.recommended, !audioPluginIDs.isEmpty,
+           let owner = leftoverOwner(entry: url.lastPathComponent, url: url, usesContainerMetadata: false),
+           !CleanerSupport.isProtectedBundleID(owner),
+           CleanerSupport.isOwned(candidate: owner, byInstalled: audioPluginIDs)
+               || CleanerSupport.sharesVendorNamespace(candidate: owner, withInstalled: audioPluginIDs),
+           !hasLivingOwner(owner, installed: installedApps()) { return false }
         if item.category == .leftovers {
+            let apps = installedApps()
+            let installed = usesAppOwnersForLeftovers(in: parent) ? apps : apps.union(audioPluginIDs)
             guard isDirectLeftoverRootChild(url),
                   CleanerSupport.isAttributableBundleID(item.detail),
                   !CleanerSupport.isProtectedBundleID(item.detail),
@@ -470,16 +489,28 @@ final class JunkCleaner: ObservableObject {
         }
     }
 
-    private static func scanLeftovers(installed: Set<String>) -> [Item] {
+    /// Plugin caches have a separate exclusion. The user log scanner recommends
+    /// eligible unclaimed entries, so only apps can establish ownership there.
+    private static func usesAppOwnersForLeftovers(in directory: URL) -> Bool {
+        if directory.lastPathComponent == "Caches" { return true }
+        guard directory.lastPathComponent == "Logs" else { return false }
+        let userLibrary = URL(fileURLWithPath: NSHomeDirectory() + "/Library", isDirectory: true)
+        return CleanerSupport.isDirectChild(directory, of: userLibrary)
+    }
+
+    private static func scanLeftovers(installedApps: Set<String>, audioPluginIDs: Set<String>) -> [Item] {
         let fm = FileManager.default
         let libraries = [NSHomeDirectory() + "/Library", systemLibrary]
+        let installed = installedApps.union(audioPluginIDs)
         var found: [Item] = []
         for library in libraries {
             for root in leftoverRoots {
-                let dir = library + "/" + root.path
+                let dir = URL(fileURLWithPath: library + "/" + root.path, isDirectory: true)
+                let owners = usesAppOwnersForLeftovers(in: dir) ? installedApps : installed
                 appendLeftovers(in: dir,
                                 usesContainerMetadata: root.usesContainerMetadata,
-                                installed: installed,
+                                installed: owners,
+                                audioPluginIDs: audioPluginIDs,
                                 fm: fm,
                                 into: &found)
             }
@@ -487,12 +518,12 @@ final class JunkCleaner: ObservableObject {
         return sorted(found)
     }
 
-    private static func appendLeftovers(in dir: String,
+    private static func appendLeftovers(in root: URL,
                                         usesContainerMetadata: Bool,
                                         installed: Set<String>,
+                                        audioPluginIDs: Set<String>,
                                         fm: FileManager,
                                         into found: inout [Item]) {
-        let root = URL(fileURLWithPath: dir, isDirectory: true)
         let keys: Set<URLResourceKey> = [.isSymbolicLinkKey]
         guard let entries = try? fm.contentsOfDirectory(at: root,
                                                         includingPropertiesForKeys: Array(keys),
@@ -501,7 +532,7 @@ final class JunkCleaner: ObservableObject {
         for url in entries {
             let entry = url.lastPathComponent
             guard !entry.hasPrefix(".") else { continue }
-            if isCacheRoot && CleanerPolicy.isExcludedCacheEntry(entry) { continue }
+            if isCacheRoot && CleanerPolicy.isExcludedCacheEntry(entry, audioPluginIDs: audioPluginIDs) { continue }
             let values = try? url.resourceValues(forKeys: keys)
             guard values?.isSymbolicLink != true else { continue }
             if let owner = leftoverOwner(entry: entry, url: url,

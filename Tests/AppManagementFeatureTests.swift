@@ -1025,32 +1025,19 @@ enum AppManagementFeatureTests {
             else { return "" }
             return String(source[start.upperBound..<end.lowerBound])
         }
-        // Building the installed-apps oracle walks the application folders, and
-        // the removal guard reads it under `.leftovers` alone — with leftover
-        // rows unchecked by default, the common clean must not pay for that
-        // walk. JunkCleaner is not part of this test binary, so pin the gate
-        // and the premise that makes an empty oracle safe at their source.
+        // The eligibility fixtures exercise which rows need the expensive app
+        // inventory. Pin its lifetime here so those rows share one lookup per clean.
         let junkCleanerSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Cleaner/JunkCleaner.swift",
             encoding: .utf8)) ?? ""
         let cleanSelectedBody = sourceBody(of: junkCleanerSource, from: "func cleanSelected(",
                                            to: "private static func mayRemove")
-        suite.expect(cleanSelectedBody.contains("let hasLeftovers = chosen.contains { $0.category == .leftovers }")
-               && cleanSelectedBody.contains("hasLeftovers ? Self.installedBundleIDs().union(audioPluginIDs) : []"),
-               "a clean builds the installed-apps oracle only when a leftover row is selected")
-        suite.expect(cleanSelectedBody.contains("let needsPluginIDs = hasLeftovers || chosen.contains { $0.category == .caches }")
+        suite.expect(cleanSelectedBody.contains("let installedApps = Self.cachedAppLookup(Self.installedBundleIDs)")
+               && cleanSelectedBody.components(separatedBy: "Self.installedBundleIDs").count == 2,
+               "a clean shares one on-demand inventory of installed apps across its selected rows")
+        suite.expect(cleanSelectedBody.contains("let needsPluginIDs = chosen.contains { [.leftovers, .caches, .logs].contains($0.category) }")
                && cleanSelectedBody.contains("needsPluginIDs ? Self.installedAudioPluginBundleIDs() : []"),
-               "a clean refreshes plugin ownership even for a cache-only selection")
-        let mayRemoveBody = sourceBody(of: junkCleanerSource, from: "private static func mayRemove",
-                                       to: "private static func trashViaFinder")
-        let leftoverBranch = mayRemoveBody.range(of: "if item.category == .leftovers")
-        suite.expect(mayRemoveBody.components(separatedBy: "installed: installed").count == 2,
-               "the removal guard consults the installed-apps oracle exactly once")
-        suite.expect(leftoverBranch.map { branch in
-                   mayRemoveBody.range(of: "installed: installed",
-                                       range: branch.upperBound..<mayRemoveBody.endIndex) != nil
-               } == true,
-               "the removal guard reads the installed-apps oracle inside its leftovers branch")
+               "a clean refreshes plugin ownership even when only caches or logs are selected")
         // The known-application roster opens every installed app, and only the
         // shared-data claims read it. AppUninstaller is not part of this test
         // binary either, so pin the gate that keeps a removal that cannot claim

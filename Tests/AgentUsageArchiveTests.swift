@@ -286,8 +286,8 @@ enum AgentUsageArchiveTests {
         let layouts: [(name: String, stored: [String], written: [String])] = [
             ("AgentUsageArchive.Contents", labels(contents), ["providers", "store", "cursors"]),
             ("AgentUsageStore", labels(first),
-             ["records", "billables", "sources", "index", "cursorCopies", "summary", "limits", "codexPlan", "codexPlanObserved",
-              "turns", "waiting", "registered", "settled", "replies", "reportsTransitions"]),
+             ["records", "billables", "sources", "index", "cursorCopies", "cursorUsageRevisions", "cursorUsageGeneration",
+              "summary", "limits", "codexPlan", "codexPlanObserved", "turns", "waiting", "registered", "settled", "replies", "reportsTransitions"]),
             ("AgentUsageStore.Saved", labels(sample),
              ["records", "limits", "codexPlan", "codexPlanObserved", "turns", "waiting"]),
             ("AgentUsageStore.Saved.Record", labels(sampleRecord), ["key", "record", "billable", "sources"]),
@@ -302,14 +302,18 @@ enum AgentUsageArchiveTests {
              ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost"]),
             ("AgentLogCursor", labels(cursor),
              ["path", "provider", "cursorAccess", "parent", "openCode", "offset", "identity", "pending", "discarding",
-              "state", "cursorPromptFingerprint", "needsUsageReplay", "modified", "restarted", "codexParentLog", "codexParentSearch", "fingerprinted"]),
+              "state", "cursorPromptFingerprint", "cursorPrefix", "coverageStore", "cachedCoverage", "needsUsageReplay",
+              "modified", "restarted", "codexParentLog", "codexParentSearch", "fingerprinted"]),
             ("AgentLogCursor.Saved", labels(cursor.saved),
-             ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint"]),
+             ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint", "cursorSample"]),
+            ("CursorUnmeteredResponse", labels(CursorUnmeteredResponse()), ["minute", "model", "undatedThrough"]),
             ("AgentLogState", labels(cursor.state),
              ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast",
               "codexSubagent", "codexHeaderRead", "codexRoot", "codexTotalsSession",
               "copilotTotals", "copilotRequests", "copilotRequestModels", "copilotReportedRequests",
               "copilotTurnID", "copilotFinalResponse", "cursorPromptCount", "cursorPromptTimestamp", "cursorLastActivity",
+              "cursorUnmeteredMinutes", "cursorUnmeteredModelMinutes", "cursorUndatedResponseThrough",
+              "cursorUnmeteredResponses", "cursorEarliestUnmeteredResponse",
               "parentSession", "openCodeSessions", "runningCommands"])
         ]
         for layout in layouts {
@@ -437,7 +441,6 @@ enum AgentUsageArchiveSaveTests {
 
     class Fixture {
         var readerSession = 1
-        var progressMark = 0
         var lastSave = Date.distantPast
         var savedMark: Int?
         var enabled: Set<AgentProvider> = [.claude]
@@ -456,9 +459,6 @@ enum AgentUsageArchiveSaveTests {
                      "the first save of a reading replaces the file even with nothing read, dropping agents now off")
         host.saveProgress()
         suite.expect(AgentUsageArchive.saved.count == 1, "a save with nothing new since writes nothing")
-        host.progressMark = 1
-        host.saveProgress()
-        suite.expect(AgentUsageArchive.saved.count == 2, "a save after reading moved on writes again")
 
         // A log replaced while the app ran still counts what its old contents
         // gave, so it is left out and the next launch reads it as rewritten.
@@ -472,6 +472,9 @@ enum AgentUsageArchiveSaveTests {
         let kept = AgentLogCursor(path: keptLog.path, provider: .codex)
         let replaced = AgentLogCursor(path: replacedLog.path, provider: .codex)
         AgentLogReader.readAppended(kept) { _ in }
+        host.cursors[kept.path] = kept
+        host.saveProgress()
+        suite.expect(AgentUsageArchive.saved.count == 2, "a save after reading moved on writes again")
         AgentLogReader.readAppended(replaced) { _ in }
         try? Data("{}\n{}\n".utf8).write(to: replacedLog, options: .atomic)
         AgentLogReader.readAppended(replaced) { _ in }
@@ -485,7 +488,6 @@ enum AgentUsageArchiveSaveTests {
         host.store.apply([.usage(key: "opencode:s:a", record: reply, billable: AgentBillable(tokens: reply.tokens))],
                          file: "\(database.path)#s", provider: .opencode, tracksTurns: true, modified: Date())
         host.cursors = [keptLog.path: kept, replacedLog.path: replaced, database.path: database]
-        host.progressMark = 2
         host.saveProgress()
         suite.expect(replaced.restarted && !kept.restarted
                         && AgentUsageArchive.saved.last?.cursors.map(\.path) == [keptLog.path],

@@ -384,7 +384,7 @@ MUTATIONS = [
     ("a timed session hands over on one condition", "keep-awake", "Sources/Vorssaint/Services/KeepAwakeManager.swift",
      "        guard KeepAwakeAutomationSupport.conditionsSatisfied(\n"
      "                matching: matches,\n"
-     "                enabled: currentEnabledAutomationConditions(),\n"
+     "                enabled: enabled,\n"
      "                requireAll: automationRequiresAllConditions()) else { return false }\n",
      "        guard !matches.isEmpty else { return false }\n",
      "a timer running out on battery hands nothing over to an All automation"),
@@ -954,9 +954,8 @@ MUTATIONS = [
      "a highlighted row styles only its matches and leaves the rest to its text's modifiers"),
     ("agent log written again in place goes unnoticed", "agents",
      "Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift",
-     "        if identity != cursor.identity || size < cursor.offset\n"
-     "            || ((size > cursor.offset || sameSizeRewrite) && !cursor.holdsWhatWasRead(descriptor: secured?.handle.fileDescriptor)) {\n",
-     "        if identity != cursor.identity || size < cursor.offset {\n",
+     "            || (size > cursor.offset && !cursor.holdsWhatWasRead(descriptor: secured?.handle.fileDescriptor))\n",
+     "",
      "a log written again in place while the app runs is read again at once"),
     ("agent progress keeps a log that started over", "agents",
      "Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",

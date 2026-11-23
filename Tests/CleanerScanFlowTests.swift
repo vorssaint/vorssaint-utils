@@ -3,12 +3,10 @@
 
 import Foundation
 
-/// Production scan and reset run against recorded category scans and a
-/// manual queue. No file system locations are read.
+/// Production scan and reset use a manual queue. The audio plugin fixture
+/// also runs the leftover, cache and log scanners in temporary libraries.
 enum CleanerScanFlowTests {
-    struct Item {
-        let url: URL
-    }
+    typealias Item = CleanerEligibilityTests.Item
     enum Queue {
         enum QoS { case userInitiated }
         static var pending: [() -> Void] = []
@@ -28,30 +26,51 @@ enum CleanerScanFlowTests {
         var scanCancellation: CleanerSupport.ScanCancellation?
         static var scanned: [CleanerSupport.Category] = []
         static var onScan: ((CleanerSupport.Category) -> Void)?
+        static var fixtureApps: Set<String>?
         static func record(_ category: CleanerSupport.Category) -> [Item] {
+            guard fixtureApps == nil else { return [] }
             scanned.append(category)
             onScan?(category)
-            return [Item(url: URL(fileURLWithPath: "/fixture/\(category.rawValue)"))]
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            return [Item(url: url, category: category, detail: "")]
         }
-        static var leftoverOwners: Set<String> = []
-        static var cachePluginIDs: Set<String> = []
-        static func installedBundleIDs() -> Set<String> { ["com.fixture.editor"] }
-        static func installedAudioPluginBundleIDs() -> Set<String> { ["com.fixture.synth"] }
-        static func scanLeftovers(installed: Set<String>) -> [Item] {
-            leftoverOwners = installed
+        static func installedBundleIDs() -> Set<String> { fixtureApps ?? [] }
+        static func installedAudioPluginBundleIDs() -> Set<String> {
+            fixtureApps == nil ? [] : CleanerEligibilityTests.installedAudioPluginBundleIDs()
+        }
+        static func scanLeftovers(installedApps: Set<String>, audioPluginIDs: Set<String>) -> [Item] {
+            if fixtureApps != nil {
+                return CleanerEligibilityTests.scanLeftovers(installedApps: installedApps, audioPluginIDs: audioPluginIDs)
+            }
             return record(.leftovers)
         }
         static func scanOrphanedLaunchPlists(installed: Set<String>) -> [Item] { record(.loginItems) }
         static func scanCaches(excluding: Set<String>, audioPluginIDs: Set<String>) -> [Item] {
-            cachePluginIDs = audioPluginIDs
+            if fixtureApps != nil {
+                return CleanerEligibilityTests.scanCaches(excluding: excluding, audioPluginIDs: audioPluginIDs)
+            }
             return record(.caches)
         }
-        static func scanLogs(excluding: Set<String>) -> [Item] { record(.logs) }
+        static func scanLogs(excluding: Set<String>) -> [Item] {
+            if fixtureApps != nil {
+                return CleanerEligibilityTests.scanLogs(excluding: excluding)
+            }
+            return record(.logs)
+        }
         static func scanDeveloperJunk() -> [Item] { record(.developer) }
         static func scanTrash() -> [Item] { record(.trash) }
         static func scanDeviceBackups() -> [Item] { record(.deviceBackups) }
         static func screenshotSearch() -> (folders: [URL], days: Int)? { ([], 30) }
         static func scanScreenshots(in folders: [URL], days: Int) -> [Item] { record(.screenshots) }
+    }
+
+    static func scanFixture(installedApps: Set<String>, attended: Bool = false) -> [Item] {
+        Scanner.fixtureApps = installedApps
+        defer { Scanner.fixtureApps = nil }
+        let cleaner = Scanner()
+        cleaner.scan(attended: attended)
+        Queue.drain()
+        return cleaner.items
     }
 
     static func run(_ suite: TestSuite) {
@@ -96,14 +115,9 @@ enum CleanerScanFlowTests {
 
         cleaner.reset()
         Scanner.scanned = []
-        Scanner.leftoverOwners = []
-        Scanner.cachePluginIDs = []
         cleaner.scan(attended: false)
         Queue.drain()
         suite.expect(Scanner.scanned == all.filter { $0 != .screenshots } && cleaner.phase == .results,
                      "an unattended scan never reads the screenshot folders")
-        suite.expect(Scanner.leftoverOwners == ["com.fixture.editor", "com.fixture.synth"]
-                     && Scanner.cachePluginIDs == ["com.fixture.synth"],
-                     "scheduled scans protect plugin caches and keep ordinary app caches eligible")
     }
 }

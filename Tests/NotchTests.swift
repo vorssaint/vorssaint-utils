@@ -2762,16 +2762,26 @@ enum NotchTests {
                                                      flow: .rows(columns: columns), direction: .down) == columns,
                    "gallery Down follows the next visible row rather than the old sideways rail")
         }
-        for size in [CGSize(width: 304, height: 534), CGSize(width: 424, height: 180),
-                     CGSize(width: 504, height: 264), CGSize(width: 304, height: 144),
-                     CGSize(width: 424, height: 300)] {
-            let preview = NotchLayout.cameraPreviewSize(in: size)
-            let ratio = preview.width / preview.height
-            suite.expect(preview.width <= size.width && preview.height <= size.height
-                   && (preview.width == size.width || preview.height == size.height)
-                   && ratio > 4.0 / 3.0 - 0.001 && ratio < 16.0 / 9.0 + 0.001,
-                   "camera preview fills the page's width or height and crops no further than 16:9 or 4:3")
+        let outline = RoundedRectangle(cornerRadius: CameraPreviewLayout.cornerRadius, style: .continuous)
+        for size in [CGSize(width: 320, height: 240), CGSize(width: 320, height: 180),
+                     CGSize(width: 304, height: 534), CGSize(width: 424, height: 180),
+                     CGSize(width: 304, height: 140.5)] {
+            let bounds = CGRect(origin: .zero, size: size)
+            let innerPath = outline.inset(by: CameraPreviewLayout.borderWidth).path(in: bounds)
+            let video = CameraPreviewLayout.videoSize(in: size)
+            let left = (size.width - video.width) / 2
+            let top = (size.height - video.height) / 2
+            for x in [left, left + video.width] {
+                for y in [top, top + video.height] {
+                    suite.expect(innerPath.contains(CGPoint(x: x, y: y)),
+                                 "every corner of the video stays inside the rounded border at \(size)")
+                }
+            }
+            suite.expect(left < CameraPreviewLayout.cornerRadius && top < CameraPreviewLayout.cornerRadius,
+                         "the video uses the available width and height up to the corner clearance at \(size)")
         }
+        suite.expect(CameraPreviewLayout.videoSize(in: .zero) == .zero,
+                     "an empty preview during layout has no negative video dimensions")
         suite.expect(compact.contentSize(for: compact.sectionPickerSize(count: 0)).height == NotchLayout.emptyHeight
                && compact.contentSize(for: compact.sectionPickerSize(count: 1)).height == NotchLayout.sectionTileHeight,
                "an unmatched search keeps the recovery guidance's row and a match takes just its tiles, the search living in the header")

@@ -245,15 +245,15 @@ enum NotchAgentSupport {
         case .tokens, .cost:
             let metered = live.filter { $0.provider != .cursor }
             let partial = metered.count != live.count
-            let prefix = partial ? "≥ " : ""
             // What the agent wrote, the count its own window shows; the
             // context it reads again on every call is in the cost.
             if readout == .tokens {
                 let tokens = metered.reduce(0) { $0 + $1.tokens.output }
+                let prefix = partial ? "≥ " : ""
                 return partial && tokens == 0 ? "—" : prefix + AgentFormat.tokens(tokens)
             }
             let cost = metered.reduce(0) { $0 + $1.cost }
-            return partial && cost == 0 ? "—" : prefix + AgentFormat.cost(cost)
+            return AgentFormat.cost(cost, partial: partial)
         case .limit:
             guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
                   let window = focusedLimit(snapshot.limits[provider], focus: focus, now: now) else { return elapsed() }
@@ -396,12 +396,23 @@ enum NotchAgentSupport {
 /// Numbers in the reader's region; costs in US dollars, the currency both
 /// providers list their prices in.
 enum AgentFormat {
-    static func cost(_ value: Double, locale: Locale = .autoupdatingCurrent) -> String {
-        guard value.isFinite else { return "$0" }
+    static func cost(_ totals: AgentTotals, locale: Locale = .autoupdatingCurrent) -> String {
+        cost(totals.cost, partial: totals.hasPartialCost, locale: locale)
+    }
+
+    static func cost(_ snapshot: AgentUsageSnapshot, for period: AgentPeriod, locale: Locale = .autoupdatingCurrent) -> String {
+        cost(snapshot.usage(period).total.cost, partial: snapshot.hasPartialCost(period), locale: locale)
+    }
+
+    static func cost(_ value: Double, partial: Bool = false, locale: Locale = .autoupdatingCurrent) -> String {
+        guard value.isFinite else { return partial ? "—" : "$0" }
+        if partial && value < 0.01 { return value > 0 ? "> " + cost(0, locale: locale) : "—" }
+        let prefix = partial ? "≥ $" : "$"
         let magnitude = abs(value)
-        if magnitude >= 10_000 { return "$" + scaled(magnitude / 1000, locale: locale) + "K" }
+        if magnitude >= 10_000 { return prefix + scaled(magnitude / 1000, locale: locale) + "K" }
         let digits = magnitude >= 100 ? 0 : 2
-        return "$" + value.formatted(.number.precision(.fractionLength(digits)).grouping(.automatic).locale(locale))
+        return prefix + value.formatted(.number.precision(.fractionLength(digits))
+            .rounded(rule: partial ? .down : .toNearestOrEven).grouping(.automatic).locale(locale))
     }
 
     static func tokens(_ value: Int, locale: Locale = .autoupdatingCurrent) -> String {

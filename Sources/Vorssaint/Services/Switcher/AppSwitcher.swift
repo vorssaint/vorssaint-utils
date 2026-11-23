@@ -164,6 +164,7 @@ final class AppSwitcher: ObservableObject {
     /// Fires while the pointer stays on the last visible overflow icon.
     private var iconRowEdgeHoverWork: DispatchWorkItem?
     private var iconRowEdgeHoverIndex: Int?
+    private var previewCaptureTask: Task<Void, Never>?
     private var pendingPreviewUpdates: [CGWindowID: CGImage] = [:]
     private var previewBatchWorkItem: DispatchWorkItem?
 
@@ -208,10 +209,13 @@ final class AppSwitcher: ObservableObject {
 
     private init() {
         SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
-        windowInventory.onReady = { [weak self] in
-            guard let self,
-                  let generation = self.routeLock.withLock({ self.routePendingSessionStart?.generation }) else { return }
-            self.beginPendingSession(generation: generation)
+        windowInventory.onReady = { [weak self] items in
+            guard let self else { return }
+            if let generation = self.routeLock.withLock({ self.routePendingSessionStart?.generation }) {
+                self.beginPendingSession(generation: generation)
+            } else {
+                self.updateSessionTitles(from: items)
+            }
         }
     }
 
@@ -267,6 +271,7 @@ final class AppSwitcher: ObservableObject {
             let panel = ensurePanel()
             panel.contentViewController?.view.layoutSubtreeIfNeeded()
             if !capturesPreviews {
+                cancelSessionPreviews()
                 WindowPreviewProvider.shared.stopWarming()
             } else {
                 WindowPreviewProvider.shared.startWarming()
@@ -1305,15 +1310,7 @@ final class AppSwitcher: ObservableObject {
             return
         }
         scheduleShowPanel { [weak self] in
-            guard let self, self.capturesPreviews, self.sessionActive,
-                  self.routeLock.withLock({ self.sessionStartGeneration == generation }) else { return }
-            WindowPreviewProvider.shared.refreshPreviews(for: list, maxPixelSize: 640 * PreviewSizing.switcherScale,
-                                                        excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps) { [weak self] windowID, image in
-                guard let self, self.sessionActive,
-                      self.routeLock.withLock({ self.sessionStartGeneration == generation }),
-                      self.sessionItems.contains(where: { $0.previewWindowID == windowID }) else { return }
-                self.enqueuePreviewUpdate(windowID: windowID, image: image)
-            }
+            self?.refreshSessionPreviews(for: list, generation: generation)
         }
     }
 
@@ -1477,6 +1474,28 @@ final class AppSwitcher: ObservableObject {
         isSearchPinned = true
         recomputeLayouts(for: windows)
         resizePanel()
+    }
+
+    private func updateSessionTitles(from current: [SwitcherItem]) {
+        guard sessionActive else { return }
+        let byID = Dictionary(current.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+        var changed = false
+        for index in sessionItems.indices {
+            let item = sessionItems[index]
+            guard let updated = byID[item.id], updated.pid == item.pid,
+                  updated.windowOwnerPID == item.windowOwnerPID, updated.title != item.title else { continue }
+            sessionItems[index].title = updated.title
+            changed = true
+        }
+        guard changed else { return }
+        let previousIDs = windows.map(\.id)
+        applySearchFilter(preferredItemID: selectedItemID)
+        if !windows.lazy.map(\.id).elementsEqual(previousIDs) {
+            // A stationary pointer may now be over a different document.
+            hoveredWindowIndex = nil
+            hoverAnchor = NSEvent.mouseLocation
+            cancelIconRowEdgeHover()
+        }
     }
 
     private func applySearchFilter(preferredItemID: String?) {
@@ -1863,6 +1882,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func endSession() {
+        cancelSessionPreviews()
         stopObservingTermination()
         cancelLetterConfirmation()
         SwitcherAppIconCache.endSession()
@@ -1870,7 +1890,6 @@ final class AppSwitcher: ObservableObject {
         invalidateSecureInputReplays()
         pendingShow?.cancel()
         pendingShow = nil
-        cancelPendingPreviewBatch()
         panel?.orderOut(nil)
         unregisterSecureInputActionHotKeys()
         sessionItems = []
@@ -1901,6 +1920,21 @@ final class AppSwitcher: ObservableObject {
         commitPendingForClose = false
     }
 
+    private func refreshSessionPreviews(for list: [SwitcherItem], generation: UInt64) {
+        guard capturesPreviews, sessionActive,
+              routeLock.withLock({ sessionStartGeneration == generation }) else { return }
+        previewCaptureTask?.cancel()
+        previewCaptureTask = WindowPreviewProvider.shared.refreshPreviews(
+            for: list, maxPixelSize: 640 * PreviewSizing.switcherScale,
+            excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps
+        ) { [weak self] windowID, image in
+            guard let self, self.sessionActive,
+                  self.routeLock.withLock({ self.sessionStartGeneration == generation }),
+                  self.sessionItems.contains(where: { $0.previewWindowID == windowID }) else { return }
+            self.enqueuePreviewUpdate(windowID: windowID, image: image)
+        }
+    }
+
     private func enqueuePreviewUpdate(windowID: CGWindowID, image: CGImage) {
         pendingPreviewUpdates[windowID] = image
         guard previewBatchWorkItem == nil else { return }
@@ -1921,7 +1955,9 @@ final class AppSwitcher: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04, execute: work)
     }
 
-    private func cancelPendingPreviewBatch() {
+    private func cancelSessionPreviews() {
+        previewCaptureTask?.cancel()
+        previewCaptureTask = nil
         previewBatchWorkItem?.cancel()
         previewBatchWorkItem = nil
         pendingPreviewUpdates.removeAll()
