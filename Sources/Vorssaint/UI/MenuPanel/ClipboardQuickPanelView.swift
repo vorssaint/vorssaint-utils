@@ -733,6 +733,7 @@ struct ClipboardQuickPanelView: View {
         QuickEntryView(layout: layout,
                        vertical: vertical,
                        cardSize: cardSize,
+                       linkSnapshot: entry.shelfLink.flatMap { history.quickLinkSnapshots[$0] },
                        click: history.quickShelfClick,
                        pinboards: history.pinboards,
                        showSourceAppIcons: showSourceAppIcons,
@@ -990,6 +991,7 @@ private struct QuickEntryView: View, Equatable {
     let layout: ClipboardHistoryLayout
     let vertical: Bool
     let cardSize: CGSize
+    let linkSnapshot: ClipboardShelfLinkSnapshot?
     let click: ClipboardShelfClick
     let pinboards: [ClipboardPinboard]
     let showSourceAppIcons: Bool
@@ -1023,6 +1025,7 @@ private struct QuickEntryView: View, Equatable {
         lhs.layout == rhs.layout
             && lhs.vertical == rhs.vertical
             && lhs.cardSize == rhs.cardSize
+            && lhs.linkSnapshot == rhs.linkSnapshot
             && lhs.click == rhs.click
             && lhs.pinboards == rhs.pinboards
             && lhs.showSourceAppIcons == rhs.showSourceAppIcons
@@ -1117,8 +1120,7 @@ private struct QuickEntryView: View, Equatable {
         VStack(alignment: .leading, spacing: 0) {
             cardHeader
             Divider()
-            entryContent(entry)
-                .padding(10)
+            cardContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .clipped()
             Divider()
@@ -1139,6 +1141,22 @@ private struct QuickEntryView: View, Equatable {
                 .strokeBorder(isBatchSelected || isSelected ? Color.accentColor : Color.primary.opacity(0.1),
                               lineWidth: isBatchSelected || isSelected ? 2.5 : 0.5)
         )
+    }
+
+    @ViewBuilder
+    private var cardContent: some View {
+        if let color = entry.color {
+            ClipboardShelfColorPreview(color: color)
+        } else if let url = entry.shelfLink {
+            ClipboardShelfLinkCard(entryID: entry.id, url: url, linkText: entry.cardPreview,
+                                   tokens: tokens, text: .forLanguage(language), previewLabel: text.previewLabel,
+                                   snapshot: linkSnapshot) { load in
+                history.selectQuickEntry(entry)
+                history.showShelfPreview(entry, loadLinkImmediately: load)
+            }
+        } else {
+            entryContent(entry).padding(10)
+        }
     }
 
     private var selectionButton: some View {
@@ -1225,15 +1243,10 @@ private struct QuickEntryView: View, Equatable {
     @ViewBuilder
     private func entryContent(_ entry: ClipboardHistoryEntry) -> some View {
         switch entry.kind {
-        case .text where !isRow && entry.shelfLink != nil:
-            if let url = entry.shelfLink {
-                ClipboardShelfLinkCard(entryID: entry.id, url: url, linkText: entry.cardPreview,
-                                       tokens: tokens, text: .forLanguage(language))
-            }
         case .text:
             HStack(alignment: isRow ? .center : .top, spacing: 8) {
                 if let color = entry.color {
-                    ColorSwatch(color: color, size: isRow ? 14 : 30)
+                    ColorSwatch(color: color)
                 }
                 SearchHighlightText.text(isRow ? entry.preview : entry.cardPreview, tokens: tokens, fontSize: 12)
                     .font(.system(size: 12))

@@ -2427,6 +2427,13 @@ enum ClipboardPreviewContract {
     }
 
     private static func shelfPreviewAndEmoji(_ suite: TestSuite) {
+        for address in ["file:///tmp/local.html", "custom://app/resource", "https://user:secret@example.org"] {
+            suite.expect(ClipboardHistoryEntry(text: address).shelfLink == nil,
+                         "the shelf never offers to load file URLs, custom schemes or URL credentials")
+        }
+        suite.expect(ClipboardHistoryEntry(text: "https://example.org/path").shelfLink != nil,
+                     "a plain HTTPS clip can open a web preview")
+
         let screen = CGRect(x: -1920, y: 45, width: 1920, height: 1050)
         let innerCorners: [ClipboardShelfEdge: RectangleCornerRadii] = [
             .bottom: RectangleCornerRadii(topLeading: 22, topTrailing: 22),

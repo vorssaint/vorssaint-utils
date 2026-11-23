@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import LinkPresentation
 import SwiftUI
+
+struct ClipboardShelfLinkSnapshot: Equatable {
+    let url: URL
+    let title: String
+    let image: NSImage?
+}
 
 struct ClipboardShelfLinkCard: View {
     let entryID: UUID
@@ -10,58 +15,74 @@ struct ClipboardShelfLinkCard: View {
     let linkText: String
     let tokens: [String]
     let text: ClipboardShelfStrings
+    let previewLabel: String
+    let snapshot: ClipboardShelfLinkSnapshot?
+    let openPreview: (Bool) -> Void
+
     @AppStorage(DefaultsKey.clipboardShelfLinkPreviews) private var enabled = false
-    @State private var provider: LPMetadataProvider?
-    @State private var metadata: LPLinkMetadata?
-    @State private var failed = false
     @FocusState private var loadFocused: Bool
 
+    private var visibleSnapshot: ClipboardShelfLinkSnapshot? { enabled ? snapshot : nil }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            if let metadata {
-                ShelfLinkPreview(metadata: metadata)
-                    .frame(height: 105)
-                    .clipped()
-                    .allowsHitTesting(false)
-            } else {
-                Label(url.host ?? linkText, systemImage: "link")
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(2)
-                SearchHighlightText.text(linkText, tokens: tokens, fontSize: 11)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-            }
-            if enabled && metadata == nil { loadControl }
+        VStack(alignment: .leading, spacing: 0) {
+            artwork
+            details
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .onChange(of: enabled) { _, enabled in if !enabled { reset() } }
-        .onChange(of: url) { _, _ in reset() }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onChange(of: loadFocused) { _, focused in updateFocus(focused) }
-        .onDisappear {
-            updateFocus(false)
-            reset()
+        .onDisappear { updateFocus(false) }
+    }
+
+    private var artwork: some View {
+        GeometryReader { geometry in
+            if let image = visibleSnapshot?.image {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .background(.quaternary.opacity(0.32))
+                    .accessibilityHidden(true)
+            } else {
+                Image(systemName: "globe")
+                    .font(.system(size: 32, weight: .light))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.quaternary.opacity(0.32))
+                    .accessibilityHidden(true)
+            }
         }
     }
 
-    @ViewBuilder
-    private var loadControl: some View {
-        if provider != nil {
-            ProgressView().controlSize(.small).accessibilityLabel(text.loadLinkPreview)
-        } else {
-            Button(text.loadLinkPreview, action: load)
-                .controlSize(.small)
-                .focused($loadFocused)
-                .onKeyPress(keys: ClipboardHistoryFocus.buttonConfirmationKeys) { _ in
-                    load()
-                    return .handled
-                }
-                .help(text.linkPreviewsCaption)
-            if failed {
-                Text(text.linkPreviewUnavailable)
+    private var details: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                SearchHighlightText.text(visibleSnapshot?.title ?? linkText, tokens: tokens, fontSize: 12)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                Text((visibleSnapshot?.url ?? url).host ?? "")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if enabled { previewButton }
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+    }
+
+    private var previewButton: some View {
+        let label = visibleSnapshot == nil ? text.loadLinkPreview : previewLabel
+        return Button(label, systemImage: "eye") { openPreview(visibleSnapshot == nil) }
+            .labelStyle(.iconOnly)
+            .controlSize(.small)
+            .focused($loadFocused)
+            .onKeyPress(keys: ClipboardHistoryFocus.buttonConfirmationKeys) { _ in
+                openPreview(visibleSnapshot == nil)
+                return .handled
+            }
+            .help(label)
     }
 
     private func updateFocus(_ focused: Bool) {
@@ -71,43 +92,5 @@ struct ClipboardShelfLinkCard: View {
         } else if history.focusedShelfLinkPreviewID == entryID {
             history.focusedShelfLinkPreviewID = nil
         }
-    }
-
-    private func load() {
-        guard enabled, provider == nil else { return }
-        let requestProvider = LPMetadataProvider()
-        requestProvider.timeout = 8
-        requestProvider.shouldFetchSubresources = false
-        provider = requestProvider
-        failed = false
-
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
-        request.httpShouldHandleCookies = false
-        request.attribution = .user
-        requestProvider.startFetchingMetadata(for: request) { linkMetadata, _ in
-            DispatchQueue.main.async {
-                guard provider === requestProvider else { return }
-                provider = nil
-                metadata = linkMetadata
-                failed = linkMetadata == nil
-            }
-        }
-    }
-
-    private func reset() {
-        provider?.cancel()
-        provider = nil
-        metadata = nil
-        failed = false
-    }
-}
-
-private struct ShelfLinkPreview: NSViewRepresentable {
-    let metadata: LPLinkMetadata
-
-    func makeNSView(context: Context) -> LPLinkView { LPLinkView(metadata: metadata) }
-
-    func updateNSView(_ view: LPLinkView, context: Context) {
-        view.metadata = metadata
     }
 }

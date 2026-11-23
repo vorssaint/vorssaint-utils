@@ -45,7 +45,8 @@ enum ClipboardShelfEdge: String, CaseIterable {
         }
     }
 
-    func previewFrame(beside shelf: CGRect, within screen: CGRect) -> CGRect {
+    func previewFrame(beside shelf: CGRect, within screen: CGRect,
+                      preferredSize: CGSize = CGSize(width: 640, height: 500)) -> CGRect {
         let available: CGRect
         switch self {
         case .top: available = screen.divided(atDistance: max(0, shelf.minY - screen.minY), from: .minYEdge).slice
@@ -54,8 +55,8 @@ enum ClipboardShelfEdge: String, CaseIterable {
         case .right: available = screen.divided(atDistance: max(0, shelf.minX - screen.minX), from: .minXEdge).slice
         }
         let area = available.width >= 280 && available.height >= 200 ? available : screen
-        let width = min(640, area.width * 0.94)
-        let height = min(500, area.height * 0.94)
+        let width = min(preferredSize.width, area.width * 0.94)
+        let height = min(preferredSize.height, area.height * 0.94)
         return CGRect(x: area.midX - width / 2, y: area.midY - height / 2, width: width, height: height)
     }
 
@@ -66,6 +67,14 @@ enum ClipboardShelfEdge: String, CaseIterable {
         case .left: return CGSize(width: -size.width, height: 0)
         case .right: return CGSize(width: size.width, height: 0)
         }
+    }
+}
+
+enum ClipboardShelfWebAddress {
+    static func canPreview(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              let host = url.host, !host.isEmpty else { return false }
+        return url.user == nil && url.password == nil
     }
 }
 
@@ -390,8 +399,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         guard kind == .text, text.utf8.count <= Self.indexCharacters else { return nil }
         let candidate = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !candidate.contains(where: \.isWhitespace), let url = URL(string: candidate),
-              let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http",
-              url.host != nil else { return nil }
+              ClipboardShelfWebAddress.canPreview(url) else { return nil }
         return url
     }
 

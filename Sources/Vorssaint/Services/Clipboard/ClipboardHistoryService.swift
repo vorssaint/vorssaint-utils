@@ -82,6 +82,7 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var quickSelectionID: UUID?
     @Published private(set) var quickSelectionIsVisible = false
     @Published private(set) var quickWindowPresentationID = UUID()
+    @Published private(set) var quickLinkSnapshots: [URL: ClipboardShelfLinkSnapshot] = [:]
     @Published private(set) var quickPreviewPresented = UserDefaults.standard.bool(
         forKey: DefaultsKey.clipboardHistoryQuickPreview
     )
@@ -112,7 +113,7 @@ final class ClipboardHistoryService: ObservableObject {
     private var copyInFlight = false
     private static let pasteboardTimeout: TimeInterval = 5
     private var panel: NSPanel?
-    private var shelfPreviewPanel: NSPanel?
+    private var shelfPreviewPanel: ClipboardShelfPreviewPanel?
     private let shelfPasteSession = OSAllocatedUnfairLock(initialState: UUID())
     private var panelResizeObserver: NSObjectProtocol?
     private var panelMoveObserver: NSObjectProtocol?
@@ -1512,28 +1513,46 @@ final class ClipboardHistoryService: ObservableObject {
         }
     }
 
-    func showShelfPreview(_ entry: ClipboardHistoryEntry) {
+    func showShelfPreview(_ entry: ClipboardHistoryEntry, loadLinkImmediately: Bool = false) {
         guard quickLayout == .cards, let shelf = panel, shelf.isVisible, !shelfIsClosing,
               let screen = shelf.screen,
               !UserDefaults.standard.bool(forKey: DefaultsKey.clipboardShelfPrivacyMode) else { return }
 
         closeShelfPreview()
         let text = FeatureStrings.clipboard(L10n.shared.language)
-        let frame = quickShelfEdge.previewFrame(beside: shelf.frame, within: screen.visibleFrame)
+        let link = entry.shelfLink
+        let preferredSize = link == nil ? CGSize(width: 640, height: 500) : CGSize(width: 880, height: 580)
+        let frame = quickShelfEdge.previewFrame(beside: shelf.frame, within: screen.visibleFrame,
+                                               preferredSize: preferredSize)
         let preview = ClipboardShelfPreviewPanel(contentRect: frame,
                                                  styleMask: [.titled, .closable, .nonactivatingPanel],
                                                  backing: .buffered, defer: false)
         preview.onClose = { [weak self] in self?.closeShelfPreview(restoreFocus: true) }
         preview.title = text.previewLabel
+        preview.isLinkPreview = link != nil
         preview.appearance = shelf.appearance ?? NSAppearance(named: .darkAqua)
         preview.isReleasedWhenClosed = false
         preview.collectionBehavior = [.fullScreenAuxiliary, .ignoresCycle]
         preview.level = shelf.level
-        preview.contentViewController = NSHostingController(rootView: ClipboardShelfPreviewView(entry: entry, text: text))
+        let view = ClipboardShelfPreviewView(entry: entry, text: text, loadLinkImmediately: loadLinkImmediately,
+                                             linkSnapshot: link.flatMap { quickLinkSnapshots[$0] }) { [weak self, weak preview] snapshot in
+            guard let self, let preview, self.shelfPreviewPanel === preview, let link else { return }
+            self.rememberLinkSnapshot(snapshot, for: link)
+        }
+        preview.contentViewController = NSHostingController(rootView: view)
         preview.setFrame(frame, display: false)
         shelfPreviewPanel = preview
         shelf.addChildWindow(preview, ordered: .above)
         preview.makeKeyAndOrderFront(nil)
+    }
+
+    private func rememberLinkSnapshot(_ snapshot: ClipboardShelfLinkSnapshot, for url: URL) {
+        var snapshots = quickLinkSnapshots
+        if snapshots.count >= 8, snapshots[url] == nil, let previous = snapshots.keys.first {
+            snapshots.removeValue(forKey: previous)
+        }
+        snapshots[url] = snapshot
+        quickLinkSnapshots = snapshots
     }
 
     func closeShelfPreview(restoreFocus: Bool = false) {
@@ -1645,6 +1664,7 @@ final class ClipboardHistoryService: ObservableObject {
         shelfIsClosing = false
         clearQuickBatchSelection()
         focusedShelfLinkPreviewID = nil
+        if !quickLinkSnapshots.isEmpty { quickLinkSnapshots.removeAll() }
         quickPinboardEditorIsActive = false
         quickFilterChoiceIsFocused = false
         completion?()
@@ -1898,7 +1918,7 @@ final class ClipboardHistoryService: ObservableObject {
             // An open confirmation owns Return and Escape.
             guard let self, let panel else { return event }
             if let preview = self.shelfPreviewPanel, event.window === preview {
-                return self.handleShelfPreviewKey(event)
+                return self.handleShelfPreviewKey(event, in: preview)
             }
             guard event.window === panel, panel.attachedSheet == nil else { return event }
             if self.shelfIsClosing { return nil }
@@ -2001,9 +2021,11 @@ final class ClipboardHistoryService: ObservableObject {
         }
     }
 
-    private func handleShelfPreviewKey(_ event: NSEvent) -> NSEvent? {
+    private func handleShelfPreviewKey(_ event: NSEvent, in preview: ClipboardShelfPreviewPanel) -> NSEvent? {
         let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
-        let dismisses = event.keyCode == UInt16(kVK_Escape) || event.keyCode == UInt16(kVK_Space)
+        // In the link preview, Space activates a button or scrolls the page.
+        let dismisses = event.keyCode == UInt16(kVK_Escape)
+            || (event.keyCode == UInt16(kVK_Space) && !preview.isLinkPreview)
         guard modifiers.isEmpty, dismisses else { return event }
         if !event.isARepeat { closeShelfPreview(restoreFocus: true) }
         return nil
@@ -2121,6 +2143,7 @@ final class ClipboardHistoryService: ObservableObject {
 }
 
 private final class ClipboardShelfPreviewPanel: OverlayPanel {
+    var isLinkPreview = false
     var onClose: (() -> Void)?
 
     override func performClose(_ sender: Any?) {
