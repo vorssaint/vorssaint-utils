@@ -143,6 +143,39 @@ enum NotchAgentTests {
                           "a long prompt on the fast tier pays both premiums")
         suite.expectClose(AgentPricing.cost(AgentBillable(tokens: AgentTokens(input: 272_000)), model: "gpt-6-astra").cost ?? -1,
                           2.72, "the long-context premium starts past its threshold")
+        // GPT-6.2 published rates: https://developers.openai.com/api/docs/models/gpt-6.2-astra and gpt-6.2-sol
+        let gpt62Turn = AgentBillable(tokens: AgentTokens(input: 100_000, cacheWrite: 40_000, cacheRead: 100_000, output: 10_000))
+        let gpt62Sol = AgentPricing.cost(gpt62Turn, model: "gpt-6.2-sol")
+        let gpt62Astra = AgentPricing.cost(gpt62Turn, model: "gpt-6.2-astra")
+        let gpt62SolExpected: Double = (100_000 * 2.0 + 40_000 * 2.5 + 100_000 * 0.1 + 10_000 * 10.0) / 1_000_000
+        let gpt62AstraExpected: Double = (100_000 * 8.0 + 40_000 * 10.0 + 100_000 * 0.4 + 10_000 * 40.0) / 1_000_000
+        suite.expectClose(gpt62Sol.cost ?? -1, gpt62SolExpected,
+                          "GPT-6.2 Sol bills input, 30m cache writes, cached input and output at published rates", tol: 0.000001)
+        suite.expectClose(gpt62Sol.savings, 100_000 * (2.0 - 0.1) / 1_000_000,
+                          "GPT-6.2 Sol cache savings reflect its 95% cache-read discount", tol: 0.000001)
+        suite.expectClose(gpt62Astra.cost ?? -1, gpt62AstraExpected,
+                          "GPT-6.2 Astra bills input, 30m cache writes, cached input and output at published rates", tol: 0.000001)
+        suite.expectClose(gpt62Astra.savings, 100_000 * (8.0 - 0.4) / 1_000_000,
+                          "GPT-6.2 Astra cache savings reflect its 95% cache-read discount", tol: 0.000001)
+        let gpt62LongFastSol: Double = (300_000 * 2.0 * 4.0 + 1000 * 10.0 * 3.0) / 1_000_000
+        let gpt62LongFastAstra: Double = (300_000 * 8.0 * 4.0 + 1000 * 40.0 * 3.0) / 1_000_000
+        suite.expectClose(AgentPricing.cost(longFast, model: "gpt-6.2-sol").cost ?? -1, gpt62LongFastSol,
+                          "GPT-6.2 Sol applies both long-context (>272K) and fast-tier (2x) multipliers", tol: 0.000001)
+        suite.expectClose(AgentPricing.cost(longFast, model: "gpt-6.2-astra").cost ?? -1, gpt62LongFastAstra,
+                          "GPT-6.2 Astra applies both long-context (>272K) and fast-tier (2x) multipliers", tol: 0.000001)
+        let gpt62LawLong = AgentBillable(tokens: AgentTokens(input: 300_000, output: 1000), fast: true)
+        let gpt62LawExpected: Double = (300_000 * 8.0 * 2.0 + 1000 * 40.0 * 1.5) / 1_000_000
+        suite.expectClose(AgentPricing.cost(gpt62LawLong, model: "gpt-6.2-astra-law").cost ?? -1, gpt62LawExpected,
+                          "GPT-6.2 Astra Law applies long-context rates without an unlisted fast multiplier", tol: 0.000001)
+        suite.expect(AgentPricing.price(for: "gpt-6.2-sol-2026-11-18")?.input == 2
+                        && AgentPricing.price(for: "gpt-6.2-astra-2026-11-18")?.input == 8
+                        && AgentPricing.price(for: "openai.gpt-6.2-sol")?.output == 10
+                        && AgentPricing.price(for: "global.openai.gpt-6.2-astra")?.output == 40
+                        && AgentPricing.price(for: "us.openai.gpt-6.2-sol")?.cacheRead == 0.1
+                        && AgentPricing.price(for: "us.openai.gpt-6.2-astra")?.cacheRead == 0.4
+                        && AgentPricing.price(for: "gpt-6.2-sol-mini") == nil
+                        && AgentPricing.price(for: "gpt-6.2-astra-mini") == nil,
+                     "GPT-6.2 dated snapshots and Bedrock IDs keep their rates while unlisted siblings stay unpriced")
         let plain = AgentBillable(tokens: AgentTokens(input: 1_000_000))
         var fast = plain
         fast.fast = true
@@ -164,6 +197,8 @@ enum NotchAgentTests {
                         && AgentPricing.displayName("claude-3-5-sonnet-20241022") == "Sonnet 3.5"
                         && AgentPricing.displayName("claude-sonnet-4-5-20250929") == "Sonnet 4.5"
                         && AgentPricing.displayName("gpt-6-astra") == "GPT-6 Astra"
+                        && AgentPricing.displayName("gpt-6.2-sol") == "GPT-6.2 Sol"
+                        && AgentPricing.displayName("gpt-6.2-astra") == "GPT-6.2 Astra"
                         && AgentPricing.displayName("gpt-5.1-codex-max") == "GPT-5.1 Codex Max"
                         && AgentPricing.displayName("gpt-6-astra-2026-10-01") == "GPT-6 Astra"
                         && AgentPricing.displayName("gpt-5-2025-08-07") == "GPT-5"
@@ -594,6 +629,40 @@ enum NotchAgentTests {
         suite.expect(AgentLogParser.fastTier("priority") && AgentLogParser.fastTier("Fast") && !AgentLogParser.fastTier("default")
                         && !AgentLogParser.fastTier("flex"),
                      "fast mode is recognized by both of its names")
+
+        // GPT-6.2 Codex turns contribute to the period API value, while an
+        // unlisted model marks the period incomplete rather than showing $0.00.
+        let turnTime = AgentTimestamp.parse("2026-11-23T12:00:00.000Z")!
+        var gpt62State = AgentLogState()
+        let gpt62Store = AgentUsageStore()
+        let gpt62Context = line(#"{"timestamp":"2026-11-23T11:59:50.000Z","type":"turn_context","payload":{"model":"gpt-6.2-sol","cwd":"/Users/me/code/web"}}"#)
+        let gpt62Record = line(#"{"timestamp":"2026-11-23T12:00:00.000Z","type":"token_usage_record","payload":{"session_id":"s62","response_id":"resp_62","usage":{"input_tokens":200000,"cached_input_tokens":100000,"cache_write_input_tokens":0,"output_tokens":30000,"reasoning_output_tokens":0,"total_tokens":230000}}}"#)
+        for data in [gpt62Context, gpt62Record] {
+            gpt62Store.apply(AgentLogParser.parseCodex(data, state: &gpt62State, now: turnTime), file: "gpt62",
+                             provider: .codex, tracksTurns: false, modified: turnTime)
+        }
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let gpt62Snapshot = AgentUsageSummary.snapshot(records: gpt62Store.records, limits: [:], live: [], plans: [:],
+                                                       providers: [.codex], now: turnTime, calendar: utc)
+        let gpt62TurnCost: Double = (100_000 * 2.0 + 100_000 * 0.1 + 30_000 * 10.0) / 1_000_000
+        suite.expectClose(gpt62Snapshot.usage(.today).total.cost, gpt62TurnCost,
+                          "a GPT-6.2 Sol Codex turn contributes its published API value to the period total", tol: 0.000001)
+        suite.expect(!gpt62Snapshot.hasPartialCost(.today)
+                        && AgentFormat.cost(gpt62Snapshot, for: .today, locale: Locale(identifier: "en_US_POSIX")) == "$0.51",
+                     "a priced GPT-6.2 Sol turn reports an exact API value")
+        var unpricedState = AgentLogState()
+        let unpricedStore = AgentUsageStore()
+        let unpricedContext = line(#"{"timestamp":"2026-11-23T11:59:50.000Z","type":"turn_context","payload":{"model":"gpt-6.2-sol-mini","cwd":"/Users/me/code/web"}}"#)
+        for data in [unpricedContext, gpt62Record] {
+            unpricedStore.apply(AgentLogParser.parseCodex(data, state: &unpricedState, now: turnTime), file: "unpriced",
+                                provider: .codex, tracksTurns: false, modified: turnTime)
+        }
+        let unpricedSnapshot = AgentUsageSummary.snapshot(records: unpricedStore.records, limits: [:], live: [], plans: [:],
+                                                          providers: [.codex], now: turnTime, calendar: utc)
+        suite.expect(unpricedSnapshot.hasPartialCost(.today)
+                        && AgentFormat.cost(unpricedSnapshot, for: .today, locale: Locale(identifier: "en_US_POSIX")) == "—",
+                     "an unpriced Codex model shows an unavailable estimate instead of $0.00")
 
         // Older logs carry running totals only.
         var legacy = AgentLogState()
