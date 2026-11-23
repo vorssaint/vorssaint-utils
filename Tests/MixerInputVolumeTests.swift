@@ -169,6 +169,7 @@ enum MixerInputVolumeContract {
         static var streamReadFails = false
         static var afterWrite: (() -> Void)?
         static var afterGainRead: [Key: () -> Void] = [:]
+        static var afterSwitchRead: [Key: () -> Void] = [:]
         static var afterSettableCheck: [Key: () -> Void] = [:]
         static var beforeControlWrite: ((Key, Double) -> Void)?
         static var afterUIDRead: (() -> Void)?
@@ -223,6 +224,7 @@ enum MixerInputVolumeContract {
             streamReadFails = false
             afterWrite = nil
             afterGainRead = [:]
+            afterSwitchRead = [:]
             afterSettableCheck = [:]
             beforeControlWrite = nil
             afterUIDRead = nil
@@ -363,6 +365,7 @@ enum MixerInputVolumeContract {
             case kAudioDevicePropertyMute:
                 guard let v = muteElements[k] ?? (a.pointee.mElement == 0 ? mute[d] : nil) else { return -1 }
                 p.storeBytes(of: v, as: UInt32.self)
+                afterSwitchRead.removeValue(forKey: k)?()
             default: return -1
             }
             return noErr
@@ -2529,36 +2532,64 @@ enum MixerInputVolumeContract {
                          "the next confirmed gain click restores both inputs after a mixed structural delivery")
         }
 
-        prepare()
-        HAL.devices = [10, 20]
-        HAL.levels[secondInput] = 0.75
-        mute()
-        record()
-        HAL.writes = []
-        var deliveries = 0
-        var deliveriesBeforeSilence: Int?
-        func changeGainDuringRead() {
-            deliveries += 1
-            HAL.levels[microphone] = deliveries.isMultiple(of: 2) ? 0.7 : 0.9
-            suite.expect(HAL.notifyIfRegistered(microphone), "the active gain listener reports the changing level")
-            if deliveries < 48 { HAL.afterGainRead[microphone] = changeGainDuringRead }
+        for clickInInventory in [false, true] {
+            prepare()
+            HAL.devices = [10, 20]
+            HAL.levels[secondInput] = 0.75
+            mute()
+            record()
+            HAL.writes = []
+            var deliveries = 0
+            var deliveriesBeforeSilence: Int?
+            func changeGainDuringRead() {
+                deliveries += 1
+                HAL.levels[microphone] = deliveries.isMultiple(of: 2) ? 0.7 : 0.9
+                suite.expect(HAL.notifyIfRegistered(microphone), "the active gain listener reports the changing level")
+                if deliveries < 48 { HAL.afterGainRead[microphone] = changeGainDuringRead }
+            }
+            HAL.afterGainRead[microphone] = changeGainDuringRead
+            var silentReads = 0
+            var quietCallbacks = 0
+            var clickedDuringInventory = false
+            var overwroteClick = false
+            func observeSilence() {
+                guard HAL.levels[microphone] == 0 else { return }
+                silentReads += 1
+                if !clickInInventory && HAL.notifyIfRegistered(microphone) { quietCallbacks += 1 }
+                if silentReads < 8 { HAL.afterGainRead[microphone] = observeSilence }
+            }
+            HAL.beforeControlWrite = { key, value in
+                if clickedDuringInventory && key == microphone && value == 0 { overwroteClick = true }
+            }
+            HAL.afterWrite = {
+                if HAL.levels[microphone] == 0 { deliveriesBeforeSilence = deliveries }
+                HAL.afterGainRead[microphone] = observeSilence
+                if clickInInventory {
+                    HAL.afterUIDRead = {
+                        guard silentReads >= 2 else { return }
+                        HAL.afterGainRead[microphone] = nil
+                        HAL.levels[microphone] = 0.8
+                        clickedDuringInventory = HAL.notifyIfRegistered(microphone)
+                    }
+                }
+            }
+            HAL.levels[microphone] = 0.7
+            notifyRegistered(microphone)
+            suite.expect((1...16).contains(deliveriesBeforeSilence ?? 0),
+                         "a continuously changing gain is silenced after bounded work while callbacks are still arriving")
+            if clickInInventory {
+                suite.expect(clickedDuringInventory && !overwroteClick, "a click after the storm's confirmed mute survives reconciliation")
+            } else {
+                suite.expect(quietCallbacks >= 2 && MicMuteService.shared.isMuted && HAL.levels[microphone] == 0
+                             && HAL.levels[secondInput] == 0 && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
+                             "more gain callbacks without an opening cannot release either input after the forced mute")
+                HAL.levels[microphone] = 0.7
+                notifyRegistered(microphone)
+            }
+            suite.expect(!MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.5
+                         && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
+                         "the first stable click after the gain callback storm restores both inputs")
         }
-        HAL.afterGainRead[microphone] = changeGainDuringRead
-        HAL.afterWrite = {
-            if HAL.levels[microphone] == 0 { deliveriesBeforeSilence = deliveries }
-            HAL.afterGainRead[microphone] = nil
-        }
-        HAL.levels[microphone] = 0.7
-        notifyRegistered(microphone)
-        suite.expect((1...16).contains(deliveriesBeforeSilence ?? 0) && MicMuteService.shared.isMuted
-                     && HAL.levels[microphone] == 0 && HAL.levels[secondInput] == 0
-                     && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
-                     "a continuously changing gain is silenced after bounded work while callbacks are still arriving")
-        HAL.levels[microphone] = 0.7
-        notifyRegistered(microphone)
-        suite.expect(!MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.5
-                     && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
-                     "the first stable click after the gain callback storm restores both inputs")
 
         enum DuringScan: CaseIterable {
             case beforeHeadsetRead, afterHeadsetRead, defaultInputOnly, rereadQuietChannel, processLookup, quietNoticeBeforeLookup
@@ -2616,6 +2647,127 @@ enum MixerInputVolumeContract {
                          && HAL.levels[firstChannel] == 0.25 && HAL.levels[channelGain] == 0.625
                          && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
                          "the new third-channel click during \(moment) restores all saved gains without a second click")
+        }
+
+        enum AfterMuteWrite: CaseIterable {
+            case setter, firstReadback, verifying, residualReadback, readingChannel, failedFirstReadback, inventory, installingOtherListener, topology
+        }
+        let headsetSwitch = HAL.key(10, 0, kAudioDevicePropertyMute)
+        for control in [microphone, headsetSwitch] {
+            let isSwitch = control == headsetSwitch
+            let moments: [AfterMuteWrite] = isSwitch ? [.verifying, .inventory] : AfterMuteWrite.allCases
+            for moment in moments {
+                prepare()
+                HAL.devices = [10, 20]
+                HAL.levels[secondInput] = 0.75
+                if isSwitch {
+                    HAL.levels[microphone] = nil
+                    HAL.mute[10] = 0
+                }
+                if moment == .readingChannel || moment == .failedFirstReadback { HAL.levels[firstChannel] = 0.25 }
+                mute()
+                record()
+                let client = HAL.soleListenerClient(for: control)
+                let newControl = HAL.key(20, 1)
+                if moment == .installingOtherListener { HAL.levels[newControl] = 0 }
+                if isSwitch { HAL.mute[10] = 0 } else { HAL.levels[microphone] = 0.9 } // Unreported drift.
+                HAL.writes = []
+                var started = false
+                var delivered = false
+                var closedAfterClick = false
+                var silentReads = 0
+                let quietGain: Float = moment == .residualReadback ? 0.005 : 0
+                func click() {
+                    HAL.afterGainRead[control] = nil
+                    HAL.afterSwitchRead[control] = nil
+                    if moment == .topology {
+                        suite.expect(HAL.notifyIfRegistered(devicesChanged), "the list changes after the verified write")
+                    }
+                    if isSwitch { HAL.mute[10] = 0 } else { HAL.levels[microphone] = 0.8 }
+                    delivered = HAL.soleListenerClient(for: control) == client && HAL.notifyIfRegistered(control)
+                }
+                func observeNextRead() {
+                    if isSwitch { HAL.afterSwitchRead[control] = sawRead } else { HAL.afterGainRead[control] = sawRead }
+                }
+                func sawRead() {
+                    guard isSwitch ? HAL.mute[10] == 1 : HAL.levels[control] == quietGain else { return }
+                    silentReads += 1
+                    if moment == .firstReadback || ((moment == .verifying || moment == .residualReadback) && silentReads == 2) {
+                        click()
+                    } else if moment == .readingChannel || moment == .failedFirstReadback {
+                        HAL.afterGainRead[firstChannel] = click
+                    } else {
+                        observeNextRead()
+                    }
+                }
+                HAL.beforeControlWrite = { key, value in
+                    guard key == control, value == (isSwitch ? 1 : 0) else { return }
+                    if delivered { closedAfterClick = true }
+                    guard !started else { return }
+                    started = true
+                    observeNextRead()
+                    switch moment {
+                    case .setter: HAL.afterWrite = click
+                    case .residualReadback: HAL.afterWrite = { HAL.levels[control] = quietGain }
+                    case .failedFirstReadback: HAL.nextReadFails.insert(control)
+                    case .inventory, .topology: HAL.afterUIDRead = click
+                    case .installingOtherListener: HAL.afterListenerAdd[newControl] = click
+                    default: break
+                    }
+                }
+                notifyRegistered(secondInput)
+                suite.expect(client != nil && delivered, "the original registration delivers the click during \(moment)")
+                if moment == .inventory {
+                    suite.expect(silentReads >= 2, "both post-write silence reads precede the inventory callback")
+                }
+                if moment == .setter || moment == .firstReadback || moment == .topology {
+                    suite.expect(MicMuteService.shared.isMuted && HAL.levels[microphone] == 0 && HAL.levels[secondInput] == 0
+                                 && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
+                                 "an unverified opening during \(moment) keeps the other mic silent")
+                    HAL.levels[microphone] = 0.8
+                    notifyRegistered(microphone)
+                } else {
+                    suite.expect(!closedAfterClick, "a click on the confirmed control during \(moment) is never overwritten")
+                }
+                suite.expect(!MicMuteService.shared.isMuted && (isSwitch ? HAL.mute[10] == 0 : HAL.levels[microphone] == 0.5)
+                             && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
+                             "the first confirmed click during or after \(moment) restores both inputs and announces once")
+            }
+        }
+
+        for readOnlyChannel in [false, true] {
+            prepare()
+            HAL.devices = [10, 20]
+            HAL.streamChannels[10] = [3]
+            HAL.levels[secondInput] = 0.75
+            HAL.levels[firstChannel] = readOnlyChannel ? 0 : 0.25
+            HAL.levels[channelGain] = 0.625
+            if readOnlyChannel { HAL.readOnly = [firstChannel] }
+            mute()
+            record()
+            HAL.levels[microphone] = 0.9
+            HAL.levels[firstChannel] = 0.7
+            var receivedClick = false
+            var overwroteClick = false
+            HAL.afterWrite = {
+                guard HAL.writes.last == microphone, HAL.levels[microphone] == 0 else { return }
+                HAL.levels[firstChannel] = 0 // The master setter also silences this channel.
+                HAL.afterGainRead[firstChannel] = {
+                    guard HAL.levels[firstChannel] == 0 else { return }
+                    HAL.afterGainRead[channelGain] = {
+                        HAL.levels[firstChannel] = 0.8
+                        receivedClick = HAL.notifyIfRegistered(firstChannel)
+                    }
+                }
+            }
+            HAL.beforeControlWrite = { key, value in
+                if receivedClick && key == firstChannel && value == 0 { overwroteClick = true }
+            }
+            notifyRegistered(secondInput)
+            suite.expect(receivedClick && !overwroteClick && !MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.5
+                         && HAL.levels[firstChannel] == (readOnlyChannel ? 0.8 : 0.25) && HAL.levels[channelGain] == 0.625
+                         && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
+                         "the first click after reading an indirectly silenced channel restores both inputs (read-only: \(readOnlyChannel))")
         }
 
         enum DuringMuteWrite: CaseIterable {
@@ -2838,25 +2990,35 @@ enum MixerInputVolumeContract {
             }
         }
 
-        enum DriverEcho: CaseIterable { case master, openChannel, channelOpensBeforeSet }
+        enum DriverEcho: CaseIterable {
+            case master, openChannel, channelOpensBeforeSet, masterAfterQuietChannel, quietAlias, unchangedResidual
+        }
         for echo in DriverEcho.allCases {
-            let driverNotice = echo == .master ? microphone : channelGain
+            let driverNotice: Key
+            switch echo {
+            case .master, .masterAfterQuietChannel: driverNotice = microphone
+            case .quietAlias, .unchangedResidual: driverNotice = firstChannel
+            case .openChannel, .channelOpensBeforeSet: driverNotice = channelGain
+            }
             prepare()
             HAL.devices = [10, 20]
             HAL.streamChannels[10] = [3]
             HAL.levels[channelGain] = 0.625
+            if echo == .masterAfterQuietChannel || driverNotice == firstChannel { HAL.levels[firstChannel] = 0.25 }
             HAL.levels[secondInput] = 0.75
             mute()
             record()
-            HAL.levels[microphone] = 0.9
-            if echo == .openChannel {
+            let unchangedMaster: Float = echo == .unchangedResidual ? 0.005 : 0.9
+            HAL.levels[microphone] = unchangedMaster
+            if echo == .openChannel || echo == .unchangedResidual {
                 HAL.levels[channelGain] = 0.8
-            } else if echo == .channelOpensBeforeSet {
+            }
+            if echo == .channelOpensBeforeSet || echo == .unchangedResidual {
                 HAL.afterSettableCheck[microphone] = {
-                    HAL.afterSettableCheck[microphone] = { HAL.levels[channelGain] = 0.8 }
+                    HAL.afterSettableCheck[microphone] = { HAL.levels[driverNotice] = 0.8 }
                 }
             }
-            HAL.ignoredWrites = [microphone, driverNotice]
+            HAL.ignoredWrites = echo == .unchangedResidual ? [microphone] : [microphone, driverNotice]
             HAL.writes = []
             var reportedIgnoredWrite = false
             HAL.beforeControlWrite = { key, value in
@@ -2864,16 +3026,181 @@ enum MixerInputVolumeContract {
                 HAL.beforeControlWrite = nil
                 // Both levels are unchanged when the setter reports success.
                 // The driver's callback arrives during the readback.
+                func echoUnchangedValue() {
+                    guard HAL.levels[microphone] == unchangedMaster,
+                          echo != .unchangedResidual || HAL.levels[firstChannel] == 0.8 else { return }
+                    reportedIgnoredWrite = HAL.notifyIfRegistered(driverNotice)
+                }
                 HAL.afterGainRead[microphone] = {
-                    reportedIgnoredWrite = HAL.levels[microphone] == 0.9 && HAL.notifyIfRegistered(driverNotice)
+                    if echo == .masterAfterQuietChannel || echo == .quietAlias {
+                        HAL.afterGainRead[firstChannel] = {
+                            guard HAL.levels[firstChannel] == 0 else { return }
+                            HAL.afterGainRead[channelGain] = {
+                                if echo == .quietAlias { HAL.levels[firstChannel] = 0.8 }
+                                echoUnchangedValue()
+                            }
+                        }
+                    } else {
+                        echoUnchangedValue()
+                    }
                 }
             }
             notifyRegistered(secondInput)
-            suite.expect(reportedIgnoredWrite && MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.9
+            suite.expect(reportedIgnoredWrite && MicMuteService.shared.isMuted && HAL.levels[microphone] == unchangedMaster
+                         && (echo != .quietAlias || HAL.levels[firstChannel] == 0.8)
+                         && (echo != .unchangedResidual || HAL.levels[firstChannel] == 0)
                          && HAL.levels[channelGain] == (driverNotice == channelGain ? 0.8 : 0)
                          && HAL.levels[secondInput] == 0 && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
                          "a driver echo from \(echo) after an ignored Set cannot release the other mic")
         }
+
+        for refusesSwitch in [false, true] {
+            for duringInventory in [false, true] {
+                prepare()
+                HAL.devices = [10, 20]
+                HAL.mute[10] = 0
+                HAL.levels[secondInput] = 0.75
+                mute()
+                record()
+                HAL.mute[10] = 0
+                HAL.levels[microphone] = 0.9
+                if refusesSwitch { HAL.ignoredWrites = [headsetSwitch] }
+                HAL.writes = []
+                var correctedGain = false
+                var notified = false
+                func reportOpening() {
+                    guard correctedGain, HAL.writes.contains(headsetSwitch), HAL.levels[microphone] == 0,
+                          HAL.mute[10] == (refusesSwitch ? 0 : 1) else { return }
+                    HAL.levels[microphone] = 0.8
+                    notified = HAL.notifyIfRegistered(microphone)
+                }
+                HAL.afterWrite = {
+                    correctedGain = HAL.writes.last == microphone
+                    if duringInventory { HAL.afterUIDRead = reportOpening }
+                }
+                notifyRegistered(secondInput)
+                if !duringInventory {
+                    notifyRegistered(secondInput) // Allow another full reconciliation with the current switch state.
+                    reportOpening()
+                    DispatchQueue.drain()
+                }
+                suite.expect(notified, "the gain listener reports an opening after the corrective switch and gain writes")
+                if refusesSwitch {
+                    suite.expect(MicMuteService.shared.isMuted && HAL.mute[10] == 0 && HAL.levels[microphone] == 0
+                                 && HAL.levels[secondInput] == 0 && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
+                                 "a verified gain cannot authorize an echo while the ignored switch remains open (inventory: \(duringInventory))")
+                    HAL.ignoredWrites = []
+                    if duringInventory {
+                        HAL.mute[10] = 1 // The driver finally engages the switch; both controls are already quiet.
+                        notifyRegistered(secondInput)
+                        suite.expect(HAL.mute[10] == 1 && HAL.levels[microphone] == 0 && HAL.levels[secondInput] == 0,
+                                     "both the recovered mute switch and the gain reach their quiet states")
+                        HAL.levels[microphone] = 0.8
+                        notifyRegistered(microphone)
+                    } else {
+                        HAL.levels[microphone] = 0.9
+                        HAL.levels[secondInput] = 0.6
+                        let originalClient = HAL.soleListenerClient(for: microphone)
+                        var sawQuietGain = false
+                        var sawEngagedSwitch = false
+                        var clickedDuringRecovery = false
+                        HAL.afterWrite = {
+                            guard HAL.writes.last == microphone else { return }
+                            HAL.afterGainRead[microphone] = { sawQuietGain = HAL.levels[microphone] == 0 }
+                            HAL.afterSwitchRead[headsetSwitch] = { sawEngagedSwitch = HAL.mute[10] == 1 }
+                        }
+                        HAL.afterSettableCheck[secondInput] = {
+                            guard sawQuietGain, sawEngagedSwitch, originalClient != nil,
+                                  HAL.soleListenerClient(for: microphone) == originalClient else { return }
+                            HAL.levels[microphone] = 0.8
+                            clickedDuringRecovery = HAL.notifyIfRegistered(microphone)
+                        }
+                        notifyRegistered(defaultInput)
+                        suite.expect(clickedDuringRecovery, "the recovered headset reports its next click while the other input prepares a write")
+                    }
+                }
+                suite.expect(!MicMuteService.shared.isMuted && HAL.mute[10] == 0 && HAL.levels[microphone] == 0.5
+                             && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
+                             "one click with both controls confirmed restores the saved switch and both gains")
+            }
+        }
+
+        let channelSwitch = HAL.key(10, 1, kAudioDevicePropertyMute)
+        for refusedAtStart in [headsetSwitch, channelSwitch] {
+            prepare()
+            HAL.devices = [10, 20]
+            HAL.levels[secondInput] = 0.75
+            HAL.mute[10] = 0
+            if refusedAtStart == channelSwitch { HAL.muteElements[channelSwitch] = 0 }
+            HAL.ignoredWrites = [refusedAtStart]
+            mute()
+            record()
+            HAL.writes = []
+            HAL.levels[microphone] = 0.8
+            notifyRegistered(microphone)
+            suite.expect(MicMuteService.shared.isMuted && HAL.levels[microphone] == 0 && HAL.levels[secondInput] == 0
+                         && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
+                         "a switch ignored since the first mute prevents the headset's gain echo from releasing another input")
+            if refusedAtStart == headsetSwitch {
+                record(20)
+                HAL.levels[secondInput] = 0.8
+                notifyRegistered(secondInput)
+            } else {
+                suite.expect(HAL.mute[10] == 1 && HAL.muteElements[channelSwitch] == 0,
+                             "the engaged main switch hides the still-open channel from the aggregate switch reading")
+                HAL.muteElements[channelSwitch] = 1
+                var confirmedChannel = false
+                HAL.afterSwitchRead[channelSwitch] = { confirmedChannel = HAL.muteElements[channelSwitch] == 1 }
+                HAL.writes = []
+                notifyRegistered(secondInput)
+                suite.expect(confirmedChannel && !HAL.writes.contains(channelSwitch) && MicMuteService.shared.isMuted,
+                             "reconciliation reads the recovered channel switch at its own address while the main switch stays engaged")
+                HAL.ignoredWrites = []
+                HAL.levels[microphone] = 0.8
+                notifyRegistered(microphone)
+            }
+            suite.expect(!MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.5 && HAL.levels[secondInput] == 0.75
+                         && HAL.mute[10] == 0 && (refusedAtStart != channelSwitch || HAL.muteElements[channelSwitch] == 0)
+                         && QuickToolHUD.messages == ["unmuted"],
+                         "one click on the independently confirmed or recovered input restores both gains")
+        }
+
+        prepare()
+        HAL.devices = [10, 20]
+        HAL.mute[10] = 0
+        HAL.ignoredWrites = [headsetSwitch]
+        HAL.levels[secondInput] = 0.75
+        mute()
+        record()
+        let survivingGain = HAL.soleListenerClient(for: microphone)
+        HAL.mute[10] = nil
+        notifyRegistered(defaultInput) // Remove only the absent switch listener.
+        notifyRegistered(defaultInput) // Check the gain again with the surviving registration.
+        suite.expect(!HAL.listeners.contains(headsetSwitch) && survivingGain != nil && HAL.soleListenerClient(for: microphone) == survivingGain,
+                     "dropping the refused switch property leaves its input's gain registration intact")
+        HAL.writes = []
+        HAL.levels[microphone] = 0.8
+        notifyRegistered(microphone)
+        suite.expect(MicMuteService.shared.isMuted && HAL.levels[microphone] == 0 && HAL.levels[secondInput] == 0
+                     && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
+                     "removing only the refused switch cannot turn a gain echo into a global release")
+
+        let headsetListeners = HAL.listeners.filter { $0.d == 10 }
+        HAL.listenerRemovals = []
+        HAL.listenerAdds = []
+        var readAfterReplacement = false
+        HAL.afterListenerAdd[microphone] = {
+            HAL.afterGainRead[microphone] = { readAfterReplacement = HAL.levels[microphone] == 0 }
+        }
+        notifyRegistered(HAL.key(10, 0, kAudioDevicePropertyStreams))
+        suite.expect(headsetListeners.isSubset(of: Set(HAL.listenerRemovals)) && headsetListeners.isSubset(of: Set(HAL.listenerAdds))
+                     && HAL.soleListenerClient(for: microphone) != survivingGain && readAfterReplacement,
+                     "the same headset renews its listeners and confirms zero with the replacement gain registration")
+        HAL.levels[microphone] = 0.8
+        notifyRegistered(microphone)
+        suite.expect(!MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.5 && HAL.levels[secondInput] == 0.75
+                     && QuickToolHUD.messages == ["unmute partial"],
+                     "the new gain click restores both levels and reports the unavailable saved switch")
 
         let deviceChanges = [
             HAL.key(10, 0, kAudioDevicePropertyDeviceIsAlive, scope: kAudioObjectPropertyScopeGlobal),
