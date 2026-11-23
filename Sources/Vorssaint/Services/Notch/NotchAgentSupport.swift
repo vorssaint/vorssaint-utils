@@ -7,7 +7,7 @@ import Foundation
 /// The cards the AI page can show, in the order a person arranges them. Raw
 /// values are stored in the saved order, so cases are never renamed.
 enum NotchAgentCard: String, CaseIterable, Identifiable {
-    case limits, spend, live, trend, models, projects, activity, resets
+    case limits, spend, live, trend, models, projects, activity, resets, kilo
 
     var id: String { rawValue }
 
@@ -21,6 +21,7 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
         case .projects: return "folder"
         case .activity: return "square.grid.3x3.fill"
         case .resets: return "arrow.counterclockwise.circle"
+        case .kilo: return "k.circle"
         }
     }
 
@@ -28,7 +29,7 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
     var fullWidth: Bool { self == .trend || self == .activity }
 
     /// Cards that cover the period chosen in the island's top row.
-    var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects }
+    var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects || self == .kilo }
 }
 
 /// What the closed island shows beside the camera while an agent works.
@@ -315,29 +316,52 @@ enum NotchAgentSupport {
 
     /// Cards pair up in reading order; a chart, or a card left without a
     /// partner, takes the whole row.
+    /// Codex's Resets card is small and stands on its own, so it fills the
+    /// first half row a chart or the end would otherwise leave empty. With
+    /// no such gap it keeps its place in the order.
     static func rows(_ tiles: [NotchAgentTile], width: CGFloat) -> [[NotchAgentTile]] {
         let pairs = width >= pairWidth
+        guard pairs, let index = tiles.firstIndex(where: { $0.card == .resets }) else { return pairedRows(tiles, pairs: pairs) }
+        var rest = tiles
+        let resets = rest.remove(at: index)
+        var filled = false
+        let rows = pairedRows(rest, pairs: pairs) { _ in
+            guard !filled else { return nil }
+            filled = true
+            return resets
+        }
+        return filled ? rows : pairedRows(tiles, pairs: pairs)
+    }
+
+    /// `partner` offers a card for a half-width card left alone in its row.
+    private static func pairedRows(_ tiles: [NotchAgentTile], pairs: Bool,
+                                   partner: (NotchAgentTile) -> NotchAgentTile? = { _ in nil }) -> [[NotchAgentTile]] {
         var rows: [[NotchAgentTile]] = []
         var waiting: NotchAgentTile?
+        func flush() {
+            guard let lone = waiting else { return }
+            rows.append(pairs ? [lone] + [partner(lone)].compactMap { $0 } : [lone])
+            waiting = nil
+        }
         for tile in tiles {
             if tile.card.fullWidth || !pairs {
-                if let waiting { rows.append([waiting]) }
-                waiting = nil
+                flush()
                 rows.append([tile])
-            } else if let partner = waiting {
-                rows.append([partner, tile])
+            } else if let first = waiting {
+                rows.append([first, tile])
                 waiting = nil
             } else {
                 waiting = tile
             }
         }
-        if let waiting { rows.append([waiting]) }
+        flush()
         return rows
     }
 
     /// The top block of the page: Claude's card on the left, tall, and two
-    /// half-width cards stacked beside it, the Resets card first. Nil when the
-    /// page is too narrow to pair, or there are not two cards to stack.
+    /// half-width cards stacked beside it, the Kilo Code card first (or,
+    /// without it, the Resets card). Nil when the page is too narrow to pair,
+    /// or there are not two cards to stack.
     struct Lead {
         let claude: NotchAgentTile
         let stack: [NotchAgentTile]
@@ -352,7 +376,9 @@ enum NotchAgentSupport {
         var rest = tiles
         let claude = rest.remove(at: index)
         var stack: [NotchAgentTile] = []
-        if let resets = rest.firstIndex(where: { $0.card == .resets }) { stack.append(rest.remove(at: resets)) }
+        if let first = rest.firstIndex(where: { $0.card == .kilo }) ?? rest.firstIndex(where: { $0.card == .resets }) {
+            stack.append(rest.remove(at: first))
+        }
         while stack.count < 2, let next = rest.firstIndex(where: { !$0.card.fullWidth }) { stack.append(rest.remove(at: next)) }
         return stack.count == 2 ? Lead(claude: claude, stack: stack, rest: rest) : nil
     }

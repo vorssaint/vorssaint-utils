@@ -162,6 +162,8 @@ struct NotchAgentsView: View {
             NotchAgentActivityCard(snapshot: snapshot, text: text)
         case .resets:
             NotchAgentResetsCard(now: now, text: text, showsDefaultAccount: tile.namesDefaultAccount)
+        case .kilo:
+            NotchAgentKiloCard(period: shown, now: now, text: text)
         }
     }
 
@@ -914,6 +916,82 @@ private struct NotchAgentActivityCard: View {
 
     private func value(_ totals: AgentTotals, byCost: Bool) -> String {
         byCost ? AgentFormat.cost(totals.cost) : AgentFormat.tokens(totals.tokens.total)
+    }
+}
+
+// MARK: Kilo Code
+
+/// Kilo Code's sessions, tokens and API value for the chosen period, from
+/// its own database. Kilo keeps a session's totals on the session, so a
+/// session still open when the period began counts whole.
+private struct NotchAgentKiloCard: View {
+    let period: AgentPeriod
+    let now: Date
+    let text: NotchAgentStrings
+    @ObservedObject private var kilo = AgentKiloService.shared
+    @Environment(\.locale) private var locale
+
+    static let tint = Color(red: 0.98, green: 0.84, blue: 0.22)
+
+    var body: some View {
+        NotchAgentCardChrome {
+            VStack(alignment: .leading, spacing: 5) {
+                NotchAgentCardHeader(title: text.kiloCard, symbol: NotchAgentCard.kilo.symbol, tint: Self.tint) {
+                    if let summary = kilo.summary, summary.sessions > 0 {
+                        NotchAgentChip(text: summary.sessions.formatted(.number.locale(locale)), tint: Self.tint)
+                            .help(text.kiloSessions)
+                    } else if kilo.summary == nil {
+                        ProgressView().controlSize(.mini)
+                    }
+                }
+                content
+            }
+        }
+        .help(text.kiloHelp)
+        .onAppear { kilo.refreshIfStale(period: period, now: now) }
+        .onChange(of: period) { _, next in kilo.refreshIfStale(period: next) }
+        .onChange(of: now) { _, next in kilo.refreshIfStale(period: period, now: next) }
+    }
+
+    @ViewBuilder private var content: some View {
+        if let summary = kilo.summary {
+            if !summary.installed {
+                line(text.kiloNotInstalled)
+            } else if summary.sessions == 0 && summary.tokens == 0 {
+                line(text.kiloEmpty)
+                if !summary.signedIn { line(text.kiloSignedOut, symbol: "person.crop.circle.badge.exclamationmark") }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(AgentFormat.cost(summary.cost))
+                        .font(.system(size: 20, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Text(text.apiValue)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .help(text.valueNote)
+                line(text.tokens(AgentFormat.tokens(summary.tokens, locale: locale)))
+                if let model = summary.model {
+                    line(model, symbol: NotchAgentCard.models.symbol)
+                } else if !summary.signedIn {
+                    line(text.kiloSignedOut, symbol: "person.crop.circle.badge.exclamationmark")
+                }
+            }
+        }
+    }
+
+    private func line(_ message: String, symbol: String? = nil) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            if let symbol { Image(systemName: symbol).font(.system(size: 9)) }
+            Text(message).lineLimit(1).minimumScaleFactor(0.85)
+        }
+        .font(.system(size: 10))
+        .foregroundStyle(.secondary)
     }
 }
 
