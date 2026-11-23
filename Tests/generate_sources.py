@@ -455,7 +455,7 @@ def main():
           + declaration(brightness, "    private func writeExtendedBrightness(").replace("private ", "", 1)
           + declaration(brightness, "    private static func writeSystemBrightness(").replace("private ", "", 1)
           + "}\n}\n")
-    write("DisplaySpeakerService.swift", "import CoreAudio\nimport CoreGraphics\nimport Foundation\n"
+    write("DisplaySpeakerService.swift", "import CoreAudio\nimport CoreGraphics\nimport Darwin\nimport Foundation\n"
           + "extension DisplaySpeakerVolumeTests {\n"
           + "".join(declaration(brightness, prefix).replace("private ", "", 1) for prefix in [
               "    private struct AudioRoute", "    private struct PendingAudio", "    private enum DDCProbe"])
@@ -464,7 +464,10 @@ def main():
               "    func requestSpeakers(", "    private func acceptsSpeakerTarget(", "    private func drainPendingAudio(",
               "    private func isCurrentSpeakerChange(", "    private func writeSpeakers(",
               "    func monitorSpeakerOutput(", "    private func probeAudio("])
-          + "}\n}\n")
+          + "}\n}\n"
+          + "extension DisplaySpeakerVolumeTests.DDCWriter {\n"
+          + declaration(brightness, "    private func ddcSend(").replace("private func", "func", 1)
+          + "}\n")
     write("BrightnessKeyRouting.swift", "import AppKit\nimport os\n"
           + "extension BrightnessKeyRoutingTests {\nfinal class Service: Fixture {\n"
           + "".join(declaration(brightness, prefix).replace("private func", "func", 1)

@@ -935,7 +935,7 @@ enum BrightnessSupport {
     /// monitor reported. The transport checks the target before each write.
     static func applySpeakerChange(
         _ change: SpeakerChange, hasNativeMute: Bool, unmutesLeavingZero: Bool,
-        keySettings: MonitorVolumeKeySettings,
+        keySettings: MonitorVolumeKeySettings, unmuteCeiling: (UInt16) -> UInt16,
         restore: inout SpeakerLevel?, needsUnmute: inout Bool,
         read: (UInt8) -> VCPReading?, write: (UInt8, UInt16) -> Bool
     ) -> (level: SpeakerLevel, muted: Bool?)? {
@@ -990,6 +990,9 @@ enum BrightnessSupport {
         func setNativeMute(_ value: Bool) -> Bool {
             write(audioMuteCode, muteDeviceValue(value)) && readMute() == value
         }
+        func silenceAfterUnmute() {
+            if !setNativeMute(true) { _ = write(audioVolumeCode, 0) }
+        }
         if hasNativeMute {
             if desiredMute == true, muted != true, !setNativeMute(true) { return nil }
         } else if desiredMute == true {
@@ -1019,8 +1022,9 @@ enum BrightnessSupport {
                 guard confirmed.raw <= keySettings.ceiling(for: confirmed.maximum),
                       write(audioMuteCode, audioUnmutedValue) else { return nil }
                 // Firmware can restore its previous (loud) level as part of unmute.
-                guard readMute() == false, SpeakerLevel(read(audioVolumeCode)) == confirmed else {
-                    if !setNativeMute(true) { _ = write(audioVolumeCode, 0) }
+                guard readMute() == false, SpeakerLevel(read(audioVolumeCode)) == confirmed,
+                      confirmed.raw <= unmuteCeiling(confirmed.maximum) else {
+                    silenceAfterUnmute()
                     return nil
                 }
                 needsUnmute = false
@@ -1035,8 +1039,8 @@ enum BrightnessSupport {
             // change must still be present after that last command.
             let final = SpeakerLevel(read(audioVolumeCode))
             guard readMute() == false, let final, !requestsLevel || final == confirmed,
-                  final.raw <= keySettings.ceiling(for: final.maximum) else {
-                if muted == true || initial.raw == 0 { _ = setNativeMute(true) }
+                  final.raw <= unmuteCeiling(final.maximum) else {
+                if muted == true || initial.raw == 0 { silenceAfterUnmute() }
                 return nil
             }
             return (final, false)
