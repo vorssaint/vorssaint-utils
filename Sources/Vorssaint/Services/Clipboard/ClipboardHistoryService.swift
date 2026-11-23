@@ -548,20 +548,6 @@ final class ClipboardHistoryService: ObservableObject {
         setQuickFilter(filter)
     }
 
-    var canSuggestQuickEntries: Bool {
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.clipboardShelfSuggestions) else { return false }
-        guard let bundleID = pasteTargetApp?.bundleIdentifier else { return true }
-        return !ClipboardIgnoredApps.shared.apps.contains(bundleID)
-    }
-
-    func toggleQuickSuggestions() {
-        if case .suggestions = quickFilter.collection {
-            setQuickCollection(.history)
-        } else if canSuggestQuickEntries {
-            setQuickCollection(.suggestions(pasteTargetApp?.bundleIdentifier))
-        }
-    }
-
     func setQuickCollection(_ collection: ClipboardShelfCollection) {
         var filter = quickFilter
         filter.collection = collection

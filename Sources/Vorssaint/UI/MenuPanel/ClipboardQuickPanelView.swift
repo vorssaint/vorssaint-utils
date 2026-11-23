@@ -8,7 +8,6 @@ struct ClipboardQuickPanelView: View {
     @ObservedObject private var history = ClipboardHistoryService.shared
     @AppStorage(DefaultsKey.clipboardHistoryShowSourceAppIcons) private var showSourceAppIcons = false
     @AppStorage(DefaultsKey.clipboardShelfPrivacyMode) private var privacyMode = false
-    @AppStorage(DefaultsKey.clipboardShelfSuggestions) private var suggestionsEnabled = true
     @AppStorage(DefaultsKey.clipboardShelfLinkPreviews) private var linkPreviewsEnabled = false
     @FocusState private var searchFocused: Bool
     @FocusState private var filterChoiceFocus: FilterChoice?
@@ -143,11 +142,6 @@ struct ClipboardQuickPanelView: View {
             previewSelection.select(history.selectedQuickEntryID)
             DispatchQueue.main.async { searchFocused = true }
         }
-        .onChange(of: suggestionsEnabled) { _, enabled in
-            if !enabled, case .suggestions = history.quickFilter.collection {
-                history.setQuickCollection(.history)
-            }
-        }
     }
 
     private var shelfResults: some View {
@@ -248,7 +242,6 @@ struct ClipboardQuickPanelView: View {
             } else {
                 sourceFilter
                 typeFilter
-                if layout == .cards && suggestionsEnabled { suggestionsButton }
                 previewButton
             }
             closeButton
@@ -333,10 +326,6 @@ struct ClipboardQuickPanelView: View {
                 history.quickSourcePickerPresented = false
                 history.quickTypePickerPresented.toggle()
             }
-            if suggestionsEnabled {
-                Button(shelfText.suggestions, systemImage: "sparkles") { history.toggleQuickSuggestions() }
-                    .disabled(!history.canSuggestQuickEntries)
-            }
             Button(text.previewLabel, systemImage: "eye") { history.previewQuickSelection() }
                 .disabled(history.selectedQuickEntry == nil)
         } label: {
@@ -377,25 +366,6 @@ struct ClipboardQuickPanelView: View {
         .help(label)
         .accessibilityLabel(label)
         .accessibilityValue(sourceName ?? "")
-    }
-
-    private var suggestionsButton: some View {
-        Button(shelfText.suggestions, systemImage: "sparkles") {
-            history.toggleQuickSuggestions()
-            searchFocused = true
-        }
-        .labelStyle(.iconOnly)
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .foregroundStyle(isShowingSuggestions ? Color.accentColor : Color.primary)
-        .accessibilityAddTraits(isShowingSuggestions ? .isSelected : [])
-        .help(shelfText.suggestions)
-        .disabled(!history.canSuggestQuickEntries)
-    }
-
-    private var isShowingSuggestions: Bool {
-        if case .suggestions = history.quickFilter.collection { return true }
-        return false
     }
 
     private var pinboardBar: some View {

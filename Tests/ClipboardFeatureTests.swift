@@ -2370,13 +2370,6 @@ enum ClipboardPreviewContract {
                      && service.filteredQuickEntries.map(\.id) == [clip.id]
                      && service.pinboards.map(\.id) == [work.id],
                      "deleting a pinboard preserves its clip and opens Pinned")
-        var forActiveApp = clip
-        forActiveApp.sourceBundleID = "com.example.writer"
-        let newest = ClipboardHistoryEntry(text: "Newest sample")
-        suite.expect(ClipboardShelfSuggestions.rank([newest, forActiveApp], for: "com.example.writer").first?.id
-                        == clip.id,
-                     "local suggestions favor the active app over a newer unrelated clip")
-
         let stored = try? JSONEncoder().encode(service.entries)
         let restored = stored.flatMap { try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: $0) }
         suite.expect(restored?.first?.isPinned == true && restored?.first?.pinboardID == nil,
@@ -2394,36 +2387,27 @@ enum ClipboardPreviewContract {
     }
 
     private static func shelfCardSizing(_ suite: TestSuite) {
-        let horizontal = CGSize(width: 1200, height: 288)
-        let few = ClipboardShelfCardLayout.cardSize(in: horizontal, entryCount: 3, vertical: false)
-        let many = ClipboardShelfCardLayout.cardSize(in: horizontal, entryCount: 40, vertical: false)
-        suite.expect(few.height == 264 && abs(few.width * 3 + 20 - 1176) < 0.01,
-                     "three horizontal cards use the whole viewport inside its gutters")
-        suite.expect(many.width >= 184 && abs(many.width * 6 + 50 - 1176) < 0.01,
-                     "scrolling history fits an integral number of readable cards")
-
-        let vertical = CGSize(width: 336, height: 840)
-        let side = ClipboardShelfCardLayout.cardSize(in: vertical, entryCount: 3, vertical: true)
-        suite.expect(side.width == 312 && abs(side.height * 3 + 20 - 816) < 0.01,
-                     "side cards span the width and use the available height")
-        let one = ClipboardShelfCardLayout.cardSize(in: vertical, entryCount: 1, vertical: true)
-        suite.expect(one == CGSize(width: 312, height: 816), "one filtered card can use the full side viewport")
-
-        let scrolledRow = ClipboardShelfCardLayout.cardSize(in: horizontal, entryCount: 40, vertical: false,
-                                                           legacyScrollerWidth: 15)
-        let scrolledColumn = ClipboardShelfCardLayout.cardSize(in: vertical, entryCount: 40, vertical: true,
-                                                              legacyScrollerWidth: 15)
-        suite.expect(scrolledRow.width == many.width && scrolledRow.height == 249,
-                     "a horizontal legacy scrollbar reserves room below the cards")
-        suite.expect(scrolledColumn.height == side.height && scrolledColumn.width == 297,
-                     "a vertical legacy scrollbar reserves room beside the cards")
-
-        let fittedRow = ClipboardShelfCardLayout.cardSize(in: horizontal, entryCount: 3, vertical: false,
-                                                         legacyScrollerWidth: 15)
-        let fittedColumn = ClipboardShelfCardLayout.cardSize(in: vertical, entryCount: 1, vertical: true,
+        let layouts: [(viewport: CGSize, vertical: Bool, side: CGFloat)] = [
+            (CGSize(width: 1200, height: 288), false, 264),
+            (CGSize(width: 336, height: 840), true, 312),
+        ]
+        for (viewport, vertical, side) in layouts {
+            let square = CGSize(width: side, height: side)
+            let one = ClipboardShelfCardLayout.cardSize(in: viewport, entryCount: 1, vertical: vertical,
+                                                       legacyScrollerWidth: 15)
+            let many = ClipboardShelfCardLayout.cardSize(in: viewport, entryCount: 40, vertical: vertical)
+            let scrolled = ClipboardShelfCardLayout.cardSize(in: viewport, entryCount: 40, vertical: vertical,
                                                             legacyScrollerWidth: 15)
-        suite.expect(fittedRow == few && fittedColumn == one,
-                     "a legacy scrollbar reserves no space when all cards are visible")
+            suite.expect(one == square && many == square,
+                         "cards fill the shelf depth as squares regardless of the result count")
+            suite.expect(scrolled == CGSize(width: side - 15, height: side - 15),
+                         "cards stay square when the legacy scrollbar needs room")
+        }
+
+        let tight = ClipboardShelfCardLayout.cardSize(in: CGSize(width: 1084, height: 288), entryCount: 4,
+                                                     vertical: false, legacyScrollerWidth: 15)
+        suite.expect(tight == CGSize(width: 257.5, height: 257.5),
+                     "slightly smaller squares fit the whole row when that avoids a legacy scrollbar")
     }
 
     private static func shelfPreviewAndEmoji(_ suite: TestSuite) {

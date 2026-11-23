@@ -26,7 +26,6 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.clipboardShelfEdge) private var shelfEdge = ClipboardShelfEdge.bottom
     @AppStorage(DefaultsKey.clipboardShelfClick) private var shelfClick = ClipboardShelfClick.select
 
-    @AppStorage(DefaultsKey.clipboardShelfSuggestions) private var shelfSuggestions = true
     @AppStorage(DefaultsKey.clipboardShelfLinkPreviews) private var shelfLinkPreviews = false
     @AppStorage(DefaultsKey.clipboardShelfPrivacyMode) private var shelfPrivacyMode = false
 
@@ -260,10 +259,6 @@ struct ClipboardSettings: View {
 
     private var clipboardShelfBehaviorSection: some View {
         Section {
-            Toggle(shelfText.suggestions, isOn: $shelfSuggestions)
-            Text(shelfText.suggestionsCaption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
             Toggle(shelfText.linkPreviews, isOn: $shelfLinkPreviews)
             Text(shelfText.linkPreviewsCaption)
                 .font(.caption)

@@ -87,15 +87,12 @@ enum ClipboardShelfCardLayout {
         let width = max(1, viewport.width - 2 * inset)
         let height = max(1, viewport.height - 2 * inset)
         let scrollingLength = vertical ? height : width
-        let minimum: CGFloat = vertical ? 210 : 184
-        let capacity = max(1, Int((scrollingLength + spacing) / (minimum + spacing)))
-        let visibleCount = CGFloat(max(1, min(entryCount, capacity)))
-        let cardLength = (scrollingLength - spacing * (visibleCount - 1)) / visibleCount
-
-        let scroller = entryCount > capacity ? legacyScrollerWidth : 0
-        let crossLength = max(1, (vertical ? width : height) - scroller)
-        return vertical ? CGSize(width: crossLength, height: cardLength)
-                        : CGSize(width: cardLength, height: crossLength)
+        let depth = vertical ? width : height
+        let fullSide = min(scrollingLength, depth)
+        let scrolledSide = max(1, depth - legacyScrollerWidth)
+        let fittedSide = (scrollingLength + spacing) / CGFloat(max(1, entryCount)) - spacing
+        let side = min(fullSide, max(scrolledSide, fittedSide))
+        return CGSize(width: side, height: side)
     }
 }
 
@@ -149,11 +146,11 @@ struct ClipboardPinboard: Codable, Identifiable, Equatable {
 }
 
 enum ClipboardShelfCollection: Hashable {
-    case history, pinned, pinboard(UUID), suggestions(String?)
+    case history, pinned, pinboard(UUID)
 
     func includes(_ entry: ClipboardHistoryEntry) -> Bool {
         switch self {
-        case .history, .suggestions: return true
+        case .history: return true
         case .pinned: return entry.isPinned && entry.pinboardID == nil
         case .pinboard(let id): return entry.isPinned && entry.pinboardID == id
         }
@@ -932,23 +929,7 @@ enum ClipboardHistorySearchSurface: Hashable {
 
     func scopedEntries(from entries: [ClipboardHistoryEntry]) -> [ClipboardHistoryEntry]? {
         guard case .shelf(let filter) = self else { return nil }
-        let matching = entries.filter(filter.includes)
-        guard case .suggestions(let target) = filter.collection else { return matching }
-        return ClipboardShelfSuggestions.rank(matching, for: target)
-    }
-}
-
-enum ClipboardShelfSuggestions {
-    static func rank(_ entries: [ClipboardHistoryEntry], for bundleID: String?) -> [ClipboardHistoryEntry] {
-        let ranked = entries.sorted { lhs, rhs in
-            if let bundleID {
-                let lhsMatches = lhs.sourceBundleID == bundleID
-                let rhsMatches = rhs.sourceBundleID == bundleID
-                if lhsMatches != rhsMatches { return lhsMatches }
-            }
-            return lhs.copiedAt > rhs.copiedAt
-        }
-        return Array(ranked.prefix(8))
+        return entries.filter(filter.includes)
     }
 }
 
