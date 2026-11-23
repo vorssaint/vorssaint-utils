@@ -3172,7 +3172,8 @@ final class BrightnessService: ObservableObject {
                   confirmation.endpoint.matches(route.sliderEndpoint, confirmedOwnWrite: confirmation.wrote),
                   Self.restorationDisplayFingerprint(id) == route.fingerprint,
                   CGDisplayIsActive(id) != 0, CGDisplayIsAsleep(id) == 0 else { return }
-            if let entryID = confirmation.endpoint.registryEntryID, !Self.speakerEndpointIsConnected(entryID) { return }
+            if let entryID = route.sliderEndpoint.registryEntryID ?? confirmation.endpoint.registryEntryID,
+               !Self.speakerEndpointIsConnected(entryID) { return }
             PreciseVolumeRollerService.playVolumeFeedback()
         }
     }

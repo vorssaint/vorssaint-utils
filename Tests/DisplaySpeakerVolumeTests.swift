@@ -480,6 +480,30 @@ enum DisplaySpeakerVolumeTests {
         feedback.editingChanged(false)
         suite.expect(unplugged.writes == [Write(volume, 80)] && unplugged.clicks == 0,
                      "unplugging the confirmed endpoint before the route refresh revokes the release click")
+
+        let releaseRoutes: [(first: UInt64?, current: UInt64?, lookup: UInt64?, matches: Bool)] = [
+            (nil, nil, nil, true), (nil, 2, 2, true), (1, nil, 1, true), (1, 0, 1, true),
+            (1, 1, 1, true), (1, 2, nil, false)
+        ]
+        for (first, current, lookup, matches) in releaseRoutes {
+            for connected in [false, true] {
+                let service = connect(mixer, registryEntryID: first)
+                feedback.editingChanged(true)
+                service.requestSpeakers(.set(volume: 0.8, muted: nil), target: target, sliderFeedback: feedback.request())
+                service.finish()
+                rescan(service, id: current, address: chip)
+                service.connectedSpeakerEndpointID = connected ? (lookup ?? current ?? 1) : 0
+                let commands = service.chips.count
+                var lookups = 0
+                service.onEndpointLookup = { lookups += 1 }
+                feedback.editingChanged(false)
+                service.finish()
+                let plays = matches && (lookup == nil || connected)
+                suite.expect(lookups == (lookup == nil ? 0 : 1) && service.clicks == (plays ? 1 : 0)
+                             && service.writes == [Write(volume, 80)] && service.chips.count == commands,
+                             "release validates the available registry ID without DDC (\(first as Any) → \(current as Any), connected: \(connected))")
+            }
+        }
     }
 
     static func run(_ suite: TestSuite) {
