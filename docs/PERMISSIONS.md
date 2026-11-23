@@ -8,8 +8,8 @@ You can review or change every grant in System Settings, under Privacy and Secur
 |---|---|---|
 | Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
 | Screen Recording | Yes | Window previews, screenshots, copy text from screen, magnified color picking and screen recordings |
-| System Audio Recording | Yes | Volume mixer, optional live equalizer and system audio capture for recordings |
-| Microphone | Yes | Your voice in a screen recording, only when you turn it on |
+| System Audio Recording | Yes | Volume mixer, optional live equalizer, system audio capture for recordings, and hearing what the Mac plays for music recognition |
+| Microphone | Yes | Your voice in a screen recording, only when you turn it on, and the room's sound for music recognition |
 | Camera | Yes | The camera preview mirror, floating or inside the notch |
 | Calendars | Yes | Upcoming appointments in the notch |
 | Bluetooth | Yes | Accessory battery levels in Monitor, optional accessory alerts in the notch and Bluetooth on sleep |
@@ -60,7 +60,7 @@ The color picker also uses this permission for Vorssaint's magnifier and keyboar
 
 **Why it comes up.** macOS gates app audio taps behind the System Audio Recording permission.
 
-**What uses it.** The Volume Mixer, the optional live equalizer in Dynamic Island, and the screen recorder's system audio tap.
+**What uses it.** The Volume Mixer, the optional live equalizer in Dynamic Island, the screen recorder's system audio tap, and music recognition while it listens (up to 15 seconds after you tap the button).
 
 **If you say no.** Apps keep using normal system audio. The mixer cannot adjust or route individual apps, and the island uses animated music bars. The recorder can fall back to the screen capture stream's audio when available.
 
@@ -70,9 +70,9 @@ The color picker also uses this permission for Vorssaint's magnifier and keyboar
 
 **Why it comes up.** macOS asks before an app can record your microphone.
 
-**What uses it.** The screen recorder, only when you turn on microphone audio. Your voice is kept on a separate track so you can adjust or remove it in the editor.
+**What uses it.** The screen recorder, only when you turn on microphone audio. Your voice is kept on a separate track so you can adjust or remove it in the editor. Music recognition also listens to the room while you have it open, so a song playing nearby is heard too.
 
-**If you say no.** Screen recording still works without your microphone. System audio remains a separate choice.
+**If you say no.** Screen recording still works without your microphone. System audio remains a separate choice. Music recognition still hears what the Mac plays.
 
 **Optional.** Yes. Microphone audio stays in the recording on your Mac unless you explicitly create a temporary link for the finished video.
 

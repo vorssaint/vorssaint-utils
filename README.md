@@ -90,6 +90,25 @@ While a song plays, the desktop shows the album cover in full quality with its o
 - **Starts with the app and asks first.** A dialog on first launch asks before song titles are sent to lyric services. Declining turns the wallpaper off.
 - **Timing.** Catalogs time whole lines, so each word's moment inside a line is estimated. Nudge the offset in 0.25 second steps if a song runs early or late.
 
+Two switches control it in the music settings. **Song wallpaper** puts the cover behind your icons. **Show lyrics** draws the lyrics, over your own wallpaper when Song wallpaper is off. It follows Spotify only. Other players, Netflix and videos leave the desktop alone, and your own wallpaper comes back when the music stops.
+
+### Dynamic Island additions
+
+- **Six buttons under the island:** Home on the left, your three buttons in the middle, then Notifications and Recognize music. Home opens the page the island shows the first time it expands.
+- **Messages behave like an iPhone's.** A WhatsApp message opens the island and further messages stack in the same notice. Clicking a notice opens the island's Notifications page, not the app.
+- **Reply from the island.** A card whose app allows replies in its notification (WhatsApp, Messages and others) has a **Reply** pill. Type, press Enter, and it goes through the app's own reply. macOS removes a banner and its reply after a few seconds, so set the app's alerts to **Persistent** (System Settings → Notifications). Vorssaint keeps the banner hidden but reachable, and the card has a button that opens that setting.
+- **Email.** New mail from Mail, Gmail, Mimestream or Gmail in a browser opens the island too. Add all your accounts to Apple Mail to see every inbox.
+- **Snap layouts while you drag a window**, as in Windows 11. The island opens into layouts to drop the window on, your Spaces to send it to another desktop, and Snap Assist to fill the rest of the screen.
+
+### Music recognition
+
+Tap the Shazam button under the island. It listens to what your Mac is playing (a film, a video, a browser tab) and to the room through the microphone at the same time.
+
+- **Several engines.** A Swift port of [SongRec](https://github.com/marin-m/SongRec)'s fingerprint is the default. It runs alongside ShazamKit when the build has it, and AudD if you add a key. Whichever answers first with confidence is shown, and later windows refine it.
+- **Like Google's song search:** a match percentage, and up to three nearby versions (originals, remixes, covers) to switch to with a tap.
+- **Open it:** Spotify opens the song in the Spotify app. YouTube opens it in Chrome, in the profile named by `musicRecognitionChromeProfile` (a profile name or its account email).
+- **Private.** Only a sound fingerprint is sent, never the audio. Every permission prompt is translated into the app's 15 languages.
+
 ### Claude Code on the island
 
 When Claude Code asks a question or for permission, it pops up on the island as a black shape hanging from the camera. Click an answer there and Claude Code carries on as if you had answered in the terminal. "Answer in terminal" hands the question back untouched, and an unanswered question falls back to the terminal after about 100 seconds.
@@ -102,6 +121,8 @@ This works through two hooks in `~/.claude/settings.json` and a small local sock
 - **Claude's card is expanded** with the model, branch, how full the context is, tokens in and out, cache, session cost, time and lines changed.
 - **Layout.** Claude's card runs tall on the left with Resets at the top right at half width, and a card left without a partner keeps its half of the row.
 - **Used by default.** Limits show how much is used, not how much is left. Switch it back in the AI settings.
+- **Kilo Code card.** Kilo's free models always cost $0, so the card skips money. It shows tokens with the cache share, in and out, prompts and agent steps, lines changed, and a green dot while Kilo is working (otherwise how long ago it ran). It reads Kilo's own database read-only, counting messages by role without reading their text.
+- **Resets.** Codex's banked resets sit under Spending. Claude's card shows its weekly reset.
 
 ### File converter
 

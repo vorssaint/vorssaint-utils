@@ -13,10 +13,27 @@ All notable changes to this project are documented here. The format follows
 - Bundled ffmpeg, ffprobe and 7-Zip (`Tools/bundle-converters.sh`).
 - Settings → Shelf → Convert, and `Vorssaint --convert-selftest`.
 - Music wallpaper with synced lyrics in eight styles on the desktop and lock screen; Claude Code questions answered on the island; live Claude limits on the AI page.
+- Music recognition: a sixth button under the island listens to what the Mac plays and to the room through the microphone. SongRec's fingerprint is the default engine, raced with ShazamKit and an optional AudD key, and the first confident answer shows at once. It shows a match percentage, up to three nearby versions, and Spotify and YouTube buttons. YouTube opens in a Chrome profile you choose.
+- Reply from the island: notification cards whose app supports a reply get a Reply pill with a text box. The reply is sent through the app's own notification. When a banner has already gone, a button opens the app's notification settings to make its alerts Persistent.
+- Email notifications from Mail, Gmail and Mimestream (and Gmail in a browser) open the island and stack like messages.
+- WhatsApp and other messages open the island like a Dynamic Island and stack one after another. Clicking an incoming notice opens the island's Notifications page instead of the app.
+- Home and Notifications buttons under the island, for six in all with Recognize music.
+- Snap layouts in the island while dragging a window, Windows 11 style: the layouts, Spaces to send the window to another desktop, and Snap Assist to fill the rest of the screen. They follow the island's motion and theme.
+- Music: *Song wallpaper* (the cover wallpaper) and *Show lyrics* are separate switches, so lyrics can show over your own wallpaper.
+- AI page: a Kilo Code card with tokens, cache share, in and out, prompts, steps, lines changed and when it was last active. Codex resets fill the gap under Spending. Claude's card shows its weekly reset.
+- Fan control for local builds, through a background helper you allow in Login Items.
 
 ### Changed
 - AI limits show how much is used by default.
 - The island's lock screen option is on by default.
+- The music wallpaper follows Spotify only, and gives way at once to other players.
+- Claude Code questions show on the island and stay answerable in the terminal; an answer picked on the island is typed into the terminal.
+- Lower memory and CPU use: windows made for a single use are closed and released, and the wallpaper and lyrics redraw less.
+- The converter's progress bar moves in real time.
+
+### Fixed
+- The music wallpaper no longer flashes black several times when a song starts, and goes back to your own wallpaper after playback stops.
+- No permanent yellow glow on the lock screen.
 
 ## [3.4.4] - 2026-11-11
 

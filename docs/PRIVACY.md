@@ -43,6 +43,12 @@ Playback controls prefer active playback, including a browser video when a music
 
 Covers for Firefox-based browsers are off until you turn on Find covers for Firefox and Zen in the Dynamic Island's music settings. While it is on and Firefox, Firefox Developer Edition, Firefox Nightly, Zen, LibreWolf, Waterfox or Floorp plays without a sharp cover, Vorssaint reads that browser's newest saved session file from its profile folders under `~/Library/Application Support` on this Mac. That file lists every open tab with its history, form data and session cookies. It is decoded in memory only, and Vorssaint keeps just the title and address of the open YouTube and YouTube Music tabs, while a lookup runs, to find the tab whose title is the song's. Nothing from the session is saved, and nothing from it leaves the Mac except the found video's ID, as described below.
 
+Music recognition listens only after you tap its button, and for at most 15 seconds. It turns the sound into a fingerprint of frequency peaks on your Mac. Only that fingerprint is sent to Shazam's recognition service (and, with ShazamKit, through Apple), never the audio. If you add an AudD key, a few seconds of audio go to AudD. The song's title and artist are then searched on Apple's iTunes Search API for nearby versions. The Chrome profile for YouTube is kept only in local settings.
+
+Replying from the island types your reply into the app's own notification through Accessibility and presses its Send. The reply is not stored. Opening a reply box does not read the app's message history.
+
+The Kilo Code card reads Kilo's database read-only. It counts sessions, tokens and messages by role, and never reads prompt or reply text, titles or credentials.
+
 ## Network connections
 
 Vorssaint opens only a few kinds of connection, and each one belongs to a visible feature.
