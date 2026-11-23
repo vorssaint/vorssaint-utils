@@ -623,8 +623,8 @@ private struct NotchAgentAgyLimitsCard: View {
                     WindowGroup.Row(id: $0.id, window: $0, label: "Argon")
                 } ?? WindowGroup.Row(id: "\(scope).argon", window: nil, label: "Argon")
                 let rows = [
-                    carbonRow,
                     argonRow,
+                    carbonRow,
                 ] + other.map { WindowGroup.Row(id: $0.id, window: $0, label: nil) }
                 return WindowGroup(id: scope, title: title, rows: rows)
             }
