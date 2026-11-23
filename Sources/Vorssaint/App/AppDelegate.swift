@@ -9,6 +9,7 @@ import SwiftUI
 import UserNotifications
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowDelegate {
+    var configuredFeatureKeys: Set<String> = []
     private var statusController: StatusItemController!
     private let popover = NSPopover()
     private var popoverDismissMonitor: Any?
@@ -29,10 +30,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var popoverLastWindowNumber: Int?
     private var popoverForeignReopenAt = Date.distantPast
     private var popoverIsSwitchingAnchor = false
+    private var panelPresentation: PanelPresentation?
+    private var panelPresentationSerial = 0
+    private var panelPresentationObservers: [NSObjectProtocol] = []
     /// The app to hand activation back to when the panel is dismissed, so
     /// Vorssaint does not stay in front. Captured when a click opens the panel
     /// and kept current by the observers below while the panel is shown.
     private var panelActivationSource: NSRunningApplication?
+
+    /// Actions opened from our panel keep the app that was actually active,
+    /// even when it has no ordinary window in the current Space.
+    var panelActivationSourcePID: pid_t? {
+        guard let source = panelActivationSource, !source.isTerminated else { return nil }
+        return source.processIdentifier
+    }
     private var panelActivationObservers: [NSObjectProtocol] = []
     private var popoverCloseReason: PanelCloseReason?
     private var metricAnchorSwitchSerial = 0
@@ -87,7 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // Shape a clean install before any feature can create a listener,
         // timer or shortcut. The onboarding can replace this set after the
         // person chooses what they actually want.
-        FeaturePreset.prepareFirstRunAvailability()
+        FeaturePreset.prepareFirstRunAvailability(preserving: configuredFeatureKeys)
 
         // Redo a launch at login registration the system lost. The stored
         // choice is the last thing the user expressed in the app; startup
@@ -95,11 +106,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // Service Management can stall while answering (issue #2539).
         LaunchAtLogin.repairAtStartup()
 
-        // Switch back on any display a previous run left off. A run that ends
-        // without putting one back leaves a screen dark with no app around to
-        // offer it back, so the repair happens before anything else can care
-        // about which displays are attached.
-        BrightnessService.shared.restoreDisplaysLeftOff()
+        // Recover displays before other services read the screen layout. The
+        // saved list can outlive an uninstall, so it alone decides whether
+        // this launch needs the brightness service for recovery.
+        if BrightnessService.hasDisplaysToRestore {
+            BrightnessService.shared.restoreDisplaysLeftOff()
+        }
 
         // An accessory (LSUIElement) app gets no default main menu, so the standard
         // keyboard shortcuts (Cmd+H/M/W/Q and the Edit shortcuts Cmd+C/V/X/A) have
@@ -133,8 +145,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             // any status item.
             ClipboardHistoryService.shared.toggleHistoryWindow()
         }
-        // The shelf drop zone chip anchors itself under the menu bar icon.
-        ShelfService.shared.statusItemFrameProvider = { [weak self] in
+        // The shelf drop zone chip anchors itself under the menu bar icon. The
+        // provider is registered on the type, so a launch with no shelf
+        // installed never builds the service (and its saved items) for it.
+        ShelfService.statusItemFrameProvider = { [weak self] in
             guard let item = self?.statusController.statusItem, item.isVisible,
                   let window = self?.statusController.button?.window else { return nil }
             let frame = window.frame
@@ -178,13 +192,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .receive(on: DispatchQueue.main)
             .sink { _ in
                 FeatureRuntime.shared.sync([
-                    .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .switcher,
+                    .scrollInverter, .scrollHorizontal, .scrollZoom, .scrollSpeed, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .switcher,
                     .dockPreview, .finderCutPaste, .finderRename, .autoQuit, .dockClick, .dockDisplayLock,
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
                     .mouseClickDebounce, .superKey, .quitWindowProtection, .mixer, .musicBlock, .notch,
                 ])
             }
+            .store(in: &cancellables)
+
+        // The Trash can only be watched once Full Disk Access is granted.
+        Permissions.shared.$fullDiskAccess
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { _ in FeatureRuntime.shared.sync([.uninstaller]) }
             .store(in: &cancellables)
 
         Permissions.shared.$screenRecording
@@ -558,6 +579,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         MenuPanelFocus.shared.setPopoverVisible(popover.isShown)
         popover.animates = true
+        if popover.isShown, !popoverIsFadingOut {
+            popoverIsClosing = false
+            popoverCloseIsAppRequested = false
+            popoverCloseReason = nil
+        }
         popover.contentViewController?.view.window?.makeKey()
         if let window = popover.contentViewController?.view.window {
             configurePopoverWindow(window)
@@ -931,6 +957,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             }
             return false
         }
+        if !popoverIsFadingOut {
+            popoverIsClosing = false
+            popoverCloseIsAppRequested = false
+            popoverCloseReason = nil
+        }
         configurePopoverWindow(popoverWindow)
         popoverWindow.makeKey()
         beginPopoverDriftCorrection(window: popoverWindow,
@@ -1011,15 +1042,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                              animate: Bool = true,
                              activate: Bool = true,
                              restoring savedAnchor: PanelAnchor? = nil) {
-        // An interrupted fade continues the same presentation. Keep the
-        // requested metric and activation source through its intermediate close.
-        let reopening = popoverIsFadingOut && popover.isShown
+        // An interrupted or unfinished close continues the same presentation.
+        // Keep the requested metric and activation source through its cleanup.
+        let wasReopening = popoverIsReopening
+        let reopening = wasReopening || (popoverIsFadingOut && popover.isShown)
+            || (popoverIsClosing && !popover.isShown)
         let interruptedCloseReason = popoverCloseReason
         popoverIsReopening = reopening
         finishPopoverFadeOut()
-        popoverIsReopening = false
+        if popoverIsClosing, !popover.isShown, !popoverIsFadingOut {
+            Self.menuBarLog.log("panel open completed a close that never finished")
+            finishPopoverClose(recoverForeignClose: false)
+        }
+        popoverIsReopening = wasReopening
         defer {
-            if reopening, !popover.isShown {
+            if reopening, !wasReopening, !popover.isShown {
                 statusController.setMicBadgeHeld(false)
                 releasePanelResources()
                 returnActivation(to: endPanelActivationTracking(), after: interruptedCloseReason)
@@ -1036,12 +1073,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             popover.animates = false
         }
         MenuPanelFocus.shared.setPopoverVisible(true)
+        let showStartedAt = ProcessInfo.processInfo.systemUptime
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        let showDuration = ProcessInfo.processInfo.systemUptime - showStartedAt
         MenuPanelFocus.shared.setPopoverVisible(popover.isShown)
         if !animate {
             popover.animates = true
         }
-        if let window = popover.contentViewController?.view.window {
+        if popover.isShown, let window = popover.contentViewController?.view.window {
             configurePopoverWindow(window)
             window.contentView?.layoutSubtreeIfNeeded()
             window.makeKey()
@@ -1061,28 +1100,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // — otherwise popoverDidClose never fires and both would leak, holding a
         // display object and a window observer for the rest of the session.
         guard popover.isShown else {
-            statusController.setMicBadgeHeld(false)
-            endPopoverDriftCorrection()
-            if !reopening { endPanelActivationTracking() }
+            if popoverIsClosing {
+                popoverIsReopening = reopening
+                finishPopoverClose(recoverForeignClose: false)
+                popoverIsReopening = wasReopening
+            } else {
+                statusController.setMicBadgeHeld(false)
+                endPopoverDriftCorrection()
+                if !reopening { endPanelActivationTracking() }
+            }
             return
         }
         if let window = popover.contentViewController?.view.window {
             beginPopoverDriftCorrection(window: window,
                                         anchor: savedAnchor ?? resolvePanelAnchor(for: button, window: window))
+            beginPanelPresentationWatch(window: window, startedAt: showStartedAt,
+                                        showDuration: showDuration)
         }
         installPopoverDismissMonitor()
     }
 
     private func installPopoverDismissMonitor() {
         removePopoverDismissMonitor()
-        // A global monitor only sees events delivered to OTHER apps, so a click in
-        // another app or on the desktop dismisses the panel.
+        // AppKit can send the global monitor a copy of an activation click
+        // delivered to the panel. The event retains its target window number.
         popoverDismissMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
-        ) { [weak self] _ in
+        ) { [weak self] event in
             guard let self, self.popover.isShown else { return }
             guard !PanelInteractionState.shared.preventsPopoverDismissal else { return }
-            guard self.statusController.containsStatusItem(at: NSEvent.mouseLocation) == false else { return }
+            let point = NSEvent.mouseLocation
+            guard self.statusController.containsStatusItem(at: point) == false else { return }
+            let panelNumber = self.popover.contentViewController?.view.window?.windowNumber
+            guard !StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: event.windowNumber,
+                                                            panelWindowNumber: panelNumber) else { return }
+            self.logPanelDismissal(source: "outside", event: event, location: point)
             self.closePopover(reason: .outsideClick)
         }
 
@@ -1094,6 +1146,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         ) { [weak self] event in
             guard let self, self.popover.isShown else { return event }
             if self.shouldDismissPopover(forLocalEvent: event) {
+                self.logPanelDismissal(source: "settings-overlap", event: event,
+                                       location: NSEvent.mouseLocation)
                 self.closePopover(reason: .outsideClick)
             }
             return event
@@ -1103,6 +1157,74 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             guard let self else { return event }
             return self.handlePopoverKeyDown(event)
         }
+    }
+
+    // MARK: - Presentation timings
+
+    /// Observation starts after `show()` and initial layout; an update is not
+    /// a rendering-completion signal, and resizes during `show()` are excluded.
+    private struct PanelPresentation {
+        let serial: Int
+        let startedAt: TimeInterval
+        let showDuration: TimeInterval
+        let openingHeight: CGFloat
+        let switchingAnchor: Bool
+        var firstUpdate: TimeInterval?
+        var resizes = 0
+        var finalHeight: CGFloat
+    }
+
+    private func beginPanelPresentationWatch(window: NSWindow, startedAt: TimeInterval,
+                                             showDuration: TimeInterval) {
+        logPanelPresentation()
+        panelPresentationSerial &+= 1
+        let serial = panelPresentationSerial
+        panelPresentation = PanelPresentation(
+            serial: serial,
+            startedAt: startedAt,
+            showDuration: showDuration,
+            openingHeight: window.frame.height,
+            switchingAnchor: popoverIsSwitchingAnchor,
+            finalHeight: window.frame.height)
+        for name in [NSWindow.didUpdateNotification, NSWindow.didResizeNotification] {
+            panelPresentationObservers.append(NotificationCenter.default.addObserver(
+                forName: name, object: window, queue: .main
+            ) { [weak self, weak window] notification in
+                guard let self, let window,
+                      var watch = self.panelPresentation, watch.serial == serial else { return }
+                let elapsed = ProcessInfo.processInfo.systemUptime - watch.startedAt
+                if notification.name == NSWindow.didUpdateNotification {
+                    if watch.firstUpdate == nil { watch.firstUpdate = elapsed }
+                } else {
+                    watch.resizes += 1
+                    watch.finalHeight = window.frame.height
+                }
+                self.panelPresentation = watch
+            })
+        }
+        // Long enough to cover AppKit's own show animation, then logged once.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self, self.panelPresentation?.serial == serial else { return }
+            self.logPanelPresentation()
+        }
+    }
+
+    private func logPanelPresentation() {
+        guard let watch = panelPresentation else { return }
+        let firstUpdate = watch.firstUpdate.map { Self.milliseconds($0) } ?? "none"
+        Self.menuBarLog.log("panel open show=\(Self.milliseconds(watch.showDuration), privacy: .public) firstUpdate=\(firstUpdate, privacy: .public) postShowHeight=\(Int(watch.openingHeight))->\(Int(watch.finalHeight)) postShowResizes=\(watch.resizes) switching=\(watch.switchingAnchor)")
+        endPanelPresentationWatch()
+    }
+
+    private func endPanelPresentationWatch() {
+        panelPresentationObservers.forEach(NotificationCenter.default.removeObserver)
+        panelPresentationObservers.removeAll()
+        panelPresentation = nil
+    }
+
+    private static func milliseconds(_ interval: TimeInterval) -> String {
+        // Log numbers read the same on every machine, whatever the decimal mark.
+        String(format: "%.1fms", locale: Locale(identifier: "en_US_POSIX"), interval * 1000)
     }
 
     private func removePopoverDismissMonitor() {
@@ -1118,6 +1240,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             NSEvent.removeMonitor(monitor)
             popoverKeyboardMonitor = nil
         }
+    }
+
+    /// An outside dismissal inside the panel's frame helps diagnose click-through.
+    private func logPanelDismissal(source: String, event: NSEvent?, location: NSPoint) {
+        let window = popover.contentViewController?.view.window
+        let frame = window?.frame ?? .zero
+        let inside = window != nil && frame.contains(location)
+        let point = "\(Int(location.x)),\(Int(location.y))"
+        let box = "\(Int(frame.minX)),\(Int(frame.minY)) \(Int(frame.width))x\(Int(frame.height))"
+        Self.menuBarLog.log("panel dismiss \(source, privacy: .public) inside=\(inside) point=\(point, privacy: .public) frame=\(box, privacy: .public) eventWindow=\(event?.windowNumber ?? 0) panelWindow=\(window?.windowNumber ?? 0)")
     }
 
     private func shouldDismissPopover(forLocalEvent event: NSEvent) -> Bool {
@@ -1310,13 +1442,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func popoverDidClose(_ notification: Notification) {
+        // A recovered close can still report back after the next presentation.
+        guard popoverIsClosing, !popover.isShown else { return }
+        finishPopoverClose()
+    }
+
+    private func finishPopoverClose(recoverForeignClose: Bool = true) {
+        logPanelPresentation()
         if !popover.isShown {
             MenuPanelFocus.shared.setPopoverVisible(false)
         }
         // Decided before anything below is torn down, and treated like a
         // metric anchor switch: the panel is about to be shown again in the
         // same turn, so the sampling and caches it is using stay alive.
-        let recoveryAnchor = anchorAfterForeignClose()
+        let recoveryAnchor = recoverForeignClose ? anchorAfterForeignClose() : nil
         if recoveryAnchor != nil {
             popoverIsSwitchingAnchor = true
             MenuPanelFocus.shared.setSwitchingMetricAnchor(true)
@@ -1335,11 +1474,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         popoverCloseIsAppRequested = false
         let closeReason = popoverCloseReason
         popoverCloseReason = nil
+        // A completion may present another panel or run a nested menu loop.
+        // Finish the old activation tracking before that new work starts.
+        let activationSource = !popoverIsSwitchingAnchor && !popoverIsReopening
+            ? endPanelActivationTracking() : nil
         runPopoverCloseCompletions()
         if let recoveryAnchor {
             reopenPanelAfterForeignClose(anchor: recoveryAnchor)
-        } else if !popoverIsSwitchingAnchor && !popoverIsReopening {
-            returnActivation(to: endPanelActivationTracking(), after: closeReason)
+        } else {
+            returnActivation(to: activationSource, after: closeReason)
         }
     }
 
@@ -1593,6 +1736,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     @objc private func menuOpenUninstaller() {
+        SettingsRouter.shared.page = .uninstaller
+        openSettingsWindow()
+    }
+
+    /// Opens the Uninstaller already reviewing `appURL`. When `select` says
+    /// no, a removal already running is still worth showing; anything else
+    /// the Uninstaller refused stays closed rather than opening on nothing.
+    func openUninstaller(for appURL: URL, trashMove: UninstallerSupport.TrashMove? = nil) {
+        let uninstaller = AppUninstaller.shared
+        guard AppFeature.uninstaller.isAvailable,
+              uninstaller.select(appURL: appURL, trashMove: trashMove) || (trashMove == nil && uninstaller.isRemoving)
+        else { return }
         SettingsRouter.shared.page = .uninstaller
         openSettingsWindow()
     }
@@ -2642,12 +2797,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             }
             markWhatsNewSeen()
             // Done, Escape and the window's close button all arrive here.
-            // The stable invitation follows the changelog before older tours.
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                if !AppInfo.isBeta, self.showSupportUpdateIntroIfNeeded() { return }
-                self.presentUpdateIntros()
-            }
+            // Finish any pending feature tour before the stable invitation.
+            DispatchQueue.main.async { [weak self] in self?.presentUpdateIntros() }
             return
         }
         if window === updatePreviewWindow {

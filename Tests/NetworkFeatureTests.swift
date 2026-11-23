@@ -436,6 +436,38 @@ enum NetworkFeatureTests {
         suite.expect(!MetricFormat.includeNetworkInterface("utun3"), "utun3 (VPN) excluded")
         suite.expect(!MetricFormat.includeNetworkInterface("bridge0"), "bridge0 excluded")
         suite.expect(!MetricFormat.includeNetworkInterface(""), "empty excluded")
+        suite.expect(!MetricFormat.includeNetworkInterface("feth99"), "feth peers excluded")
+        // The Mac in #3429 routes through bridge1, which holds one of two
+        // mirrored feth peers, while en0 sits idle.
+        let interfaces = ["lo0", "en0", "en1", "feth98", "feth99", "bridge1", "utun3"]
+        suite.expect(MetricFormat.countedNetworkInterfaces(interfaces, primaries: ["en0", "en0"]) == ["en0", "en1"],
+               "an ordinary connection counts the physical interfaces and neither feth peer")
+        suite.expect(MetricFormat.countedNetworkInterfaces(interfaces, primaries: ["bridge1"]) == ["bridge1"],
+               "a bridge the system routes through is counted alone, without its members")
+        suite.expect(MetricFormat.countedNetworkInterfaces(interfaces, primaries: ["bridge1", "en1"]) == ["bridge1", "en1"],
+               "IPv6 routed elsewhere next to a primary bridge is counted too")
+        suite.expect(MetricFormat.countedNetworkInterfaces(interfaces, primaries: ["utun3"]) == ["en0", "en1"],
+               "a VPN as primary still counts the physical interfaces underneath")
+        suite.expect(MetricFormat.countedNetworkInterfaces(interfaces, primaries: ["bridge7"]) == ["en0", "en1"]
+                && MetricFormat.countedNetworkInterfaces(interfaces, primaries: []) == ["en0", "en1"],
+               "a primary that no longer exists, or none at all, keeps the usual rule")
+        // Moving from the members to the bridge changes what the sum means.
+        let switching: [NetworkCounters] = [
+            NetworkCounters(received: 5_000, sent: 5_000, interfaces: ["en0", "feth98", "feth99"]),
+            NetworkCounters(received: 900_000, sent: 100_000, interfaces: ["bridge1"]),
+            NetworkCounters(received: 902_000, sent: 100_500, interfaces: ["bridge1"]),
+        ]
+        var switchingIndex = 0
+        let switchingSampler = NetworkSampler(counterReader: {
+            defer { switchingIndex += 1 }
+            return switching[switchingIndex]
+        }, processReader: { nil })
+        _ = switchingSampler.sample(now: 0)
+        let switched = switchingSampler.sample(now: 1)
+        let settled = switchingSampler.sample(now: 2)
+        suite.expect(switched.downBytesPerSec == nil && switched.totalDown == 0
+                && settled.downBytesPerSec == 2_000 && settled.upBytesPerSec == 500,
+               "a change of counted interfaces starts a new baseline instead of a burst of traffic")
 
         // MARK: History ring buffer
 

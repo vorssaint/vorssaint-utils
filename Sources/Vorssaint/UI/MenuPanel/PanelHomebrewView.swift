@@ -15,7 +15,6 @@ struct PanelHomebrewView: View {
     @State private var mode: PanelHomebrewMode = .search
     @State private var filter: PanelHomebrewFilter = .all
     @State private var pendingAction: HomebrewPendingAction?
-    @State private var showOperationDetails = false
 
     var onClose: () -> Void
 
@@ -41,8 +40,8 @@ struct PanelHomebrewView: View {
                 }
                 errorBanner
                 detailCard
-                operationCard
             }
+            operationCard
         }
         .onAppear {
             if homebrew.installed.isEmpty {
@@ -53,9 +52,6 @@ struct PanelHomebrewView: View {
         .onChange(of: mode) { _, _ in resetContextSelection() }
         .onChange(of: filter) { _, _ in resetContextSelection() }
         .onChange(of: searchKind) { _, _ in resetContextSelection() }
-        .onChange(of: homebrew.operationStatus?.targetID) { _, _ in
-            showOperationDetails = false
-        }
         .onDisappear {
             PanelInteractionState.shared.isPresentingPopoverModal = false
         }
@@ -215,13 +211,9 @@ struct PanelHomebrewView: View {
 
     private var installedControls: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Picker("", selection: $filter) {
-                Text("\(l10n.s.homebrewAll) \(homebrew.installed.count)").tag(PanelHomebrewFilter.all)
-                Text("\(l10n.s.homebrewCasks) \(installedCaskCount)").tag(PanelHomebrewFilter.cask)
-                Text("\(l10n.s.homebrewFormulas) \(installedFormulaCount)").tag(PanelHomebrewFilter.formula)
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
+            PanelHomebrewFilterPicker(selection: $filter, strings: l10n.s,
+                                      totalCount: homebrew.installed.count,
+                                      caskCount: installedCaskCount, formulaCount: installedFormulaCount)
 
             HStack(spacing: 7) {
                 Button {
@@ -549,16 +541,9 @@ struct PanelHomebrewView: View {
 
     @ViewBuilder
     private var operationCard: some View {
-        if let status = homebrew.operationStatus {
-            HomebrewOperationStatusView(status: status,
-                                        log: homebrew.log,
-                                        terminalFallbackCommand: homebrew.terminalFallbackCommand,
-                                        compact: true,
-                                        showDetails: $showOperationDetails,
-                                        onCancel: homebrew.cancelOperation,
-                                        onClear: homebrew.clearLog,
-                                        onOpenTerminal: homebrew.openTerminalFallback)
-            .panelCard()
+        if let output = homebrew.operationOutput {
+            HomebrewOperationOutputView(homebrew: homebrew, output: output, compact: true)
+                .panelCard()
         }
     }
 
@@ -797,7 +782,6 @@ struct PanelHomebrewView: View {
 
     private func resetContextSelection() {
         dismissConfirmation()
-        showOperationDetails = false
         homebrew.clearSelection()
     }
 }
@@ -805,14 +789,6 @@ struct PanelHomebrewView: View {
 private enum PanelHomebrewMode: String, CaseIterable, Identifiable {
     case search
     case installed
-
-    var id: String { rawValue }
-}
-
-private enum PanelHomebrewFilter: String, CaseIterable, Identifiable {
-    case all
-    case cask
-    case formula
 
     var id: String { rawValue }
 }

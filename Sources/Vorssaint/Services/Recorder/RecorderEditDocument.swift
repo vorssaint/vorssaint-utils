@@ -20,6 +20,8 @@ struct RecorderEditDocument: Codable, Equatable {
     /// Export only: editing, cuts and overlays stay on their original clock.
     var exportSpeed: Double
     var keepsSystemAudio: Bool
+    var exportFormat: String
+    var gifScalePercent: Int
     var gifSize: String
     var gifFrameRate: Int
     /// The background behind the recording, as the same JSON the screenshot
@@ -58,6 +60,8 @@ struct RecorderEditDocument: Codable, Equatable {
          quality: String = RecorderSupport.Quality.balanced.rawValue,
          exportSpeed: Double = 1,
          keepsSystemAudio: Bool = true,
+         exportFormat: String = RecorderSupport.ExportFormat.video.rawValue,
+         gifScalePercent: Int = 75,
          gifSize: String = RecorderSupport.GIFSize.medium.rawValue,
          gifFrameRate: Int = 12,
          backdrop: String = "",
@@ -83,6 +87,8 @@ struct RecorderEditDocument: Codable, Equatable {
         self.quality = quality
         self.exportSpeed = exportSpeed
         self.keepsSystemAudio = keepsSystemAudio
+        self.exportFormat = exportFormat
+        self.gifScalePercent = gifScalePercent
         self.gifSize = gifSize
         self.gifFrameRate = gifFrameRate
         self.backdrop = backdrop
@@ -115,6 +121,9 @@ struct RecorderEditDocument: Codable, Equatable {
             ?? RecorderSupport.Quality.balanced.rawValue
         exportSpeed = try container.decodeIfPresent(Double.self, forKey: .exportSpeed) ?? 1
         keepsSystemAudio = try container.decodeIfPresent(Bool.self, forKey: .keepsSystemAudio) ?? true
+        exportFormat = try container.decodeIfPresent(String.self, forKey: .exportFormat)
+            ?? RecorderSupport.ExportFormat.video.rawValue
+        gifScalePercent = try container.decodeIfPresent(Int.self, forKey: .gifScalePercent) ?? 75
         gifSize = try container.decodeIfPresent(String.self, forKey: .gifSize)
             ?? RecorderSupport.GIFSize.medium.rawValue
         gifFrameRate = try container.decodeIfPresent(Int.self, forKey: .gifFrameRate) ?? 12
@@ -261,6 +270,21 @@ struct RecorderEditDocument: Codable, Equatable {
         RecorderSupport.sanitizedQuality(quality)
     }
 
+    var resolvedExportFormat: RecorderSupport.ExportFormat {
+        RecorderSupport.ExportFormat(rawValue: exportFormat) ?? .video
+    }
+
+    var resolvedGIFScalePercent: Int {
+        min(100, max(1, gifScalePercent))
+    }
+
+    func outputScale(for format: RecorderSupport.ExportFormat) -> Double {
+        switch format {
+        case .video: return Double(resolvedQuality.outputScale)
+        case .gif: return Double(resolvedGIFScalePercent) / 100
+        }
+    }
+
     var resolvedGIFSize: RecorderSupport.GIFSize {
         RecorderSupport.sanitizedGIFSize(gifSize)
     }
@@ -324,6 +348,8 @@ struct RecorderEditDocument: Codable, Equatable {
         document.trimEnd = trim.end
         document.quality = resolvedQuality.rawValue
         document.exportSpeed = exportTiming.speed
+        document.exportFormat = resolvedExportFormat.rawValue
+        document.gifScalePercent = resolvedGIFScalePercent
         document.gifSize = resolvedGIFSize.rawValue
         document.gifFrameRate = resolvedGIFFrameRate
         document.aspect = resolvedAspect.rawValue

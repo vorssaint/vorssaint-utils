@@ -11,8 +11,11 @@ private typealias PanelRecoveryPolicy = StatusItemAnchorSupport
 enum MenuPanelRecoveryTests {
     final class Queue {
         var jobs: [() -> Void] = []
+        var delayedJobs: [() -> Void] = []
         func async(execute work: @escaping () -> Void) { jobs.append(work) }
+        func asyncAfter(deadline: DispatchTime, execute work: @escaping () -> Void) { delayedJobs.append(work) }
         func drain() { while !jobs.isEmpty { jobs.removeFirst()() } }
+        func drainDelayed() { let pending = delayedJobs; delayedJobs = []; pending.forEach { $0() } }
     }
     enum DispatchQueue { static var main = Queue() }
     final class NSScreen {
@@ -27,6 +30,7 @@ enum MenuPanelRecoveryTests {
     final class NSWindow {
         static let didMoveNotification = Notification.Name("move")
         static let didResizeNotification = Notification.Name("resize")
+        static let didUpdateNotification = Notification.Name("update")
         var frame: CGRect
         var screen: NSScreen? = NSScreen.screens.first
         var windowNumber = 71
@@ -80,26 +84,29 @@ enum MenuPanelRecoveryTests {
         func performClose(_ sender: Any?) {}
         /// AppKit sends willClose and didClose inside a close without animation.
         var closeNotifies: (() -> Void)?
+        var showNotifies: (() -> Void)?
         func close() { isShown = false; closeNotifies?() }
         func show(relativeTo: CGRect, of button: NSStatusBarButton, preferredEdge: NSRectEdge) {
             attempts += 1
             measuredScreen = PanelInteractionState.shared.anchorScreen
+            showNotifies?()
             guard !fails, let window = button.window else { return }
             contentViewController?.view.window = NSWindow(CGRect(x: window.frame.midX - 166, y: 530, width: 332, height: 500))
             isShown = true
         }
     }
     final class Center {
-        var observers: [(NSObject, Any?, (Notification) -> Void)] = []
+        var observers: [(token: NSObject, name: Notification.Name, object: Any?, body: (Notification) -> Void)] = []
         var additions = 0
         func addObserver(forName: Notification.Name, object: Any?, queue: OperationQueue?,
                          using body: @escaping (Notification) -> Void) -> NSObjectProtocol {
             additions += 1
-            let token = NSObject(); observers.append((token, object, body)); return token
+            let token = NSObject(); observers.append((token, forName, object, body)); return token
         }
         func removeObserver(_ token: NSObjectProtocol) { observers.removeAll { $0.0 === token } }
         func post(name: Notification.Name, window: NSWindow) {
-            for (_, object, body) in observers where object as? NSWindow === window {
+            for (_, observedName, object, body) in observers
+                where observedName == name && object as? NSWindow === window {
                 body(Notification(name: name, object: window))
             }
         }
@@ -250,6 +257,15 @@ enum MenuPanelRecoveryTests {
         var switchesDesktop = false
         func handbackWouldSwitchDesktop(to pid: pid_t) -> Bool { switchesDesktop }
         func closePopover() { popover.isShown = false }
+        enum menuBarLog {
+            static var messages: [String] = []
+            static func log(_ message: String) { messages.append(message) }
+        }
+        let presentationLogStart = menuBarLog.messages.count
+        var presentationLogs: [String] {
+            menuBarLog.messages.dropFirst(presentationLogStart).filter { $0.hasPrefix("panel open show=") }
+        }
+        var presentationLogFlushes: Int { presentationLogs.count }
         func configurePopoverWindow(_ window: NSWindow) {}
         func animatePopoverOpen(_ window: NSWindow) {}
         @discardableResult func useStablePopoverPositioningViewIfNeeded(_ window: NSWindow) -> Bool { false }
@@ -475,6 +491,150 @@ enum MenuPanelRecoveryTests {
             expect(host.popoverLastFrame == window.frame, "later movement refreshes the recovery frame")
             host.popoverCloseIsAppRequested = true; close(host)
             expect(NotificationCenter.default.observers.isEmpty, "normal close leaves no geometry observer")
+            expect(host.presentationLogFlushes == 1, "close flushes presentation diagnostics without waiting for the timer")
+        }
+        do {
+            let host = setup(present: false)
+            host.popoverIsClosing = true
+            host.showPopover(animate: false, activate: false)
+            expect(host.popover.isShown && !host.popoverIsClosing
+                   && host.popover.attempts == 1,
+                   "a close that never finished does not swallow the next open")
+        }
+        do {
+            let (host, source) = trackingSetup()
+            var completions = 0
+            var completedBeforeReopen = false
+            PanelInteractionState.shared.viewKeepsPopoverOpen = true
+            PanelInteractionState.shared.isPresentingPopoverModal = true
+            host.closePopoverNow(animated: false, reason: .action, completion: {
+                completions += 1
+                completedBeforeReopen = !host.popover.isShown && host.popover.attempts == 1
+            })
+            host.showMetricPanel(for: MenuBarMetric(detailKind: "cpu"), anchoredTo: host.statusController.button!)
+            expect(completions == 1 && completedBeforeReopen && host.popoverCloseCompletions.isEmpty,
+                   "a missing close callback completes the old action once before the next presentation")
+            expect(host.popover.isShown && !host.popoverIsClosing && !host.popoverCloseIsAppRequested
+                   && host.popoverCloseReason == nil && host.popover.attempts == 2,
+                   "missing-close recovery opens once and clears the old close state")
+            expect(MenuPanelFocus.shared.activeMetric == "cpu" && SystemMonitor.shared.needs == .network
+                   && ProcessUsageService.shared.releases == 0 && host.panelActivationSource === source
+                   && host.activationTrackingStarts == 1,
+                   "missing-close recovery keeps the requested metric, sampling and activation source")
+            expect(!PanelInteractionState.shared.preventsPopoverDismissal,
+                   "missing-close recovery clears interaction holds from the closed panel")
+            let anchor = host.popoverAnchor?.midX
+            let observerCount = NotificationCenter.default.observers.count
+            let flushes = host.presentationLogFlushes
+            PanelInteractionState.shared.viewKeepsPopoverOpen = true
+            host.popoverDidClose(Notification(name: Notification.Name("lateDidClose")))
+            expect(host.monitors && host.popoverAnchor?.midX == anchor
+                   && NotificationCenter.default.observers.count == observerCount
+                   && host.presentationLogFlushes == flushes && host.activationTracking
+                   && PanelInteractionState.shared.viewKeepsPopoverOpen
+                   && MenuPanelFocus.shared.activeMetric == "cpu" && ProcessUsageService.shared.releases == 0,
+                   "a late didClose leaves the reopened panel, diagnostics and interaction state intact")
+            notifyCloses(host)
+            host.closePopoverNow(animated: true, reason: .statusItem, completion: nil)
+            host.popoverDidClose(Notification(name: Notification.Name("lateDidCloseDuringFade")))
+            expect(host.popoverIsClosing && host.monitors && ProcessUsageService.shared.releases == 0,
+                   "an old didClose cannot finish a new close while its panel is still fading")
+            NSAnimationContext.finish()
+            host.popoverDidClose(Notification(name: Notification.Name("duplicateDidClose")))
+            DispatchQueue.main.drain()
+            expect(completions == 1 && ProcessUsageService.shared.releases == 1
+                   && !host.monitors && !host.activationTracking && source.activations == 1,
+                   "the next real close releases resources and returns activation without replaying the old action")
+        }
+        do {
+            let (host, source) = trackingSetup()
+            var completions = 0
+            host.closePopoverNow(animated: false, reason: .action, completion: {
+                completions += 1
+                host.showPopover(animate: false)
+            })
+            host.showPopover(animate: false)
+            expect(host.popover.isShown && host.popover.attempts == 2 && completions == 1
+                   && !host.popoverIsReopening && host.monitors && host.activationTracking
+                   && host.panelActivationSource === source && host.activationTrackingStarts == 1,
+                   "a close action can reopen reentrantly without losing the new panel or its activation source")
+            notifyCloses(host)
+            host.closePopoverNow(animated: false, reason: .escape, completion: nil)
+            DispatchQueue.main.drain()
+            expect(source.activations == 1 && completions == 1,
+                   "a reentrant reopen still permits a later normal dismissal")
+        }
+        for reentrant in [false, true] {
+            let (host, source) = trackingSetup()
+            var completions = 0
+            host.closePopoverNow(animated: false, reason: .escape, completion: {
+                completions += 1
+                if reentrant { host.showPopover(animate: false) }
+            })
+            host.popover.fails = true
+            host.showPopover(animate: false)
+            host.popoverDidClose(Notification(name: Notification.Name("lateDidCloseAfterFailure")))
+            DispatchQueue.main.drain()
+            expect(!host.popover.isShown && !host.monitors && !host.statusController.held
+                   && host.popoverDriftObservers.isEmpty && !host.activationTracking
+                   && !PanelInteractionState.shared.preventsPopoverDismissal
+                   && MenuPanelFocus.shared.activeMetric == nil && ProcessUsageService.shared.releases == 1,
+                   "failed missing-close recovery releases the old panel once with a late callback and reentry \(reentrant)")
+            expect(completions == 1 && host.presentationLogFlushes == 1 && source.activations == 1,
+                   "failed missing-close recovery completes its action, report and activation handback once")
+        }
+        for switchingAnchor in [false, true] {
+            let (host, source) = trackingSetup()
+            let window = host.popover.contentViewController!.view.window!
+            host.popoverIsSwitchingAnchor = switchingAnchor
+            host.closePopoverNow(animated: !switchingAnchor, reason: .statusItem, completion: nil)
+            host.showPopover(animate: false, activate: !switchingAnchor)
+            NSAnimationContext.finish()
+            expect(host.popover.isShown && host.popover.attempts == 2 && host.monitors
+                   && !host.popoverIsClosing && !host.popoverIsFadingOut
+                   && window.alphaValue == 1 && !window.ignoresMouseEvents
+                   && MenuPanelFocus.shared.activeMetric == "network"
+                   && host.panelActivationSource === source && ProcessUsageService.shared.releases == 0,
+                   "missing-close recovery preserves an interrupted fade or anchor switch \(switchingAnchor)")
+        }
+        for fading in [false, true] {
+            let (host, source) = trackingSetup()
+            MenuPanelFocus.shared.focus("cpu")
+            host.metricAnchorSwitchSerial = 1
+            if fading { host.closePopoverNow(animated: true, reason: .escape, completion: nil) }
+            host.popover.showNotifies = { [unowned host] in
+                host.popoverWillClose(Notification(name: Notification.Name("oldAnchorWillClose")))
+            }
+            host.reanchorMetricPopover(to: "cpu", anchoredTo: host.statusController.button!)
+            host.popover.showNotifies = nil
+            host.popoverDidClose(Notification(name: Notification.Name("oldAnchorDidClose")))
+            expect(host.popover.isShown && host.monitors && host.popoverIsClosing == fading
+                   && host.popoverCloseIsAppRequested == fading
+                   && host.panelActivationSource === source && MenuPanelFocus.shared.activeMetric == "cpu",
+                   "direct reanchoring clears an old close without canceling an active fade \(fading)")
+            DispatchQueue.main.drainDelayed()
+            notifyCloses(host)
+            if fading {
+                NSAnimationContext.finish()
+            } else {
+                host.showMetricPanel(for: MenuBarMetric(detailKind: "cpu"), anchoredTo: host.statusController.button!)
+            }
+            expect(!host.popover.isShown && !host.monitors && !host.popoverIsClosing,
+                   "a reanchored metric still closes on its second click or pending fade \(fading)")
+        }
+        for reopening in [false, true] {
+            let host = setup(present: reopening)
+            if reopening { host.closePopoverNow(animated: false, reason: .escape, completion: nil) }
+            host.popover.fails = true
+            host.popover.showNotifies = { [unowned host] in
+                host.popoverWillClose(Notification(name: Notification.Name("failedShowWillClose")))
+            }
+            host.showPopover(animate: false)
+            host.popoverDidClose(Notification(name: Notification.Name("failedShowDidClose")))
+            expect(!host.popover.isShown && !host.popoverIsClosing && !host.monitors
+                   && !host.activationTracking && ProcessUsageService.shared.releases == 1
+                   && MenuPanelFocus.shared.activeMetric == nil,
+                   "a failed show that begins another close is finalized once with reopening \(reopening)")
         }
         do {
             let host = setup()
@@ -718,6 +878,73 @@ enum MenuPanelRecoveryTests {
             DispatchQueue.main.drain()
             expect(source.activations == 0 && host.activationTracking,
                    "moving the panel between metric anchors keeps activation and its tracking")
+        }
+        runPresentationDiagnostics(expect)
+    }
+
+    static func runPresentationDiagnostics(_ expect: (Bool, String) -> Void) {
+        func setup() -> Host {
+            DispatchQueue.main = Queue(); NotificationCenter.default = Center(); NSAnimationContext.completions = []
+            NSScreen.screens = [NSScreen()]; NSApp = Application(); NSWorkspace.shared = NSWorkspace()
+            MenuPanelFocus.shared = MenuPanelFocus(); SystemMonitor.shared = SystemMonitor()
+            ProcessUsageService.shared = ProcessUsageService(); PanelInteractionState.shared = PanelInteractionState()
+            let host = Host()
+            host.showPopover(animate: false, activate: false)
+            return host
+        }
+        do {
+            let host = setup()
+            let window = host.popover.contentViewController!.view.window!
+            NotificationCenter.default.post(name: NSWindow.didUpdateNotification, window: window)
+            let firstUpdate = host.panelPresentation?.firstUpdate
+            NotificationCenter.default.post(name: NSWindow.didUpdateNotification, window: window)
+            expect(firstUpdate != nil && host.panelPresentation?.firstUpdate == firstUpdate,
+                   "presentation diagnostics retain the first observed update")
+            window.frame.size.height = 620
+            NotificationCenter.default.post(name: NSWindow.didResizeNotification, window: window)
+            NotificationCenter.default.post(name: NSWindow.didMoveNotification, window: window)
+            NotificationCenter.default.post(name: NSWindow.didResizeNotification, window: NSWindow(.zero))
+            expect(host.panelPresentation?.openingHeight == 500 && host.panelPresentation?.finalHeight == 620
+                       && host.panelPresentation?.resizes == 1,
+                   "presentation diagnostics count only resizes from the watched window")
+            let timer = DispatchQueue.main.delayedJobs.removeFirst()
+            timer(); timer()
+            expect(host.presentationLogFlushes == 1
+                       && host.presentationLogs[0].contains("postShowHeight=500->620 postShowResizes=1"),
+                   "the presentation timer reports the observed geometry once")
+            expect(host.panelPresentation == nil && host.panelPresentationObservers.isEmpty,
+                   "logging a presentation removes its observation state")
+        }
+        do {
+            let host = setup()
+            let window = host.popover.contentViewController!.view.window!
+            let oldTimer = DispatchQueue.main.delayedJobs[0]
+            let oldCallbacks = NotificationCenter.default.observers.filter { observation in
+                host.panelPresentationObservers.contains { $0 === observation.token }
+            }.map { $0.body }
+            host.beginPanelPresentationWatch(window: window, startedAt: ProcessInfo.processInfo.systemUptime,
+                                             showDuration: 0.0123)
+            let serial = host.panelPresentation?.serial
+            expect(host.presentationLogFlushes == 1 && host.panelPresentationObservers.count == 2,
+                   "replacing a presentation flushes its pending report and replaces its observers")
+            oldTimer()
+            oldCallbacks.forEach { $0(Notification(name: NSWindow.didResizeNotification, object: window)) }
+            expect(host.presentationLogFlushes == 1 && host.panelPresentation?.serial == serial
+                       && host.panelPresentation?.resizes == 0 && host.panelPresentation?.firstUpdate == nil,
+                   "old timers and callbacks cannot alter a replacement watching the same window")
+            window.frame.size.height = 700
+            NotificationCenter.default.post(name: NSWindow.didResizeNotification, window: window)
+            host.popoverCloseIsAppRequested = true
+            host.popover.isShown = false
+            host.popoverWillClose(Notification(name: Notification.Name("willClose")))
+            host.popoverDidClose(Notification(name: Notification.Name("didClose")))
+            DispatchQueue.main.drainDelayed()
+            expect(host.presentationLogFlushes == 2
+                       && host.presentationLogs[1].contains("show=12.3ms firstUpdate=none")
+                       && host.presentationLogs[1].contains("postShowHeight=500->700 postShowResizes=1"),
+                   "close flushes the current presentation once even without a window update")
+            expect(NotificationCenter.default.observers.isEmpty && host.panelPresentation == nil,
+                   "closing the panel removes geometry and presentation observers")
         }
     }
 }

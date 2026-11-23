@@ -3,10 +3,51 @@
 
 import Accelerate
 import CoreAudio
+import Darwin
+
+/// The sample representation the mixer can render without conversion. A tap
+/// tied to a device stream inherits that stream's format; it is not always
+/// the interleaved Float32 produced by a stereo mixdown.
+struct MixerTapFormat: Equatable {
+    let sampleRate: Double
+    let channels: Int
+    let flags: AudioFormatFlags
+
+    init?(_ format: AudioStreamBasicDescription, allowNonInterleaved: Bool = false) {
+        let channels = Int(format.mChannelsPerFrame)
+        let planar = format.mFormatFlags & kAudioFormatFlagIsNonInterleaved != 0
+        guard format.mFormatID == kAudioFormatLinearPCM,
+              format.mFormatFlags & kAudioFormatFlagIsFloat != 0,
+              format.mFormatFlags & kAudioFormatFlagIsPacked != 0,
+              allowNonInterleaved || !planar,
+              format.mFormatFlags & kAudioFormatFlagIsBigEndian == kAudioFormatFlagsNativeEndian,
+              format.mBitsPerChannel == 32, channels > 0,
+              UInt64(format.mBytesPerFrame) == UInt64(planar ? 1 : channels) * 4,
+              format.mFramesPerPacket == 1,
+              format.mBytesPerPacket == format.mBytesPerFrame,
+              format.mSampleRate.isFinite, format.mSampleRate > 0 else { return nil }
+        sampleRate = format.mSampleRate
+        self.channels = channels
+        flags = format.mFormatFlags
+    }
+
+    /// A direct tap avoids the system's stereo mixdown attenuation on wide
+    /// interfaces. Restrict it to one complete stream on the app's own output,
+    /// so every captured channel has the same destination and no other stream
+    /// or device is dropped. Other routes retain the stereo mixdown path.
+    static func usesDeviceStream(processDevices: [[AudioObjectID]], outputDevice: AudioObjectID,
+                                 streamCount: Int, startingChannel: UInt32,
+                                 format: MixerTapFormat?) -> Bool {
+        guard outputDevice != 0, streamCount == 1, startingChannel == 1,
+              let format, format.channels > 2 else { return false }
+        let devices = Set(processDevices.flatMap { $0 })
+        return devices == [outputDevice]
+    }
+}
 
 /// Puts a tapped app's audio onto whatever shape the output device asks for.
 ///
-/// The tap always hands over the same thing: two interleaved channels. The
+/// The tap hands over interleaved Float32, validated when it is created. The
 /// device on the other side does not have to match. A headset in a call
 /// carries one channel, an audio interface can carry eight, and a device that
 /// also records puts its own microphone in front of the tap in the same list
@@ -40,9 +81,13 @@ enum MixerRender {
                                tapChannels: Int) -> Int? {
         var lone: Int?
         for index in stride(from: buffers.count - 1, through: 0, by: -1)
-        where buffers[index].mData != nil && buffers[index].mNumberChannels > 0 {
-            if Int(buffers[index].mNumberChannels) == tapChannels { return index }
-            if buffers.count == 1 { lone = index }
+        where buffers[index].mNumberChannels > 0 {
+            if Int(buffers[index].mNumberChannels) == tapChannels {
+                // An empty tap is still the tap. Looking farther back could
+                // play a live microphone with the same channel count.
+                return buffers[index].mData == nil ? nil : index
+            }
+            if buffers.count == 1, buffers[index].mData != nil { lone = index }
         }
         return lone
     }
@@ -67,6 +112,12 @@ enum MixerRender {
     /// a frame with no samples behind it.
     static func silence(_ output: UnsafeMutableAudioBufferListPointer, from frame: Int = 0) {
         for buffer in output {
+            // A suspended callback may receive a new, unsupported format.
+            // Silence all bytes without interpreting them as Float32.
+            if frame == 0 {
+                if let data = buffer.mData { memset(data, 0, Int(buffer.mDataByteSize)) }
+                continue
+            }
             let channels = Int(buffer.mNumberChannels)
             guard channels > 0,
                   let destination = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
@@ -144,6 +195,134 @@ enum MixerRender {
                 didWriteSourceChannel = true
                 vDSP_vsmul(samples + sourceChannel, vDSP_Stride(sourceChannels), &gain,
                            destination + channel, vDSP_Stride(channels), vDSP_Length(frames))
+            }
+        }
+        written = didWriteSourceChannel ? frames : 0
+        return written
+    }
+
+    /// The gain an engine put on the last block it wrote, which the next
+    /// block slides away from. Made outside the audio thread and touched only
+    /// by it, as `TapLevelRamp` is.
+    ///
+    /// It holds the gain the engine was given, not where the ramp ended up:
+    /// vDSP leaves its start value near the target but not on it, and on a
+    /// long block the gap adds up.
+    final class AppliedGain {
+        fileprivate var value: Float?
+
+        /// A silent callback breaks continuity with the last rendered block.
+        /// Resume at the current gain, including a mute requested in the gap.
+        func reset() {
+            value = nil
+        }
+    }
+
+    /// Renders like `render(source:into:gain:)`, but a gain that differs from
+    /// the one `applied` holds slides to it across the block instead of
+    /// stepping at its first sample. A volume change used to reach the audio
+    /// as one constant gain per block, so every slider or fader event stepped
+    /// the waveform at a block edge and a drag sounded like a zipper.
+    ///
+    /// A steady gain, an engine's first block and a gain that is not finite
+    /// take the constant path, which is `render(source:into:gain:)` as it
+    /// was: a steady volume plays the same samples as before, and a first
+    /// block has nothing to slide from. A gain that is not finite also
+    /// forgets `applied`, so it spoils its own block and nothing after it.
+    @discardableResult
+    static func render(source: AudioBuffer,
+                       into output: UnsafeMutableAudioBufferListPointer,
+                       gain: Float,
+                       rampingFrom applied: AppliedGain) -> Int {
+        guard gain.isFinite else {
+            applied.value = nil
+            return render(source: source, into: output, gain: gain)
+        }
+        let start = applied.value ?? gain
+        let written = start == gain
+            ? render(source: source, into: output, gain: gain)
+            : renderSliding(source: source, into: output, from: start, to: gain)
+        if written > 0 { applied.value = gain }
+        return written
+    }
+
+    /// Three paths like `render(source:into:gain:)`, with the gain moving from
+    /// `start` to `target` over the frames it writes. The first takes only
+    /// stereo onto one stereo buffer; one channel to one and four to four go
+    /// through the per-channel loop, which routes them the same way. vDSP
+    /// leaves each start value where its ramp ended, so every channel starts
+    /// again from the same `start`.
+    private static func renderSliding(source: AudioBuffer,
+                                      into output: UnsafeMutableAudioBufferListPointer,
+                                      from start: Float,
+                                      to target: Float) -> Int {
+        var written = 0
+        defer { silence(output, from: written) }
+        let sourceChannels = Int(source.mNumberChannels)
+        guard sourceChannels > 0,
+              let samples = source.mData?.assumingMemoryBound(to: Float.self) else { return 0 }
+
+        var frames = self.frames(bytes: source.mDataByteSize, channels: source.mNumberChannels)
+        var outputChannels = 0
+        var hasWritableOutput = false
+        for buffer in output where buffer.mNumberChannels > 0 {
+            outputChannels += Int(buffer.mNumberChannels)
+            guard buffer.mData != nil else { continue }
+            hasWritableOutput = true
+            frames = min(frames, self.frames(bytes: buffer.mDataByteSize,
+                                             channels: buffer.mNumberChannels))
+        }
+        guard frames > 0, outputChannels > 0, hasWritableOutput else { return 0 }
+        var step = (target - start) / Float(frames)
+        let length = vDSP_Length(frames)
+
+        // Interleaved stereo onto one interleaved stereo buffer: one pass
+        // that ramps both sides.
+        if output.count == 1, sourceChannels == 2, Int(output[0].mNumberChannels) == 2,
+           let destination = output[0].mData?.assumingMemoryBound(to: Float.self) {
+            var pairStart = start
+            vDSP_vrampmul2(samples, samples + 1, 2, &pairStart, &step,
+                           destination, destination + 1, 2, length)
+            written = frames
+            return written
+        }
+
+        // One channel to play with: fold the source into it. Each source
+        // channel carries its share of the ramp, so together they slide from
+        // `start` to `target`.
+        if outputChannels == 1, sourceChannels > 1 {
+            guard let buffer = output.first(where: { $0.mNumberChannels == 1 && $0.mData != nil }),
+                  let destination = buffer.mData?.assumingMemoryBound(to: Float.self) else { return 0 }
+            var foldStep = step / Float(sourceChannels)
+            var foldStart = start / Float(sourceChannels)
+            vDSP_vrampmul(samples, vDSP_Stride(sourceChannels), &foldStart, &foldStep, destination, 1, length)
+            for channel in 1..<sourceChannels {
+                foldStart = start / Float(sourceChannels)
+                vDSP_vrampmuladd(samples + channel, vDSP_Stride(sourceChannels), &foldStart, &foldStep,
+                                 destination, 1, length)
+            }
+            written = frames
+            return written
+        }
+
+        var firstOutputChannel = 0
+        var didWriteSourceChannel = false
+        var channelStart = start
+        for buffer in output {
+            let channels = Int(buffer.mNumberChannels)
+            guard channels > 0 else { continue }
+            defer { firstOutputChannel += channels }
+            guard let destination = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
+            for channel in 0..<channels {
+                guard let sourceChannel = sourceChannel(for: firstOutputChannel + channel,
+                                                        sourceChannels: sourceChannels) else {
+                    vDSP_vclr(destination + channel, vDSP_Stride(channels), length)
+                    continue
+                }
+                didWriteSourceChannel = true
+                channelStart = start
+                vDSP_vrampmul(samples + sourceChannel, vDSP_Stride(sourceChannels), &channelStart, &step,
+                              destination + channel, vDSP_Stride(channels), length)
             }
         }
         written = didWriteSourceChannel ? frames : 0

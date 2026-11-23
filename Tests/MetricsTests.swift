@@ -16,6 +16,7 @@ struct MetricsTests {
             }),
             ("metrics", {
                 MetricsFeatureTests.run(suite)
+                DiskCapacityTests.run(suite)
                 MenuBarBatteryWarningTests.run(suite)
                 ProcessNameContract.run(suite)
                 SystemMonitorCPUTests.run(suite)
@@ -36,7 +37,11 @@ struct MetricsTests {
                 SuperKeyTapContract.run(suite)
                 PointerScreenContract.run(suite)
             }),
-            ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
+            ("scroll-modifier", {
+                ScrollHorizontalModifierTests.run(suite)
+                ScrollZoomFocusTests.run(suite)
+            }),
+            ("scroll-speed", { ScrollSpeedTests.run(suite) }),
             ("linear-scroll", { LinearScrollTapTests.run(suite) }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
             ("app-management", {
@@ -45,12 +50,15 @@ struct MetricsTests {
             }),
             ("window-layout", { WindowLayoutFeatureTests.run(suite) }),
             ("media", { MediaFeatureTests.run(suite) }),
+            ("media-layout", { MediaWorkspaceLayoutTests.run(suite) }),
             ("mixer", {
                 MixerRenderContinuityTests.run(suite)
                 MixerNativeDragTests.run(suite)
                 MixerOutputAdjustmentContract.run(suite)
                 MixerHeadphonesDisconnectContract.run(suite)
                 MixerLevelCompensationContract.run(suite)
+                MixerTapConfigurationTests.run(suite)
+                MixerGainRampContract.run(suite)
                 SoundOutputSwitchContract.run(suite)
                 MixerUniversalRoutingContract.run(suite)
                 AirPlayRingBufferContract.run(suite)
@@ -82,14 +90,19 @@ struct MetricsTests {
             }),
             ("repository", { RepositoryFeatureTests.run(suite) }),
             ("screenshots", {
+                ScreenshotClipboardTests.run(suite)
+                ScreenshotAutoCopyTests.run(suite)
                 ScreenshotCanvasSupportTests.run(suite)
                 ScreenshotImageLayerTests.run(suite)
+                ScreenshotImageImportTests.run(suite)
+                ScreenshotImageFileTests.run(suite)
                 ScreenshotCanvasModelTests.run(suite)
                 ScreenTextCompletionTests.run(suite)
                 ScreenshotOCRControlTests.run(suite)
                 ScreenshotPreviewHoverTests.run(suite)
                 ScreenshotWatermarkTests.run(suite)
                 ScreenshotFeatureTests.run(suite)
+                RecentCapturePanelTests.run(suite)
                 ScreenshotSpotlightEditingTests.run(suite)
                 ScreenshotShareCompletionTests.run(suite)
                 ScreenshotAutoShelfTests.run(suite)
@@ -99,10 +112,13 @@ struct MetricsTests {
             }),
             ("recorder", {
                 RecorderGIFWriterTests.run(suite)
+                RecorderFastGIFWriterTests.run(suite)
                 RecorderFeatureTests.run(suite)
                 RecorderZoomAimingTests.run(suite)
                 RecorderExportSpeedTests.run(suite)
+                RecorderExportControlsTests.run(suite)
                 RecorderExportRenderingTests.run(suite)
+                RecorderFastGIFExportTests.run(suite)
             }),
             ("command-bar", {
                 CommandBarFeatureTests.run(suite)
@@ -124,15 +140,21 @@ struct MetricsTests {
             ("features", {
                 FeatureCatalogTests.run(suite)
                 MenuPanelSectionGateContract.run(suite)
+                StartupGatingTests.run(suite)
             }),
+            ("shortcut-clearing", { ShortcutClearingTests.run(suite) }),
             ("utilities", {
                 UtilitiesFeatureTests.run(suite)
                 TextSnippetExpansionTests.run(suite)
                 QuickTogglesAlertTests.run(suite)
+                QuickTogglesQuitAllTests.run(suite)
+                QuitAppsRuntimeTests.run(suite)
                 PortManagerRefreshTests.run(suite)
             }),
             ("settings", {
                 SettingsFeatureTests.run(suite)
+                SettingsSearchCoverageTests.run(suite)
+                RadialFilePickerTests.run(suite)
                 SettingsWindowTests.run { suite.expect($0, $1) }
                 NotchSettingsChoiceTests.run(suite)
                 MonitorTokenTests.run(suite)
@@ -143,8 +165,15 @@ struct MetricsTests {
                 BrightnessStepTests.run(suite)
                 BrightnessKeyRoutingTests.run(suite)
             }),
+            ("speaker-volume", {
+                DisplaySpeakerVolumeTests.run(suite)
+                MonitorVolumeKeySettingsTests.run(suite)
+            }),
             ("software-dimming", { SoftwareDimmingRouteTests.run { suite.expect($0, $1) } }),
-            ("capture", { ScreenshotSelectionRefreshContract.run(suite) }),
+            ("capture", {
+                ScreenshotSelectionRefreshContract.run(suite)
+                ScreenshotCountdownTests.run(suite)
+            }),
             ("keyboard", {
                 KeyboardFeatureTests.run(suite)
                 AssistiveKeyboardTests.run(suite)
@@ -187,8 +216,14 @@ struct MetricsTests {
                 CleanerScanFlowTests.run(suite)
                 CleanerLayoutTests.run(suite)
             }),
+            ("homebrew-filter", { PanelHomebrewFilterPickerTests.run(suite) }),
             ("uninstaller", {
+                HomebrewOwnershipTests.run(suite)
+                HomebrewOperationLogRetentionTests.run(suite)
                 UninstallerFlowTests.run(suite)
+                UninstallerTrashTests.run(suite)
+                UninstallerBulkSelectionTests.run(suite)
+                MixedStateCheckboxTests.run(suite)
                 UninstallerCommandBarCleanupTests.run(suite)
                 SelfUninstallContract.run(suite)
             }),
@@ -203,8 +238,14 @@ struct MetricsTests {
             ("spaces-order", { SpacesOrderTests.run(suite) }),
             ("dock-display-lock", { DockDisplayLockTests.run(suite) }),
             ("switcher", {
+                SwitcherHoverSelectionTests.run(suite)
+                SwitcherAllWindowsTests.run(suite)
+                AXWindowResolverTests.run(suite)
+                SwitcherSearchLayoutTests.run(suite)
                 SwitcherScrollContract.run(suite)
                 SwitcherActivationTests.run(suite)
+                AXHiddenSpaceLookupTests.run(suite)
+                SwitcherWindowCloseTests.run(suite)
                 WindowServerCaptureContract.run(suite)
             }),
             ("keep-awake", {
@@ -213,7 +254,10 @@ struct MetricsTests {
                 KeepAwakeLidSleepTests.run { suite.expect($0, $1) }
                 KeepAwakeTimerHandoffTests.run { suite.expect($0, $1) }
             }),
-            ("wallpaper", { WallpaperContract.run(suite) }),
+            ("wallpaper", {
+                WallpaperContract.run(suite)
+                WallpaperThumbnailTests.run(suite)
+            }),
             ("emoji", { CommandBarEmojiContract.run(suite) }),
         ]
         var selected = Set<String>()

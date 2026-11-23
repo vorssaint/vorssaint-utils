@@ -19,7 +19,14 @@ final class DiskImageInstallerService {
         let appURL: URL
         let imageURL: URL
         let imageIdentity: FileIdentity
+        let hasDownloadOrigin: Bool
         let displayName: String
+
+        // A choice for an untagged image outside Downloads applies only to
+        // this install. Other downloads keep their saved cleanup preference.
+        func downloadTrashPreference(_ value: Bool) -> Bool? {
+            hasDownloadOrigin ? value : nil
+        }
     }
 
     private enum InstallFailure {
@@ -126,6 +133,10 @@ final class DiskImageInstallerService {
               let imageURL = DiskImageInstallerSupport.imageURL(mountedAt: mountURL,
                                                                  hdiutilInfo: info.output),
               !Self.isHomebrewImage(imageURL),
+              DiskImageInstallerSupport.offersInstall(
+                volumeIsBrowsable: (try? mountURL.resourceValues(forKeys: [.volumeIsBrowsableKey]))?
+                    .volumeIsBrowsable,
+                imageURL: imageURL, temporaryDirectories: [fm.temporaryDirectory, URL(fileURLWithPath: "/tmp")]),
               let imageIdentity = Self.fileIdentity(at: imageURL),
               let entries = try? fm.contentsOfDirectory(at: mountURL,
                                                         includingPropertiesForKeys: [
@@ -158,6 +169,8 @@ final class DiskImageInstallerService {
                          appURL: appURL,
                          imageURL: imageURL,
                          imageIdentity: imageIdentity,
+                         hasDownloadOrigin: DiskImageInstallerSupport.hasDownloadOrigin(
+                            imageURL, downloadsURL: fm.urls(for: .downloadsDirectory, in: .userDomainMask).first),
                          displayName: DiskImageInstallerSupport.displayName(preferred: preferredName,
                                                                             appURL: appURL))
     }
@@ -176,7 +189,8 @@ final class DiskImageInstallerService {
 
         let defaults = UserDefaults.standard
         let trashDownload = NSButton(checkboxWithTitle: strings.trashDownloadOption, target: nil, action: nil)
-        trashDownload.state = defaults.bool(forKey: DefaultsKey.diskImageInstallerTrashesDownload) ? .on : .off
+        let savedTrash = defaults.bool(forKey: DefaultsKey.diskImageInstallerTrashesDownload)
+        trashDownload.state = candidate.downloadTrashPreference(savedTrash) == true ? .on : .off
         let revealApp = NSButton(checkboxWithTitle: strings.revealAppOption, target: nil, action: nil)
         revealApp.state = defaults.bool(forKey: DefaultsKey.diskImageInstallerRevealsApp) ? .on : .off
         let destinationPrompt = DiskImageInstallDestinationPrompt(alert: alert, strings: strings,
@@ -208,7 +222,9 @@ final class DiskImageInstallerService {
             let trashesDownload = trashDownload.state == .on
             let revealsApp = revealApp.state == .on
             let usesUserApplications = userApplications.state == .on
-            defaults.set(trashesDownload, forKey: DefaultsKey.diskImageInstallerTrashesDownload)
+            if let preference = candidate.downloadTrashPreference(trashesDownload) {
+                defaults.set(preference, forKey: DefaultsKey.diskImageInstallerTrashesDownload)
+            }
             defaults.set(revealsApp, forKey: DefaultsKey.diskImageInstallerRevealsApp)
             defaults.set(usesUserApplications, forKey: DefaultsKey.diskImageInstallerUseUserApplications)
             self.beginInstall(candidate, strings: strings, trashingDownload: trashesDownload,

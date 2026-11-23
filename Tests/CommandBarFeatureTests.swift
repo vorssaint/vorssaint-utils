@@ -12,16 +12,55 @@ import ImageIO
 import VMStatisticsCompat
 
 enum CommandBarFeatureTests {
-    /// Runs the production `copyAnswer` against a pasteboard that can refuse
-    /// the write and a HUD that records what it shows.
+    enum CatalogBuildHost {
+        final class L10n {
+            static let shared = L10n()
+            var language = AppLanguage.zhHans
+            var s: Strings { Strings.localized(language) }
+        }
+        enum CommandBarLinks {
+            static func decode(_ data: Data?) -> [Int] { [] }
+        }
+        static var builtLanguages: [AppLanguage] = []
+        static func builtInEntries(_ s: Strings, language: AppLanguage,
+                                   bar: CommandBarFeatureStrings,
+                                   automationDenied: Bool) -> [CommandBarEntry] {
+            builtLanguages.append(language)
+            return [CommandBarEntry(id: "action.ejectDisks",
+                                    title: FeatureStrings.quickToggles(language).ejectTitle,
+                                    subtitle: bar.sourceActions, icon: .symbol("eject"), run: { _ in })]
+        }
+        static func includingEnglishNames(_ rows: [CommandBarEntry],
+                                          english: [CommandBarEntry]) -> [CommandBarEntry] {
+            CommandBarCatalogSearch.includingEnglishNames(rows, english: english)
+        }
+        static func snippetEntries(_ bar: CommandBarFeatureStrings) -> [CommandBarEntry] { [] }
+        static func linkEntries(_ links: [Int], bar: CommandBarFeatureStrings) -> [CommandBarEntry] { [] }
+    }
+
+    /// Runs the production answer row and its copy action against a test pasteboard and HUD.
     enum CopyAnswerHost {
+        final class Completion {
+            enum Mode { case search, actions }
+            var mode = Mode.search
+            var selectedEntry: CommandBarEntry?
+            var panel: NSPanel?
+            var query = ""
+            var queryBeforeCompletion: String?
+            var completedQuery: String?
+        }
+
         final class Pasteboard {
             enum Kind { case string }
             static let general = Pasteboard()
             var accepts = true
-            func clearContents() {}
+            var string: String?
+            func clearContents() { string = nil }
             func declareVorssaintSource() {}
-            func setString(_ value: String, forType: Kind) -> Bool { accepts }
+            func setString(_ value: String, forType: Kind) -> Bool {
+                if accepts { string = value }
+                return accepts
+            }
         }
         typealias NSPasteboard = Pasteboard
         final class Access {
@@ -143,19 +182,147 @@ enum CommandBarFeatureTests {
         func pageVisible(_ page: SettingsPage, available: Set<AppFeature>) -> Bool {
             FeatureVisibilitySupport.isPageVisible(page) { available.contains($0) }
         }
+        // The catalog adds English names to the same localized rows. Use
+        // production strings and merging, so a translated title cannot hide
+        // an action or turn its English name into another runnable entry.
+        for language in AppLanguage.allCases {
+            let strings = Strings.localized(language)
+            let hub = FeatureStrings.hub(language)
+            for (feature, expected) in [
+                (AppFeature.mouseButtonShortcuts, FeatureStrings.mouseButtons(language).pageTitle),
+                (.textSnippets, FeatureStrings.snippets(language).pageTitle),
+                (.windowLayout, FeatureStrings.windowLayout(language).title),
+                (.notch, FeatureStrings.notch(language).title),
+            ] {
+                suite.expect(feature.hubTitle(strings, hub: hub, language: language) == expected,
+                             "feature names honor explicit \(language) rather than the global interface language")
+            }
+        }
+        for language in AppLanguage.allCases {
+            CatalogBuildHost.L10n.shared.language = language
+            CatalogBuildHost.builtLanguages = []
+            let rows = CatalogBuildHost.build(automationDenied: false)
+            suite.expect(CatalogBuildHost.builtLanguages == (language == .enUS ? [.enUS] : [language, .enUS]),
+                         "the catalog indexes English alongside \(language) without rebuilding English twice")
+            suite.expect(rows.count == 1 && rows[0].title == FeatureStrings.quickToggles(language).ejectTitle
+                         && CommandBarSearch.matches(title: rows[0].title, keywords: rows[0].keywords, query: "eject"),
+                         "the production catalog builder retains one localized English-searchable command")
+        }
+        let englishBar = FeatureStrings.commandBar(.enUS)
+        let englishToggles = FeatureStrings.quickToggles(.enUS)
+        var ranLocalized = 0
+        func searchRow(_ id: String, _ title: String, keywords: String = "") -> CommandBarEntry {
+            CommandBarEntry(id: id, stableKey: "stable." + id, title: title,
+                            subtitle: "localized area", keywords: keywords,
+                            icon: .symbol("bolt"), isActive: true, numericRange: 0...100,
+                            confirmationPrompt: "confirm", run: { _ in ranLocalized += 1 })
+        }
+        for language in AppLanguage.allCases {
+            let bar = FeatureStrings.commandBar(language)
+            let toggles = FeatureStrings.quickToggles(language)
+            let english = [
+                searchRow("action.ejectDisks", englishToggles.ejectTitle),
+                searchRow("action.brightness", englishBar.brightnessTitle,
+                          keywords: englishBar.brightnessKeywords),
+                searchRow("action.hiddenFiles", englishToggles.hiddenFilesHide),
+            ]
+            let localized = [
+                searchRow("action.ejectDisks", toggles.ejectTitle),
+                searchRow("action.brightness", bar.brightnessTitle, keywords: bar.brightnessKeywords),
+                searchRow("action.hiddenFiles", toggles.hiddenFilesHide),
+            ]
+            let merged = CommandBarCatalogSearch.includingEnglishNames(localized, english: Array(english.reversed()))
+            suite.expect(merged.map(\.id) == localized.map(\.id)
+                         && Set(merged.map(\.id)).count == merged.count,
+                         "English metadata preserves row identity, order and count in \(language)")
+            for (row, original) in zip(merged, localized) {
+                suite.expect(row.title == original.title && row.subtitle == original.subtitle
+                             && row.stableKey == original.stableKey && row.isActive == original.isActive
+                             && row.numericRange == original.numericRange
+                             && row.confirmationPrompt == original.confirmationPrompt,
+                             "English search preserves localized presentation and execution metadata")
+                suite.expect(CommandBarSearch.matches(title: row.title, keywords: row.keywords,
+                                                      query: original.title),
+                             "localized title still finds \(row.id) in \(language)")
+            }
+            let eject = merged[0]
+            for query in ["eject", englishToggles.ejectTitle, "ejct"] {
+                suite.expect(CommandBarSearch.matches(title: eject.title, keywords: eject.keywords, query: query),
+                             "English name and fuzzy query \(query) find the same eject row in \(language)")
+            }
+            for query in [bar.brightnessKeywords, englishBar.brightnessKeywords] {
+                suite.expect(CommandBarSearch.matches(title: merged[1].title, keywords: merged[1].keywords,
+                                                      query: query),
+                             "localized and English keywords remain searchable in \(language)")
+            }
+            suite.expect(merged[2].keywords.contains(englishToggles.hiddenFilesHide)
+                         && !merged[2].keywords.contains(englishToggles.hiddenFilesShow),
+                         "English metadata names only the current dynamic action")
+            let exact = CommandBarCandidate(index: 0, title: eject.title, keywords: eject.keywords)
+            let fuzzy = CommandBarCandidate(index: 1, title: "Ejection helper")
+            suite.expect(CommandBarSearch.rankedIndexes(candidates: [fuzzy, exact],
+                                                        matching: englishToggles.ejectTitle).first == 0,
+                         "the exact English command outranks a fuzzy alternative")
+            let alias = CommandBarCandidate(index: 2, title: "Other", keywords: "mydisk", priority: 2_400)
+            suite.expect(CommandBarSearch.rankedIndexes(candidates: [exact, alias], matching: "mydisk") == [2],
+                         "personal aliases still use the existing ranking path")
+            let before = ranLocalized
+            merged[0].run(nil)
+            suite.expect(ranLocalized == before + 1, "English metadata retains the localized action closure")
+        }
+        for language in [AppLanguage.zhHans, .ja] {
+            let bar = FeatureStrings.commandBar(language)
+            let quitFormats = [bar.quitFormat, englishBar.quitFormat]
+            for query in ["quit safari", String(format: bar.quitFormat, "Safari")] {
+                suite.expect(CommandBarSearch.matchesVerb(query, in: quitFormats),
+                             "localized and English quit queries pass the pool gate in \(language)")
+            }
+            suite.expect(!CommandBarSearch.matchesVerb("Safari", in: quitFormats)
+                         && !CommandBarSearch.matchesVerb("SafariQuitHelper", in: quitFormats),
+                         "an ordinary app search never gains quit commands")
+            let pairs = [
+                ("answer.battery", bar.answerBatteryLabel, englishBar.answerBatteryLabel, "battery"),
+                ("answer.storage", bar.answerStorageLabel, englishBar.answerStorageLabel, "storage"),
+                ("answer.date", bar.answerDateLabel, englishBar.answerDateLabel, "today"),
+                ("answer.time", bar.answerTimeLabel, englishBar.answerTimeLabel, "time now"),
+            ]
+            let rows = CommandBarCatalogSearch.includingEnglishNames(
+                pairs.map { searchRow($0.0, $0.1, keywords: "free") },
+                english: pairs.map { searchRow($0.0, $0.2) })
+            let candidates = rows.enumerated().map {
+                CommandBarCandidate(index: $0.offset, title: $0.element.title, keywords: $0.element.keywords)
+            }
+            for (id, _, _, query) in pairs {
+                let token = String(CommandBarSearch.normalized(query).split(separator: " ").first ?? "")
+                let result = CommandBarSearch.rankedIndexes(candidates: candidates, matching: query)
+                    .map { rows[$0] }.filter { $0.matchesAnswerName(token) }
+                suite.expect(result.map(\.id).contains(id),
+                             "English \(query) survives ranking and the answer-name gate in \(language)")
+            }
+            suite.expect(rows.allSatisfy { !$0.matchesAnswerName("st") && !$0.matchesAnswerName("free") },
+                         "English answer names preserve rejection of short prefixes and unrelated keywords")
+            suite.expect(rows[0].withSubtitle("new caption").englishTitle == rows[0].englishTitle,
+                         "changing a row caption preserves its English name")
+        }
+
+        let unmatched = searchRow("new.action", "Local command", keywords: "local")
+        suite.expect(CommandBarCatalogSearch.includingEnglishNames([unmatched], english: []).first?.keywords == "local",
+                     "a missing English counterpart cannot remove a localized row")
+
         // MARK: Command bar calculator
 
+        func calculate(_ input: String, decimal: String = ".", grouping: String = ",",
+                       locale: Locale = Locale(identifier: "en_US")) -> CommandBarCalculator.Result? {
+            CommandBarCalculator.evaluate(input,
+                                          locale: locale,
+                                          decimalSeparator: decimal,
+                                          groupingSeparator: grouping)
+        }
         func math(_ input: String, decimal: String = ".", grouping: String = ",") -> String? {
-            CommandBarMath.evaluate(input,
-                                    decimalSeparator: decimal,
-                                    groupingSeparator: grouping,
-                                    locale: Locale(identifier: "en_US"))?.formatted
+            calculate(input, decimal: decimal, grouping: grouping)?.formatted
         }
         func mathValue(_ input: String, decimal: String = ".", grouping: String = ",") -> Double? {
-            CommandBarMath.evaluate(input,
-                                    decimalSeparator: decimal,
-                                    groupingSeparator: grouping,
-                                    locale: Locale(identifier: "en_US"))?.value
+            calculate(input, decimal: decimal, grouping: grouping)?.value
         }
 
         suite.expect(math("2+2") == "4", "the calculator answers a sum")
@@ -170,6 +337,7 @@ enum CommandBarFeatureTests {
         suite.expect(mathValue("0.1+0.2") == 0.3 && math("0.1+0.2") == "0.3",
                "floating point noise never reaches the eye")
         suite.expect(math("1,000+1") == "1,001", "grouped thousands parse and print grouped")
+        suite.expect(mathValue("1'003+1") == 1004, "an apostrophe before three digits groups thousands")
         suite.expect(math("2 x 3") == "6" && math("10 ÷ 2") == "5" && math("2 × 3") == "6",
                "the written multiplication and division signs work too")
         suite.expect(math("2(3+4)") == "14" && math("(1+2)(3+4)") == "21",
@@ -195,6 +363,27 @@ enum CommandBarFeatureTests {
         suite.expect(math("20% de 480") == "96", "the same in the other words people type")
         suite.expect(math("50%") == nil, "a lone percentage is not a question")
         suite.expect(math("200*10%") == "20", "a percentage multiplies as a fraction")
+        suite.expect(math("10 percent of 50") == "5" && math("20% off 500") == "400",
+                     "spoken percentages and discounts are expressions")
+        suite.expect(math("4 squared") == "16" && math("3 cubed") == "27"
+                     && math("2 to the power of 10") == "1,024",
+                     "spoken square, cube and power notation")
+        for (query, expected) in [("2 to the power sqrt(9)", 8.0), ("2 to the power of sqrt(9)", 8),
+                                  ("2 to the power 3^2", 512), ("2 to the power minus 2", 0.25),
+                                  ("2 to the 3", 8)] {
+            suite.expect(mathValue(query) == expected, "\(query) evaluates the full exponent")
+        }
+        for query in ["2 to the power typo(9)", "2 to the power of"] {
+            suite.expect(calculate(query) == nil, "\(query) requires a valid exponent")
+        }
+        suite.expect(math("10 mod 3") == "1" && math("-10 mod 3") == "-1",
+                     "modulo keeps the sign of its left operand")
+        suite.expect(math("1e5") == "100,000" && math("10k") == "10,000",
+                     "scientific notation and thousand suffix")
+        suite.expect(mathValue("round(2/3)") == 1 && mathValue("2/3").map { abs($0 - 2.0 / 3) < 1e-9 } == true,
+                     "fractions remain numeric and can be rounded")
+        suite.expect(mathValue("10kg + 20%").map { abs($0 - 12) < 1e-9 } == true,
+                     "a percentage added to a unit quantity is relative")
 
         suite.expect(math("5") == nil, "a lone number is a search, not an answer")
         suite.expect(math("hello") == nil, "words are not expressions")
@@ -214,27 +403,31 @@ enum CommandBarFeatureTests {
                      && math("2^39") == "549,755,813,888" && math("10000000000+0.5") == "10,000,000,000.5"
                      && math("1234567890.25+0") == "1,234,567,890.25",
                "an answer short of that keeps every digit it prints")
-        suite.expect(CommandBarMath.evaluate("100000.1-100000", decimalSeparator: ".", groupingSeparator: ",")
-                         .map { CommandBarMath.reusableExpression(for: $0, decimalSeparator: ".") } == "0.1",
-               "a small difference of large numbers still loses its binary noise")
-        suite.expect(CommandBarMath.evaluate("1234567890123+1", decimalSeparator: ".", groupingSeparator: ",")
-                         .map { CommandBarMath.reusableExpression(for: $0, decimalSeparator: ".") } == "1234567890124",
-               "reusing an answer shown in scientific notation keeps every whole digit")
-        suite.expect(CommandBarMath.evaluate("2^56", decimalSeparator: ".", groupingSeparator: ",")
-                         .map { CommandBarMath.reusableExpression(for: $0, decimalSeparator: ".") } == "7.20575940379279e+16",
-               "reusing a huge answer keeps fifteen digits without binary noise")
+        suite.expect(calculate("100000.1-100000")?.reusableExpression == "0.1",
+                "a small difference of large numbers still loses its binary noise")
+        suite.expect(calculate("1234567890123+1")?.reusableExpression == "1234567890124",
+                "reusing an answer shown in scientific notation keeps every whole digit")
+        suite.expect(calculate("2^56")?.reusableExpression == "7.20575940379279e+16",
+                "reusing a huge answer keeps fifteen digits without binary noise")
 
         // The same numbers as the owner's Mac writes them.
-        suite.expect(CommandBarMath.evaluate("1.234,5 + 1",
-                                       decimalSeparator: ",",
-                                       groupingSeparator: ".",
-                                       locale: Locale(identifier: "pt_BR"))?.formatted == "1.235,5",
-               "a comma decimal parses and prints back in the same shape")
-        suite.expect(CommandBarMath.evaluate("1,5*2",
-                                       decimalSeparator: ",",
-                                       groupingSeparator: ".",
-                                       locale: Locale(identifier: "pt_BR"))?.value == 3,
-               "the comma is the decimal point where that is the custom")
+        suite.expect(calculate("1.234,5 + 1", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))?.formatted == "1.235,5",
+                "a comma decimal parses and prints back in the same shape")
+        suite.expect(calculate("1,5*2", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))?.value == 3,
+                "the comma is the decimal point where that is the custom")
+        let usLocale = Locale(identifier: "en_US")
+        let ruLocale = Locale(identifier: "ru_RU")
+        suite.expect(calculate("1,234.5+1", decimal: ".", grouping: ",", locale: usLocale)?.formatted == "1,235.5",
+                     "en_US keeps decimal point and comma grouping")
+        suite.expect(calculate("1.234,5+1", decimal: ",",
+                               grouping: ruLocale.groupingSeparator ?? "\u{00A0}",
+                               locale: ruLocale)?.value == 1235.5
+                     && calculate("1.234,5+1", decimal: ",",
+                                  grouping: ruLocale.groupingSeparator ?? "\u{00A0}",
+                                  locale: ruLocale)?.formatted.contains(",5") == true,
+                     "ru_RU parses and formats a decimal comma")
         suite.expect(math("1.500+1", decimal: ",", grouping: ".") == "1,501",
                "three digits after the grouping separator read as thousands")
 
@@ -288,15 +481,15 @@ enum CommandBarFeatureTests {
         suite.expect(mathValue("0\u{00A0}125+1", decimal: ",", grouping: "\u{00A0}") == nil,
                "a grouping space after a lone zero is not thousands")
 
-        suite.expect(CommandBarMath.evaluate("([2+3")?.closingBrackets == "])"
-                && CommandBarMath.evaluate("2+3")?.closingBrackets == "",
-               "virtual closers preserve bracket kind and nesting")
+        suite.expect(CommandBarCalculator.evaluate("([2+3")?.closingBrackets == "])"
+                && CommandBarCalculator.evaluate("2+3")?.closingBrackets == "",
+                "virtual closers preserve bracket kind and nesting")
         suite.expect(mathValue("sqrt(81") == 9 && mathValue("2*(3+[4") == 14,
                "functions and nested brackets evaluate before closers are typed")
-        for expression in ["(2+3]", "2+3)", "2*(3+", "sqrt(", "sin2", "log100(2)",
+        for expression in ["(2+3]", "2+3)", "2*(3+", "sqrt(", "sin2", "log100(2)", "2pix2", "2πxx2",
                            "sqrt(-1)", "log(0)", "acos(2)", "1e309+0", "7=+3", "7+3=="] {
             suite.expect(mathValue(expression) == nil
-                    && CommandBarMath.evaluate(expression)?.closingBrackets == nil,
+                    && CommandBarCalculator.evaluate(expression)?.closingBrackets == nil,
                    "invalid calculator input has neither an answer nor ghost brackets: \(expression)")
         }
         for (expression, expected) in [
@@ -305,6 +498,7 @@ enum CommandBarFeatureTests {
             ("ln(exp(1))+log(100)+log10(100)", 5.0),
             ("floor(1.9)+ceil(1.1)+round(1.5)", 5.0),
             ("2pi", 2 * Double.pi), ("π+e", Double.pi + Foundation.exp(1)),
+            ("2πx2", 4 * Double.pi), ("πsin(pi/2)", Double.pi),
             ("2x3+2 x 4", 14.0), ("2(3)+(2)(3)+2[3]", 18.0), ("1e-9*1e9", 1.0),
         ] {
             suite.expect(mathValue(expression).map { abs($0 - expected) < 1e-7 } ?? false,
@@ -321,10 +515,7 @@ enum CommandBarFeatureTests {
                    "small trigonometric values remain available to the rest of the calculation: \(expression)")
         }
         for expression in ["0.1+0.2", "1/3", "-2^2", "1e-9+0", "2^100"] {
-            if let result = CommandBarMath.evaluate(expression,
-                                                     decimalSeparator: ".",
-                                                     groupingSeparator: ",") {
-                let reusable = CommandBarMath.reusableExpression(for: result, decimalSeparator: ".")
+            if let result = calculate(expression), let reusable = result.reusableExpression {
                 suite.expect(mathValue(reusable + "+0") == result.value,
                        "reusing \(expression) preserves its stored value")
                 if result.value == 0.3 {
@@ -334,11 +525,41 @@ enum CommandBarFeatureTests {
                     suite.expect(mathValue(reusable + "^2") == 16,
                            "negative reuse preserves power precedence")
                 }
-                let comma = CommandBarMath.reusableExpression(for: result, decimalSeparator: ",")
-                suite.expect(mathValue(comma + "+0", decimal: ",", grouping: ".") == result.value,
+                let comma = calculate(expression, decimal: ",", grouping: ".")?.reusableExpression ?? ""
+                suite.expect(!comma.isEmpty && mathValue(comma + "+0", decimal: ",", grouping: ".") == result.value,
                        "reused answers also round-trip in decimal-comma locales")
             } else {
                 suite.expect(false, "calculator produces an answer to reuse for \(expression)")
+            }
+        }
+
+        for (input, expected) in [
+            ("18/3^2", 2.0), ("2^4/2", 8), ("1/2.5", 0.4), ("1/2e2", 0.005),
+            ("-7", -7), ("100+(10%)", 100.1), ("max(2,3)", 3), ("min(2;3)", 2),
+        ] {
+            suite.expect(mathValue(input) == expected, "\(input) retains scalar arithmetic")
+        }
+        for word in ["of", "de", "da", "do", "von", "di", "del", "dal"] {
+            suite.expect(mathValue("20% \(word) 480") == 96, "percent of accepts \(word)")
+        }
+        suite.expect(mathValue("max(2,3;1)", decimal: ",", grouping: ".") == 2.3
+                     && mathValue("1/2,5", decimal: ",", grouping: ".") == 0.4,
+                     "a decimal comma survives function arguments and division")
+        for input in ["2026-07-27=", "27/07/2026 =", "２０２６－０７－２７＝", "10:30="] {
+            suite.expect(calculate(input) == nil, "a trailing equals sign leaves dates and times as searches")
+        }
+        suite.expect(mathValue("3 root of -8") == -2 && mathValue("2.5 root of 32") == 4
+                     && mathValue("2.5 root of 16m2") == nil && mathValue("0 root of 16") == nil,
+                     "scalar roots retain their domains and dimensional root degrees must be integral")
+        if let area = CommandBarUnitCatalog.unit(byID: "m2") {
+            let measured = CommandBarExpressions.Value(si: 1, dims: area.dimensions, unit: area,
+                                                       percentRaw: nil, hasNumber: true)
+            let negative = CommandBarExpressions.Value(si: -1, dims: .none, unit: nil,
+                                                       percentRaw: nil, hasNumber: true)
+            for degree in [Double.greatestFiniteMagnitude, -Double.greatestFiniteMagnitude] {
+                suite.expect(CommandBarExpressions.root(measured, degree: degree) == nil
+                             && CommandBarExpressions.root(negative, degree: degree) == nil,
+                             "a root that needs an integer degree rejects an unrepresentable degree")
             }
         }
 
@@ -922,7 +1143,10 @@ enum CommandBarFeatureTests {
                 of: #"AppFeature\.uninstaller\.isAvailable,\s*UninstallerSupport\.selection\(for:\s*app\.url\) != nil"#,
                 options: .regularExpression) != nil,
                "the uninstall row is offered only for an app the uninstaller will take")
-        suite.expect(commandBarServiceSource.contains("uninstaller.select(appURL: url) || uninstaller.isRemoving"),
+        let appDelegateSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/App/AppDelegate.swift", encoding: .utf8)) ?? ""
+        suite.expect(commandBarServiceSource.contains("appDelegate()?.openUninstaller(for: url)")
+                && appDelegateSource.contains("uninstaller.select(appURL: appURL, trashMove: trashMove) || (trashMove == nil && uninstaller.isRemoving)"),
                "the uninstall row still opens the page on a removal already running")
         suite.expect(commandBarServiceSource.contains("UninstallerSupport.acceptedApplicationIDs(apps)")
                 && commandBarServiceSource.contains("uninstallable: uninstallableAppIDs"),
@@ -1188,18 +1412,144 @@ enum CommandBarFeatureTests {
 
         // MARK: Command bar unit conversion
 
-        func units(_ input: String) -> String? {
-            CommandBarUnits.convert(input,
-                                    decimalSeparator: ".",
-                                    groupingSeparator: ",",
-                                    locale: Locale(identifier: "en_US"))?.formatted
+        func units(_ input: String, decimal: String = ".", grouping: String = ",",
+                   locale: Locale = Locale(identifier: "en_US")) -> String? {
+            calculate(input, decimal: decimal, grouping: grouping, locale: locale)?.formatted
         }
-        func unitValue(_ input: String) -> Double? {
-            CommandBarUnits.convert(input,
-                                    decimalSeparator: ".",
-                                    groupingSeparator: ",",
-                                    locale: Locale(identifier: "en_US"))?.value
+        func unitValue(_ input: String, decimal: String = ".", grouping: String = ",",
+                       locale: Locale = Locale(identifier: "en_US")) -> Double? {
+            calculate(input, decimal: decimal, grouping: grouping, locale: locale)?.value
         }
+        func calculatorNumbers(_ text: String?) -> [Double] {
+            (text ?? "").split(whereSeparator: { !"0123456789.,-".contains($0) })
+                .compactMap { Double($0.replacingOccurrences(of: ",", with: ".")) }
+        }
+        func expectSplit(_ input: String, _ numbers: [Double], units expectedUnits: [String]) {
+            let result = calculate(input)
+            let actualNumbers = calculatorNumbers(result?.formatted)
+            let matchesNumbers = actualNumbers.count == numbers.count
+                && zip(actualNumbers, numbers).allSatisfy { abs($0 - $1) < 1e-7 }
+            let matchesUnits = expectedUnits.allSatisfy {
+                result?.formatted.localizedCaseInsensitiveContains($0) == true
+            }
+            suite.expect(matchesNumbers && matchesUnits,
+                         "\(input) shows \(numbers) and \(expectedUnits), got \(result?.formatted ?? "nil")")
+        }
+
+        // The calculator owns arithmetic, unit conversion and rates in one
+        // parse, so these assert displayed-unit values rather than a second
+        // conversion API's independent result.
+        let conversions: [(String, Double)] = [
+            ("5feet + 1m", 2.524),
+            ("10kg + 500g", 10_500),
+            ("1kg + 500g + 2lb", 5.306_933_932),
+            ("10kg + 500g to lb", 23.148_537_52),
+            ("5 feet 3 inches to ft", 5.25),
+            ("5 feet 3 inches to cm", 160.02),
+            ("1hr 30min", 90),
+            (#"5/16" in mm"#, 7.9375),
+            (#"5 / 16 " in mm"#, 7.9375),
+            ("1/2 kg", 0.5),
+            ("1 1/2 cups to ml", 360),
+            (#"5'10" in cm"#, 177.8),
+            ("56/7 fl oz in ml", 236.588_236_5),
+            ("56 / 7 fl oz in ml", 236.588_236_5),
+            ("(56/7) fl oz in ml", 236.588_236_5),
+            ("5m * 4m", 20),
+            ("2m * 3m * 4m to l", 24_000),
+            ("sqrt(25m2)", 5),
+            ("100km / 2h to km/h", 50),
+            ("90km/h * 20min to km", 30),
+            ("60 mph * 2.5 hours", 150),
+            ("1GB / 100mbps to s", 80),
+            ("1500w * 2h to kwh", 3),
+            ("1 / 20ms to hz", 50),
+            ("1/20ms to hz", 50),
+            ("1 / 20 ms to Hz", 50), ("1/(20 ms) to Hz", 50),
+            ("2 / 20 ms in Hz", 100), ("2 / 20 ms to s", 0.0001),
+            ("0 / 20 ms to Hz", 0), ("8 / 2 / 4 ms to Hz", 1000),
+            ("2^4 / 2 s to Hz", 8), ("1 / 20 ms + 1 / 40 ms to Hz", 75),
+            ("1/2 L/100km to km/L", 200),
+            ("2kg / 4m3", 0.5),
+            ("1kg/m3 to g/cm3", 0.001),
+            ("how many feet in a mile", 5_280),
+            ("cm in 5 inches", 12.7),
+            ("5 m to in in cm", 500),
+            ("convert 5 km into miles", 3.106_855_961),
+            ("10l / 2min to l/min", 5),
+            ("10 km/h to min/km", 6),
+            ("10 km/h in min/km", 6),
+            ("5 ft - 1 in to in", 59),
+            ("(2 m + 3 m) * 2 to cm", 1000),
+            ("round(1.6 cm)", 2), ("floor(1.6 cm)", 1), ("ceil(1.6 cm)", 2),
+            ("floor(29 cm)", 29), ("min(1 m; 90 cm) to cm", 90), ("sqrt(1 ha) to m", 100),
+            ("abs(-20 °C) to °C", 20),
+            ("2 m / 100 cm", 2), ("1 kPa * 1 m3 to kJ", 1),
+            ("0°C to °F", 32), ("-40 °f to °c", -40), ("100 °F to °C", 37.77777778),
+            ("273.15 K to °C", 0), ("273.15K to c", 0), ("180° to rad", Double.pi),
+            ("1 A to A", 1), ("３ ｋｇ ｔｏ ｇ", 3000), ("2 k\u{200B}g to g", 2000),
+            ("1 mL to µL", 1000), ("1000 µL to mL", 1),
+            ("1 mWh to Wh", 0.001), ("1 MWh to Wh", 1_000_000),
+            ("1 mJ to J", 0.001), ("1 MJ to J", 1_000_000),
+            ("1 mPa to Pa", 0.001), ("1 MPa to Pa", 1_000_000),
+            ("1 mHz to Hz", 0.001), ("1 MHz to Hz", 1_000_000),
+            ("1 mΩ to ohm", 0.001), ("1 MΩ to ohm", 1_000_000),
+            ("1 MB to bits", 8_000_000), ("1 Mb to bits", 1_000_000),
+            ("1 gb to mb", 1000), ("1 MBps to Mbps", 8),
+            ("1 kg / 1 m / 1 s / 1 s to Pa", 1),
+            ("1 cup to mL", 240), ("1 xícara para mL", 240),
+            ("1 metric cup to mL", 250), ("1 US cup to mL", 236.5882365),
+        ]
+        for (query, expected) in conversions {
+            let result = calculate(query)
+            let tolerance = max(1.0, abs(expected)) * 1e-8
+            suite.expect(result?.value.map { abs($0 - expected) <= tolerance } == true,
+                         "\(query) should be \(expected), got \(result?.formatted ?? "nil")")
+        }
+
+        for connector in ["to", "in", "into", "as", "em", "para", "pra", "en", "a",
+                          "nach", "zu", "à", "su", "->", ">", "→"] {
+            suite.expect(unitValue("2 kg \(connector) g") == 2000, "conversion through \(connector)")
+        }
+        for query in ["1 cm + 1", "1 kg + 1 m", "1 kg / 1 m * 1 s * 1 s to Pa",
+                      "20 °C * 2", "1 kg in 2 kg", "20 ms to Hz", "1 / 0 ms to Hz"] {
+            suite.expect(calculate(query) == nil, "an incompatible or ambiguous operation stays a search: \(query)")
+        }
+        suite.expect(units("1 mL to µL")?.hasSuffix("µL") == true,
+                     "microliters carry the requested unit on screen and when copied")
+        for name in ["fathom", "furlong", "au", "acre", "c", "f", "ul", "sqft",
+                     "kbit", "mbit", "gbit", "tbit", "farad", "tesla", "henry", "siemens"] {
+            let result = calculate("2 \(name) to \(name)")
+            let reused = result?.reusableExpression.flatMap { unitValue("\($0) to \(name)") }
+            suite.expect(reused == 2, "Tab preserves the identity of \(name)")
+        }
+        for (input, continuation, expected) in [
+            ("3 / (2 kg)", " * 4 kg", 6.0),
+            ("2 tesla * 3 m", " / (3 m) to tesla", 2),
+            ("-1 in to in", " to cm", -2.54),
+            ("10 km/h to min/km", " * 2 km to min", 12),
+        ] {
+            let reused = calculate(input)?.reusableExpression
+            suite.expect(reused.flatMap { unitValue($0 + continuation) } == expected,
+                         "Tab keeps the sign and dimensions to continue \(input)")
+        }
+        let halvedConsumption = calculate("20 km/L to L/100km")?.reusableExpression.flatMap {
+            calculate($0 + " / 2")
+        }
+        suite.expect(halvedConsumption?.value == 2.5 && halvedConsumption?.formatted == "2.5 L/100km",
+                     "dividing a Tab-reused fuel consumption keeps liters per 100 kilometers")
+        suite.expect(units("5feet + 1m") == units("2.524 m to m") && unitValue("5feet + 1m") == 2.524,
+                     "a mixed-unit sum displays in the right operand's unit")
+        if let split = calculate("145 mins to timespan") {
+            suite.expect(split.value == nil && split.reusableExpression == nil,
+                         "a split answer offers neither a partial numeric value nor a Tab action")
+        }
+        expectSplit("145 mins to timespan", [2, 25], units: ["hr", "min"])
+        expectSplit("1.75 m to feet and inches", [5, 8.897_637_795], units: ["ft", "in"])
+        expectSplit("2.5 kg to lb oz", [5, 8.184_904_874], units: ["lb", "oz"])
+        expectSplit("100 days to weeks and days", [14, 2], units: ["wk", "d"])
+        expectSplit("1m", [3, 3.370_078_74], units: ["ft", "in"])
+        expectSplit("1hr", [60], units: ["min"])
 
         suite.expect(unitValue("100 km to mi").map { abs($0 - 62.1371) < 0.001 } == true,
                "a distance converts")
@@ -1215,13 +1565,111 @@ enum CommandBarFeatureTests {
                "the number and the unit do not need a space between them")
         suite.expect(unitValue("5 in to cm").map { abs($0 - 12.7) < 0.001 } == true,
                "the word that also means inches is read correctly on both sides")
+        for query in ["5ft 11 in cm", "5ft 11in in cm", "5 ft 11 in in cm", "5ft11in to cm",
+                      "5 ft 11 in to cm", "5 ft 11 in a cm", "5 feet 11 inches to cm",
+                      #"5'11" in cm"#, "5′ 11″ in cm", "5’11” in cm"] {
+            suite.expect(unitValue(query).map { abs($0 - 180.34) < 0.001 } == true,
+                         "\(query) converts five feet and eleven inches")
+        }
+        for (query, expected) in [("5' in cm", 152.4), ("5′ in cm", 152.4), ("11in in cm", 27.94),
+                                  ("11″ in cm", 27.94), ("-5ft 11in to in", -71), ("-0′6″ to in", -6),
+                                  ("5.5ft to in", 66), ("0ft 0in to cm", 0),
+                                  ("5 ft 11 in in", 71), ("5 ft 11 in in in", 71),
+                                  ("5 ft 11 in in to cm", 180.34)] {
+            suite.expect(unitValue(query).map { abs($0 - expected) < 0.001 } == true,
+                         "\(query) converts to \(expected)")
+        }
+        suite.expect(unitValue("5 pés 11,5 polegadas em cm", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))
+                .map { abs($0 - 181.61) < 0.001 } == true,
+                     "mixed lengths use the same localized names and decimal parser as single units")
+        for query in ["5ft 11in", "5ft 11in cm", "5ft 11in in kg", "5in 11ft in cm", "5m 11 in cm",
+                      "5ft 11cm in cm", "5ft 11in 1in in cm", "5ft 11in in cm today",
+                      "5.5ft 1in to cm", "5ft -1in to cm", "5ft 12in to cm", "1'003 in cm",
+                      "5 ft 12 in in cm", "5 ft 11 in in kg"] {
+            suite.expect(units(query) == nil, "\(query) stays a search")
+        }
+
+        // The answer row is written in this Mac's own number format, so the
+        // comparison uses the same defaults rather than an explicit test locale.
+        let heightTitle = CommandBarCalculator.evaluate("71in in cm")?.formatted
+        for query in ["5ft 11 in cm", "5ft 11in in cm", #"5'11" in cm"#] {
+            let row = CopyAnswerHost.answerEntry(for: query, bar: englishBar)
+            suite.expect(heightTitle != nil && row?.id == "math.result"
+                         && row?.isAnswer == true && row?.title == heightTitle,
+                         "the Command Bar presents \(query) as the same answer as 71 inches; expected \(heightTitle ?? "nil"), row \(row?.id ?? "nil"): \(row?.title ?? "nil")")
+            CopyAnswerHost.Pasteboard.general.accepts = true
+            CopyAnswerHost.Pasteboard.general.clearContents()
+            row?.run(nil)
+            suite.expect(heightTitle != nil && CopyAnswerHost.Pasteboard.general.string == heightTitle,
+                          "Return copies the displayed conversion for \(query); expected \(heightTitle ?? "nil"), got \(CopyAnswerHost.Pasteboard.general.string ?? "nil")")
+        }
+        suite.expect(CopyAnswerHost.answerEntry(for: "5ft 11in cm", bar: englishBar) == nil
+                      && CopyAnswerHost.answerEntry(for: "5 in to cm", bar: englishBar)?.id == "math.result",
+                     "an attached inch mark cannot replace the connector and standalone inches still convert")
         suite.expect(unitValue("2 h to min").map { abs($0 - 120) < 0.001 } == true,
                "hours become minutes")
+        suite.expect(unitValue("1d to hr").map { abs($0 - 24) < 0.001 } == true,
+               "days become hours")
+        suite.expect(unitValue("2 weeks to days").map { abs($0 - 14) < 0.001 } == true,
+               "weeks become days")
+        suite.expect(unitValue("1 year to min").map { abs($0 - 525_600) < 0.001 } == true,
+               "years become minutes (365 days)")
+        suite.expect(unitValue("1 yr to d").map { abs($0 - 365) < 0.001 } == true,
+               "abbreviated year becomes days")
+        suite.expect(unitValue("3 wk to d").map { abs($0 - 21) < 0.001 } == true,
+               "abbreviated week becomes days")
+        suite.expect(unitValue("24 h to d").map { abs($0 - 1) < 0.001 } == true,
+               "hours become days")
+        suite.expect(unitValue("14 d to wk").map { abs($0 - 2) < 0.001 } == true,
+               "days become weeks")
+        suite.expect(unitValue("365 d to yr").map { abs($0 - 1) < 0.001 } == true,
+               "days become years")
+        suite.expect(unitValue("2 semanas para dias", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))
+                .map { abs($0 - 14) < 0.001 } == true,
+               "Portuguese week becomes days")
+        suite.expect(unitValue("1 ano para dias", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))
+                .map { abs($0 - 365) < 0.001 } == true,
+               "Portuguese year becomes days")
+        suite.expect(unitValue("365 dias para anos", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))
+                .map { abs($0 - 1) < 0.001 } == true,
+               "Portuguese days become years")
+        suite.expect(unitValue("3 dias para horas", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))
+                .map { abs($0 - 72) < 0.001 } == true,
+               "Portuguese days become hours")
+        suite.expect(units("1d to hr") == units("24 hr to hr") && units("24 hr to d") == "1 d"
+                && units("14 d to wk") == "2 wk" && units("1 yr to d") == "365 d"
+                && units("365 d to yr") == "1 yr",
+               "custom duration units format successfully")
+        suite.expect(unitValue("2 wks to days").map { abs($0 - 14) < 0.001 } == true
+                && unitValue("14 d to wks").map { abs($0 - 2) < 0.001 } == true
+                && unitValue("2 yrs to d").map { abs($0 - 730) < 0.001 } == true
+                && unitValue("730 d to yrs").map { abs($0 - 2) < 0.001 } == true,
+               "plural abbreviated units wks and yrs convert")
+        suite.expect(unitValue("2 weeks in days").map { abs($0 - 14) < 0.001 } == true
+                && unitValue("1d → hr").map { abs($0 - 24) < 0.001 } == true,
+               "conversion keywords in and arrow work with duration units")
+        suite.expect(unitValue("0.5 day to h").map { abs($0 - 12) < 0.001 } == true,
+               "fractional day converts")
+        suite.expect(unitValue("-1 d to h").map { abs($0 - -24) < 0.001 } == true,
+               "negative duration converts")
+        suite.expect(unitValue("1 dia to h").map { abs($0 - 24) < 0.001 } == true
+                && unitValue("1 week to d").map { abs($0 - 7) < 0.001 } == true
+                && unitValue("1 semana to d").map { abs($0 - 7) < 0.001 } == true
+                && unitValue("2 years to d").map { abs($0 - 730) < 0.001 } == true
+                && unitValue("2 anos to d").map { abs($0 - 730) < 0.001 } == true,
+               "singular and plural duration forms convert across languages")
         suite.expect(unitValue("1 kg to lb").map { abs($0 - 2.20462) < 0.001 } == true,
                "mass converts")
         suite.expect(unitValue("1.5 l to ml").map { abs($0 - 1500) < 0.001 } == true,
                "a decimal amount converts")
         suite.expect(units("100 km to kg") == nil, "two different families never meet")
+        suite.expect(units("1 day to kg") == nil && units("1 year to m") == nil,
+               "duration never converts to mass or length")
         suite.expect(units("100 kilometres to miles") != nil
                 && units("100 kilometres to miles") == units("100 kilometers to miles")
                 && units("5 centimetres to inches") == units("5 cm to in")
@@ -1233,6 +1681,7 @@ enum CommandBarFeatureTests {
                 && units("1 millilitre to cups") == units("1 ml to cups"),
                "British spellings convert like the American ones, as metres and litres already do")
         suite.expect(units("8 fl oz to ml") != nil
+                && unitValue("5fl oz in ml").map { abs($0 - 147.8675) < 0.001 } == true
                 && units("8 fl oz to ml") == units("8 floz to ml")
                 && units("8 fluid ounces to ml") == units("8 floz to ml")
                 && units("1 fluid ounce to ml") == units("1 floz to ml")
@@ -1242,14 +1691,25 @@ enum CommandBarFeatureTests {
         suite.expect(units("to") == nil && units("in") == nil,
                "the little words alone convert nothing")
         suite.expect(units("safari to dock") == nil, "plain words are not units")
+        suite.expect(units("day to night") == nil && units("year to date") == nil
+                && units("day to day") == nil && units("week to week") == nil,
+               "idiomatic phrases containing duration words are not conversions")
+        suite.expect(unitValue("1 wk to hr").map { abs($0 - 168) < 0.001 } == true
+                && unitValue("168 hr to wk").map { abs($0 - 1) < 0.001 } == true
+                && unitValue("1 d to min").map { abs($0 - 1440) < 0.001 } == true
+                && unitValue("1 d to s").map { abs($0 - 86400) < 0.001 } == true
+                && unitValue("1 yr to s").map { abs($0 - 31_536_000) < 0.001 } == true,
+               "full duration span conversions between seconds, minutes, hours, days, weeks, years")
+        suite.expect(unitValue("1,5 dia para horas", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))
+                .map { abs($0 - 36) < 0.001 } == true,
+               "Portuguese fractional duration converts")
         suite.expect(units("5 xyz to cm") == nil, "an unknown unit is refused, never guessed")
         suite.expect(units("minutes to read the article") == nil,
                "a sentence that happens to contain a unit word stays a search")
-        suite.expect(CommandBarUnits.convert("1,5 m to cm",
-                                       decimalSeparator: ",",
-                                       groupingSeparator: ".",
-                                       locale: Locale(identifier: "pt_BR"))
-                .map { abs($0.value - 150) < 0.001 } == true,
+        suite.expect(unitValue("1,5 m to cm", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))
+                .map { abs($0 - 150) < 0.001 } == true,
                "a comma decimal converts where that is the custom")
 
         // A first group of 0 is never thousands, so "0,250" is a quarter where
@@ -1279,17 +1739,13 @@ enum CommandBarFeatureTests {
             ("fr_FR", ",", "\u{202F}", commaDecimalInputs),
         ] {
             for (number, expected) in inputs {
-                let converted = CommandBarUnits.convert("\(number) m to cm",
-                                                       decimalSeparator: decimal,
-                                                       groupingSeparator: grouping,
-                                                       locale: Locale(identifier: "en_US"))
-                suite.expect(converted.map { abs($0.value - expected) < 0.001 } == true,
+                let converted = unitValue("\(number) m to cm", decimal: decimal, grouping: grouping,
+                                          locale: Locale(identifier: "en_US"))
+                suite.expect(converted.map { abs($0 - expected) < 0.001 } == true,
                              "unit conversion in \(region) reads \(number) as \(expected) cm")
             }
             for number in ["1,,5", "1..5", "--1", "1-5"] {
-                suite.expect(CommandBarUnits.convert("\(number) m to cm",
-                                                     decimalSeparator: decimal,
-                                                     groupingSeparator: grouping) == nil,
+                suite.expect(unitValue("\(number) m to cm", decimal: decimal, grouping: grouping) == nil,
                              "unit conversion in \(region) refuses malformed number \(number)")
             }
         }
@@ -1319,10 +1775,8 @@ enum CommandBarFeatureTests {
                "a negative length keeps the existing decimal format")
         suite.expect(unitNumbers(units("180 cm to in")) == ["70.87"],
                "converting to inches specifically stays a plain decimal, unaffected by the feet formatting")
-        suite.expect(unitNumbers(CommandBarUnits.convert("180 cm para pes",
-                                                   decimalSeparator: ",",
-                                                   groupingSeparator: ".",
-                                                   locale: Locale(identifier: "pt_BR"))?.formatted)
+        suite.expect(unitNumbers(units("180 cm para pes", decimal: ",", grouping: ".",
+                                       locale: Locale(identifier: "pt_BR")))
                 == ["5", "10,87"],
                "feet and inches follow the person's number format")
 
@@ -1342,6 +1796,64 @@ enum CommandBarFeatureTests {
         }
         suite.expect(unitNumbers(units("0.0001 c to c")) == ["0.0001"],
                      "small temperatures retain their existing four-decimal precision")
+
+        do {
+            let completion = CopyAnswerHost.Completion()
+            let input = "50 cm + 50 cm to m"
+            let row = CopyAnswerHost.answerEntry(for: input, bar: englishBar)
+            let reusable = row?.reusableExpression
+            suite.expect(reusable.flatMap { CommandBarCalculator.evaluate($0 + " to cm")?.value } == 100,
+                         "the answer row supplies a reusable measurement with its unit")
+            suite.expect(CopyAnswerHost.answerEntry(for: input, bar: englishBar, enabled: false) == nil
+                         && CopyAnswerHost.answerEntry(for: "1password", bar: englishBar) == nil,
+                         "a disabled calculator and an app search leave the result list to search")
+
+            _ = NSApplication.shared
+            let frame = NSRect(x: 0, y: 0, width: 300, height: 40)
+            let panel = NSPanel(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            panel.isReleasedWhenClosed = false
+            defer { panel.close() }
+            let editor = NSTextView(frame: frame)
+            editor.allowsUndo = true
+            panel.contentView = editor
+            panel.makeFirstResponder(editor)
+            editor.string = input
+            completion.panel = panel
+            completion.selectedEntry = row
+            completion.query = input
+            completion.completeSelection()
+            suite.expect(reusable != nil && completion.query == reusable && editor.string == reusable
+                         && editor.selectedRange().location == (editor.string as NSString).length,
+                         "Tab replaces the field with this row's expression and leaves the caret at the end")
+            editor.undoManager?.undo()
+            suite.expect(editor.string == input, "one native undo restores the calculation after Tab")
+
+            for query in [input, "145 mins to timespan", "#fff to rgb"] {
+                let answer = CopyAnswerHost.answerEntry(for: query, bar: englishBar)
+                CopyAnswerHost.Pasteboard.general.accepts = true
+                CopyAnswerHost.Pasteboard.general.clearContents()
+                answer?.run(nil)
+                suite.expect(answer != nil && CopyAnswerHost.Pasteboard.general.string == answer?.title,
+                             "Return copies the whole displayed answer for \(query)")
+                if query != input {
+                    completion.selectedEntry = answer
+                    completion.query = query
+                    completion.completeSelection()
+                    suite.expect(answer?.reusableExpression == nil && completion.query == query,
+                                 "Tab leaves the field alone when \(query) has no reusable expression")
+                }
+            }
+            completion.selectedEntry = searchRow("app.safari", "Safari")
+            completion.query = "saf"
+            completion.completeSelection()
+            suite.expect(completion.query == "Safari" && completion.queryBeforeCompletion == "saf",
+                         "Tab still completes a selected search result and remembers what was typed")
+            completion.mode = .actions
+            completion.selectedEntry = row
+            completion.query = input
+            completion.completeSelection()
+            suite.expect(completion.query == input, "Tab cannot replace the field from the actions list")
+        }
 
         // MARK: Command bar emoji
 

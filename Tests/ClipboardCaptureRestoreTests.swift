@@ -10,7 +10,10 @@ import Foundation
 /// inert; these checks do not read or replace the user's clipboard.
 enum ClipboardCaptureRestoreTests {
     class Fixture: ClipboardPreviewContract.Fixture {
-        enum NSPasteboard { static let general = AppKit.NSPasteboard.withUniqueName() }
+        enum NSPasteboard {
+            typealias PasteboardType = AppKit.NSPasteboard.PasteboardType
+            static let general = AppKit.NSPasteboard.withUniqueName()
+        }
         final class Sources {
             static let shared = Sources()
             var excluded = false
@@ -44,18 +47,23 @@ enum ClipboardCaptureRestoreTests {
         var timer: Timer?
         var retentionTimer: Timer?
         static let pasteboardTimeout: TimeInterval = 5
-        // Rich payload decoding is covered elsewhere; this fixture exercises
-        // the production metadata and text path with images/files disabled.
-        static func copiedFilePaths(from board: AppKit.NSPasteboard) -> [String]? { nil }
-        static func copiedPNGImage(from board: AppKit.NSPasteboard)
-            -> (data: Data, width: Int, height: Int)? { nil }
-        static func webURLString(from board: AppKit.NSPasteboard) -> String? { nil }
+        var capturedImageSizes: [CGSize] = []
+        var capturedFilePaths: [String] = []
         static func sha256Hex(_ data: Data) -> String { data.base64EncodedString() }
         func promoteFiles(_ paths: [String], source: String?, keepsSource: Bool) {
-            preconditionFailure("file capture is outside this text fixture")
+            capturedFilePaths = paths
         }
         func promoteImage(_ image: (data: Data, width: Int, height: Int), source: String?, keepsSource: Bool) {
-            preconditionFailure("image capture is outside this text fixture")
+            capturedImageSizes.append(CGSize(width: image.width, height: image.height))
+        }
+    }
+
+    private final class PromisedFileName: NSObject, NSPasteboardItemDataProvider {
+        var reads = 0
+        func pasteboard(_ pasteboard: NSPasteboard?, item: NSPasteboardItem,
+                        provideDataForType type: NSPasteboard.PasteboardType) {
+            reads += 1
+            item.setString("report.xlsx", forType: type)
         }
     }
 
@@ -188,5 +196,124 @@ enum ClipboardCaptureRestoreTests {
         Fixture.Lane.shared.pending?()
         suite.expect(stopped.entries.map(\.text) == ["A"] && stopped.latestPasteboardEntry == nil,
                      "a delayed capture cannot restore or record content after history stops")
+
+        Fixture.Lane.shared.defersDelivery = false
+        defer { Fixture.UserDefaults.standard.includeImages = false }
+        let pixels = ScreenshotCanvasSupportTests.image(width: 2, height: 2)
+        guard let tiff = NSBitmapImageRep(cgImage: pixels).tiffRepresentation else {
+            suite.expect(false, "the private clipboard image fixture encodes as TIFF")
+            return
+        }
+        func writeCells(_ text: String, html: String? = nil) {
+            board.clearContents()
+            board.setString(text, forType: .string)
+            if let html {
+                board.setData(Data(html.utf8), forType: .html)
+            } else {
+                board.setData(Data(text.utf8), forType: .tabularText)
+            }
+            board.setData(tiff, forType: .tiff)
+        }
+
+        for includeImages in [false, true] {
+            Fixture.UserDefaults.standard.includeImages = includeImages
+            let singleCell = start()
+            writeCells(" B1 ", html: "<table><tr><td> B1 </td></tr></table>")
+            singleCell.captureIfChanged()
+            suite.expect(singleCell.latestPasteboardEntry?.text == " B1 " && singleCell.capturedImageSizes.isEmpty,
+                         "a single HTML table cell preserves its contents when image capture is \(includeImages)")
+        }
+
+        let largeText = String(repeating: "data\t", count: ClipboardHistoryEditing.maxCharacters / 5 + 1)
+        let large = start()
+        writeCells(largeText)
+        large.captureIfChanged()
+        suite.expect(large.entries.isEmpty && large.capturedImageSizes == [CGSize(width: 2, height: 2)],
+                     "a grid above the text limit still captures its available picture")
+        let filtered = start()
+        Fixture.UserDefaults.standard.skipSensitive = true
+        writeCells("\texampleTestPass12345!!\t")
+        filtered.captureIfChanged()
+        suite.expect(filtered.entries.isEmpty && filtered.capturedImageSizes.isEmpty,
+                     "filtering sensitive grid text does not save it as a picture")
+        writeCells(credential + "\t" + largeText)
+        filtered.captureIfChanged()
+        suite.expect(filtered.entries.isEmpty && filtered.capturedImageSizes.isEmpty,
+                     "an oversized grid containing a credential cannot fall back to a picture with filtering on")
+
+        let file = start()
+        let fileURL = URL(fileURLWithPath: "/tmp/report.xlsx")
+        let provider = PromisedFileName()
+        let fileItem = NSPasteboardItem()
+        fileItem.setString(fileURL.absoluteString, forType: .fileURL)
+        fileItem.setDataProvider(provider, forTypes: [.string])
+        board.clearContents()
+        suite.expect(board.writeObjects([fileItem]), "the private clipboard accepts a file with a promised name")
+        file.captureIfChanged()
+        suite.expect(file.capturedFilePaths == [fileURL.standardizedFileURL.path] && provider.reads == 0,
+                     "copying a file captures its URL without requesting its promised plain-text name")
+
+        let wrapper = FileWrapper(regularFileWithContents: tiff)
+        wrapper.preferredFilename = "picture.tiff"
+        let attachment = NSAttributedString(attachment: NSTextAttachment(fileWrapper: wrapper))
+        let rtfd = attachment.rtfd(from: NSRange(location: 0, length: attachment.length), documentAttributes: [:])
+        suite.expect(rtfd != nil, "the image fixture encodes as an RTFD attachment")
+        for webImage in [false, true] {
+            let picture = start()
+            board.clearContents()
+            board.setData(tiff, forType: .tiff)
+            if webImage {
+                let url = "https://example.com/picture.png"
+                board.setString(url, forType: .URL)
+                board.setString(url, forType: .string)
+                board.setData(rtfd, forType: .rtfd)
+                board.setString("<img src='\(url)'>", forType: .html)
+            }
+            picture.captureIfChanged()
+            suite.expect(picture.entries.isEmpty && picture.capturedImageSizes == [CGSize(width: 2, height: 2)],
+                         "a copied picture stays an image with or without browser URL and attachment formats")
+        }
+
+        let spreadsheet = start()
+        let cells = "\tB1\r\nA2\t"
+        writeCells(cells)
+        board.setString("B1\r\nA2", forType: .string)
+        spreadsheet.captureIfChanged()
+        guard let table = spreadsheet.latestPasteboardEntry else {
+            suite.expect(false, "the spreadsheet with a TIFF preview enters history as text")
+            return
+        }
+        suite.expect(table.kind == .text && table.text == cells && spreadsheet.capturedImageSizes.isEmpty,
+                     "a spreadsheet copy preserves blank edge cells and row separators")
+        copy("B1\r\nA2", to: spreadsheet)
+        writeCells(cells)
+        spreadsheet.captureIfChanged()
+        suite.expect(spreadsheet.entries.count == 2 && spreadsheet.latestPasteboardEntry?.id == table.id,
+                     "the tabular representation reuses the exact grid without merging a differently shaped copy")
+        var restoreNotices = 0
+        let restoreSubscription = spreadsheet.capturedEntry.sink { _ in restoreNotices += 1 }
+        defer { restoreSubscription.cancel() }
+        copy("Temporary text", to: spreadsheet, mark: transient)
+        let write = ClipboardHistoryWrite.text(table.text).write(to: board, isExpired: { false })
+        suite.expect(write?.succeeded == true && board.string(forType: .string) == cells,
+                     "pasting the saved entry writes the original cells and separators to the private clipboard")
+        spreadsheet.captureIfChanged()
+        suite.expect(spreadsheet.latestPasteboardEntry?.id == table.id && restoreNotices == 0,
+                     "restoring only the plain text matches the saved grid without another capture notice")
+        spreadsheet.stop()
+        spreadsheet.isRunning = true
+        spreadsheet.captureState.restart()
+        spreadsheet.captureIfChanged()
+        suite.expect(spreadsheet.latestPasteboardEntry?.id == table.id,
+                     "a fresh baseline recognizes the exact grid previously written as plain text")
+
+        let link = "https://example.org/café"
+        writeCells(link)
+        spreadsheet.captureIfChanged()
+        let linkID = spreadsheet.latestPasteboardEntry?.id
+        copy(link, to: spreadsheet)
+        suite.expect(linkID != nil && spreadsheet.latestPasteboardEntry?.id == linkID
+                     && spreadsheet.latestPasteboardEntry?.text == link,
+                     "republishing a URL cell as plain text keeps its literal spelling and identity")
     }
 }

@@ -27,7 +27,9 @@ final class ClipboardHistoryService: ObservableObject {
             searchCache.prune(keeping: entries)
             // The result array holds full entry texts, so a cleared or edited
             // history's content must not linger in it until the next search.
-            filterCache = nil
+            filterCache.removeAll()
+            for work in deferredSearchWork.values { work.cancel() }
+            deferredSearchWork.removeAll()
             // Keeps latestPasteboardEntry from outliving the entry it points
             // to: removing it, clearing recent/all, or trimming to a smaller
             // limit must stop the preview from claiming stale content is
@@ -94,6 +96,8 @@ final class ClipboardHistoryService: ObservableObject {
     private static let pasteboardTimeout: TimeInterval = 5
     private var panel: NSPanel?
     private var panelResizeObserver: NSObjectProtocol?
+    private var panelMoveObserver: NSObjectProtocol?
+    private var adjustingPanelFrame = false
     private var panelSizeLimit: ClipboardPanelSizeLimit?
     private var keyMonitor: Any?
     private var localClickMonitor: Any?
@@ -479,37 +483,76 @@ final class ClipboardHistoryService: ObservableObject {
     /// Bumped by the `entries` didSet; lets the search cache below notice any
     /// mutation without every mutating site having to remember it.
     private var entriesStamp = 0
-    private var filterCache: (query: String, stamp: Int, imageLabel: String,
-                              result: [ClipboardHistoryEntry])?
+    private var filterCache: [ClipboardHistorySearchSurface: ClipboardHistorySearchResults] = [:]
     private var searchCache = ClipboardHistorySearchCache()
+    private var deferredSearchWork: [ClipboardHistorySearchSurface: Task<Void, Never>] = [:]
 
-    func filteredEntries(matching query: String) -> [ClipboardHistoryEntry] {
+    func cancelSearch(on surface: ClipboardHistorySearchSurface) {
+        deferredSearchWork.removeValue(forKey: surface)?.cancel()
+        filterCache[surface] = nil
+    }
+
+    func filteredEntries(matching query: String, surface: ClipboardHistorySearchSurface = .quick,
+                         onDeferredResults: (() -> Void)? = nil) -> [ClipboardHistoryEntry] {
         // One ranking pass over a large history of long texts costs real
         // time, and SwiftUI asks for the filtered list many times per
         // render. The last result is reused until the query, the language
         // or the history itself changes.
         let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
-        if let cache = filterCache, cache.query == query,
+        if let cache = filterCache[surface], cache.query == query,
            cache.stamp == entriesStamp, cache.imageLabel == imageLabel {
             return cache.result
         }
+        deferredSearchWork.removeValue(forKey: surface)?.cancel()
         guard !entries.isEmpty else {
             searchCache.clear()
-            filterCache = (query, entriesStamp, imageLabel, [])
+            filterCache[surface] = (query, entriesStamp, imageLabel, [])
             return []
         }
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedQuery.isEmpty {
-            filterCache = (query, entriesStamp, imageLabel, entries)
+            filterCache[surface] = (query, entriesStamp, imageLabel, entries)
             return entries
         }
         let candidates = searchCache.candidates(for: entries,
                                                 stamp: entriesStamp,
                                                 imageLabel: imageLabel)
-        let result = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
-            .compactMap { entries.indices.contains($0) ? entries[$0] : nil }
-        filterCache = (query, entriesStamp, imageLabel, result)
+        let ranked = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
+        let result = ranked.compactMap { entries.indices.contains($0) ? entries[$0] : nil }
+        filterCache[surface] = (query, entriesStamp, imageLabel, result)
+        scheduleDeferredSearch(candidates: candidates,
+                               indexedRanking: ranked,
+                               query: query,
+                               imageLabel: imageLabel,
+                               stamp: entriesStamp, surface: surface, onDeferredResults: onDeferredResults)
         return result
+    }
+
+    /// Scores complete documents off-main so suffix-only and already visible
+    /// matches both settle in the same order as a full-text search.
+    private func scheduleDeferredSearch(candidates: [ClipboardHistorySearchCandidate],
+                                        indexedRanking: [Int], query: String, imageLabel: String,
+                                        stamp: Int, surface: ClipboardHistorySearchSurface,
+                                        onDeferredResults: (() -> Void)?) {
+        guard candidates.contains(where: \.isIndexTruncated) else { return }
+        let snapshot = entries
+        deferredSearchWork[surface] = Task.detached(priority: .utility) { [weak self] in
+            do { try await Task.sleep(nanoseconds: 150_000_000) } catch { return }
+            let complete = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query,
+                completeText: { snapshot[$0].searchableText(imageLabel: imageLabel) },
+                isCancelled: { Task.isCancelled })
+            guard !Task.isCancelled else { return }
+            await MainActor.run { [weak self] in
+                guard let self, !Task.isCancelled, self.entriesStamp == stamp,
+                      let cache = self.filterCache[surface], cache.query == query, cache.imageLabel == imageLabel
+                else { return }
+                self.deferredSearchWork[surface] = nil
+                guard complete != indexedRanking else { return }
+                self.filterCache[surface] = (query, stamp, imageLabel, complete.map { self.entries[$0] })
+                self.objectWillChange.send()
+                onDeferredResults?()
+            }
+        }
     }
 
     func copyQuickEntry(at index: Int) {
@@ -692,8 +735,8 @@ final class ClipboardHistoryService: ObservableObject {
     private enum CapturedContent {
         case transient
         case files([String])
-        case image((data: Data, width: Int, height: Int))
-        case text(String)
+        case image((data: Data, width: Int, height: Int), containsSensitiveText: Bool = false)
+        case text(String, original: String? = nil)
     }
 
     private func captureIfChanged(historyPanelClosing: Bool = false) {
@@ -734,6 +777,19 @@ final class ClipboardHistoryService: ObservableObject {
                 return
             }
             guard self.isRunning, self.captureState.accepts(generation) else { return }
+            let content: CapturedContent? = result.content.flatMap { content in
+                if case .image(_, true) = content,
+                   UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryFilterSensitiveText) {
+                    return nil
+                }
+                // History writes plain text. After a restart or a temporary paste,
+                // the same cells can come back without their spreadsheet formats.
+                if case let .text(_, original?) = content,
+                   self.entries.contains(where: { $0.kind == .text && $0.text == original }) {
+                    return .text(original)
+                }
+                return content
+            }
             if baseline {
                 self.lastChangeCount = max(self.lastChangeCount, result.changeCount)
                 self.captureState.didBaseline()
@@ -741,7 +797,7 @@ final class ClipboardHistoryService: ObservableObject {
                 // previously captured entry; no match (nothing recorded it,
                 // or it was copied while history was off) leaves the preview
                 // blank rather than guessing.
-                self.latestPasteboardEntry = result.content.flatMap(self.matchingEntry)
+                self.latestPasteboardEntry = content.flatMap(self.matchingEntry)
                 return
             }
             // Preserve exclusion over the whole time since the previous
@@ -764,13 +820,13 @@ final class ClipboardHistoryService: ObservableObject {
             // must not keep advertising the previous entry as still current.
             // A recording path below sets this back.
             self.latestPasteboardEntry = nil
-            if case .transient? = result.content {
+            if case .transient? = content {
                 // A temporary write can span several polls or replacements.
                 // Keep the first deadline instead of extending it indefinitely.
                 self.pendingRestore = previous.map { (previous: $0, at: Date()) } ?? pending
                 return
             }
-            guard !source.excluded, let content = result.content else { return }
+            guard !source.excluded, let content else { return }
             // A copy out of the history's own panel, such as text selected in
             // the preview, is of an entry already there, and its app stays.
             let keepsSource = source.fromHistoryPanel
@@ -778,9 +834,9 @@ final class ClipboardHistoryService: ObservableObject {
                restored.id == pending.previous.id,
                ClipboardHistoryPasteRestore.isWithinWindow(capturedAt: pending.at, now: Date()) {
                 // A restored entry still faces today's capture preferences.
-                if case .text(let raw) = content {
+                if case .text(let raw, _) = content {
                     let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !text.isEmpty, text.count <= ClipboardHistoryEditing.maxCharacters,
+                    guard !text.isEmpty, raw.count <= ClipboardHistoryEditing.maxCharacters,
                           !(UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryFilterSensitiveText)
                             && self.looksSensitive(text)) else { return }
                 }
@@ -791,8 +847,8 @@ final class ClipboardHistoryService: ObservableObject {
             switch content {
             case .transient: break
             case .files(let paths): self.promoteFiles(paths, source: source.bundleID, keepsSource: keepsSource)
-            case .image(let image): self.promoteImage(image, source: source.bundleID, keepsSource: keepsSource)
-            case .text(let text): self.promote(text, source: source.bundleID, keepsSource: keepsSource)
+            case .image(let image, _): self.promoteImage(image, source: source.bundleID, keepsSource: keepsSource)
+            case .text(let text, _): self.promote(text, source: source.bundleID, keepsSource: keepsSource)
             }
         }, didFinish: { [weak self] _ in
             self?.captureState.finish()
@@ -805,11 +861,9 @@ final class ClipboardHistoryService: ObservableObject {
     private func matchingEntry(for content: CapturedContent) -> ClipboardHistoryEntry? {
         switch content {
         case .transient: return nil
-        case .text(let text):
-            // Saved the way promote saves it, without the surrounding space.
-            let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .text(let text, _):
             return entries.first(where: { $0.kind == .text && $0.text == text })
-        case .image(let image):
+        case .image(let image, _):
             let hash = Self.sha256Hex(image.data)
             return entries.first(where: { $0.kind == .image && $0.imageHash == hash })
         case .files(let paths):
@@ -827,28 +881,41 @@ final class ClipboardHistoryService: ObservableObject {
         // content is never even read, whatever the other options say.
         // Content its app is about to take back, which is how a dictation
         // app types, is no copy either, and is left unread the same way.
-        let types = (pasteboard.types ?? []).map(\.rawValue)
-        if ClipboardHistorySensitiveText.isConcealed(types) { return nil }
-        if ClipboardHistorySensitiveText.isTransient(types) { return .transient }
+        let types = pasteboard.types ?? []
+        let names = types.map(\.rawValue)
+        if ClipboardHistorySensitiveText.isConcealed(names) { return nil }
+        if ClipboardHistorySensitiveText.isTransient(names) { return .transient }
         // Files first: a Finder copy also carries name strings, and a browser
         // image copy also carries URL text, so richer content wins over its
         // own textual fallbacks.
-        if includeImagesFiles {
-            if let paths = copiedFilePaths(from: pasteboard) {
-                if ClipboardHistoryCapturePolicy.isCopiedScreenshot(
-                    paths, in: ScreenshotSupport.copiedFilesDirectory()) {
-                    guard let image = copiedPNGImage(from: pasteboard) else { return nil }
-                    return .image(image)
-                }
-                return .files(paths)
+        if includeImagesFiles, let paths = copiedFilePaths(from: pasteboard) {
+            if ClipboardHistoryCapturePolicy.isCopiedScreenshot(
+                paths, in: ScreenshotSupport.copiedFilesDirectory()) {
+                guard let image = copiedPNGImage(from: pasteboard) else { return nil }
+                return .image(image)
             }
-            if let image = copiedPNGImage(from: pasteboard) { return .image(image) }
+            return .files(paths)
         }
+        let cells = ClipboardHistoryPasteboardText.cellText(from: pasteboard, types: types)
+        if let cells, cells.count <= ClipboardHistoryEditing.maxCharacters {
+            return .text(cells)
+        }
+        if includeImagesFiles, let image = copiedPNGImage(from: pasteboard) {
+            // Oversized cells may still have a usable preview. Apply the user's
+            // current sensitive-text preference when the read is delivered.
+            let sensitive = cells.map {
+                ClipboardHistorySensitiveText.looksSensitive($0.trimmingCharacters(in: .whitespacesAndNewlines))
+            } ?? false
+            return .image(image, containsSensitiveText: sensitive)
+        }
+        guard cells == nil else { return nil }
+        let plainText = pasteboard.string(forType: .string)
         guard let text = ClipboardHistoryPasteboardText.preferredText(
             webURLString: webURLString(from: pasteboard),
-            plainText: pasteboard.string(forType: .string)
+            plainText: plainText
         ) else { return nil }
-        return .text(text)
+        let hasURL = types.contains(.URL) || types.contains(NSPasteboard.PasteboardType("NSURLPboardType"))
+        return .text(text, original: !hasURL && plainText != text ? plainText : nil)
     }
 
     private static let maxCopiedFiles = 100
@@ -957,11 +1024,12 @@ final class ClipboardHistoryService: ObservableObject {
         return (scheme == "http" || scheme == "https") && url.host != nil
     }
 
-    private func promote(_ raw: String, source: String?, keepsSource: Bool) {
-        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, text.count <= ClipboardHistoryEditing.maxCharacters else { return }
+    private func promote(_ text: String, source: String?, keepsSource: Bool) {
+        guard text.count <= ClipboardHistoryEditing.maxCharacters else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
         if UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryFilterSensitiveText),
-           looksSensitive(text) {
+           looksSensitive(trimmed) {
             return
         }
 
@@ -1285,6 +1353,7 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func hideHistoryWindow() {
+        cancelSearch(on: .quick)
         // What was copied in the panel is read now, as the panel's, so a copy
         // made right after in the app behind is credited to that app.
         if panel?.isVisible == true { captureIfChanged(historyPanelClosing: true) }
@@ -1321,6 +1390,7 @@ final class ClipboardHistoryService: ObservableObject {
             return
         }
         app.activate(options: [])
+        guard ClipboardHistoryPasteTarget.acceptsSyntheticPaste(bundleID: app.bundleIdentifier) else { return }
         guard AXIsProcessTrusted() else {
             if promptedForAccessibility {
                 NSSound.beep()
@@ -1379,14 +1449,27 @@ final class ClipboardHistoryService: ObservableObject {
         // AppKit owns the window size; SwiftUI fills its content view.
         host.sizingOptions = []
         panel.contentViewController = host
+        observePanelGeometry(panel)
+        self.panel = panel
+        return panel
+    }
+
+    private func observePanelGeometry(_ panel: NSPanel) {
         panelResizeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didEndLiveResizeNotification, object: panel, queue: .main
         ) { [weak self, weak panel] _ in
-            guard let self, let panel else { return }
+            guard let self, let panel, panel.isVisible, !self.adjustingPanelFrame else { return }
             self.savePanelSize(panel)
+            // Resizing from the left or bottom also moves the origin, but
+            // AppKit does not send didMove when the size changes with it.
+            self.savePanelPosition(panel)
         }
-        self.panel = panel
-        return panel
+        panelMoveObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification, object: panel, queue: .main
+        ) { [weak self, weak panel] _ in
+            guard let self, let panel else { return }
+            self.savePanelPosition(panel)
+        }
     }
 
     /// Read on every opening, so a layout picked in Settings applies the next
@@ -1421,11 +1504,18 @@ final class ClipboardHistoryService: ObservableObject {
         UserDefaults.standard.set(Double(size.height), forKey: DefaultsKey.clipboardHistoryWindowHeight)
     }
 
+    private func savePanelPosition(_ panel: NSPanel) {
+        guard panel.isVisible, quickLayout == .list, !adjustingPanelFrame else { return }
+        UserDefaults.standard.set(Double(panel.frame.minX), forKey: DefaultsKey.clipboardHistoryWindowX)
+        UserDefaults.standard.set(Double(panel.frame.minY), forKey: DefaultsKey.clipboardHistoryWindowY)
+    }
+
     /// Placed again on every open, so a changed display never strands it.
     /// Cards make a shelf along the bottom of the screen the pointer is on.
-    /// The list is a window of the size the user last gave it, centered
-    /// toward the top.
+    /// The list keeps its chosen location when that display is still usable.
     private func position(_ panel: NSPanel) {
+        adjustingPanelFrame = true
+        defer { adjustingPanelFrame = false }
         let screen = NSScreen.pointerVisibleFrame
         switch quickLayout {
         case .cards:
@@ -1436,6 +1526,17 @@ final class ClipboardHistoryService: ObservableObject {
                            animate: false)
         case .list:
             panel.styleMask.insert(.resizable)
+            let defaults = UserDefaults.standard
+            if defaults.object(forKey: DefaultsKey.clipboardHistoryWindowX) != nil,
+               defaults.object(forKey: DefaultsKey.clipboardHistoryWindowY) != nil,
+               let restored = ClipboardHistoryWindowPlacement.restoredFrame(
+                   origin: NSPoint(x: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowX),
+                                   y: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowY)),
+                   visibleFrames: NSScreen.screens.map(\.visibleFrame),
+                   size: preferredPanelSize(visibleFrame:)) {
+                panel.setFrame(restored, display: true, animate: false)
+                return
+            }
             let size = preferredPanelSize(visibleFrame: screen)
             let x = screen.midX - size.width / 2
             let y = min(screen.maxY - size.height - 54, screen.midY - size.height / 2)
@@ -1450,6 +1551,8 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func resize(_ panel: NSPanel, to contentSize: NSSize,
                         around current: NSRect, animated: Bool) {
+        adjustingPanelFrame = true
+        defer { adjustingPanelFrame = false }
         var target = NSRect(origin: .zero, size: contentSize)
         target.origin.x = current.midX - target.width / 2
         target.origin.y = current.midY - target.height / 2
@@ -1660,13 +1763,13 @@ final class ClipboardHistoryService: ObservableObject {
 /// (UserDefaults would balloon with base64), named by UUID and swept against
 /// the live entry list after every save.
 enum ClipboardImageStore {
-    /// Explicit limits: NSCache only sheds under system memory pressure, so
-    /// without them a history full of screenshots quietly holds every decoded
-    /// thumbnail at once.
+    /// Advisory limits for decoded thumbnails retained between panel uses.
+    /// Visible rows retain their own images; an evicted preview is decoded
+    /// again from disk when needed.
     private static let thumbnails: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = 120
-        cache.totalCostLimit = 48 * 1024 * 1024
+        cache.totalCostLimit = 32 * 1024 * 1024
         return cache
     }()
 

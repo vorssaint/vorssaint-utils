@@ -226,10 +226,12 @@ final class FeatureRuntime: ObservableObject {
     }
 
     /// One bump for Settings, and the Command Bar drops rows of features that
-    /// just left the hub so a pin cannot linger as a bare id.
+    /// just left the hub so a pin cannot linger as a bare id. A Command Bar
+    /// that is not installed has already dropped all of them in its own sync,
+    /// so it is not asked and its service is never built just to be told.
     private func finishAvailabilityChange() {
         revision += 1
-        CommandBarService.shared.noteHubChange()
+        if AppFeature.commandBar.isAvailable { CommandBarService.shared.noteHubChange() }
         if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
     }
 
@@ -254,9 +256,11 @@ final class FeatureRuntime: ObservableObject {
         .dockDisplayLock: { DockDisplayLockService.shared.syncWithPreferences() },
         .scrollInverter: { ScrollInverter.shared.syncWithPreferences() },
         .scrollHorizontal: { ScrollInverter.shared.syncWithPreferences() },
+        .scrollZoom: { ScrollInverter.shared.syncWithPreferences() },
         .focusFollowsMouse: { FocusFollowsMouseService.shared.syncWithPreferences() },
         .smoothScroll: { SmoothScrollService.shared.syncWithPreferences() },
         .linearScroll: { ScrollInverter.shared.syncWithPreferences() },
+        .scrollSpeed: { ScrollInverter.shared.syncWithPreferences() },
         .mouseAcceleration: { MouseAccelerationService.shared.syncWithPreferences() },
         .mouseNavigation: { MouseNavigationService.shared.syncWithPreferences() },
         .mouseButtonShortcuts: { MouseButtonShortcutService.shared.syncWithPreferences() },
@@ -309,6 +313,8 @@ final class FeatureRuntime: ObservableObject {
             AudioPriorityService.shared.syncWithPreferences()
         },
         .micMute: { MicMuteService.shared.syncWithPreferences() },
+        .quickToggles: { QuickTogglesService.shared.syncWithPreferences() },
+        .quitApps: { QuickTogglesService.shared.syncWithPreferences() },
         .musicBlock: { MusicLaunchBlocker.shared.syncWithPreferences() },
         .keepAwake: {
             KeepAwakeManager.shared.syncWithFeatures()
@@ -391,6 +397,7 @@ final class FeatureRuntime: ObservableObject {
             }
         },
         .appUpdates: { AppUpdatesService.shared.syncWithPreferences() },
+        .uninstaller: { TrashAppWatcher.shared.syncWithPreferences() },
         .monitorCPU: { FeatureRuntime.syncMonitor() },
         .monitorGPU: { FeatureRuntime.syncMonitor() },
         .monitorMemory: { FeatureRuntime.syncMonitor() },

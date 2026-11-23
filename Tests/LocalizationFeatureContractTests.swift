@@ -35,7 +35,12 @@ enum LocalizationFeatureContractTests {
                    + "(\(language.rawValue))")
             suite.expect(!strings.homebrewGroupDependencies.isEmpty,
                    "the installed-package grouping choice is labeled (\(language.rawValue))")
+            suite.expect(strings.micMuteCaption.contains("Siri"),
+                   "Mic Mute explains the Siri coverage limit (\(language.rawValue))")
         }
+        suite.expect(Strings.enUS.micMutedHUD == "Mic Mute on"
+                && Strings.enUS.micUnmutedHUD == "Mic Mute off",
+               "microphone notices report the feature state without certifying silence")
         // Quotation marks are part of looking native and each language has its
         // own. Checked against what the system itself ships on this Mac: French,
         // Russian and Ukrainian use the angled pair, German pairs a low opening mark with

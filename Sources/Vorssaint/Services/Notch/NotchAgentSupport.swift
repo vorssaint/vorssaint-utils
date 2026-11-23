@@ -56,10 +56,12 @@ struct NotchAgentTile: Identifiable, Equatable {
     let card: NotchAgentCard
     /// The account a limits card belongs to.
     let provider: AgentProvider?
-    /// An added Codex home's card; nil for the one the logs feed.
+    /// An explicitly chosen account's card; nil for the default reading.
     var accountID: String? = nil
     /// The Resets card beside added Codex homes, which says whose resets they are.
     var namesDefaultAccount = false
+    /// When nothing is running, the Now card lists each visible provider.
+    var idleProviderCount = 0
     var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") + (accountID.map { "." + $0 } ?? "") }
 }
 
@@ -89,12 +91,23 @@ enum NotchAgentSupport {
         }
     }
 
+    static func pageProviders(snapshot: AgentUsageSnapshot, hasCodexAccounts: Bool, hasClaudeAccount: Bool,
+                              in defaults: UserDefaults = .standard) -> [AgentProvider] {
+        providers(in: defaults).filter { provider in
+            snapshot.seen.contains(provider)
+                || (provider == .cursor && snapshot.cursorProjectsFound)
+                || (provider == .codex && hasCodexAccounts)
+                || (provider == .claude && hasClaudeAccount)
+        }
+    }
+
     static func key(for provider: AgentProvider) -> String {
         switch provider {
         case .claude: return DefaultsKey.notchAgentsClaude
         case .codex: return DefaultsKey.notchAgentsCodex
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
+        case .cursor: return DefaultsKey.notchAgentsCursor
         }
     }
 
@@ -229,17 +242,53 @@ enum NotchAgentSupport {
         switch readout {
         case .elapsed:
             return elapsed()
-        case .tokens:
+        case .tokens, .cost:
+            let metered = live.filter { $0.provider != .cursor }
+            let partial = metered.count != live.count
             // What the agent wrote, the count its own window shows; the
             // context it reads again on every call is in the cost.
-            return AgentFormat.tokens(live.reduce(0) { $0 + $1.tokens.output })
-        case .cost:
-            return AgentFormat.cost(live.reduce(0) { $0 + $1.cost })
+            if readout == .tokens {
+                let tokens = metered.reduce(0) { $0 + $1.tokens.output }
+                let prefix = partial ? "≥ " : ""
+                return partial && tokens == 0 ? "—" : prefix + AgentFormat.tokens(tokens)
+            }
+            let cost = metered.reduce(0) { $0 + $1.cost }
+            return AgentFormat.cost(cost, partial: partial)
         case .limit:
             guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
                   let window = focusedLimit(snapshot.limits[provider], focus: focus, now: now) else { return elapsed() }
             return AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
         }
+    }
+
+    /// Settings must illustrate the selected reading even before any agent
+    /// has reported an allowance. Example data stays in this preview copy.
+    static func stripSampleSnapshot(_ snapshot: AgentUsageSnapshot, provider: AgentProvider,
+                                    focus: NotchAgentLimitFocus, now: Date) -> AgentUsageSnapshot {
+        var sample = snapshot
+        if sample.live.isEmpty {
+            sample.live = [AgentLiveSession(id: "example", provider: provider, started: now.addingTimeInterval(-754),
+                                            lastActivity: now, model: "", project: "",
+                                            tokens: AgentTokens(input: 1_180_000, output: 20_000), cost: 4.56)]
+        }
+        let working = AgentProvider.allCases.first { provider in sample.live.contains { $0.provider == provider } } ?? provider
+        if working != .cursor, focusedLimit(sample.limits[working], focus: focus, now: now) == nil {
+            sample.limits[working] = AgentLimits(provider: working, windows: [
+                AgentLimitWindow(id: "example-session", kind: .session, minutes: 300, scope: nil,
+                                 usedPercent: 32, resetsAt: now.addingTimeInterval(3600)),
+                AgentLimitWindow(id: "example-week", kind: .weekly, minutes: 10_080, scope: nil,
+                                 usedPercent: 57, resetsAt: now.addingTimeInterval(86_400))
+            ], observedAt: now, source: .sessionLog)
+        }
+        return sample
+    }
+
+    /// A limit's share on the island's card. It names which share it is:
+    /// a bare 99% left reads as 99% spent.
+    static func limitShare(_ window: AgentLimitWindow, display: NotchAgentLimitDisplay,
+                           text: NotchAgentStrings) -> String {
+        display == .remaining ? text.left(AgentFormat.percent(window.remainingFraction))
+            : text.usedShare(AgentFormat.percent(window.usedFraction))
     }
 
     /// Every digit takes the same width, so a reading's shape, not its value,
@@ -264,10 +313,16 @@ enum NotchAgentSupport {
     /// Codex homes the person added take the place of Codex's one limits
     /// card, the usual home among them when they add it.
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
-                      codexAccounts: [String] = []) -> [NotchAgentTile] {
-        cards.flatMap { card -> [NotchAgentTile] in
+                      codexAccounts: [String] = [], claudeAccount: String? = nil,
+                      snapshot: AgentUsageSnapshot = AgentUsageSnapshot()) -> [NotchAgentTile] {
+        let activityOnly = providers == [.cursor] && !snapshot.days.contains { ($0.byProvider[.cursor]?.tokens.total ?? 0) > 0 }
+        let shown = activityOnly ? cards.filter { $0 == .live } : cards
+        return shown.flatMap { card -> [NotchAgentTile] in
             switch card {
             case .limits: return providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
+                if provider == .claude, let claudeAccount {
+                    return [NotchAgentTile(card: .limits, provider: provider, accountID: claudeAccount)]
+                }
                 guard provider == .codex, !codexAccounts.isEmpty else { return [NotchAgentTile(card: .limits, provider: provider)] }
                 return codexAccounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }
             }
@@ -275,6 +330,9 @@ enum NotchAgentSupport {
             // the card names once others have cards.
             case .resets: return providers.contains(.codex)
                 ? [NotchAgentTile(card: .resets, provider: .codex, namesDefaultAccount: !codexAccounts.isEmpty)] : []
+            case .live:
+                let working = snapshot.live.contains { providers.contains($0.provider) }
+                return [NotchAgentTile(card: .live, provider: nil, idleProviderCount: working ? 0 : providers.count)]
             default: return [NotchAgentTile(card: card, provider: nil)]
             }
         }
@@ -304,7 +362,11 @@ enum NotchAgentSupport {
 
     static func height(of row: [NotchAgentTile]) -> CGFloat {
         if row.contains(where: \.card.fullWidth) { return chartHeight }
-        return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
+        let base = row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
+        guard let count = row.first(where: { $0.idleProviderCount > 0 })?.idleProviderCount else { return base }
+        // Vertical padding, header and header gap take 44 points. Each idle
+        // mark needs 15 points, with a 5-point gap between providers.
+        return max(base, 44 + 15 * CGFloat(count) + 5 * CGFloat(count - 1))
     }
 
     /// An account card's line in place of its windows while it has none, or
@@ -334,12 +396,23 @@ enum NotchAgentSupport {
 /// Numbers in the reader's region; costs in US dollars, the currency both
 /// providers list their prices in.
 enum AgentFormat {
-    static func cost(_ value: Double, locale: Locale = .autoupdatingCurrent) -> String {
-        guard value.isFinite else { return "$0" }
+    static func cost(_ totals: AgentTotals, locale: Locale = .autoupdatingCurrent) -> String {
+        cost(totals.cost, partial: totals.hasPartialCost, locale: locale)
+    }
+
+    static func cost(_ snapshot: AgentUsageSnapshot, for period: AgentPeriod, locale: Locale = .autoupdatingCurrent) -> String {
+        cost(snapshot.usage(period).total.cost, partial: snapshot.hasPartialCost(period), locale: locale)
+    }
+
+    static func cost(_ value: Double, partial: Bool = false, locale: Locale = .autoupdatingCurrent) -> String {
+        guard value.isFinite else { return partial ? "—" : "$0" }
+        if partial && value < 0.01 { return value > 0 ? "> " + cost(0, locale: locale) : "—" }
+        let prefix = partial ? "≥ $" : "$"
         let magnitude = abs(value)
-        if magnitude >= 10_000 { return "$" + scaled(magnitude / 1000, locale: locale) + "K" }
+        if magnitude >= 10_000 { return prefix + scaled(magnitude / 1000, locale: locale) + "K" }
         let digits = magnitude >= 100 ? 0 : 2
-        return "$" + value.formatted(.number.precision(.fractionLength(digits)).grouping(.automatic).locale(locale))
+        return prefix + value.formatted(.number.precision(.fractionLength(digits))
+            .rounded(rule: partial ? .down : .toNearestOrEven).grouping(.automatic).locale(locale))
     }
 
     static func tokens(_ value: Int, locale: Locale = .autoupdatingCurrent) -> String {

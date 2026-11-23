@@ -20,18 +20,6 @@ enum CommandBarSelectionTests {
         var keepsBarOpen = false
         let run: (Int?) -> Void
     }
-    struct CommandBarFeatureStrings {
-        let kindSelection = "selection"
-        let selectionCopy = "copy"
-        let selectionSearch = "search"
-        let selectionUpper = "upper"
-        let selectionLower = "lower"
-        let selectionTitleCase = "title"
-        let selectionShelf = "shelf"
-        let selectionCount = "count"
-        let selectionCountFormat = "%d words, %d characters"
-        let actionCleanURL = "clean"
-    }
     enum AppFeature {
         case urlCleaner, shelf
         var isAvailable: Bool { false }
@@ -42,10 +30,12 @@ enum CommandBarSelectionTests {
         func clean(_ text: String) -> Cleaned? { nil }
         func copy(_ text: String) {}
     }
+    typealias Strings = L10n.Strings
     struct L10n {
         static let shared = Self()
         let s = Strings()
         struct Strings {
+            static let enUS = Self()
             let urlCleanerName = "cleaner"
             let urlCleanerCleaned = "cleaned"
             let urlCleanerRemovedFormat = "%@"
@@ -71,7 +61,7 @@ enum CommandBarSelectionTests {
     }
 
     static func run(_ suite: TestSuite) {
-        let strings = CommandBarFeatureStrings()
+        let strings = FeatureStrings.commandBar(.enUS)
         defer { Catalog.typed = []; Catalog.copied = [] }
         var searched: [String] = []
         let selected = " \tHello world\n"
@@ -84,6 +74,25 @@ enum CommandBarSelectionTests {
         rows.first { $0.id == "selection.search" }?.run(nil)
         suite.expect(Catalog.copied == ["Hello world"] && searched == ["Hello world"],
                      "copy and search continue to use the trimmed selection")
+
+        let english = FeatureStrings.commandBar(.enUS)
+        for language in [AppLanguage.zhHans, .ja, .ko] {
+            let localized = FeatureStrings.commandBar(language)
+            let rows = Catalog.selectionEntries("Hello wORLD", bar: localized, useInSearch: { _ in })
+            for (id, title, englishTitle) in [
+                ("selection.copy", localized.selectionCopy, english.selectionCopy),
+                ("selection.search", localized.selectionSearch, english.selectionSearch),
+                ("selection.upper", localized.selectionUpper, english.selectionUpper),
+                ("selection.lower", localized.selectionLower, english.selectionLower),
+                ("selection.titleCase", localized.selectionTitleCase, english.selectionTitleCase),
+                ("selection.count", localized.selectionCount, english.selectionCount),
+            ] {
+                let row = rows.first { $0.id == id }
+                suite.expect(row?.title == title && row.map {
+                    CommandBarSearch.matches(title: $0.title, keywords: $0.keywords, query: englishTitle)
+                } == true, "selection action \(id) keeps its localized title and English search in \(language)")
+            }
+        }
 
         let caseIDs: Set<String> = ["selection.upper", "selection.lower", "selection.titleCase"]
         for count in [4_999, 5_000, 100_000] {
