@@ -954,9 +954,8 @@ MUTATIONS = [
      "a highlighted row styles only its matches and leaves the rest to its text's modifiers"),
     ("agent log written again in place goes unnoticed", "agents",
      "Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift",
-     "        if identity != cursor.identity || size < cursor.offset\n"
-     "            || ((size > cursor.offset || sameSizeRewrite) && !cursor.holdsWhatWasRead(descriptor: secured?.handle.fileDescriptor)) {\n",
-     "        if identity != cursor.identity || size < cursor.offset {\n",
+     "            || (size > cursor.offset && !cursor.holdsWhatWasRead(descriptor: secured?.handle.fileDescriptor))\n",
+     "",
      "a log written again in place while the app runs is read again at once"),
     ("agent progress keeps a log that started over", "agents",
      "Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",

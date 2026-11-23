@@ -717,6 +717,7 @@ final class AgentLogCursor {
     var state = AgentLogState()
     /// Matches an open prompt across rewrites in this process. Never archived.
     var cursorPromptFingerprint: UInt64?
+    var cursorPrefix = CursorTranscriptPrefix()
     /// Restored copies share one archived total. Replay to recover each file's own contribution.
     var needsUsageReplay = false
     var modified = Date.distantPast
@@ -766,6 +767,9 @@ final class AgentLogCursor {
         /// Tells the log that was read from one rewritten in place, which
         /// keeps its inode.
         let fingerprint: UInt64
+        /// Cursor's fingerprint covers every committed byte. Its edge sample
+        /// is a shortcut for an unchanged file with no outstanding checks.
+        let cursorSample: UInt64?
     }
 
     /// The fingerprint taken right after reading, so saved progress
@@ -774,7 +778,7 @@ final class AgentLogCursor {
 
     /// Where a resumed read picks up: the start of a line still being
     /// written, or past a line too long to keep.
-    private var boundary: UInt64 { discarding ? offset : offset - UInt64(pending.count) }
+    fileprivate var boundary: UInt64 { discarding ? offset : offset - UInt64(pending.count) }
 
     /// Reads the log again from its start.
     func startOver(identity: UInt64) {
@@ -785,6 +789,7 @@ final class AgentLogCursor {
         discarding = false
         state = AgentLogState()
         cursorPromptFingerprint = nil
+        cursorPrefix = CursorTranscriptPrefix()
         if provider == .cursor { CursorReader.adopt(path: path, into: &state) }
         fingerprinted = nil
         codexParentSearch = -1
@@ -820,30 +825,37 @@ final class AgentLogCursor {
 
     var saved: Saved {
         let end = boundary
-        let fingerprint: UInt64
+        let sample: UInt64
         if let taken = fingerprinted, taken.offset == end, taken.identity == identity {
-            fingerprint = taken.value
+            sample = taken.value
         } else {
-            fingerprint = self.fingerprint(upTo: end) ?? 0
-            fingerprinted = (end, identity, fingerprint)
+            sample = self.fingerprint(upTo: end) ?? 0
+            fingerprinted = (end, identity, sample)
         }
         return Saved(path: path, provider: provider, offset: end, identity: identity, discarding: discarding,
-                     modified: modified, state: state, fingerprint: fingerprint)
+                     modified: modified, state: state, fingerprint: provider == .cursor ? cursorPrefix.boundaryChecksum : sample,
+                     cursorSample: provider == .cursor && !cursorPrefix.needsVerification ? sample : nil)
     }
 
     /// Nil when the path no longer holds the log that was read up to the
     /// saved offset: replaced by another file, or cut short and written
     /// again in place.
-    convenience init?(saved: Saved, cursorRoot: URL? = nil) {
+    convenience init?(saved: Saved, cursorRoot: URL? = nil, shouldContinue: () -> Bool = { true }) {
+        let sample: UInt64
         if saved.provider == .cursor {
             guard let cursorRoot, let file = CursorTranscriptAccess(root: cursorRoot).openFile(at: saved.path),
                   UInt64(file.info.st_ino) == saved.identity,
-                  file.fingerprint(upTo: saved.offset) == saved.fingerprint
-            else { return nil }
+                  let edges = file.fingerprint(upTo: saved.offset) else { return nil }
+            let unchanged = UInt64(max(0, file.info.st_size)) == saved.offset
+                && Self.modificationDate(file.info) == saved.modified && saved.cursorSample == edges
+            guard unchanged || CursorTranscriptPrefix.matches(file, upTo: saved.offset, checksum: saved.fingerprint,
+                                                              shouldContinue: shouldContinue) == true else { return nil }
+            sample = edges
         } else {
             var info = stat()
             guard stat(saved.path, &info) == 0, UInt64(info.st_ino) == saved.identity,
                   AgentLogReader.fingerprint(saved.path, upTo: saved.offset) == saved.fingerprint else { return nil }
+            sample = saved.fingerprint
         }
         self.init(path: saved.path, provider: saved.provider, cursorRoot: cursorRoot)
         offset = saved.offset
@@ -851,7 +863,8 @@ final class AgentLogCursor {
         discarding = saved.discarding
         modified = saved.modified
         state = saved.state
-        fingerprinted = (saved.offset, saved.identity, saved.fingerprint)
+        fingerprinted = (saved.offset, saved.identity, sample)
+        if provider == .cursor { cursorPrefix = CursorTranscriptPrefix(restoring: saved.fingerprint) }
     }
 
     /// Claude Code keeps a session's subagents in `<session>/subagents/`,
@@ -898,13 +911,16 @@ enum AgentLogReader {
                         modified: cursor.modified, now: now).forEach(report)
         }
         readRegularFile(cursor, secured: file, shouldContinue: shouldContinue, onRestart: {
-            replay = true
-            if cursor.offset > 0 { changed = store.forgetUsage(files: [cursor.path]) }
             // After a cache restore there is no in-memory prompt fingerprint.
             // An atomic replacement may still contain the saved file prefix.
             if previous.turnOpen && previousPrompt == nil && cursor.offset > 0 {
-                preservedPrefix = cursor.holdsWhatWasRead(descriptor: file.handle.fileDescriptor)
+                guard let matches = CursorTranscriptPrefix.matches(file, upTo: cursor.boundary, checksum: cursor.cursorPrefix.boundaryChecksum,
+                                                                   shouldContinue: shouldContinue) else { return false }
+                preservedPrefix = matches
             }
+            replay = true
+            if cursor.offset > 0 { changed = store.forgetUsage(files: [cursor.path]) }
+            return true
         }) { line in
             let moment = min(cursor.modified, now)
             let promptCount = cursor.state.cursorPromptCount
@@ -1076,7 +1092,7 @@ enum AgentLogReader {
     }
 
     private static func readRegularFile(_ cursor: AgentLogCursor, secured: CursorTranscriptAccess.File?,
-                                        shouldContinue: () -> Bool, onRestart: () -> Void = {},
+                                        shouldContinue: () -> Bool, onRestart: () -> Bool = { true },
                                         including: ((Data, Range<Int>) -> Bool)? = nil, line: (Data) -> Void) {
         var info = stat()
         if let secured {
@@ -1086,16 +1102,21 @@ enum AgentLogReader {
         }
         let size = UInt64(max(0, info.st_size))
         let identity = UInt64(info.st_ino)
-        let previousModification = cursor.modified
-        cursor.modified = AgentLogCursor.modificationDate(info)
-        let sameSizeRewrite = cursor.provider == .cursor && size == cursor.offset && cursor.modified != previousModification
+        let modified = AgentLogCursor.modificationDate(info)
+        let sameSizeRewrite = cursor.provider == .cursor && size == cursor.offset && cursor.modified != modified
+        func cursorPrefixChanged() -> Bool {
+            guard let secured else { return false }
+            return !cursor.cursorPrefix.matches(secured, offset: cursor.offset, grew: size > cursor.offset)
+        }
         // A same-length edit can change counters in the unsampled middle.
         if cursor.needsUsageReplay || identity != cursor.identity || size < cursor.offset || sameSizeRewrite
-            || (size > cursor.offset && !cursor.holdsWhatWasRead(descriptor: secured?.handle.fileDescriptor)) {
-            onRestart()
+            || (size > cursor.offset && !cursor.holdsWhatWasRead(descriptor: secured?.handle.fileDescriptor))
+            || cursorPrefixChanged() {
+            guard onRestart() else { return }
             cursor.needsUsageReplay = false
             cursor.startOver(identity: identity)
         }
+        cursor.modified = modified
         defer { cursor.fingerprintRead(descriptor: secured?.handle.fileDescriptor) }
         guard size > cursor.offset, let handle = secured?.handle ?? FileHandle(forReadingAtPath: cursor.path) else { return }
         defer { if secured == nil { try? handle.close() } }
@@ -1108,6 +1129,7 @@ enum AgentLogReader {
                 guard let chunk = try? handle.read(upToCount: wanted), !chunk.isEmpty else { return false }
                 cursor.offset += UInt64(chunk.count)
                 split(chunk, cursor: cursor, including: including, line: line)
+                if secured != nil { cursor.cursorPrefix.append(chunk, pending: cursor.pending.count) }
                 return true
             }
             guard read else { break }

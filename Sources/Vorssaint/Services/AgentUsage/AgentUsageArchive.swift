@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 5
+    private static let format = 6
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -71,15 +71,26 @@ enum AgentUsageArchive {
     /// read, not the log, so the latest reading stays: a fresh read would
     /// fall back to an older one. `unchanged` tells whether the result is
     /// still what was saved.
-    static func resume(_ contents: Contents, logs found: Set<String>, since horizon: Date, cursorRoot: URL? = nil)
-        -> (store: AgentUsageStore, cursors: [String: AgentLogCursor], unchanged: Bool) {
-        let store = AgentUsageStore(saved: contents.store)
+    typealias Resumed = (store: AgentUsageStore, cursors: [String: AgentLogCursor], unchanged: Bool)
+
+    static func resume(_ contents: Contents, logs found: Set<String>, since horizon: Date, cursorRoot: URL? = nil) -> Resumed {
+        // Only cancellation can interrupt a restore.
+        resume(contents, logs: found, since: horizon, cursorRoot: cursorRoot, shouldContinue: { true })!
+    }
+
+    static func resume(_ contents: Contents, logs found: Set<String>, since horizon: Date, cursorRoot: URL?,
+                       shouldContinue: () -> Bool) -> Resumed? {
         var cursors: [String: AgentLogCursor] = [:]
         let root = cursorRoot.map { AgentLogRoot(provider: .cursor, url: $0) }
-        for saved in contents.cursors where found.contains(saved.path) {
-            guard (saved.provider == .cursor) == (root?.accepts(saved.path) == true) else { continue }
-            cursors[saved.path] = AgentLogCursor(saved: saved, cursorRoot: cursorRoot)
+        var verifiedPending = false
+        for saved in contents.cursors {
+            guard shouldContinue() else { return nil }
+            guard found.contains(saved.path), (saved.provider == .cursor) == (root?.accepts(saved.path) == true) else { continue }
+            cursors[saved.path] = AgentLogCursor(saved: saved, cursorRoot: cursorRoot, shouldContinue: shouldContinue)
+            if saved.provider == .cursor && saved.cursorSample == nil { verifiedPending = true }
         }
+        guard shouldContinue() else { return nil }
+        let store = AgentUsageStore(saved: contents.store)
         // The archive holds one selected reading for copies of a Cursor reply.
         // On replay verified open turns still get the reader's prefix check.
         let sharedTranscripts = Set(contents.store.records.lazy
@@ -98,7 +109,7 @@ enum AgentUsageArchive {
         // Prices may be newer than the ones the counts were saved with.
         store.reprice()
         store.dropRecords(before: horizon)
-        return (store, cursors, shared.isEmpty && cursors.count == contents.cursors.count && store.saved == contents.store)
+        return (store, cursors, !verifiedPending && shared.isEmpty && cursors.count == contents.cursors.count && store.saved == contents.store)
     }
 
     static func remove() {
@@ -148,6 +159,7 @@ enum AgentUsageArchive {
             body.date(cursor.modified)
             body.state(cursor.state, provider: cursor.provider)
             body.unsigned(cursor.fingerprint)
+            if cursor.provider == .cursor { body.optional(cursor.cursorSample) { $0.unsigned($1) } }
         }
         var data = Data(magic)
         var header = Writer()
@@ -221,7 +233,8 @@ enum AgentUsageArchive {
                                                     offset: offset, identity: try reader.unsigned(),
                                                     discarding: try reader.bool(), modified: try reader.date(),
                                                     state: try reader.state(provider: provider, offset: offset),
-                                                    fingerprint: try reader.unsigned()))
+                                                    fingerprint: try reader.unsigned(),
+                                                    cursorSample: provider == .cursor ? try reader.optional { try $0.unsigned() } : nil))
             }
             guard reader.atEnd else { return nil }
             return Contents(providers: providers, store: store, cursors: cursors)

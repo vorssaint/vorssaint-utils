@@ -3005,6 +3005,8 @@ def main():
 
     write("AgentUsageRead.swift", "import Foundation\n"
           + "extension AgentUsageReadTests {\nfinal class Host: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",
+                        "    private var progressMark:").replace("private var", "var", 1)
           + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
                     .replace("private func", "func", 1)
                     .replace("func read(", "@discardableResult func read(", 1)
