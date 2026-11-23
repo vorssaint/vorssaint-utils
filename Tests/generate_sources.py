@@ -549,10 +549,10 @@ def main():
           + "}\n")
     write("ScreenshotAttachedCapture.swift", "import AppKit\nimport ScreenCaptureKit\n"
           + "extension ScreenshotAttachedCaptureTests {\nenum Engine {\n"
-          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift",
-                        "    private static func composeAttached(").replace("private static", "static", 1)
-          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift",
-                        "    static func captureIndependentWindow(")
+          + "".join(declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift", prefix)
+                    .replace("private static", "static", 1)
+                    for prefix in ["    private static func captureAttached(", "    private static func alphaCoverage(",
+                                   "    private static func composeAttached(", "    static func captureIndependentWindow("])
           + "}\n}\n")
     write("ScratchpadExport.swift", "import AppKit\nimport Foundation\n"
           + "extension ScratchpadExportContract {\nfinal class Service: Fixture {\n"
