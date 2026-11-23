@@ -921,7 +921,7 @@ private struct NotchAgentActivityCard: View {
 
 // MARK: Kilo Code
 
-/// Kilo Code's sessions, tokens and API value for the chosen period, from
+/// Kilo Code's sessions, tokens, prompts and recency for the chosen period, from
 /// its own database. Kilo keeps a session's totals on the session, so a
 /// session still open when the period began counts whole.
 private struct NotchAgentKiloCard: View {
@@ -929,14 +929,28 @@ private struct NotchAgentKiloCard: View {
     let now: Date
     let text: NotchAgentStrings
     @ObservedObject private var kilo = AgentKiloService.shared
+    @ObservedObject private var l10n = L10n.shared
     @Environment(\.locale) private var locale
+    private var labels: KiloCardStrings { KiloCardStrings.localized(l10n.language) }
 
     static let tint = Color(red: 0.98, green: 0.84, blue: 0.22)
+    /// Kilo writes to its database as it works, so a change this recent means it is running.
+    static let activeWindow: TimeInterval = 120
+
+    private var active: Bool {
+        guard let last = kilo.summary?.lastUsed else { return false }
+        return now.timeIntervalSince(last) < Self.activeWindow
+    }
 
     var body: some View {
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 5) {
                 NotchAgentCardHeader(title: text.kiloCard, symbol: NotchAgentCard.kilo.symbol, tint: Self.tint) {
+                    if active {
+                        Circle().fill(.green).frame(width: 6, height: 6)
+                            .shadow(color: .green.opacity(0.7), radius: 3)
+                            .help(labels.activeNow)
+                    }
                     if let summary = kilo.summary, summary.sessions > 0 {
                         NotchAgentChip(text: summary.sessions.formatted(.number.locale(locale)), tint: Self.tint)
                             .help(text.kiloSessions)
@@ -962,22 +976,35 @@ private struct NotchAgentKiloCard: View {
                 if !summary.signedIn { line(text.kiloSignedOut, symbol: "person.crop.circle.badge.exclamationmark") }
             } else {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(AgentFormat.cost(summary.cost))
+                    Text(AgentFormat.tokens(summary.tokens, locale: locale))
                         .font(.system(size: 20, weight: .medium, design: .rounded))
                         .monospacedDigit()
                         .contentTransition(.numericText())
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
-                    Text(text.apiValue)
+                    Text(labels.tokens)
                         .font(.system(size: 9.5))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                     Spacer(minLength: 0)
+                    if let share = summary.cacheShare {
+                        Text("\(AgentFormat.percent(share, locale: locale)) \(labels.cache)")
+                            .font(.system(size: 9.5, weight: .medium)).monospacedDigit()
+                            .foregroundStyle(Self.tint.opacity(0.9))
+                            .lineLimit(1)
+                    }
                 }
-                .help(text.valueNote)
-                line(text.tokens(AgentFormat.tokens(summary.tokens, locale: locale)))
-                if let model = summary.model {
-                    line(model, symbol: NotchAgentCard.models.symbol)
+                figures([(labels.input, AgentFormat.tokens(summary.input, locale: locale)),
+                         (labels.output, AgentFormat.tokens(summary.output, locale: locale))])
+                figures([(labels.prompts, summary.prompts.formatted(.number.locale(locale))),
+                         (labels.steps, summary.steps.formatted(.number.locale(locale)))]
+                        + (summary.linesAdded + summary.linesRemoved > 0
+                           ? [("", "+\(summary.linesAdded) −\(summary.linesRemoved)")] : []))
+                if active {
+                    line(labels.activeNow, symbol: "bolt.fill")
+                } else if let last = summary.lastUsed {
+                    line(labels.used(last.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)
+                                                        .locale(locale))), symbol: "clock")
                 } else if !summary.signedIn {
                     line(text.kiloSignedOut, symbol: "person.crop.circle.badge.exclamationmark")
                 }
@@ -992,6 +1019,22 @@ private struct NotchAgentKiloCard: View {
         }
         .font(.system(size: 10))
         .foregroundStyle(.secondary)
+    }
+
+    /// Label–figure pairs on one line, as Claude's card shows its In and Out.
+    private func figures(_ pairs: [(String, String)]) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    if !pair.0.isEmpty { Text(pair.0).foregroundStyle(.secondary) }
+                    Text(pair.1).monospacedDigit().contentTransition(.numericText())
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 10))
+        .lineLimit(1)
+        .minimumScaleFactor(0.85)
     }
 }
 

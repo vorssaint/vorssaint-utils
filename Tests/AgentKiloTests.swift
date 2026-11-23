@@ -43,14 +43,30 @@ enum AgentKiloTests {
         let read = AgentKiloReader.read(home: home, since: since)
         suite.expect(read.installed && !read.signedIn && read.sessions == 2,
                      "top-level sessions of the period count; a subagent's session and older ones do not")
-        suite.expect(abs(read.cost - 2.0) < 0.000_001 && read.tokens == 100 + 50 + 10 + 30 + 10 + 25 + 20,
-                     "cost and tokens add every session of the period, subagents' included")
+        suite.expect(read.tokens == 100 + 50 + 10 + 30 + 10 + 25 + 20
+                        && read.input == 130 && read.output == 75 && read.cacheRead == 30,
+                     "tokens add every session of the period, subagents' included, split into in, out and cache")
+        suite.expect(read.cacheShare.map { abs($0 - 30.0 / 160.0) < 0.000_001 } == true
+                        && AgentKiloSummary().cacheShare == nil,
+                     "the cache share is cached input over all input, and absent with none")
+        suite.expect(read.prompts == 0 && read.steps == 0 && read.linesAdded == 0,
+                     "a Kilo without messages or line counts reads none, without failing")
         suite.expect(read.model == "gpt-6" && read.lastUsed == Date(timeIntervalSince1970: since.timeIntervalSince1970 + 300),
                      "the most recent session names the model, whichever way Kilo stored it")
 
         sqlite3_open(AgentKiloReader.database(home: home).path, &db)
-        sqlite3_exec(db, "INSERT INTO account_state VALUES (1, 'acct', NULL)", nil, nil, nil)
+        sqlite3_exec(db, """
+            INSERT INTO account_state VALUES (1, 'acct', NULL);
+            CREATE TABLE message (id text PRIMARY KEY, session_id text, time_created integer, data text);
+            INSERT INTO message VALUES ('m1', 'a', \(ms(61)), '{"role":"user"}');
+            INSERT INTO message VALUES ('m2', 'a', \(ms(62)), '{"role":"assistant"}');
+            INSERT INTO message VALUES ('m3', 'a', \(ms(63)), '{"role":"assistant"}');
+            INSERT INTO message VALUES ('m0', 'old', \(ms(-90_000)), '{"role":"user"}');
+            """, nil, nil, nil)
         sqlite3_close(db)
+        let counted = AgentKiloReader.read(home: home, since: since)
+        suite.expect(counted.prompts == 1 && counted.steps == 2,
+                     "prompts and steps count messages of the period by role alone")
         suite.expect(AgentKiloReader.read(home: home, since: since).signedIn,
                      "an active Kilo account reads as signed in without its tokens being read")
         suite.expect(AgentKiloReader.read(home: home, since: since.addingTimeInterval(10_000)).sessions == 0,

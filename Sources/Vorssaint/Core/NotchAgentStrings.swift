@@ -298,7 +298,7 @@ extension NotchAgentStrings {
         kiloNotInstalled: "Kilo Code isn’t installed",
         kiloEmpty: "No Kilo Code sessions in this period",
         kiloSignedOut: "Not signed in to Kilo",
-        kiloHelp: "Kilo Code’s sessions, tokens and API value for the period, read from its own database on this Mac. Prompts, replies and sign-in details are never read.")
+        kiloHelp: "Kilo Code’s sessions, tokens, prompts and steps for the period, read from its own database on this Mac. The text of prompts and replies, and sign-in details, are never read.")
 
     static let uk = NotchAgentStrings(
         title: "ШІ-агенти",

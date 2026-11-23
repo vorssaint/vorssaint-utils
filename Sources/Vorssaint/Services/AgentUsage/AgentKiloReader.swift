@@ -14,8 +14,21 @@ struct AgentKiloSummary: Equatable {
     /// Top-level sessions that were active in the period; subagents' own
     /// sessions add their cost and tokens but are not counted again.
     var sessions = 0
-    var cost = 0.0
     var tokens = 0
+    var input = 0
+    var output = 0
+    var cacheRead = 0
+    /// Messages sent, and the agent's replies and tool steps, in the period.
+    var prompts = 0
+    var steps = 0
+    var linesAdded = 0
+    var linesRemoved = 0
+
+    /// The share of input served from cache, 0 to 1; nil before anything was read.
+    var cacheShare: Double? {
+        let read = input + cacheRead
+        return read > 0 ? Double(cacheRead) / Double(read) : nil
+    }
     /// The model of the session used most recently in the period.
     var model: String?
     var lastUsed: Date?
@@ -73,9 +86,9 @@ enum AgentKiloReader {
         // Kilo stores times in milliseconds.
         let from = Int64((since.timeIntervalSince1970 * 1000).rounded(.down))
         let totals = """
-            SELECT count(CASE WHEN parent_id IS NULL THEN 1 END), total(cost),
+            SELECT count(CASE WHEN parent_id IS NULL THEN 1 END),
                    total(tokens_input + tokens_output + tokens_reasoning + tokens_cache_read + tokens_cache_write),
-                   max(time_updated)
+                   max(time_updated), total(tokens_input), total(tokens_output + tokens_reasoning), total(tokens_cache_read)
             FROM session WHERE time_updated >= ?
             """
         var stmt: OpaquePointer?
@@ -83,12 +96,13 @@ enum AgentKiloReader {
             sqlite3_bind_int64(stmt, 1, from)
             if sqlite3_step(stmt) == SQLITE_ROW {
                 summary.sessions = Int(sqlite3_column_int64(stmt, 0))
-                let cost = sqlite3_column_double(stmt, 1)
-                summary.cost = cost.isFinite && cost > 0 ? cost : 0
-                summary.tokens = max(0, Int(sqlite3_column_double(stmt, 2)))
-                if sqlite3_column_type(stmt, 3) != SQLITE_NULL {
-                    summary.lastUsed = Date(timeIntervalSince1970: TimeInterval(sqlite3_column_int64(stmt, 3)) / 1000)
+                summary.tokens = count(stmt, 1)
+                if sqlite3_column_type(stmt, 2) != SQLITE_NULL {
+                    summary.lastUsed = Date(timeIntervalSince1970: TimeInterval(sqlite3_column_int64(stmt, 2)) / 1000)
                 }
+                summary.input = count(stmt, 3)
+                summary.output = count(stmt, 4)
+                summary.cacheRead = count(stmt, 5)
             }
         }
         sqlite3_finalize(stmt)
@@ -102,7 +116,42 @@ enum AgentKiloReader {
             }
         }
         sqlite3_finalize(stmt)
+
+        // Lines changed, where this Kilo records them on the session.
+        stmt = nil
+        let lines = "SELECT total(summary_additions), total(summary_deletions) FROM session WHERE time_updated >= ?"
+        if sqlite3_prepare_v2(db, lines, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_int64(stmt, 1, from)
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                summary.linesAdded = count(stmt, 0)
+                summary.linesRemoved = count(stmt, 1)
+            }
+        }
+        sqlite3_finalize(stmt)
+
+        // Only each message's role is read, never its text.
+        if table("message", in: db) {
+            stmt = nil
+            let roles = """
+                SELECT count(CASE WHEN json_extract(data, '$.role') = 'user' THEN 1 END),
+                       count(CASE WHEN json_extract(data, '$.role') = 'assistant' THEN 1 END)
+                FROM message WHERE time_created >= ?
+                """
+            if sqlite3_prepare_v2(db, roles, -1, &stmt, nil) == SQLITE_OK {
+                sqlite3_bind_int64(stmt, 1, from)
+                if sqlite3_step(stmt) == SQLITE_ROW {
+                    summary.prompts = count(stmt, 0)
+                    summary.steps = count(stmt, 1)
+                }
+            }
+            sqlite3_finalize(stmt)
+        }
         return summary
+    }
+
+    private static func count(_ stmt: OpaquePointer?, _ column: Int32) -> Int {
+        let value = sqlite3_column_double(stmt, column)
+        return value.isFinite && value > 0 ? Int(value) : 0
     }
 
     /// Kilo records a model as JSON (`{"providerID":…,"modelID":…}`) or as

@@ -91,6 +91,7 @@ enum LocalizationTests {
                 ("snapLayouts", { WindowSnapLayoutsStrings.localized($0) }),
                 ("musicRecognition", { MusicRecognitionStrings.localized($0) }),
                 ("notificationReply", { NotificationReplyStrings.localized($0) }),
+                ("kiloCard", { KiloCardStrings.localized($0) }),
                 ("pointerDisplay", { PointerDisplayStrings.localized($0) }),
                 ("graphScale", { GraphScaleStrings.localized($0) }),
                 ("notchLowBattery", { NotchLowBatteryStrings.localized($0) }),

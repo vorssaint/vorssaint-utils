@@ -588,6 +588,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/WindowSnapLayoutsStrings.swift
         Sources/Vorssaint/Core/MusicRecognitionStrings.swift
         Sources/Vorssaint/Core/NotificationReplyStrings.swift
+        Sources/Vorssaint/Core/KiloCardStrings.swift
         Sources/Vorssaint/Services/MusicRecognition/MusicRecognitionLinks.swift
         Sources/Vorssaint/Services/MusicRecognition/ShazamSignature.swift
         Sources/Vorssaint/Services/MusicRecognition/MusicRecognitionScoring.swift
