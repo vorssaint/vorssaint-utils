@@ -385,6 +385,13 @@ enum SettingsFeatureTests {
                "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability, never a session's all-apps output")
         suite.expect(backupKeys.contains(DefaultsKey.launchAtLoginWanted),
                "the launch at login choice travels with the settings backup")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.showInAppSwitcher] as? Bool == true
+                && backupKeys.contains(DefaultsKey.showInAppSwitcher),
+               "the app keeps its Dock icon and Command Tab place by default, and the choice is backed up")
+        suite.expect(WindowActivationDecision.wantsRegular(retainedWindows: 1, showsInAppSwitcher: true)
+                && !WindowActivationDecision.wantsRegular(retainedWindows: 2, showsInAppSwitcher: false)
+                && !WindowActivationDecision.wantsRegular(retainedWindows: 0, showsInAppSwitcher: true),
+               "an open window brings the app into Command Tab only while the user allows it")
         let islandKeys: Set<String> = [
             DefaultsKey.notchEnabled,
             DefaultsKey.notchShowPlayingMusic,

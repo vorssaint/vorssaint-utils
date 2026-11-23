@@ -46,6 +46,7 @@ enum DefaultsKey {
     static let keepAwakeMouseJiggleInterval = "keepAwakeMouseJiggleIntervalMinutes"
     static let hotkeyEnabled = "hotkeyEnabled"
     static let launchAtLoginWanted = "launchAtLoginWanted"  // the user's choice; the system record can be lost
+    static let showInAppSwitcher = "showInAppSwitcherWhileWindowsOpen" // Dock icon and Command Tab while a window is open
     static let keepAwakeShortcut = "keepAwakeShortcut"    // GlobalShortcut storage value
     static let keepAwakeIconTint = "keepAwakeIconTint"    // KeepAwakeIconTint.rawValue
     static let keepAwakeActiveIcon = "keepAwakeActiveIcon" // KeepAwakeActiveIcon.rawValue
@@ -1270,6 +1271,7 @@ enum Defaults {
         DefaultsKey.keepAwakeMouseJiggleInterval: 5,
         DefaultsKey.hotkeyEnabled: true,
         DefaultsKey.launchAtLoginWanted: false,
+        DefaultsKey.showInAppSwitcher: true,
         DefaultsKey.keepAwakeShortcut: "control+option+command:40",
         DefaultsKey.keepAwakeIconTint: KeepAwakeIconTint.orange.rawValue,
         DefaultsKey.keepAwakeActiveIcon: KeepAwakeActiveIcon.vorssaint.rawValue,
