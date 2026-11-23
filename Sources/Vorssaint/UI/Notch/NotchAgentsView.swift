@@ -941,18 +941,28 @@ private struct NotchAgentToolCallsCard: View {
         let peak = AgentToolKind.allCases.map { kind in
             columns.reduce(0) { $0 + (counts[$1]?[kind] ?? 0) }
         }.max() ?? 0
-        return Grid(alignment: .trailing, horizontalSpacing: 10, verticalSpacing: 3) {
-            GridRow {
-                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
-                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
-                ForEach(columns, content: legend)
+        return GeometryReader { proxy in
+            let categoryWidth = min(124, proxy.size.width * 0.28)
+            let providerWidth = min(60, max(44, proxy.size.width * 0.12))
+            rows(columns, peak: max(1, peak), categoryWidth: categoryWidth, providerWidth: providerWidth)
+        }
+        .monospacedDigit()
+    }
+
+    private func rows(_ columns: [AgentProvider], peak: Int, categoryWidth: CGFloat,
+                      providerWidth: CGFloat) -> some View {
+        VStack(spacing: 3) {
+            HStack(spacing: 10) {
+                Spacer(minLength: 0)
+                ForEach(columns) { provider in
+                    legend(provider).frame(width: providerWidth, alignment: .trailing)
+                }
             }
             .accessibilityHidden(true)
             ForEach(AgentToolKind.allCases, id: \.self) { kind in
-                row(kind, columns: columns, peak: max(1, peak))
+                row(kind, columns: columns, peak: peak, categoryWidth: categoryWidth, providerWidth: providerWidth)
             }
         }
-        .monospacedDigit()
     }
 
     private func legend(_ provider: AgentProvider) -> some View {
@@ -962,15 +972,22 @@ private struct NotchAgentToolCallsCard: View {
         }
     }
 
-    private func row(_ kind: AgentToolKind, columns: [AgentProvider], peak: Int) -> some View {
-        GridRow {
-            Text(text.toolNames[kind.rawValue])
-                .gridColumnAlignment(.leading)
+    private func row(_ kind: AgentToolKind, columns: [AgentProvider], peak: Int, categoryWidth: CGFloat,
+                     providerWidth: CGFloat) -> some View {
+        let category = text.toolNames[kind.rawValue]
+        return HStack(spacing: 10) {
+            Text(category)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .help(text.toolNames[kind.rawValue])
+                .minimumScaleFactor(0.85)
+                .frame(width: categoryWidth, alignment: .leading)
+                .help(category)
             bar(kind, columns: columns, peak: peak)
-            ForEach(columns) { provider in count(for: provider, kind: kind) }
+                .frame(maxWidth: .infinity)
+            ForEach(columns) { provider in
+                count(for: provider, kind: kind)
+                    .frame(width: providerWidth, alignment: .trailing)
+            }
         }
     }
 
@@ -1000,6 +1017,8 @@ private struct NotchAgentToolCallsCard: View {
     private func count(for provider: AgentProvider, kind: AgentToolKind) -> some View {
         let value = counts[provider].map { ($0[kind] ?? 0).formatted(.number.locale(locale)) } ?? "–"
         return Text(value)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
             .accessibilityLabel(provider.displayName + ", " + text.toolNames[kind.rawValue])
             .accessibilityValue(value)
     }
