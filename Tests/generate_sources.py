@@ -1469,6 +1469,7 @@ def main():
     write("OverlayPanelDeclaration.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/UI/OverlayPanel.swift", "class OverlayPanel:"))
     shelf = "Sources/Vorssaint/Services/Shelf/ShelfService.swift"
+    shelf_tiles = "Sources/Vorssaint/UI/Shelf/ShelfTilesView.swift"
     write("ShelfDragCompletion.swift", "import AppKit\n\nextension ShelfDragCompletionContract {\n"
           + "final class Service {\nstatic var shared = Service()\n"
           + declaration(shelf, "    struct Item:")
@@ -1481,6 +1482,9 @@ def main():
           + "var removed: [UUID] = []\nvar protectedIDs: Set<UUID> = []\n"
           + "var floatingClosures = 0\nvar dockedClosures = 0\n"
           + "func beginInteraction() {}\nfunc endInteraction() {}\n"
+          + "func toggleBatchExpansion(_ id: UUID) { preconditionFailure() }\n"
+          + "func extendSelection(to id: UUID) { preconditionFailure() }\n"
+          + "func toggleSelection(_ id: UUID) { preconditionFailure() }\n"
           + "func removeItems(_ ids: [UUID]) { removed += ids }\n"
           + "var replacements: [Item] = []\nfunc replaceItem(_ item: Item) { replacements.append(item) }\n"
           + "func hide() { floatingClosures += 1; isVisible = false }\n"
@@ -1498,12 +1502,25 @@ def main():
           + declaration(shelf, "    func internalDragMoved(")
           + declaration(shelf, "    func finishInternalDrag(")
           + declaration(shelf, "    func completeInternalDrag(")
+          + "}\nenum ShelfTilesView {\n"
+          + "static let tileSize = NSSize(width: 78, height: 88), spacing: CGFloat = 10, inset: CGFloat = 4\n"
+          + "final class FlippedView: NSView { var sideways = false }\n"
+          + declaration(shelf_tiles, "    final class Coordinator")
+          + declaration(shelf_tiles, "    private static func revealIfNeeded(")
+          + declaration(shelf_tiles, "    static func rebuildTiles(")
           + "}\nfinal class Tile: TileState {\n"
-          + declaration("Sources/Vorssaint/UI/Shelf/ShelfTilesView.swift", "    private func cancelDragPreparation(")
+          + declaration(shelf_tiles, "    fileprivate func updateContent(")
+          + declaration(shelf_tiles, "    override func mouseDragged(").replace("override func", "func", 1)
+          + declaration(shelf_tiles, "    override func mouseUp(").replace("override func", "func", 1)
+          + declaration(shelf_tiles, "    private func cancelDragPreparation(")
               .replace("private func", "func", 1)
-          + declaration("Sources/Vorssaint/UI/Shelf/ShelfTilesView.swift", "    private func beginItemDrag(")
+          + declaration(shelf_tiles, "    private func beginItemDrag(")
               .replace("private func", "func", 1)
-          + "}\n}\n")
+          + "}\n}\nextension ShelfDragCompletionContract.TileState {\n"
+          + declaration(shelf_tiles, "    private func buildSubviews(").replace("private func", "func", 1)
+          + declaration(shelf_tiles, "    private func updateIcon(").replace("private func", "func", 1)
+          + declaration(shelf_tiles, "    private func addStackBackplates(")
+          + "}\n")
     notch = "Sources/Vorssaint/Services/Notch/NotchService.swift"
     write("NotchFullscreen.swift", "import CoreGraphics\nimport Foundation\nextension NotchFullscreenTests {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", "    struct Topology {")
