@@ -69,9 +69,12 @@ final class MicMuteService: ObservableObject {
     private let callbackLock = NSLock()
     private var callbackQueued = false
     private var topologyRevision: UInt64 = 0
+    private var callbackBindings: [UnsafeMutableRawPointer: DeviceListener] = [:]
+    private var confirmedControlClients: Set<UnsafeMutableRawPointer> = []
+    private typealias ControlNotices = [DeviceListener: UnsafeMutableRawPointer]
     private struct InputNotices {
         var topology: Set<AudioObjectID> = []
-        var controls: Set<DeviceListener> = []
+        var controls: ControlNotices = [:]
     }
     private var pendingNotices = InputNotices()
     private var listObservationGeneration: UInt64?
@@ -105,35 +108,37 @@ final class MicMuteService: ObservableObject {
     /// makes stopping work.
     private static let listenerCallback: AudioObjectPropertyListenerProc = { object, count, addresses, client in
         guard let client else { return noErr }
-        let service = Unmanaged<MicMuteService>.fromOpaque(client).takeUnretainedValue()
+        // A retired token may still arrive. It can request enforcement of the
+        // current intent, but it cannot supply a gain, topology or reset event.
+        let service = AudioListenerClients.owner(of: client) as? MicMuteService ?? MicMuteService.shared
         let changed = UnsafeBufferPointer(start: addresses, count: Int(count))
-        if object == AudioObjectID(kAudioObjectSystemObject),
-           changed.contains(where: { $0.mSelector == kAudioHardwarePropertyServiceRestarted }) {
-            // Invalidate the old connection before a queued sweep can interpret
-            // a control opened by the reset as an unmute from a call.
-            service.callbackLock.withLock {
+        let restarted = service.callbackLock.withLock {
+            guard let binding = service.callbackBindings[client], binding.device == object else { return false }
+            let system = object == AudioObjectID(kAudioObjectSystemObject)
+            if system && changed.contains(where: { $0.mSelector == kAudioHardwarePropertyServiceRestarted }) {
                 service.audioGeneration &+= 1
                 service.lastConfirmedReset = service.audioGeneration
+                service.callbackBindings.removeAll()
+                return true
             }
+            // Any structural change in the batch invalidates the old reading.
+            // Only the subscribed address can affirmatively report an opening.
+            if changed.contains(where: { system ? $0.mSelector == kAudioHardwarePropertyDevices
+                : MicMuteService.inputTopologySelectors.contains($0.mSelector) }) {
+                service.topologyRevision &+= 1
+                service.pendingNotices.topology.insert(object)
+            } else if service.confirmedControlClients.contains(client), changed.contains(where: binding.matches) {
+                service.pendingNotices.controls[binding] = client
+            }
+            return false
+        }
+        if restarted {
             DispatchQueue.main.async {
                 guard service.wantsMute || service.wantsSystemListeners || service.applyInFlight else { return }
                 service.reapplyIfNeeded()
                 service.syncSystemListeners(wanted: service.wantsMute || service.wantsSystemListeners)
             }
         } else {
-            service.callbackLock.withLock {
-                for address in changed {
-                    if (object == AudioObjectID(kAudioObjectSystemObject) && address.mSelector == kAudioHardwarePropertyDevices)
-                        || MicMuteService.inputTopologySelectors.contains(address.mSelector) {
-                        service.topologyRevision &+= 1
-                        service.pendingNotices.topology.insert(object)
-                    } else if address.mScope == kAudioDevicePropertyScopeInput,
-                              MicMuteService.watchedDeviceSelectors.contains(address.mSelector) {
-                        service.pendingNotices.controls.insert(DeviceListener(
-                            device: object, selector: address.mSelector, scope: address.mScope, element: address.mElement))
-                    }
-                }
-            }
             service.scheduleReapply()
         }
         return noErr
@@ -141,7 +146,7 @@ final class MicMuteService: ObservableObject {
 
     private func scheduleReapply() {
         let needsHandoff = callbackLock.withLock {
-            if callbackQueued { return false }
+            if callbackQueued || !wantsSystemListeners { return false }
             callbackQueued = true
             return true
         }
@@ -160,12 +165,6 @@ final class MicMuteService: ObservableObject {
                 self.reapplyIfNeeded()
             }
         }
-    }
-
-    /// Unretained is safe here and only here: this is a single instance that
-    /// lives as long as the app.
-    private var listenerClient: UnsafeMutableRawPointer {
-        Unmanaged.passUnretained(self).toOpaque()
     }
 
     func syncWithPreferences() {
@@ -295,36 +294,73 @@ final class MicMuteService: ObservableObject {
         }
     }
 
-    /// Read the controls once for this reassert. Quiet inputs need no process
-    /// query. If one opens while the remaining inputs are being checked, its
-    /// listener gets the next turn without this sweep writing over the change.
+    /// Reconsider a decision if a confirmed control notified while the HAL
+    /// was reading levels or capture state. Continuous changes must not defer
+    /// enforcement indefinitely. In that case mute from a fresh hardware read.
     private func callAppOpenedInput(in devices: inout [InputDevice], owned: Set<String>,
-                                    notices: Set<DeviceListener>,
+                                    notices: ControlNotices,
                                     readings: inout [InputDevice: InputControls]) -> Bool {
-        func opened(_ device: InputDevice) -> Bool {
-            guard let previous = quietInputs[device], owned.contains(device.uid) else { return false }
+        var evidence = notices
+        let maxReads = 3
+        for attempt in 1...maxReads {
+            readings.removeAll(keepingCapacity: true)
+            let opened = callAppOpenings(in: &devices, owned: owned, notices: evidence, readings: &readings)
+            evidence = callbackLock.withLock {
+                let late = pendingNotices.controls
+                pendingNotices.controls.removeAll()
+                if attempt == maxReads && !late.isEmpty {
+                    // Discard evidence from before the forced mute. Its
+                    // verified readback can arm the controls again.
+                    confirmedControlClients.removeAll()
+                }
+                return late
+            }
+            if evidence.isEmpty { return !opened.isEmpty }
+            // Recheck a proven opening alongside new deliveries. A notice
+            // whose control was quiet cannot lend evidence to a later opening.
+            evidence.merge(opened) { delivered, _ in delivered }
+        }
+        readings.removeAll()
+        return false
+    }
+
+    private func callAppOpenings(in devices: inout [InputDevice], owned: Set<String>, notices: ControlNotices,
+                                 readings: inout [InputDevice: InputControls]) -> ControlNotices {
+        func openings(_ device: InputDevice, from delivered: ControlNotices) -> ControlNotices {
+            guard let previous = quietInputs[device], owned.contains(device.uid) else { return [:] }
             let current = Self.inputControls(device.id, readSwitch: true)
             readings[device] = current
-            guard current.opened(since: previous) else { return false }
-            return notices.contains { listener in
+            guard current.opened(since: previous) else { return [:] }
+            return delivered.filter { listener, client in
                 guard listener.device == device.id, let registration = deviceListeners[listener],
-                      registration.uid == device.uid, registration.lifetime.isCurrent(observationGeneration),
+                      registration.uid == device.uid, registration.lifetime.client == client,
+                      registration.lifetime.isCurrent(observationGeneration), listener.wasClosed(in: previous),
                       let value = Self.controlValue(of: device.id, at: listener.address) else { return false }
                 if listener.selector == kAudioDevicePropertyMute {
-                    return previous.mutedElements?.contains(listener.element) == true && current.muteSwitch == 0 && value == 0
+                    return current.muteSwitch == 0 && value == 0
                 }
-                return previous.silentGains.contains(Self.controlKey(listener.address)) && current.gain == .audible
-                    && value > Double(MicMuteSupport.silenceThreshold)
+                return current.gain == .audible && value > Double(MicMuteSupport.silenceThreshold)
             }
         }
-        let candidates = devices.filter { opened($0) }
-        guard !candidates.isEmpty else { return false }
+        var candidates: [InputDevice: ControlNotices] = [:]
+        for device in devices {
+            let found = openings(device, from: notices)
+            if !found.isEmpty { candidates[device] = found }
+        }
+        guard !candidates.isEmpty else { return [:] }
         let captured = Self.devicesCapturedByOtherProcesses()
         // IDs can be reused while the audio server answers. Both the decision
         // and the subsequent writes must address the devices that are here now.
         devices = Self.inputDevices()
-        let present = Set(devices)
-        return candidates.contains { present.contains($0) && captured.contains($0.id) && opened($0) }
+        var confirmed: ControlNotices = [:]
+        // Revalidate the same controls that opened before the process query.
+        // New deliveries during that query get their own read.
+        for device in devices where captured.contains(device.id) {
+            if let found = candidates[device] {
+                confirmed.merge(openings(device, from: found)) { current, _ in current }
+            }
+        }
+        return confirmed
     }
 
     // MARK: - Applying
@@ -408,9 +444,7 @@ final class MicMuteService: ObservableObject {
             && canFollowCallApps(in: audioGeneration)
         var readings: [InputDevice: InputControls] = [:]
         var follow = false
-        // Old callbacks carry the same client, object and address as the new
-        // registration. Establish silence after renewal before following an opening.
-        if trackControls, let followRequest, !quietInputs.isEmpty, !notices.controls.isEmpty,
+        if trackControls, let followRequest, !quietInputs.isEmpty,
            callAppOpenedInput(in: &devices, owned: Set(mutedDevices ?? []), notices: notices.controls, readings: &readings) {
             // A newer explicit request or disabling the opt-in wins while the HAL is busy.
             follow = defaults.bool(forKey: DefaultsKey.micMuteFollowCallApps)
@@ -630,6 +664,15 @@ final class MicMuteService: ObservableObject {
         let selector: AudioObjectPropertySelector
         let scope: AudioObjectPropertyScope
         let element: AudioObjectPropertyElement
+
+        func matches(_ address: AudioObjectPropertyAddress) -> Bool {
+            selector == address.mSelector && scope == address.mScope && element == address.mElement
+        }
+
+        func wasClosed(in controls: InputControls) -> Bool {
+            if selector == kAudioDevicePropertyMute { return controls.mutedElements?.contains(element) == true }
+            return controls.silentGains.contains(MicMuteService.controlKey(address))
+        }
 
         var address: AudioObjectPropertyAddress {
             AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: element)
@@ -1263,28 +1306,60 @@ final class MicMuteService: ObservableObject {
         }
     }
 
-    /// The server clears earlier registrations on reset. An add that overlaps
-    /// the reset may have landed on either connection; remove it before retrying.
-    private struct ListenerLifetime {
-        let start: UInt64
-        let end: UInt64
+    /// The opaque client names one HAL add, even when the address and server
+    /// generation are reused. Keep its number for removal if the HAL refuses.
+    /// A failed add or a disappearing owner also releases the registry entry.
+    private final class ListenerLifetime {
+        let client: UnsafeMutableRawPointer
+        var start: UInt64
+        var end: UInt64
+        var retiring = false
 
-        func isCurrent(_ generation: UInt64) -> Bool { start == generation && end == generation }
+        init(owner: MicMuteService, generation: UInt64) {
+            client = AudioListenerClients.reserve(for: owner)
+            start = generation
+            end = generation
+        }
+
+        deinit { AudioListenerClients.forget(client) }
+
+        func belongsTo(_ generation: UInt64) -> Bool { start == generation && end == generation }
+        func isCurrent(_ generation: UInt64) -> Bool { !retiring && belongsTo(generation) }
     }
 
     private func addListener(_ object: AudioObjectID, _ address: inout AudioObjectPropertyAddress,
                              generation: UInt64) -> ListenerLifetime? {
-        guard generation == currentAudioGeneration,
-              AudioObjectAddPropertyListener(object, &address, Self.listenerCallback, listenerClient) == noErr
-        else { return nil }
-        return ListenerLifetime(start: generation, end: currentAudioGeneration)
+        let lifetime = ListenerLifetime(owner: self, generation: generation)
+        let binding = DeviceListener(device: object, selector: address.mSelector, scope: address.mScope, element: address.mElement)
+        // A restart may already be delivered from inside the HAL's add.
+        let current = callbackLock.withLock {
+            guard generation == audioGeneration else { return false }
+            callbackBindings[lifetime.client] = binding
+            return true
+        }
+        guard current else { return nil }
+        guard AudioObjectAddPropertyListener(object, &address, Self.listenerCallback, lifetime.client) == noErr else {
+            callbackLock.withLock { callbackBindings[lifetime.client] = nil }
+            return nil
+        }
+        lifetime.end = currentAudioGeneration
+        return lifetime
     }
 
     private func retireListener(_ lifetime: ListenerLifetime, on object: AudioObjectID,
                                 at address: inout AudioObjectPropertyAddress) -> Bool {
-        let resetRemovedIt = callbackLock.withLock { lifetime.end < lastConfirmedReset }
+        lifetime.retiring = true
+        let resetRemovedIt = callbackLock.withLock {
+            if let binding = callbackBindings.removeValue(forKey: lifetime.client),
+               pendingNotices.controls[binding] == lifetime.client {
+                pendingNotices.controls[binding] = nil
+            }
+            confirmedControlClients.remove(lifetime.client)
+            return lifetime.end < lastConfirmedReset
+        }
+        AudioListenerClients.forget(lifetime.client)
         if resetRemovedIt { return true }
-        let status = AudioObjectRemovePropertyListener(object, &address, Self.listenerCallback, listenerClient)
+        let status = AudioObjectRemovePropertyListener(object, &address, Self.listenerCallback, lifetime.client)
         // A transient error can leave the registration live. Keep it tracked
         // until the HAL accepts removal or confirms its object/property is gone.
         return status == noErr || status == kAudioHardwareBadObjectError
@@ -1293,14 +1368,15 @@ final class MicMuteService: ObservableObject {
 
     private func syncSystemListeners(wanted: Bool) {
         let wasWanted = wantsSystemListeners
-        wantsSystemListeners = wanted
+        callbackLock.withLock { wantsSystemListeners = wanted }
         var generation = currentAudioGeneration
         for selector in Self.watchedSelectors {
             syncSystemListener(selector, wanted: wanted, generation: generation)
             if wanted, selector == kAudioHardwarePropertyServiceRestarted,
                let recovered = recoverResetObservation(in: generation) {
                 // This listener is the first one known to exist after the gap.
-                installedListeners[selector] = ListenerLifetime(start: recovered, end: recovered)
+                installedListeners[selector]?.start = recovered
+                installedListeners[selector]?.end = recovered
                 generation = recovered
                 scheduleReapply()
             }
@@ -1407,6 +1483,7 @@ final class MicMuteService: ObservableObject {
     /// listeners in place when the input and its controls stay the same.
     private func syncDeviceListeners(muted: Bool) {
         let generation = currentAudioGeneration
+        defer { confirmQuietControls() }
         // Keep existing registrations on a failed read. A later successful
         // reconciliation and quiet reading must precede any automatic unmute.
         guard let inventory = muted ? Self.inputInventory() : InputInventory() else {
@@ -1490,9 +1567,10 @@ final class MicMuteService: ObservableObject {
         }
         // Keep a listed but unreadable device's current listener until its
         // identity is known and its replacement can be registered.
-        for (listener, registration) in deviceListeners where wanted[listener] != registration.uid
-            || !registration.lifetime.isCurrent(generation)
-            || (listenersToRenew.contains(listener) && !inventory.unresolvedIDs.contains(listener.device)) {
+        for (listener, registration) in deviceListeners {
+            if inventory.unresolvedIDs.contains(listener.device) && registration.lifetime.belongsTo(generation) { continue }
+            guard wanted[listener] != registration.uid || !registration.lifetime.isCurrent(generation)
+                || listenersToRenew.contains(listener) else { continue }
             var address = listener.address
             if retireListener(registration.lifetime, on: listener.device, at: &address) {
                 deviceListeners.removeValue(forKey: listener)
@@ -1506,6 +1584,13 @@ final class MicMuteService: ObservableObject {
             var address = listener.address
             if let lifetime = addListener(listener.device, &address, generation: generation) {
                 deviceListeners[listener] = (uid, lifetime)
+                // Even on an otherwise unchanged input, a gain read before this
+                // registration cannot establish silence for its first callback.
+                if Self.watchedDeviceSelectors.contains(listener.selector) {
+                    let device = InputDevice(id: listener.device, uid: uid)
+                    observedInputs?.remove(device)
+                    quietInputs.removeValue(forKey: device)
+                }
             }
         }
         // A missed registration, including a renewal whose removal failed,
@@ -1539,5 +1624,23 @@ final class MicMuteService: ObservableObject {
         observedInputs = muted ? ready : nil
         quietInputs = quietInputs.filter { ready.contains($0.key) }
         if needsCheck { scheduleReapply() }
+    }
+
+    /// A callback may supply evidence only after its own registration was in
+    /// place for a silent reading. Forget queued evidence when that proof lapses.
+    private func confirmQuietControls() {
+        var confirmed: Set<UnsafeMutableRawPointer> = []
+        if !quietInputs.isEmpty {
+            for (listener, registration) in deviceListeners where Self.watchedDeviceSelectors.contains(listener.selector) {
+                let device = InputDevice(id: listener.device, uid: registration.uid)
+                if let quiet = quietInputs[device], registration.lifetime.isCurrent(observationGeneration),
+                   listener.wasClosed(in: quiet) { confirmed.insert(registration.lifetime.client) }
+            }
+        }
+        callbackLock.withLock {
+            guard confirmedControlClients != confirmed else { return }
+            confirmedControlClients = confirmed
+            pendingNotices.controls = pendingNotices.controls.filter { confirmed.contains($0.value) }
+        }
     }
 }
