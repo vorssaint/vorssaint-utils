@@ -26,10 +26,11 @@ enum CommandBarCalculator {
                          locale: Locale = .current,
                          decimalSeparator: String = Locale.current.decimalSeparator ?? ".",
                          groupingSeparator: String = Locale.current.groupingSeparator ?? ",") -> Result? {
-        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed.count <= 120 else { return nil }
-        guard !looksLikeDateOrTime(trimmed) else { return nil }
-        guard let expression = expressionWithoutTrailingEquals(trimmed) else { return nil }
+        let trimmed = CommandBarSearch.strippingInvisibles(input)
+            .folding(options: .widthInsensitive, locale: nil)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let expression = expressionWithoutTrailingEquals(trimmed),
+              expression.count <= 120, !looksLikeDateOrTime(expression) else { return nil }
 
         guard let parsed = CommandBarExpressions.parse(expression,
                                                        decimalSeparator: decimalSeparator,
@@ -63,8 +64,9 @@ enum CommandBarCalculator {
                 return Result(formatted: formatUnit(display, unit: unit, locale: locale),
                               value: display,
                               closingBrackets: parsed.closingBrackets,
-                              reusableExpression: reusable(display, unit: unit,
-                                                           decimalSeparator: decimalSeparator))
+                              reusableExpression: reusable(display, unit: unit, si: value.si,
+                                                           decimalSeparator: decimalSeparator,
+                                                           groupingSeparator: groupingSeparator))
             }
             let display = significantRounded(value.si)
             guard display.isFinite, let formatted = format(display, locale: locale) else { return nil }
@@ -75,10 +77,11 @@ enum CommandBarCalculator {
         case .split(let split):
             let larger = significantRounded(split.larger.value)
             let smaller = significantRounded(split.smaller.value)
+            guard larger.isFinite, smaller.isFinite else { return nil }
             let formatted = formatSplit(larger, split.larger.unit, smaller, split.smaller.unit,
                                         locale: locale)
             return Result(formatted: formatted,
-                          value: larger,
+                          value: nil,
                           closingBrackets: parsed.closingBrackets,
                           reusableExpression: nil)
         }
@@ -150,26 +153,6 @@ enum CommandBarCalculator {
             formatter.maximumFractionDigits = 8
         }
         return formatter.string(from: NSNumber(value: rounded == 0 ? 0 : rounded))
-    }
-
-    /// A quantity's numeric part, at the full precision a conversion needs:
-    /// 3.106855961 mi, 7.9375 mm, 0.001 g/cm³.
-    private static func unitNumber(_ value: Double, locale: Locale) -> String {
-        let formatter = NumberFormatter()
-        formatter.locale = locale
-        formatter.minimumFractionDigits = 0
-        formatter.usesGroupingSeparator = true
-        let magnitude = abs(value)
-        if value != 0, magnitude >= 1e12 || magnitude < 1e-6 {
-            formatter.numberStyle = .scientific
-            formatter.usesSignificantDigits = true
-            formatter.maximumSignificantDigits = 12
-            formatter.exponentSymbol = "e"
-        } else {
-            formatter.numberStyle = .decimal
-            formatter.maximumFractionDigits = 15
-        }
-        return formatter.string(from: NSNumber(value: value == 0 ? 0 : value)) ?? String(value)
     }
 
     /// Writes a quantity the way this Mac writes numbers, with the system's
@@ -291,7 +274,38 @@ enum CommandBarCalculator {
 
     private static func reusable(_ value: Double,
                                  unit: CommandBarUnitCatalog.Unit,
-                                 decimalSeparator: String) -> String {
-        "\(reusableNumber(value, decimalSeparator: decimalSeparator)) \(unit.symbol)"
+                                 si: Double,
+                                 decimalSeparator: String,
+                                 groupingSeparator: String) -> String? {
+        let number = reusableNumber(abs(value), decimalSeparator: decimalSeparator)
+        let symbol = unit.reuseSymbol
+        let quantity = "\(value < 0 ? "-" : "")\(number) \(symbol)"
+        if unit.id == "composite" {
+            // A composed label can contain a reciprocal, radical or ambiguous
+            // unit symbol. Only put it back in the field if it parses identically.
+            let parsed = CommandBarExpressions.parse(quantity, decimalSeparator: decimalSeparator,
+                                                      groupingSeparator: groupingSeparator)
+            if case .value(let read)? = parsed?.outcome, let readUnit = read.unit,
+               read.dims == unit.dimensions, readUnit.scale == unit.scale,
+               significantRounded(readUnit.displayValue(siValue: read.si)) == value,
+               quantity.count <= 118 {
+                return "(\(quantity))"
+            }
+            let dims = unit.dimensions
+            let factors = [("m", dims.length), ("kg", dims.mass), ("s", dims.time),
+                           ("kelvin", dims.temperature), ("bit", dims.data),
+                           ("rad", dims.angle), ("amp", dims.current)]
+            var expression = reusableNumber(si, decimalSeparator: decimalSeparator)
+            for (name, exponent) in factors where exponent != 0 {
+                let factor = exponent > 0 ? " * (1 \(name))" : " / (1 \(name))"
+                expression += String(repeating: factor, count: abs(exponent))
+            }
+            return expression.count <= 118 ? "(\(expression))" : nil
+        }
+        // Group the entire quantity before a subsequent power or division.
+        if value < 0 || symbol.contains(where: { "/·*".contains($0) }) {
+            return "(\(quantity))"
+        }
+        return quantity
     }
 }

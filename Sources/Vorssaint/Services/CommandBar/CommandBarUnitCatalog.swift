@@ -133,6 +133,14 @@ enum CommandBarUnitCatalog {
             self.exactNames = exactNames
         }
 
+        /// A spelling the expression parser can read when Tab reuses this unit.
+        /// Some system symbols are absent from the lexicon or mean something else.
+        var reuseSymbol: String {
+            let folded = CommandBarSearch.normalized(symbol)
+            if CommandBarUnitCatalog.unit(named: folded, exact: symbol)?.id == id { return symbol }
+            return names.first ?? symbol
+        }
+
         static func == (left: Unit, right: Unit) -> Bool { left.id == right.id }
 
         func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -226,6 +234,11 @@ enum CommandBarUnitCatalog {
     /// Multi-word names arrive space-joined, already folded.
     static func unit(named folded: String, exact: String? = nil) -> Unit? {
         if let exact, let unit = byExactName[exact] { return unit }
+        if let exact, exact != folded, let prefix = exact.first, exact.count > 1,
+           prefix == "m" || prefix == "M" {
+            let otherPrefix = prefix == "m" ? "M" : "m"
+            if byExactName[otherPrefix + exact.dropFirst()] != nil { return nil }
+        }
         return byName[folded]
     }
 
@@ -248,6 +261,7 @@ enum CommandBarUnitCatalog {
         // Volt, ohm, farad, weber, siemens, henry and tesla derive from the
         // same power dimensions watts already carry.
         let voltDims = m * l * l / (t * t * t) / i
+        let pressureDims = m / (l * t * t)
         let ohmDims = voltDims / i
         let faradDims = i * t * i * t * t * t / (m * l * l)
         let weberDims = voltDims * t
@@ -347,7 +361,7 @@ enum CommandBarUnitCatalog {
             ["l", "liter", "liters", "litre", "litres", "litro", "litros"], exact: ["L"])
         add("kl", v, scale: 1, foundation: UnitVolume.kiloliters,
             ["kl", "kiloliter", "kiloliters", "kilolitre", "kilolitres"])
-        add("ul", v, scale: 1e-9, foundation: UnitVolume.milliliters,
+        add("ul", v, scale: 1e-9, symbol: "µL",
             ["ul", "µl", "μl", "microliter", "microliters", "microlitre", "microlitres"])
         add("m3", v, scale: 1, foundation: UnitVolume.cubicMeters,
             ["m3", "m³", "cubicmeter", "cubicmeters", "cubicmetre", "cubicmetres",
@@ -369,9 +383,13 @@ enum CommandBarUnitCatalog {
             ["qt", "quart", "quarts"])
         add("pt", v, scale: 4.73176473e-4, foundation: UnitVolume.pints,
             ["pt", "pint", "pints"])
-        add("cup", v, scale: 2.365882365e-4, foundation: UnitVolume.cups,
-            ["cup", "cups", "xicara", "xicaras", "metriccup", "metriccups",
-             "metric cup", "metric cups"])
+        // Keep the 240 mL cup used by the original Foundation converter.
+        add("cup", v, scale: 2.4e-4, foundation: UnitVolume.cups,
+            ["cup", "cups", "xicara", "xicaras"])
+        add("metriccup", v, scale: 2.5e-4, symbol: "metric cup",
+            ["metriccup", "metriccups", "metric cup", "metric cups"])
+        add("uscup", v, scale: 2.365882365e-4, symbol: "US cup",
+            ["uscup", "uscups", "us cup", "us cups"])
         add("floz", v, scale: 2.95735295625e-5, foundation: UnitVolume.fluidOunces,
             ["floz", "fl oz", "fluidounce", "fluidounces", "fluid ounce", "fluid ounces"])
         add("tbsp", v, scale: 1.47867647813e-5, foundation: UnitVolume.tablespoons,
@@ -409,13 +427,13 @@ enum CommandBarUnitCatalog {
             ["km2", "km²", "sqkm", "sq km", "squarekilometer", "squarekilometers", "square kilometre", "square kilometres",
              "square kilometer", "square kilometers"])
         add("sqin", a, scale: 6.4516e-4, foundation: UnitArea.squareInches,
-            ["sqin", "sq in", "squareinch", "squareinches", "square inch", "square inches"])
+            ["sqin", "in²", "sq in", "squareinch", "squareinches", "square inch", "square inches"])
         add("sqft", a, scale: 0.09290304, foundation: UnitArea.squareFeet,
-            ["sqft", "sq ft", "squarefoot", "squarefeet", "square foot", "square feet"])
+            ["sqft", "ft²", "sq ft", "squarefoot", "squarefeet", "square foot", "square feet"])
         add("sqyd", a, scale: 0.83612736, foundation: UnitArea.squareYards,
-            ["sqyd", "sq yd", "squareyard", "squareyards", "square yard", "square yards"])
+            ["sqyd", "yd²", "sq yd", "squareyard", "squareyards", "square yard", "square yards"])
         add("sqmi", a, scale: 2.589988110336e6, foundation: UnitArea.squareMiles,
-            ["sqmi", "sq mi", "squaremile", "squaremiles", "square mile", "square miles"])
+            ["sqmi", "mi²", "sq mi", "squaremile", "squaremiles", "square mile", "square miles"])
         add("ha", a, scale: 1e4, foundation: UnitArea.hectares,
             ["ha", "hectare", "hectares"])
         add("acre", a, scale: 4046.8564224, foundation: UnitArea.acres,
@@ -445,19 +463,26 @@ enum CommandBarUnitCatalog {
         add("bit", d, scale: 1, foundation: UnitInformationStorage.bits,
             ["bit", "bits"])
         add("kbit", d, scale: 1e3, foundation: UnitInformationStorage.kilobits,
-            ["kbit", "kilobit", "kilobits"])
+            ["kbit", "kilobit", "kilobits"], exact: ["Kb"])
         add("mbit", d, scale: 1e6, foundation: UnitInformationStorage.megabits,
-            ["mbit", "megabit", "megabits"])
+            ["mbit", "megabit", "megabits"], exact: ["Mb"])
         add("gbit", d, scale: 1e9, foundation: UnitInformationStorage.gigabits,
-            ["gbit", "gigabit", "gigabits"])
+            ["gbit", "gigabit", "gigabits"], exact: ["Gb"])
         add("tbit", d, scale: 1e12, foundation: UnitInformationStorage.terabits,
-            ["tbit", "terabit", "terabits"])
+            ["tbit", "terabit", "terabits"], exact: ["Tb"])
         // Bit rates carry their own symbol because "megabit per second" is
         // written Mbps, not Mbit/s, on every cable box.
-        add("mbps", d / t, scale: 1e6,
-            ["mbps", "megabitpersecond", "megabit per second"])
+        add("mbps", d / t, scale: 1e6, symbol: "Mbps",
+            ["mbps", "megabitpersecond", "megabit per second"], exact: ["Mbps"])
         add("kbps", d / t, scale: 1e3, ["kbps"])
-        add("gbps", d / t, scale: 1e9, ["gbps", "gigabitpersecond", "gigabit per second"])
+        add("gbps", d / t, scale: 1e9, symbol: "Gbps", ["gbps", "gigabitpersecond", "gigabit per second"])
+
+        add("kilobytespersecond", d / t, scale: 8e3, symbol: "kBps",
+            ["kilobytespersecond", "kilobytes per second"], exact: ["kBps", "KBps"])
+        add("megabytespersecond", d / t, scale: 8e6, symbol: "MBps",
+            ["megabytespersecond", "megabytes per second"], exact: ["MBps"])
+        add("gigabytespersecond", d / t, scale: 8e9, symbol: "GBps",
+            ["gigabytespersecond", "gigabytes per second"], exact: ["GBps"])
 
         // Speed and pace.
         add("kmh", l / t, scale: 1 / 3.6, foundation: UnitSpeed.kilometersPerHour,
@@ -469,31 +494,33 @@ enum CommandBarUnitCatalog {
             ["kn", "knot", "knots"])
         // Fuel: consumption is volume over distance (L²), economy its
         // reciprocal (L⁻²), so the two convert through the reciprocal rule.
-        add("l100km", a, scale: 1e-8,
+        add("l100km", a, scale: 1e-8, symbol: "L/100km",
             ["l100km", "l/100km", "litersper100kilometers", "liters per 100 kilometers"])
-        add("kml", a.negated(), scale: 1e6,
+        add("kml", a.negated(), scale: 1e6, symbol: "km/L",
             ["kml", "km/l", "kmpl", "kilometersperliter", "kilometers per liter"])
         add("mpg", a.negated(), scale: 425143.7074303,
             ["mpg", "milespergallon", "miles per gallon"])
 
         // Pressure.
-        add("pa", m / l * t * t, scale: 1, foundation: UnitPressure.newtonsPerMetersSquared, symbol: "pa",
+        add("pa", pressureDims, scale: 1, foundation: UnitPressure.newtonsPerMetersSquared, symbol: "pa",
             ["pa", "pascal", "pascals"])
-        add("kpa", m / l * t * t, scale: 1e3, foundation: UnitPressure.kilopascals,
+        add("millipascal", pressureDims, scale: 1e-3, symbol: "mPa",
+            ["millipascal", "millipascals"], exact: ["mPa"])
+        add("kpa", pressureDims, scale: 1e3, foundation: UnitPressure.kilopascals,
             ["kpa", "kilopascal", "kilopascals"])
-        add("mpa", m / l * t * t, scale: 1e6, foundation: UnitPressure.megapascals,
-            ["mpa", "megapascal", "megapascals"])
-        add("hpa", m / l * t * t, scale: 100, foundation: UnitPressure.hectopascals,
+        add("mpa", pressureDims, scale: 1e6, foundation: UnitPressure.megapascals,
+            ["mpa", "megapascal", "megapascals"], exact: ["MPa"])
+        add("hpa", pressureDims, scale: 100, foundation: UnitPressure.hectopascals,
             ["hpa", "hectopascal", "hectopascals"])
-        add("bar", m / l * t * t, scale: 1e5, foundation: UnitPressure.bars,
+        add("bar", pressureDims, scale: 1e5, foundation: UnitPressure.bars,
             ["bar", "bars"])
-        add("atm", m / l * t * t, scale: 101325, foundation: CommandBarUnitCatalog.customAtmosphere,
+        add("atm", pressureDims, scale: 101325, foundation: CommandBarUnitCatalog.customAtmosphere,
             ["atm", "atmosphere", "atmospheres"])
-        add("psi", m / l * t * t, scale: 6894.757293168, foundation: UnitPressure.poundsForcePerSquareInch,
+        add("psi", pressureDims, scale: 6894.757293168, foundation: UnitPressure.poundsForcePerSquareInch,
             ["psi", "poundsperSquareinch", "pounds per square inch"])
-        add("mmhg", m / l * t * t, scale: 133.322387415, foundation: UnitPressure.millimetersOfMercury,
+        add("mmhg", pressureDims, scale: 133.322387415, foundation: UnitPressure.millimetersOfMercury,
             ["mmhg", "millimetersofmercury", "millimeters of mercury"])
-        add("inhg", m / l * t * t, scale: 3386.389, foundation: UnitPressure.inchesOfMercury,
+        add("inhg", pressureDims, scale: 3386.389, foundation: UnitPressure.inchesOfMercury,
             ["inhg", "inchesofmercury", "inches of mercury"])
 
         // Energy.
@@ -502,7 +529,9 @@ enum CommandBarUnitCatalog {
         add("kj", m * l * l / (t * t), scale: 1e3, foundation: UnitEnergy.kilojoules,
             ["kj", "kilojoule", "kilojoules"])
         add("mj", m * l * l / (t * t), scale: 1e6, foundation: CommandBarUnitCatalog.customMegajoule,
-            ["mj", "megajoule", "megajoules"])
+            ["mj", "megajoule", "megajoules"], exact: ["MJ"])
+        add("millijoule", m * l * l / (t * t), scale: 1e-3, symbol: "mJ",
+            ["millijoule", "millijoules"], exact: ["mJ"])
         add("cal", m * l * l / (t * t), scale: 4.184, foundation: UnitEnergy.calories,
             ["cal", "calorie", "calories"])
         add("kcal", m * l * l / (t * t), scale: 4184, foundation: UnitEnergy.kilocalories,
@@ -512,7 +541,9 @@ enum CommandBarUnitCatalog {
         add("kwh", m * l * l / (t * t), scale: 3.6e6, foundation: CommandBarUnitCatalog.customKilowattHour,
             ["kwh", "kilowatthour", "kilowatthours", "kilowatt hour", "kilowatt hours"])
         add("mwh", m * l * l / (t * t), scale: 3.6e9, foundation: CommandBarUnitCatalog.customMegawattHour,
-            ["mwh", "megawatthour", "megawatthours", "megawatt hour", "megawatt hours"])
+            ["mwh", "megawatthour", "megawatthours", "megawatt hour", "megawatt hours"], exact: ["MWh"])
+        add("milliwatthour", m * l * l / (t * t), scale: 3.6, symbol: "mWh",
+            ["milliwatthour", "milliwatthours", "milliwatt hour", "milliwatt hours"], exact: ["mWh"])
         add("gwh", m * l * l / (t * t), scale: 3.6e12, foundation: CommandBarUnitCatalog.customGigawattHour,
             ["gwh", "gigawatthour", "gigawatthours", "gigawatt hour", "gigawatt hours"])
         add("btu", m * l * l / (t * t), scale: 1055.05585262, foundation: CommandBarUnitCatalog.customBTU,
@@ -545,7 +576,9 @@ enum CommandBarUnitCatalog {
         add("khz", t.negated(), scale: 1e3, foundation: UnitFrequency.kilohertz,
             ["khz", "kilohertz"])
         add("mhz", t.negated(), scale: 1e6, foundation: UnitFrequency.megahertz,
-            ["mhz", "megahertz"])
+            ["mhz", "megahertz"], exact: ["MHz"])
+        add("millihertz", t.negated(), scale: 1e-3, symbol: "mHz",
+            ["millihertz"], exact: ["mHz"])
         add("ghz", t.negated(), scale: 1e9, foundation: UnitFrequency.gigahertz,
             ["ghz", "gigahertz"])
         add("rpm", t.negated(), scale: 1.0 / 60.0, foundation: CommandBarUnitCatalog.customRPM,
@@ -576,6 +609,8 @@ enum CommandBarUnitCatalog {
             ["kohm", "kohms", "kiloohm", "kiloohms", "kω", "kΩ"], exact: ["kΩ"])
         add("mohm", ohmDims, scale: 1e-3,
             ["mohm", "mohms", "milliohm", "milliohms", "mω", "mΩ"], exact: ["mΩ"])
+        add("megohm", ohmDims, scale: 1e6, symbol: "MΩ",
+            ["megohm", "megohms", "megaohm", "megaohms"], exact: ["MΩ"])
         add("farad", faradDims, scale: 1, foundation: UnitElectricCapacitance.farads,
             ["farad", "farads"])
         add("uf", faradDims, scale: 1e-6, foundation: UnitElectricCapacitance.microfarads,

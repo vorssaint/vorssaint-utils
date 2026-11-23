@@ -69,20 +69,45 @@ enum CommandBarExpressions {
     static func parse(_ input: String,
                       decimalSeparator: String,
                       groupingSeparator: String) -> Parsed? {
-        let dbgTokens = tokenize(input, decimalSeparator: decimalSeparator,
-                                 groupingSeparator: groupingSeparator)
-        guard let tokens = dbgTokens,
+        var fractions: [MeasuredFraction] = []
+        guard let tokens = tokenize(input, decimalSeparator: decimalSeparator,
+                                    groupingSeparator: groupingSeparator, fractions: &fractions),
               let closings = virtualClosings(for: tokens)
         else { return nil }
-        let all = tokens + closings.map { Token.right($0) }
-        var parser = Parser(tokens: all)
-        guard let parsed = parser.parseWhole() else { return nil }
-        return Parsed(outcome: parsed.outcome,
-                      closingBrackets: String(closings),
-                      isCalculation: parsed.isCalculation)
+        func evaluate(_ tokens: [Token]) -> Parsed? {
+            var parser = Parser(tokens: tokens + closings.map(Token.right))
+            guard let parsed = parser.parseWhole() else { return nil }
+            return Parsed(outcome: parsed.outcome, closingBrackets: closings,
+                          isCalculation: parsed.isCalculation)
+        }
+
+        // Both "2/20 ms to s" and "2/20 ms to Hz" are meaningful. For a
+        // frequency target let the ordinary division parser try 2 / (20 ms).
+        if !fractions.isEmpty, let connector = tokens.firstIndex(where: { $0 == .to || $0 == .inKeyword }),
+           case .unit(let target)? = tokens.dropFirst(connector + 1).first,
+           target.dimensions == CommandBarUnitCatalog.Dimensions(time: -1),
+           connector + 2 == tokens.count || [.to, .inKeyword].contains(tokens[connector + 2]) {
+            var division = tokens
+            for fraction in fractions.reversed() where fraction.index < connector {
+                guard case .unit(let unit) = tokens[fraction.index + 1],
+                      unit.dimensions.negated() == target.dimensions else { continue }
+                division.replaceSubrange(fraction.index...fraction.index, with: [
+                    .number(fraction.numerator, interesting: false), .divide,
+                    .number(fraction.denominator, interesting: false),
+                ])
+            }
+            if division.count != tokens.count, let answer = evaluate(division) { return answer }
+        }
+        return evaluate(tokens)
     }
 
     // MARK: - Tokens
+
+    private struct MeasuredFraction {
+        let index: Int
+        let numerator: Double
+        let denominator: Double
+    }
 
     private enum Token: Equatable {
         case number(Double, interesting: Bool)
@@ -128,10 +153,12 @@ enum CommandBarExpressions {
 
     private static func tokenize(_ input: String,
                                  decimalSeparator: String,
-                                 groupingSeparator: String) -> [Token]? {
+                                 groupingSeparator: String,
+                                 fractions: inout [MeasuredFraction]) -> [Token]? {
         var tokens: [Token] = []
-        var characters = Array(input)
+        let characters = Array(input)
         var index = 0
+        var argumentLists: [Function?] = []
         let separators = Separators(decimalSeparator: decimalSeparator,
                                     groupingSeparator: groupingSeparator)
 
@@ -152,6 +179,8 @@ enum CommandBarExpressions {
                 }
             } else if p < characters.count, isUnitSymbol(characters[p]) {
                 p += 1
+                if characters[start] == "°", p < characters.count,
+                   ["c", "f"].contains(characters[p].lowercased()) { p += 1 }
             } else {
                 return nil
             }
@@ -161,9 +190,9 @@ enum CommandBarExpressions {
 
         /// Matches the longest unit name starting here, so "fl oz", "square
         /// feet" and "miles per hour" read as one unit and not as words.
-        func readUnit() -> (unit: CommandBarUnitCatalog.Unit, raw: String)? {
+        func readUnit(at start: Int) -> (unit: CommandBarUnitCatalog.Unit, end: Int, raw: String)? {
             var best: (unit: CommandBarUnitCatalog.Unit, end: Int, raw: String)?
-            var p = index
+            var p = start
             var words: [(raw: String, folded: String)] = []
             while let word = readUnitWord(at: &p) {
                 words.append(word)
@@ -171,6 +200,17 @@ enum CommandBarExpressions {
                 let exact = words.count == 1 ? words[0].raw : nil
                 if let unit = CommandBarUnitCatalog.unit(named: joined, exact: exact) {
                     best = (unit, p, words[0].raw)
+                }
+                // The scale in a catalog symbol such as L/100km is part of
+                // the unit. Keep that identity when Tab puts the symbol back.
+                if words.count == 1, p + 1 < characters.count, characters[p] == "/",
+                   characters[p + 1].isNumber {
+                    var end = p + 1
+                    while end < characters.count, characters[end].isNumber || characters[end].isLetter { end += 1 }
+                    let raw = String(characters[start..<end])
+                    if let unit = CommandBarUnitCatalog.unit(named: fold(raw), exact: raw) {
+                        return (unit, end, raw)
+                    }
                 }
                 // Extend only across spaces into another word; "5 feet 3
                 // inches" stops because 3 is a digit.
@@ -181,11 +221,7 @@ enum CommandBarExpressions {
                       characters[probe].isLetter || isUnitSymbol(characters[probe]) else { break }
                 p = probe
             }
-            if let best {
-                index = best.end
-                return (best.unit, best.raw)
-            }
-            return nil
+            return best
         }
 
         /// The article "a"/"an" standing for one, read without consuming more
@@ -194,10 +230,11 @@ enum CommandBarExpressions {
             guard index < characters.count, characters[index].isLetter else { return nil }
             var p = index
             while p < characters.count, characters[p].isLetter { p += 1 }
-            let word = fold(String(characters[index..<p]))
+            let raw = String(characters[index..<p])
+            let word = fold(raw)
             guard word == "a" || word == "an" else { return nil }
-            // After a number "a" is the ampere the catalog knows.
-            if case .some(.number(_, _)) = tokens.last { return nil }
+            guard raw != "A", tokens.isEmpty || tokens.last == .inKeyword,
+                  unitAhead(at: p) else { return nil }
             index = p
             return 1
         }
@@ -207,8 +244,33 @@ enum CommandBarExpressions {
         func unitAhead(at start: Int) -> Bool {
             var p = start
             while p < characters.count, characters[p].isWhitespace { p += 1 }
+            return readUnit(at: p) != nil
+        }
+
+        // A detached negative inch remainder is invalid (5ft -1in). A binary
+        // minus with whitespace on both sides is ordinary subtraction.
+        func isNegativeRemainder(at sign: Int) -> Bool {
+            guard sign > 0, characters[sign - 1].isWhitespace,
+                  case .unit(let larger)? = tokens.last,
+                  let pair = CommandBarUnitCatalog.mixedPairs[larger.id] else { return false }
+            var p = sign + 1
+            guard p < characters.count, characters[p].isNumber else { return false }
+            while p < characters.count,
+                  characters[p].isNumber || characters[p] == separators.decimal || characters[p] == separators.alternate {
+                p += 1
+            }
+            while p < characters.count, characters[p].isWhitespace { p += 1 }
             guard let word = readUnitWord(at: &p) else { return false }
-            return CommandBarUnitCatalog.unit(named: word.folded, exact: word.raw) != nil
+            return CommandBarUnitCatalog.unit(named: word.folded, exact: word.raw)?.id == pair.remainder.id
+        }
+
+        func commaSeparatesArguments(at p: Int) -> Bool {
+            guard characters[p] == ",", let function = argumentLists.last ?? nil,
+                  function == .min || function == .max || function == .log else { return false }
+            if p + 1 < characters.count, characters[p + 1].isWhitespace { return true }
+            if p > 0, characters[p - 1].isWhitespace { return true }
+            // Keep log(1,000) and localized decimal commas as one argument.
+            return function != .log && separators.decimal != ","
         }
 
         /// A run of two or more signs glued to a number that carries a unit
@@ -247,8 +309,18 @@ enum CommandBarExpressions {
                 index += 1
                 continue
             }
-            if separators.isPart(ofNumber: character) || character.isNumber {
-                guard let number = readNumber(&characters, &index, separators: separators)
+            if commaSeparatesArguments(at: index) {
+                tokens.append(.comma)
+                index += 1
+                continue
+            }
+            if separators.isPart(ofNumber: character), !isUnitSymbol(character) {
+                guard let number = readNumber(characters, &index, separators: separators,
+                                              unitAhead: unitAhead, argumentComma: commaSeparatesArguments,
+                                              measuredFraction: { numerator, denominator in
+                    fractions.append(MeasuredFraction(index: tokens.count, numerator: numerator,
+                                                      denominator: denominator))
+                })
                 else { return nil }
                 tokens.append(.number(number.value, interesting: number.interesting))
                 // "1-5 m": a hyphen glued between digits and followed by a unit
@@ -274,7 +346,22 @@ enum CommandBarExpressions {
                     continue
                 }
                 let tokenStart = index
-                if let matched = readUnit() {
+                if let matched = readUnit(at: index) {
+                    index = matched.end
+                    if matched.unit.id == "min" {
+                        var p = index
+                        while p < characters.count, characters[p].isWhitespace { p += 1 }
+                        if fold(matched.raw) == "min", p < characters.count,
+                           characters[p] == "(" || characters[p] == "[" {
+                            tokens.append(.function(.min))
+                            continue
+                        }
+                    }
+                    if matched.unit.id == "a", matched.raw != "A",
+                       case .unit? = tokens.last, unitAhead(at: index) {
+                        tokens.append(.to)
+                        continue
+                    }
                     // The word "in" is inches right after a number or after a
                     // conversion word ("5 in to cm", "5.5ft to in"). Spaced,
                     // with a unit after it and a unit already given, it is the
@@ -317,12 +404,6 @@ enum CommandBarExpressions {
                     tokens.append(.constant(Double.pi))
                     continue
                 }
-                // In "how many feet in a mile", "a" is one mile, not the
-                // conversion keyword it means in phrases such as "meters a feet".
-                if lower == "a", tokens.last == .inKeyword {
-                    tokens.append(.number(1, interesting: false))
-                    continue
-                }
                 if let token = wordToken(for: lower, characters: characters, index: &index) {
                     if case .function = token, index < characters.count, characters[index].isNumber {
                         return nil
@@ -331,7 +412,6 @@ enum CommandBarExpressions {
                     continue
                 }
                 if wordIsFiller(lower) {
-                    if lower == "a" || lower == "an" { tokens.append(.number(1, interesting: false)) }
                     continue
                 }
                 return nil
@@ -340,16 +420,24 @@ enum CommandBarExpressions {
             switch character {
             case "+": tokens.append(.plus)
             case "-", "\u{2212}":
-                if isMalformedSignedQuantity(at: index - 1) { return nil }
+                if character == "-", index < characters.count, characters[index] == ">" {
+                    index += 1
+                    tokens.append(.to)
+                    continue
+                }
+                if isMalformedSignedQuantity(at: index - 1) || isNegativeRemainder(at: index - 1) { return nil }
                 tokens.append(.minus)
             case "*", "\u{00D7}", "x", "X", "\u{00B7}": tokens.append(.times)
             case "/", "\u{00F7}": tokens.append(.divide)
             case "^": tokens.append(.power)
             case "%": tokens.append(.percent)
-            case "(": tokens.append(.left(")"))
-            case "[": tokens.append(.left("]"))
-            case ")": tokens.append(.right(")"))
-            case "]": tokens.append(.right("]"))
+            case "(", "[":
+                if case .function(let function)? = tokens.last { argumentLists.append(function) }
+                else { argumentLists.append(nil) }
+                tokens.append(.left(character == "(" ? ")" : "]"))
+            case ")", "]":
+                _ = argumentLists.popLast()
+                tokens.append(.right(character))
             case ",", ";": tokens.append(.comma)
             case "π": tokens.append(.constant(Double.pi))
             case ">": tokens.append(.to)
@@ -398,7 +486,7 @@ enum CommandBarExpressions {
         case "squared": return .squared
         case "cubed": return .cubed
         case "and": return .andWord
-        case "of", "de": return .ofWord
+        case "of", "de", "da", "do", "von", "di", "del", "dal": return .ofWord
         case "off": return .offWord
         case "base": return .baseWord
         case "thousand": return .scaleWord(1e3)
@@ -480,19 +568,27 @@ enum CommandBarExpressions {
         }
     }
 
-    private static func readNumber(_ characters: inout [Character],
+    private static func readNumber(_ characters: [Character],
                                    _ index: inout Int,
-                                   separators: Separators) -> (value: Double, interesting: Bool)? {
+                                   separators: Separators,
+                                   unitAhead: (Int) -> Bool,
+                                   argumentComma: (Int) -> Bool,
+                                   measuredFraction: (Double, Double) -> Void) -> (value: Double, interesting: Bool)? {
         let start = index
         var written = ""
         var interesting = false
         while index < characters.count {
             let character = characters[index]
+            if argumentComma(index) { break }
             var apostropheGroup = false
-            if character == "'", index > start, characters[index - 1].isNumber {
+            if (character == "'" || (character == "’" && character == separators.groupingOnly)),
+               index > start, characters[index - 1].isNumber {
                 var groupEnd = index + 1
                 while groupEnd < characters.count, characters[groupEnd].isNumber { groupEnd += 1 }
                 apostropheGroup = groupEnd - index == 4
+                // A one- or two-digit inch remainder is still a height on a
+                // Mac whose thousands separator is also a foot mark.
+                if character == separators.groupingOnly, !apostropheGroup { break }
             }
             guard separators.isPart(ofNumber: character) || apostropheGroup else { break }
             if character == separators.groupingOnly,
@@ -562,16 +658,25 @@ enum CommandBarExpressions {
         var value = base
         var isWhole = !normalized.contains(".") && exponent.isEmpty
 
-        // A fraction attaches to a number with no space: "5/16", "10/4".
-        if isWhole, index < characters.count, characters[index] == "/" {
-            var fractionIndex = index + 1
+        // A fraction may qualify a measurement. Plain division stays an
+        // operator so its denominator can contain a power or decimal.
+        var slash = index
+        while slash < characters.count, characters[slash].isWhitespace { slash += 1 }
+        if isWhole, slash < characters.count, characters[slash] == "/" {
+            var fractionIndex = slash + 1
+            while fractionIndex < characters.count, characters[fractionIndex].isWhitespace { fractionIndex += 1 }
             let denominatorStart = fractionIndex
             while fractionIndex < characters.count, characters[fractionIndex].isNumber {
                 fractionIndex += 1
             }
-            if fractionIndex > denominatorStart,
-               let denominator = Double(String(characters[index + 1..<fractionIndex])),
+            // A separate unit or a foot/inch mark qualifies the fraction.
+            // An attached word belongs to the divisor in both 1/20ms and 1 / 20ms.
+            if fractionIndex > denominatorStart, fractionIndex < characters.count,
+               (characters[fractionIndex].isWhitespace || isUnitSymbol(characters[fractionIndex])),
+               unitAhead(fractionIndex),
+               let denominator = Double(String(characters[denominatorStart..<fractionIndex])),
                denominator != 0 {
+                measuredFraction(value, denominator)
                 value = value / denominator
                 index = fractionIndex
                 interesting = true
@@ -602,9 +707,15 @@ enum CommandBarExpressions {
         }
         // "10k" reads as ten thousand when the k is alone; kg, km and kB are
         // units the parser reads next.
-        if index < characters.count, characters[index] == "k" || characters[index] == "K" {
+        if index < characters.count, characters[index] == "k" {
             let after = index + 1
-            if after >= characters.count || !characters[after].isLetter {
+            var next = after
+            while next < characters.count, characters[next].isWhitespace { next += 1 }
+            let word = String(characters[next...].prefix(while: \.isLetter)).lowercased()
+            let arrow = next < characters.count && ([">", "→"].contains(characters[next])
+                || (characters[next] == "-" && next + 1 < characters.count && characters[next + 1] == ">"))
+            if (after >= characters.count || !characters[after].isLetter),
+               !conversionWords.contains(word), !arrow {
                 value *= 1000
                 index = after
                 interesting = true
@@ -672,41 +783,23 @@ enum CommandBarExpressions {
         /// and inches", "to timespan", or a bare unit that sets the answer.
         mutating func parseConversion() -> Outcome? {
             guard var left = parseExpression() else { return nil }
-            while true {
-                switch peek() {
-                case .to:
-                    // "day to day" names no amount, so it stays a search.
-                    guard left.hasNumber else { return nil }
-                    advance()
+            while let connector = peek(), connector == .to || connector == .inKeyword {
+                advance()
+                let outcome: Outcome?
+                if left.hasNumber {
                     guard let target = parseConversionTarget() else { return nil }
-                    guard let outcome = convert(left, target: target) else { return nil }
-                    // A split answer is already the whole answer; there is
-                    // nothing left to convert.
-                    guard case .value(let converted) = outcome else { return outcome }
-                    left = converted
-                case .inKeyword:
-                    advance()
-                    guard let right = parseExpression(),
-                          case .value(let converted)? = convertIn(left: left, right: right)
-                    else { return nil }
-                    left = converted
-
-                default:
-                    return .value(left)
+                    outcome = convert(left, target: target)
+                } else {
+                    // In "feet in a mile" the bare unit on the left is the target.
+                    guard connector == .inKeyword, let target = left.unit,
+                          let source = parseExpression(), source.hasNumber else { return nil }
+                    outcome = convert(source, target: .unit(target))
                 }
+                guard let outcome else { return nil }
+                guard case .value(let converted) = outcome else { return outcome }
+                left = converted
             }
-        }
-
-        private mutating func convertIn(left: Value, right: Value) -> Outcome? {
-            guard left.unit != nil || right.unit != nil else { return nil }
-            // A numbered amount after "in" is the source: "cm in 5 inches",
-            // "feet in a mile". Otherwise the bare unit names the answer.
-            if right.hasNumber {
-                guard let target = left.unit else { return nil }
-                return convert(right, target: .unit(target))
-            }
-            guard let target = right.unit else { return nil }
-            return convert(left, target: .unit(target))
+            return .value(left)
         }
 
         /// A conversion target: a unit, a compound unit ("km/h"), a split pair
@@ -718,7 +811,8 @@ enum CommandBarExpressions {
             }
             guard let first = parseUnitExpression() else { return nil }
             // A second unit (joined by "and" or just a space) splits the answer.
-            if peek() == .andWord { advance() }
+            let hasAnd = peek() == .andWord
+            if hasAnd { advance() }
             if case .unit(let second)? = peek() {
                 let key = "\(first.id)|\(second.id)"
                 if CommandBarUnitCatalog.splitPairs.contains(key) {
@@ -726,7 +820,7 @@ enum CommandBarExpressions {
                     return .split(larger: first, smaller: second)
                 }
             }
-            return .unit(first)
+            return hasAnd ? nil : .unit(first)
         }
 
         /// A unit, possibly a compound like "km/h", "kg/m3" or "l/100km".
@@ -734,16 +828,21 @@ enum CommandBarExpressions {
             guard case .unit(let first)? = peek() else { return nil }
             advance()
             guard peek() == .divide else { return first }
+            guard first.dimensions.temperature == 0 else { return nil }
             advance()
             // "l/100km": a number follows the slash.
-            if case .number(let scale, _)? = peek(), scale != 0 {
+            if case .number(let scale, _)? = peek(), scale > 0 {
                 advance()
-                guard case .unit(let denom)? = peek() else { return nil }
+                guard case .unit(let denom)? = peek(), denom.dimensions.temperature == 0 else { return nil }
                 advance()
-                let combined = CommandBarExpressions.compound(numerator: first, denominator: denom)
-                return CommandBarExpressions.scaled(combined, by: 1 / scale)
+                var scaleText = String(scale)
+                if scaleText.hasSuffix(".0") { scaleText.removeLast(2) }
+                let combinedScale = first.scale / denom.scale / scale
+                guard combinedScale.isFinite, combinedScale > 0 else { return nil }
+                return CommandBarExpressions.resolve(dims: first.dimensions / denom.dimensions,
+                    scale: combinedScale, symbol: "\(first.symbol)/(\(scaleText) \(denom.symbol))")
             }
-            guard case .unit(let denom)? = peek() else { return nil }
+            guard case .unit(let denom)? = peek(), denom.dimensions.temperature == 0 else { return nil }
             advance()
             return CommandBarExpressions.compound(numerator: first, denominator: denom)
         }
@@ -762,7 +861,7 @@ enum CommandBarExpressions {
                 advance()
                 isCalculation = true
                 guard let right = parseTerm() else { return nil }
-                guard let combined = add(left, right, subtract: token == .minus) else { return nil }
+                guard let combined = add(left, right, subtract: token == .minus)?.finiteValue else { return nil }
                 left = combined
             }
             return left
@@ -780,27 +879,27 @@ enum CommandBarExpressions {
                     if token == .times { result = multiply(left, right) }
                     else if token == .divide { result = divide(left, right) }
                     else { result = modulo(left, right) }
-                    guard let result else { return nil }
+                    guard let result = result?.finiteValue else { return nil }
                     left = result
                 case .ofWord:
                     advance()
                     isCalculation = true
                     guard left.percentRaw != nil else { return nil }
                     guard let right = parseFactor() else { return nil }
-                    guard let result = multiply(left, right) else { return nil }
+                    guard let result = multiply(left, right)?.finiteValue else { return nil }
                     left = result
                 case .offWord:
                     advance()
                     isCalculation = true
                     guard let right = parseFactor() else { return nil }
-                    guard let result = off(left, of: right) else { return nil }
+                    guard let result = off(left, of: right)?.finiteValue else { return nil }
                     left = result
                 default:
                     // Implicit product: 2pi, 2(3+4), (2+3)(2+3).
                     guard token.startsImplicitProduct else { return left }
                     guard let right = parseFactor() else { return nil }
                     isCalculation = true
-                    guard let result = multiply(left, right) else { return nil }
+                    guard let result = multiply(left, right)?.finiteValue else { return nil }
                     left = result
                 }
             }
@@ -811,6 +910,7 @@ enum CommandBarExpressions {
             if let token = peek(), token == .minus || token == .plus {
                 advance()
                 guard let operand = parseFactor() else { return nil }
+                if operand.unit == nil { isCalculation = true }
                 if token == .plus { return operand }
                 return negate(operand)
             }
@@ -818,7 +918,7 @@ enum CommandBarExpressions {
         }
 
         mutating func parsePower() -> Value? {
-            guard let base = parsePrimary() else { return nil }
+            guard let base = parsePrimary()?.finiteValue else { return nil }
             switch peek() {
             case .power:
                 advance()
@@ -856,9 +956,10 @@ enum CommandBarExpressions {
                 base = Value(si: value, dims: .none, unit: nil, percentRaw: nil, hasNumber: true)
             case .left:
                 guard let value = parseBracketed() else { return nil }
-                base = Value(si: value, dims: .none, unit: nil, percentRaw: nil, hasNumber: true)
+                base = value
             case .function(let function):
                 advance()
+                isCalculation = true
                 if function == .log, !peekIsLeft() {
                     // "log 81 base 3": no parentheses, optional base.
                     guard let argument = parseFactor() else { return nil }
@@ -876,6 +977,7 @@ enum CommandBarExpressions {
                 }
             case .rootWord:
                 advance()
+                isCalculation = true
                 guard let value = parseRoot() else { return nil }
                 base = value
             case .unit(let unit):
@@ -887,12 +989,12 @@ enum CommandBarExpressions {
             }
 
             // A number followed by "root of" is a root: "5 root of 32".
-            if base.hasNumber, peek() == .rootWord {
+            if base.hasNumber, base.unit == nil, peek() == .rootWord {
                 advance()
                 guard peek() == .ofWord else { return nil }
                 advance()
                 guard let operand = parseFactor() else { return nil }
-                guard let result = root(operand, degree: base.si) else { return nil }
+                guard let result = CommandBarExpressions.root(operand, degree: base.si) else { return nil }
                 base = result
                 isCalculation = true
             }
@@ -900,11 +1002,11 @@ enum CommandBarExpressions {
             // Attach a unit suffix to a number, constant or bracket.
             if base.unit == nil, let unit = peekUnit() {
                 advance()
-                let si = base.si * unit.scale + unit.offset
+                let shownValue = base.si
+                let si = unit.siValue(displayValue: shownValue)
                 base = Value(si: si, dims: unit.dimensions, unit: unit,
                              percentRaw: nil, hasNumber: base.hasNumber)
                 // Mixed pairs: "5 ft 3 in", "1 hr 30 min".
-                let shownValue = (base.si - unit.offset) / unit.scale
                 if let pair = CommandBarUnitCatalog.mixedPairs[unit.id],
                    shownValue >= 0, shownValue == shownValue.rounded(.down) {
                     // "5ft 11in" and "1hr 30min", and the height shorthand that
@@ -919,23 +1021,20 @@ enum CommandBarExpressions {
                             base.si += remainder * pair.remainder.scale
                             advance()
                         }
-                    } else if peek() == .minus,
-                              case .number? = peek(1),
-                              case .unit(let next)? = peek(2), next.id == pair.remainder.id {
-                        // "5ft -1in" is a malformed height, not a subtraction.
-                        return nil
                     }
                 }
             }
 
             if peek() == .percent {
                 advance()
+                guard base.unit == nil else { return nil }
                 let raw = base.si
                 return Value(si: raw / 100, dims: base.dims, unit: base.unit,
                              percentRaw: raw, hasNumber: base.hasNumber)
             }
             if case .scaleWord(let factor)? = peek() {
                 advance()
+                guard !base.isTemperature else { return nil }
                 isCalculation = true
                 return Value(si: base.si * factor, dims: base.dims, unit: base.unit,
                              percentRaw: base.percentRaw, hasNumber: base.hasNumber)
@@ -948,7 +1047,7 @@ enum CommandBarExpressions {
             return nil
         }
 
-        mutating func parseBracketed() -> Double? {
+        mutating func parseBracketed() -> Value? {
             guard case .left(let closer)? = peek() else { return nil }
             advance()
             depth += 1
@@ -957,8 +1056,10 @@ enum CommandBarExpressions {
                   case .right(let kind)? = peek(), kind == closer
             else { return nil }
             advance()
-            guard inner.unit == nil else { return nil }
-            return inner.si
+            // A bracketed percentage is the evaluated fraction, as in 100 + (10%).
+            var grouped = inner
+            grouped.percentRaw = nil
+            return grouped
         }
 
         /// "root N of X" and "square root of X".
@@ -969,13 +1070,13 @@ enum CommandBarExpressions {
                 guard peek() == .ofWord else { return nil }
                 advance()
                 guard let operand = parseFactor() else { return nil }
-                return root(operand, degree: degree)
+                return CommandBarExpressions.root(operand, degree: degree)
             }
             // "root of 81" = square root.
             guard peek() == .ofWord else { return nil }
             advance()
             guard let operand = parseFactor() else { return nil }
-            return root(operand, degree: 2)
+            return CommandBarExpressions.root(operand, degree: 2)
         }
 
         mutating func parseFunction(_ function: Function) -> Value? {
@@ -988,7 +1089,11 @@ enum CommandBarExpressions {
                 if peekIsRight() { break }
                 guard let argument = parseExpression() else { return nil }
                 arguments.append(argument)
-                if peek() == .comma { advance(); continue }
+                if peek() == .comma {
+                    advance()
+                    if peekIsRight() { return nil }
+                    continue
+                }
                 break
             }
             guard case .right(let kind)? = peek(), kind == closer else { return nil }
@@ -1005,27 +1110,28 @@ enum CommandBarExpressions {
             guard !left.isTemperature && !right.isTemperature else { return nil }
             let si: Double
             if let percent = right.percentRaw {
-                let leftValue = displayValue(left)
-                let delta = leftValue * percent / 100 * (left.unit?.scale ?? 1)
+                let delta = left.si * (percent / 100)
                 si = subtract ? left.si - delta : left.si + delta
             } else {
-                guard dimsCompatible(left, right) else { return nil }
+                guard left.dims == right.dims else { return nil }
                 si = subtract ? left.si - right.si : left.si + right.si
             }
             let unit = right.unit ?? left.unit
             let dims = unit?.dimensions ?? left.dims
-            return Value(si: si, dims: dims, unit: unit, percentRaw: nil, hasNumber: true)
+            return Value(si: si, dims: dims, unit: unit, percentRaw: nil,
+                         hasNumber: left.hasNumber || right.hasNumber)
         }
 
         private func multiply(_ left: Value, _ right: Value) -> Value? {
             guard !left.isTemperature && !right.isTemperature else { return nil }
             let dims = left.dims * right.dims
             let unit: CommandBarUnitCatalog.Unit?
-            if left.unit == nil { unit = right.unit }
+            if dims.isNone { unit = nil }
+            else if left.unit == nil { unit = right.unit }
             else if right.unit == nil { unit = left.unit }
             else { unit = CommandBarExpressions.productUnit(left.unit!, right.unit!) }
             return Value(si: left.si * right.si, dims: dims, unit: unit,
-                         percentRaw: nil, hasNumber: true)
+                         percentRaw: nil, hasNumber: left.hasNumber || right.hasNumber)
         }
 
         private func divide(_ left: Value, _ right: Value) -> Value? {
@@ -1033,15 +1139,17 @@ enum CommandBarExpressions {
             guard right.si != 0 else { return nil }
             let dims = left.dims / right.dims
             let unit: CommandBarUnitCatalog.Unit?
-            if right.unit == nil {
+            if dims.isNone {
+                unit = nil
+            } else if right.unit == nil {
                 unit = left.unit
             } else if left.unit == nil {
                 unit = CommandBarExpressions.reciprocal(right.unit!)
             } else {
-                unit = CommandBarExpressions.quotientUnit(left.unit!, right.unit!)
+                unit = CommandBarExpressions.compound(numerator: left.unit!, denominator: right.unit!)
             }
             return Value(si: left.si / right.si, dims: dims, unit: unit,
-                         percentRaw: nil, hasNumber: true)
+                         percentRaw: nil, hasNumber: left.hasNumber || right.hasNumber)
         }
 
         private func modulo(_ left: Value, _ right: Value) -> Value? {
@@ -1052,7 +1160,7 @@ enum CommandBarExpressions {
         }
 
         private func off(_ percent: Value, of amount: Value) -> Value? {
-            guard percent.unit == nil, let raw = percent.percentRaw else { return nil }
+            guard !amount.isTemperature, percent.unit == nil, let raw = percent.percentRaw else { return nil }
             let fraction = raw / 100
             return Value(si: amount.si * (1 - fraction), dims: amount.dims,
                          unit: amount.unit, percentRaw: nil, hasNumber: true)
@@ -1076,27 +1184,6 @@ enum CommandBarExpressions {
             return nil
         }
 
-        private func root(_ operand: Value, degree: Double) -> Value? {
-            guard !operand.isTemperature, degree != 0 else { return nil }
-            let value: Double
-            if operand.si < 0 {
-                // Only odd whole roots of a negative are real.
-                guard degree == degree.rounded(), Int(degree) % 2 != 0 else { return nil }
-                value = -pow(-operand.si, 1.0 / degree)
-            } else {
-                value = pow(operand.si, 1.0 / degree)
-            }
-            guard value.isFinite else { return nil }
-            guard let unit = operand.unit else {
-                return Value(si: value, dims: .none, unit: nil, percentRaw: nil, hasNumber: true)
-            }
-            let n = Int(degree)
-            guard n >= 2, operand.dims.allDivisible(by: n) else { return nil }
-            let dims = operand.dims.dividedExponents(by: n)
-            let rootUnit = CommandBarExpressions.rootUnit(unit, degree: n)
-            return Value(si: value, dims: dims, unit: rootUnit, percentRaw: nil, hasNumber: true)
-        }
-
         private func negate(_ value: Value) -> Value {
             // A temperature is a reading, not a scale: -459.67 °F is zero
             // kelvin, so the sign belongs to the number, not to its kelvin.
@@ -1108,12 +1195,11 @@ enum CommandBarExpressions {
 
         private func displayValue(_ value: Value) -> Double {
             guard let unit = value.unit else { return value.si }
-            return (value.si - unit.offset) / unit.scale
-        }
-
-        private func dimsCompatible(_ left: Value, _ right: Value) -> Bool {
-            if left.unit == nil || right.unit == nil { return true }
-            return left.dims == right.dims
+            let displayed = unit.displayValue(siValue: value.si)
+            // An integral reading can gain a fractional bit on its return trip
+            // from SI. Keep floor(29 cm) at 29 when that integer maps to the same SI value.
+            let nearest = displayed.rounded()
+            return unit.siValue(displayValue: nearest) == value.si ? nearest : displayed
         }
 
         // MARK: Conversion
@@ -1131,23 +1217,20 @@ enum CommandBarExpressions {
         }
 
         private func convert(_ value: Value, to target: CommandBarUnitCatalog.Unit) -> Value? {
-            if value.isTemperature {
-                guard target.dimensions.temperature == 1, value.dims == target.dimensions else { return nil }
-                return Value(si: value.si, dims: target.dimensions, unit: target,
-                             percentRaw: nil, hasNumber: value.hasNumber)
+            let si: Double
+            if value.dims == target.dimensions {
+                si = value.si
+            } else {
+                let speed = CommandBarUnitCatalog.Dimensions(length: 1, time: -1)
+                let fuelEconomy = CommandBarUnitCatalog.Dimensions(length: -2)
+                guard value.dims == target.dimensions.negated(), value.si != 0,
+                      value.dims == speed || target.dimensions == speed
+                      || value.dims == fuelEconomy || target.dimensions == fuelEconomy
+                else { return nil }
+                si = 1 / value.si
             }
-            guard value.dims == target.dimensions else {
-                // Reciprocal conversion: speed to pace, economy to consumption.
-                // Ten kilometres per hour is six minutes per kilometre, so the
-                // amount itself is inverted, not just its unit.
-                if value.dims == target.dimensions.negated(), value.si != 0 {
-                    return Value(si: 1 / value.si, dims: target.dimensions, unit: target,
-                                 percentRaw: nil, hasNumber: value.hasNumber)
-                }
-                return nil
-            }
-            return Value(si: value.si, dims: target.dimensions, unit: target,
-                         percentRaw: nil, hasNumber: value.hasNumber)
+            return Value(si: si, dims: target.dimensions, unit: target,
+                         percentRaw: nil, hasNumber: value.hasNumber).finiteValue
         }
 
         private func split(_ value: Value,
@@ -1158,6 +1241,7 @@ enum CommandBarExpressions {
             let whole = largerTotal >= 0 ? largerTotal.rounded(.down) : largerTotal.rounded(.up)
             let remainderLarger = largerTotal - whole
             let smallerValue = remainderLarger * larger.scale / smaller.scale
+            guard whole.isFinite, smallerValue.isFinite else { return nil }
             return .split(Split(larger: (whole, larger),
                                 smaller: (smallerValue, smaller),
                                 dims: value.dims))
@@ -1173,7 +1257,7 @@ enum CommandBarExpressions {
             ]
             for (larger, smaller) in pairs {
                 let total = (value.si - larger.offset) / larger.scale
-                if total >= 1 {
+                if abs(total) >= 1 {
                     return split(value, larger: larger, smaller: smaller)
                 }
             }
@@ -1188,29 +1272,27 @@ enum CommandBarExpressions {
             switch function {
             case .sqrt, .cbrt:
                 guard arguments.count == 1, let argument = arguments.first else { return nil }
-                return root(argument, degree: function == .sqrt ? 2 : 3)
-            case .abs:
+                return CommandBarExpressions.root(argument, degree: function == .sqrt ? 2 : 3)
+            case .abs, .round, .floor, .ceil:
                 guard arguments.count == 1, let argument = arguments.first else { return nil }
-                return Value(si: Swift.abs(argument.si), dims: argument.dims,
-                             unit: argument.unit, percentRaw: nil, hasNumber: true)
-            case .round, .floor, .ceil:
-                guard arguments.count == 1, let argument = arguments.first else { return nil }
+                let displayed = displayValue(argument)
                 let result: Double
                 switch function {
-                case .round: result = argument.si.rounded()
-                case .floor: result = Foundation.floor(argument.si)
-                default: result = Foundation.ceil(argument.si)
+                case .abs: result = Swift.abs(displayed)
+                case .round: result = displayed.rounded()
+                case .floor: result = Foundation.floor(displayed)
+                default: result = Foundation.ceil(displayed)
                 }
-                return Value(si: result, dims: argument.dims, unit: argument.unit,
+                let si = argument.unit?.siValue(displayValue: result) ?? result
+                return Value(si: si, dims: argument.dims, unit: argument.unit,
                              percentRaw: nil, hasNumber: true)
             case .min, .max:
-                guard !arguments.isEmpty else { return nil }
-                let unit = arguments.first?.unit
-                let dims = arguments.first?.dims ?? .none
-                guard arguments.allSatisfy({ $0.unit == unit && $0.dims == dims }) else { return nil }
-                let values = arguments.map(\.si)
-                let result = function == .min ? values.min()! : values.max()!
-                return Value(si: result, dims: dims, unit: unit, percentRaw: nil, hasNumber: true)
+                guard let first = arguments.first, arguments.allSatisfy({ $0.dims == first.dims })
+                else { return nil }
+                let result = arguments.dropFirst().reduce(first.si) { current, value in
+                    function == .min ? Swift.min(current, value.si) : Swift.max(current, value.si)
+                }
+                return Value(si: result, dims: first.dims, unit: first.unit, percentRaw: nil, hasNumber: true)
             case .log:
                 guard arguments.count == 1 || arguments.count == 2 else { return nil }
                 guard arguments.allSatisfy({ $0.unit == nil }) else { return nil }
@@ -1218,7 +1300,8 @@ enum CommandBarExpressions {
                 guard value > 0 else { return nil }
                 let base = arguments.count == 2 ? arguments[1].si : 10
                 guard base > 0, base != 1 else { return nil }
-                return Value(si: Foundation.log(value) / Foundation.log(base),
+                let result = base == 10 ? Foundation.log10(value) : Foundation.log(value) / Foundation.log(base)
+                return Value(si: result,
                              dims: .none, unit: nil, percentRaw: nil, hasNumber: true)
             case .log10:
                 guard arguments.count == 1, let argument = arguments.first,
@@ -1240,7 +1323,8 @@ enum CommandBarExpressions {
                 let radians: Double
                 if argument.unit == nil {
                     radians = argument.si
-                } else if argument.dims == CommandBarUnitCatalog.Dimensions(angle: 1) {
+                } else if (function == .sin || function == .cos || function == .tan),
+                          argument.dims == CommandBarUnitCatalog.Dimensions(angle: 1) {
                     radians = argument.si
                 } else {
                     return nil
@@ -1265,30 +1349,56 @@ enum CommandBarExpressions {
 // MARK: - Value helpers
 
 extension CommandBarExpressions.Value {
-    /// Whether this is an affine temperature reading rather than a length.
-    var isTemperature: Bool { unit.map { $0.offset != 0 } ?? false }
+    var isTemperature: Bool { dims.temperature != 0 }
+
+    /// Refuse overflow at the step that produced it, before a later operation
+    /// could turn it into a plausible answer (for example, zero divided by infinity).
+    var finiteValue: Self? {
+        guard si.isFinite else { return nil }
+        if let unit, !unit.scale.isFinite || unit.scale <= 0 { return nil }
+        return self
+    }
 }
 
 // MARK: - Unit composition
 
 extension CommandBarExpressions {
+    static func root(_ operand: Value, degree: Double) -> Value? {
+        guard !operand.isTemperature, degree.isFinite, degree != 0 else { return nil }
+        let wholeDegree = Int(exactly: degree)
+        let value: Double
+        if operand.si < 0 {
+            guard let n = wholeDegree, !n.isMultiple(of: 2) else { return nil }
+            value = -pow(-operand.si, 1 / degree)
+        } else {
+            value = pow(operand.si, 1 / degree)
+        }
+        guard value.isFinite else { return nil }
+        guard let unit = operand.unit else {
+            return Value(si: value, dims: .none, unit: nil, percentRaw: nil, hasNumber: true)
+        }
+        guard let n = wholeDegree, n >= 2, operand.dims.allDivisible(by: n) else { return nil }
+        let resultUnit = rootUnit(unit, degree: n)
+        return Value(si: value, dims: resultUnit.dimensions, unit: resultUnit, percentRaw: nil, hasNumber: true)
+    }
+
     /// Builds a compound unit from a numerator and denominator, preferring an
     /// existing catalog unit whose dimensions and scale match.
     static func compound(numerator: CommandBarUnitCatalog.Unit,
                          denominator: CommandBarUnitCatalog.Unit) -> CommandBarUnitCatalog.Unit {
         let dims = numerator.dimensions / denominator.dimensions
         let scale = numerator.scale / denominator.scale
-        return resolve(dims: dims, scale: scale, symbol: "\(numerator.symbol)/\(denominator.symbol)")
+        return resolve(dims: dims, scale: scale, symbol: "\(numerator.symbol)/\(denominatorSymbol(denominator))")
     }
 
     static func reciprocal(_ unit: CommandBarUnitCatalog.Unit) -> CommandBarUnitCatalog.Unit {
         resolve(dims: unit.dimensions.negated(), scale: 1 / unit.scale,
-                symbol: "1/\(unit.symbol)")
+                symbol: "1/\(denominatorSymbol(unit))")
     }
 
-    static func scaled(_ unit: CommandBarUnitCatalog.Unit,
-                       by factor: Double) -> CommandBarUnitCatalog.Unit {
-        resolve(dims: unit.dimensions, scale: unit.scale * factor, symbol: unit.symbol)
+    private static func denominatorSymbol(_ unit: CommandBarUnitCatalog.Unit) -> String {
+        let symbol = unit.symbol
+        return symbol.contains("/") || symbol.contains("·") ? "(\(symbol))" : symbol
     }
 
     static func productUnit(_ left: CommandBarUnitCatalog.Unit,
@@ -1301,21 +1411,20 @@ extension CommandBarExpressions {
         return resolve(dims: dims, scale: scale, symbol: "\(left.symbol)·\(right.symbol)")
     }
 
-    static func quotientUnit(_ left: CommandBarUnitCatalog.Unit,
-                             _ right: CommandBarUnitCatalog.Unit) -> CommandBarUnitCatalog.Unit {
-        let dims = left.dimensions / right.dimensions
-        let scale = left.scale / right.scale
-        return resolve(dims: dims, scale: scale, symbol: "\(left.symbol)/\(right.symbol)")
-    }
-
     static func rootUnit(_ unit: CommandBarUnitCatalog.Unit,
-                         degree: Int) -> CommandBarUnitCatalog.Unit? {
-        if let rooted = CommandBarUnitCatalog.rootedPartners[unit.id] {
+                         degree: Int) -> CommandBarUnitCatalog.Unit {
+        let dims = unit.dimensions.dividedExponents(by: degree)
+        if let rooted = CommandBarUnitCatalog.rootedPartners[unit.id], rooted.dimensions == dims {
             return rooted
         }
-        let dims = unit.dimensions.dividedExponents(by: degree)
-        let scale = pow(unit.scale, 1.0 / Double(degree))
-        return resolve(dims: dims, scale: scale, symbol: unit.symbol)
+        // A hectare, for example, has no named square-root unit. Report the
+        // resulting length in meters instead of labeling it as an area.
+        if let base = CommandBarUnitCatalog.all.first(where: { $0.dimensions == dims && $0.scale == 1 && $0.offset == 0 }) {
+            return base
+        }
+        let radical = degree == 2 ? "√" : degree == 3 ? "∛" : "root \(degree) of "
+        return resolve(dims: dims, scale: pow(unit.scale, 1 / Double(degree)),
+                       symbol: "\(radical)(\(unit.symbol))")
     }
 
     /// Finds a catalog unit matching the dimensions and scale, or synthesizes
@@ -1332,6 +1441,7 @@ extension CommandBarExpressions {
     }
 
     static func scalesMatch(_ a: Double, _ b: Double) -> Bool {
+        guard a.isFinite, b.isFinite else { return false }
         if a == b { return true }
         let magnitude = max(abs(a), abs(b))
         return magnitude == 0 ? true : abs(a - b) <= magnitude * 1e-9

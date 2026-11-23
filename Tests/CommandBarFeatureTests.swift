@@ -40,6 +40,16 @@ enum CommandBarFeatureTests {
 
     /// Runs the production answer row and its copy action against a test pasteboard and HUD.
     enum CopyAnswerHost {
+        final class Completion {
+            enum Mode { case search, actions }
+            var mode = Mode.search
+            var selectedEntry: CommandBarEntry?
+            var panel: NSPanel?
+            var query = ""
+            var queryBeforeCompletion: String?
+            var completedQuery: String?
+        }
+
         final class Pasteboard {
             enum Kind { case string }
             static let general = Pasteboard()
@@ -511,6 +521,36 @@ enum CommandBarFeatureTests {
                        "reused answers also round-trip in decimal-comma locales")
             } else {
                 suite.expect(false, "calculator produces an answer to reuse for \(expression)")
+            }
+        }
+
+        for (input, expected) in [
+            ("18/3^2", 2.0), ("2^4/2", 8), ("1/2.5", 0.4), ("1/2e2", 0.005),
+            ("-7", -7), ("100+(10%)", 100.1), ("max(2,3)", 3), ("min(2;3)", 2),
+        ] {
+            suite.expect(mathValue(input) == expected, "\(input) retains scalar arithmetic")
+        }
+        for word in ["of", "de", "da", "do", "von", "di", "del", "dal"] {
+            suite.expect(mathValue("20% \(word) 480") == 96, "percent of accepts \(word)")
+        }
+        suite.expect(mathValue("max(2,3;1)", decimal: ",", grouping: ".") == 2.3
+                     && mathValue("1/2,5", decimal: ",", grouping: ".") == 0.4,
+                     "a decimal comma survives function arguments and division")
+        for input in ["2026-07-27=", "27/07/2026 =", "２０２６－０７－２７＝", "10:30="] {
+            suite.expect(calculate(input) == nil, "a trailing equals sign leaves dates and times as searches")
+        }
+        suite.expect(mathValue("3 root of -8") == -2 && mathValue("2.5 root of 32") == 4
+                     && mathValue("2.5 root of 16m2") == nil && mathValue("0 root of 16") == nil,
+                     "scalar roots retain their domains and dimensional root degrees must be integral")
+        if let area = CommandBarUnitCatalog.unit(byID: "m2") {
+            let measured = CommandBarExpressions.Value(si: 1, dims: area.dimensions, unit: area,
+                                                       percentRaw: nil, hasNumber: true)
+            let negative = CommandBarExpressions.Value(si: -1, dims: .none, unit: nil,
+                                                       percentRaw: nil, hasNumber: true)
+            for degree in [Double.greatestFiniteMagnitude, -Double.greatestFiniteMagnitude] {
+                suite.expect(CommandBarExpressions.root(measured, degree: degree) == nil
+                             && CommandBarExpressions.root(negative, degree: degree) == nil,
+                             "a root that needs an integer degree rejects an unrepresentable degree")
             }
         }
 
@@ -1390,7 +1430,7 @@ enum CommandBarFeatureTests {
         // The calculator owns arithmetic, unit conversion and rates in one
         // parse, so these assert displayed-unit values rather than a second
         // conversion API's independent result.
-        for (query, expected) in [
+        let conversions: [(String, Double)] = [
             ("5feet + 1m", 2.524),
             ("10kg + 500g", 10_500),
             ("1kg + 500g + 2lb", 5.306_933_932),
@@ -1399,9 +1439,13 @@ enum CommandBarFeatureTests {
             ("5 feet 3 inches to cm", 160.02),
             ("1hr 30min", 90),
             (#"5/16" in mm"#, 7.9375),
-            ("1 1/2 cups to ml", 354.882_354_8),
+            (#"5 / 16 " in mm"#, 7.9375),
+            ("1/2 kg", 0.5),
+            ("1 1/2 cups to ml", 360),
             (#"5'10" in cm"#, 177.8),
             ("56/7 fl oz in ml", 236.588_236_5),
+            ("56 / 7 fl oz in ml", 236.588_236_5),
+            ("(56/7) fl oz in ml", 236.588_236_5),
             ("5m * 4m", 20),
             ("2m * 3m * 4m to l", 24_000),
             ("sqrt(25m2)", 5),
@@ -1411,6 +1455,12 @@ enum CommandBarFeatureTests {
             ("1GB / 100mbps to s", 80),
             ("1500w * 2h to kwh", 3),
             ("1 / 20ms to hz", 50),
+            ("1/20ms to hz", 50),
+            ("1 / 20 ms to Hz", 50), ("1/(20 ms) to Hz", 50),
+            ("2 / 20 ms in Hz", 100), ("2 / 20 ms to s", 0.0001),
+            ("0 / 20 ms to Hz", 0), ("8 / 2 / 4 ms to Hz", 1000),
+            ("2^4 / 2 s to Hz", 8), ("1 / 20 ms + 1 / 40 ms to Hz", 75),
+            ("1/2 L/100km to km/L", 200),
             ("2kg / 4m3", 0.5),
             ("1kg/m3 to g/cm3", 0.001),
             ("how many feet in a mile", 5_280),
@@ -1418,13 +1468,72 @@ enum CommandBarFeatureTests {
             ("convert 5 km into miles", 3.106_855_961),
             ("10l / 2min to l/min", 5),
             ("10 km/h to min/km", 6),
-        ] {
+            ("10 km/h in min/km", 6),
+            ("5 ft - 1 in to in", 59),
+            ("(2 m + 3 m) * 2 to cm", 1000),
+            ("round(1.6 cm)", 2), ("floor(1.6 cm)", 1), ("ceil(1.6 cm)", 2),
+            ("floor(29 cm)", 29), ("min(1 m; 90 cm) to cm", 90), ("sqrt(1 ha) to m", 100),
+            ("abs(-20 °C) to °C", 20),
+            ("2 m / 100 cm", 2), ("1 kPa * 1 m3 to kJ", 1),
+            ("0°C to °F", 32), ("-40 °f to °c", -40), ("100 °F to °C", 37.77777778),
+            ("273.15 K to °C", 0), ("273.15K to c", 0), ("180° to rad", Double.pi),
+            ("1 A to A", 1), ("３ ｋｇ ｔｏ ｇ", 3000), ("2 k\u{200B}g to g", 2000),
+            ("1 mL to µL", 1000), ("1000 µL to mL", 1),
+            ("1 mWh to Wh", 0.001), ("1 MWh to Wh", 1_000_000),
+            ("1 mJ to J", 0.001), ("1 MJ to J", 1_000_000),
+            ("1 mPa to Pa", 0.001), ("1 MPa to Pa", 1_000_000),
+            ("1 mHz to Hz", 0.001), ("1 MHz to Hz", 1_000_000),
+            ("1 mΩ to ohm", 0.001), ("1 MΩ to ohm", 1_000_000),
+            ("1 MB to bits", 8_000_000), ("1 Mb to bits", 1_000_000),
+            ("1 gb to mb", 1000), ("1 MBps to Mbps", 8),
+            ("1 kg / 1 m / 1 s / 1 s to Pa", 1),
+            ("1 cup to mL", 240), ("1 xícara para mL", 240),
+            ("1 metric cup to mL", 250), ("1 US cup to mL", 236.5882365),
+        ]
+        for (query, expected) in conversions {
             let result = calculate(query)
             let tolerance = max(1.0, abs(expected)) * 1e-8
             suite.expect(result?.value.map { abs($0 - expected) <= tolerance } == true,
                          "\(query) should be \(expected), got \(result?.formatted ?? "nil")")
         }
 
+        for connector in ["to", "in", "into", "as", "em", "para", "pra", "en", "a",
+                          "nach", "zu", "à", "su", "->", ">", "→"] {
+            suite.expect(unitValue("2 kg \(connector) g") == 2000, "conversion through \(connector)")
+        }
+        for query in ["1 cm + 1", "1 kg + 1 m", "1 kg / 1 m * 1 s * 1 s to Pa",
+                      "20 °C * 2", "1 kg in 2 kg", "20 ms to Hz", "1 / 0 ms to Hz"] {
+            suite.expect(calculate(query) == nil, "an incompatible or ambiguous operation stays a search: \(query)")
+        }
+        suite.expect(units("1 mL to µL")?.hasSuffix("µL") == true,
+                     "microliters carry the requested unit on screen and when copied")
+        for name in ["fathom", "furlong", "au", "acre", "c", "f", "ul", "sqft",
+                     "kbit", "mbit", "gbit", "tbit", "farad", "tesla", "henry", "siemens"] {
+            let result = calculate("2 \(name) to \(name)")
+            let reused = result?.reusableExpression.flatMap { unitValue("\($0) to \(name)") }
+            suite.expect(reused == 2, "Tab preserves the identity of \(name)")
+        }
+        for (input, continuation, expected) in [
+            ("3 / (2 kg)", " * 4 kg", 6.0),
+            ("2 tesla * 3 m", " / (3 m) to tesla", 2),
+            ("-1 in to in", " to cm", -2.54),
+            ("10 km/h to min/km", " * 2 km to min", 12),
+        ] {
+            let reused = calculate(input)?.reusableExpression
+            suite.expect(reused.flatMap { unitValue($0 + continuation) } == expected,
+                         "Tab keeps the sign and dimensions to continue \(input)")
+        }
+        let halvedConsumption = calculate("20 km/L to L/100km")?.reusableExpression.flatMap {
+            calculate($0 + " / 2")
+        }
+        suite.expect(halvedConsumption?.value == 2.5 && halvedConsumption?.formatted == "2.5 L/100km",
+                     "dividing a Tab-reused fuel consumption keeps liters per 100 kilometers")
+        suite.expect(units("5feet + 1m") == units("2.524 m to m") && unitValue("5feet + 1m") == 2.524,
+                     "a mixed-unit sum displays in the right operand's unit")
+        if let split = calculate("145 mins to timespan") {
+            suite.expect(split.value == nil && split.reusableExpression == nil,
+                         "a split answer offers neither a partial numeric value nor a Tab action")
+        }
         expectSplit("145 mins to timespan", [2, 25], units: ["hr", "min"])
         expectSplit("1.75 m to feet and inches", [5, 8.897_637_795], units: ["ft", "in"])
         expectSplit("2.5 kg to lb oz", [5, 8.184_904_874], units: ["lb", "oz"])
@@ -1673,6 +1782,64 @@ enum CommandBarFeatureTests {
         }
         suite.expect(unitNumbers(units("0.0001 c to c")) == ["0.0001"],
                      "small temperatures retain their existing four-decimal precision")
+
+        do {
+            let completion = CopyAnswerHost.Completion()
+            let input = "50 cm + 50 cm to m"
+            let row = CopyAnswerHost.answerEntry(for: input, bar: englishBar)
+            let reusable = row?.reusableExpression
+            suite.expect(reusable.flatMap { CommandBarCalculator.evaluate($0 + " to cm")?.value } == 100,
+                         "the answer row supplies a reusable measurement with its unit")
+            suite.expect(CopyAnswerHost.answerEntry(for: input, bar: englishBar, enabled: false) == nil
+                         && CopyAnswerHost.answerEntry(for: "1password", bar: englishBar) == nil,
+                         "a disabled calculator and an app search leave the result list to search")
+
+            _ = NSApplication.shared
+            let frame = NSRect(x: 0, y: 0, width: 300, height: 40)
+            let panel = NSPanel(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            panel.isReleasedWhenClosed = false
+            defer { panel.close() }
+            let editor = NSTextView(frame: frame)
+            editor.allowsUndo = true
+            panel.contentView = editor
+            panel.makeFirstResponder(editor)
+            editor.string = input
+            completion.panel = panel
+            completion.selectedEntry = row
+            completion.query = input
+            completion.completeSelection()
+            suite.expect(reusable != nil && completion.query == reusable && editor.string == reusable
+                         && editor.selectedRange().location == (editor.string as NSString).length,
+                         "Tab replaces the field with this row's expression and leaves the caret at the end")
+            editor.undoManager?.undo()
+            suite.expect(editor.string == input, "one native undo restores the calculation after Tab")
+
+            for query in [input, "145 mins to timespan", "#fff to rgb"] {
+                let answer = CopyAnswerHost.answerEntry(for: query, bar: englishBar)
+                CopyAnswerHost.Pasteboard.general.accepts = true
+                CopyAnswerHost.Pasteboard.general.clearContents()
+                answer?.run(nil)
+                suite.expect(answer != nil && CopyAnswerHost.Pasteboard.general.string == answer?.title,
+                             "Return copies the whole displayed answer for \(query)")
+                if query != input {
+                    completion.selectedEntry = answer
+                    completion.query = query
+                    completion.completeSelection()
+                    suite.expect(answer?.reusableExpression == nil && completion.query == query,
+                                 "Tab leaves the field alone when \(query) has no reusable expression")
+                }
+            }
+            completion.selectedEntry = searchRow("app.safari", "Safari")
+            completion.query = "saf"
+            completion.completeSelection()
+            suite.expect(completion.query == "Safari" && completion.queryBeforeCompletion == "saf",
+                         "Tab still completes a selected search result and remembers what was typed")
+            completion.mode = .actions
+            completion.selectedEntry = row
+            completion.query = input
+            completion.completeSelection()
+            suite.expect(completion.query == input, "Tab cannot replace the field from the actions list")
+        }
 
         // MARK: Command bar emoji
 
