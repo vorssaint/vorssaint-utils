@@ -7,7 +7,7 @@ import Foundation
 /// The cards the AI page can show, in the order a person arranges them. Raw
 /// values are stored in the saved order, so cases are never renamed.
 enum NotchAgentCard: String, CaseIterable, Identifiable {
-    case limits, spend, live, trend, models, projects, activity, resets
+    case limits, spend, live, trend, models, projects, activity, resets, tools
 
     var id: String { rawValue }
 
@@ -21,14 +21,15 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
         case .projects: return "folder"
         case .activity: return "square.grid.3x3.fill"
         case .resets: return "arrow.counterclockwise.circle"
+        case .tools: return "wrench.and.screwdriver"
         }
     }
 
     /// Charts need the island's width; everything else pairs up.
-    var fullWidth: Bool { self == .trend || self == .activity }
+    var fullWidth: Bool { self == .trend || self == .activity || self == .tools }
 
     /// Cards that cover the period chosen in the island's top row.
-    var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects }
+    var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects || self == .tools }
 }
 
 /// What the closed island shows beside the camera while an agent works.
@@ -302,6 +303,7 @@ enum NotchAgentSupport {
     static let spacing: CGFloat = 10
     static let cardHeight: CGFloat = 96
     static let chartHeight: CGFloat = 118
+    static let toolCallsHeight: CGFloat = 195
     /// An account card also says when it was checked, and the Resets card
     /// beside account cards names the account its resets belong to.
     static let accountCardHeight: CGFloat = 116
@@ -330,6 +332,9 @@ enum NotchAgentSupport {
             // the card names once others have cards.
             case .resets: return providers.contains(.codex)
                 ? [NotchAgentTile(card: .resets, provider: .codex, namesDefaultAccount: !codexAccounts.isEmpty)] : []
+            case .tools:
+                guard providers.contains(.claude) || providers.contains(.codex) else { return [] }
+                return [NotchAgentTile(card: .tools, provider: nil)]
             case .live:
                 let working = snapshot.live.contains { providers.contains($0.provider) }
                 return [NotchAgentTile(card: .live, provider: nil, idleProviderCount: working ? 0 : providers.count)]
@@ -361,6 +366,7 @@ enum NotchAgentSupport {
     }
 
     static func height(of row: [NotchAgentTile]) -> CGFloat {
+        if row.contains(where: { $0.card == .tools }) { return toolCallsHeight }
         if row.contains(where: \.card.fullWidth) { return chartHeight }
         let base = row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
         guard let count = row.first(where: { $0.idleProviderCount > 0 })?.idleProviderCount else { return base }

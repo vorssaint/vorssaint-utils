@@ -380,7 +380,10 @@ final class AgentUsageService: ObservableObject {
     /// which is never saved, leaves it alone.
     private var progressMark: Int {
         let records = store.records.reduce(0) { $1.provider == .opencode ? $0 : $0 + 1 }
-        return cursors.values.reduce(records) { mark, cursor in
+        var stored = Hasher()
+        stored.combine(records)
+        stored.combine(store.toolActivityRevision)
+        return cursors.values.reduce(stored.finalize()) { mark, cursor in
             guard cursor.provider != .opencode else { return mark }
             var hasher = Hasher()
             hasher.combine(cursor.path)
@@ -461,7 +464,7 @@ final class AgentUsageService: ObservableObject {
         for (path, cursor) in cursors {
             if cursor.provider == .cursor && (cursorRoot == nil || cursor.cursorAccess?.root.path != cursorRoot?.path) {
                 cursors[path] = nil
-                store.forget(files: [path])
+                store.forgetUsageAndTurns(files: [path])
                 changed = true
                 continue
             }
@@ -557,7 +560,7 @@ final class AgentUsageService: ObservableObject {
         let path = changedPath
         guard FileManager.default.fileExists(atPath: path) else {
             cursors[path] = nil
-            return store.forget(file: path)
+            return store.forgetMissingLogs([path])
         }
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
@@ -590,10 +593,12 @@ final class AgentUsageService: ObservableObject {
     private func watch(_ roots: [AgentLogRoot]) {
         let existing = roots.filter(\.exists)
         let cursorRoot = existing.first { $0.provider == .cursor }?.url
-        for (path, cursor) in cursors where cursor.provider == .cursor && cursor.cursorAccess?.root.path != cursorRoot?.path {
-            cursors[path] = nil
-            store.forget(files: [path])
-        }
+        let retiredCursorLogs = Set(cursors.values.compactMap { cursor -> String? in
+            guard cursor.provider == .cursor, cursor.cursorAccess?.root.path != cursorRoot?.path else { return nil }
+            return cursor.path
+        })
+        for path in retiredCursorLogs { cursors[path] = nil }
+        store.forgetUsageAndTurns(files: retiredCursorLogs)
         watchedRoots = existing
         lastRootCheck = Date()
         if watcher == nil {
@@ -605,17 +610,30 @@ final class AgentUsageService: ObservableObject {
     }
 
     private func filesChanged(_ paths: [String], rescan: Bool) {
-        guard readerSession >= 0, !watchedRoots.isEmpty else { return }
+        guard readerSession >= 0, rescan || !watchedRoots.isEmpty else { return }
         defer { syncPolling() }
         var changed = false
         if rescan {
             let files = AgentLogReader.discover(watchedRoots, since: Date().addingTimeInterval(-Self.horizon))
-            let cursorFiles = Set(files.lazy.filter { $0.provider == .cursor }.map(\.path))
-            for (path, cursor) in cursors where cursor.provider == .cursor && !cursorFiles.contains(path) {
-                cursors[path] = nil
-                store.forget(files: [path])
-                changed = true
+            let discovered = Set(files.lazy.map(\.path))
+            var missing = Set<String>()
+            var missingCursor = Set<String>()
+            for (path, cursor) in cursors where !discovered.contains(path) {
+                switch cursor.provider {
+                case .cursor:
+                    cursors[path] = nil
+                    missingCursor.insert(path)
+                case .claude, .codex:
+                    // Discovery can also skip an existing log outside the time window.
+                    guard !FileManager.default.fileExists(atPath: path) else { continue }
+                    cursors[path] = nil
+                    missing.insert(path)
+                case .opencode, .copilot:
+                    break
+                }
             }
+            store.forgetUsageAndTurns(files: missingCursor)
+            changed = store.forgetMissingLogs(missing) || changed || !missingCursor.isEmpty
             for file in files {
                 if read(file.path, provider: file.provider) { changed = true }
             }

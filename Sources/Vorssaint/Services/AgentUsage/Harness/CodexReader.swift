@@ -13,8 +13,18 @@ struct CodexReader: AgentHarnessReader {
         guard let kind = AgentLogParser.firstType(line) else { return [] }
         switch kind.name {
         case "token_usage_record", "turn_context", "session_meta": break
+        case "response_item":
+            guard let item = AgentLogParser.firstType(line, from: kind.end),
+                  Self.toolResponses.contains(item.name) else { return [] }
+            return toolCall(line, envelope: kind.name)
         case "event_msg":
-            guard let event = AgentLogParser.firstType(line, from: kind.end), AgentLogParser.codexEvents.contains(event.name) else { return [] }
+            guard let event = AgentLogParser.firstType(line, from: kind.end) else { return [] }
+            if event.name == "item_completed" {
+                guard let item = AgentLogParser.firstType(line, from: event.end),
+                      item.name == "Extension" || Self.toolItems[item.name] != nil else { return [] }
+                return toolCall(line, envelope: kind.name)
+            }
+            guard AgentLogParser.codexEvents.contains(event.name) else { return [] }
         default: return []
         }
         guard let json = AgentLogParser.object(line), let payload = json["payload"] as? [String: Any] else { return [] }
@@ -59,6 +69,43 @@ struct CodexReader: AgentHarnessReader {
         default:
             return []
         }
+    }
+
+    private static let toolResponses: Set<String> = ["function_call", "custom_tool_call", "web_search_call"]
+    private static let toolItems: [String: AgentToolKind] = [
+        "CommandExecution": .shell, "FileChange": .edit, "McpToolCall": .mcp,
+        "WebSearch": .web, "ImageView": .read, "CollabAgentToolCall": .subagent,
+    ]
+
+    // Some rollouts include both the invocation and the completed action
+    // with the same ID. The store counts the call once.
+    private func toolCall(_ line: Data, envelope: String) -> [AgentLogEntry] {
+        guard let object = AgentLogObject(line), object.string("type", maxBytes: 32) == envelope,
+              let payload = object.object("payload"),
+              let date = AgentLogParser.timestamp(object.string("timestamp", maxBytes: 40)),
+              let type = payload.string("type", maxBytes: 32) else { return [] }
+        let kind: AgentToolKind?
+        let id: String?
+        switch type {
+        case "item_completed":
+            guard envelope == "event_msg", let item = payload.object("item"),
+                  item.string("source", maxBytes: 32) != "user_shell",
+                  let itemType = item.string("type", maxBytes: 32) else { return [] }
+            kind = itemType == "Extension" && item.string("kind", maxBytes: 32) == "web.search"
+                ? .web : Self.toolItems[itemType]
+            id = item.string("id", maxBytes: AgentToolCall.maximumIDBytes)
+        case "web_search_call":
+            kind = .web
+            id = payload.string("id", maxBytes: AgentToolCall.maximumIDBytes)
+        default:
+            guard Self.toolResponses.contains(type), let name = payload.string("name", maxBytes: 256),
+                  !name.isEmpty else { return [] }
+            let namespace = payload.string("namespace", maxBytes: 256)
+            kind = namespace?.hasPrefix("mcp__") == true ? .mcp : AgentToolKind.codex(name)
+            id = payload.string("call_id", maxBytes: AgentToolCall.maximumIDBytes)
+        }
+        guard let kind, let id, let call = AgentToolCall(provider: .codex, id: id, date: date, kind: kind) else { return [] }
+        return [.toolCall(call)]
     }
 
     private func codexEvent(_ payload: [String: Any], eventDate: Date?, now: Date, state: inout AgentLogState) -> [AgentLogEntry] {

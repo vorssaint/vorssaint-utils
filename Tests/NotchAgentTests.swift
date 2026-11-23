@@ -18,6 +18,7 @@ enum NotchAgentTests {
         claudeTurns(suite)
         offlineTurns(suite)
         codexParsing(suite)
+        toolCallCounts(suite)
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
         CursorAgentTests.run(suite)
@@ -735,6 +736,88 @@ enum NotchAgentTests {
                                                      state: &quiet, now: now).isEmpty
                         && quiet == AgentLogState(turnOpen: true),
                      "records quoted inside another line's payload are not read as the line's own")
+    }
+
+    private static func toolCallCounts(_ suite: TestSuite) {
+        let now = AgentTimestamp.parse("2026-09-22T15:00:00.000Z")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let store = AgentUsageStore()
+        let claude = line(#"{"type":"assistant","timestamp":"2026-09-21T14:00:00Z","message":{"content":[{"type":"tool_use","id":"id_1","name":"Read","input":{"file_path":"/private/test"}},{"type":"tool_use","id":"id_2","name":"mcp__private__tool"}]}}"#)
+        let raw = line(#"{"timestamp":"2026-09-22T12:59:59Z","type":"response_item","payload":{"type":"function_call","name":"wait_agent","call_id":"call_wait","arguments":"private arguments"}}"#)
+        let duplicate = line(#"{"timestamp":"2026-09-22T13:00:00Z","type":"event_msg","payload":{"type":"item_completed","item":{"type":"CollabAgentToolCall","id":"call_wait"}}}"#)
+        let shell = line(#"{"timestamp":"2026-09-22T13:00:01Z","type":"event_msg","payload":{"type":"item_completed","item":{"type":"CommandExecution","id":"exec-test","aggregated_output":"private output"}}}"#)
+        let edit = line(#"{"timestamp":"2026-09-22T13:01:00Z","type":"event_msg","payload":{"type":"item_completed","item":{"type":"FileChange","id":"id_2","changes":{"/private/edit":{}}}}}"#)
+        let web = line(#"{"timestamp":"2026-09-22T13:02:00Z","type":"event_msg","payload":{"type":"item_completed","item":{"type":"Extension","kind":"web.search","id":"exec-search"}}}"#)
+        let other = line(#"{"timestamp":"2026-09-22T13:03:00Z","type":"response_item","payload":{"type":"function_call","name":"update_plan","call_id":"call_plan"}}"#)
+        let wrapper = line(#"{"timestamp":"2026-09-22T13:03:00Z","type":"response_item","payload":{"type":"custom_tool_call","name":"exec","call_id":"call_wrapper"}}"#)
+        let pendingMCP = line(#"{"timestamp":"2026-09-22T13:04:00Z","type":"response_item","payload":{"type":"function_call","name":"js","call_id":"call_js"}}"#)
+        let finishedMCP = line(#"{"timestamp":"2026-09-22T13:04:01Z","type":"event_msg","payload":{"type":"item_completed","item":{"type":"McpToolCall","id":"call_js","tool":"private-js"}}}"#)
+        var claudeState = AgentLogState()
+        let claudeEntries = AgentLogParser.parseClaude(claude, state: &claudeState, now: now)
+        store.apply(claudeEntries + claudeEntries, file: "claude", provider: .claude, tracksTurns: false,
+                    modified: now, now: now)
+        var codexState = AgentLogState()
+        let codexEntries = [raw, duplicate, shell, edit, web, other, wrapper, pendingMCP].flatMap {
+            AgentLogParser.parseCodex($0, state: &codexState, now: now)
+        }
+        for path in ["session", "archive"] {
+            store.apply(codexEntries, file: path, provider: .codex, tracksTurns: false, modified: now, now: now)
+        }
+
+        let namespaced = line(#"{"timestamp":"2026-09-22T13:04:05Z","type":"response_item","payload":{"type":"function_call","name":"read_file","namespace":"mcp__example","call_id":"call_namespaced"}}"#)
+        let namespacedEntries = AgentLogParser.parseCodex(namespaced, state: &codexState, now: now)
+        store.apply(namespacedEntries, file: "archive", provider: .codex, tracksTurns: false, modified: now, now: now)
+
+        let beforeMCP = store.snapshot(plans: [:], providers: [.codex], now: now, calendar: calendar)
+        suite.expect(beforeMCP.toolCalls[.today]?[.codex]?[.other] == 2,
+                     "a direct invocation gives Other one count and an execution wrapper gives none")
+        let completion = AgentLogParser.parseCodex(finishedMCP, state: &codexState, now: now)
+        store.apply(completion, file: "session", provider: .codex, tracksTurns: false, modified: now, now: now)
+
+        // A copied rollout can publish the same command with a later envelope date.
+        let original = line(#"{"timestamp":"2026-09-21T23:59:59Z","type":"event_msg","payload":{"type":"item_completed","item":{"type":"CommandExecution","id":"exec-test"}}}"#)
+        let originalEntries = AgentLogParser.parseCodex(original, state: &codexState, now: now)
+        store.apply(originalEntries, file: "original", provider: .codex, tracksTurns: false, modified: now, now: now)
+
+        let stored = AgentUsageArchive.Contents(providers: [.claude, .codex], store: store.saved, cursors: [])
+        let bytes = AgentUsageArchive.encode(stored, build: "test")
+        let saved = AgentUsageArchive.decode(bytes, build: "test")
+        suite.expect(saved == stored, "the incremental archive preserves tool counts and duplicate sources")
+        let cached = String(decoding: bytes, as: UTF8.self)
+        suite.expect(!cached.contains("private") && !cached.contains("call_namespaced"),
+                     "cached calls omit paths, arguments, tool output, MCP names and raw call IDs")
+
+        let restored = AgentUsageStore(saved: saved?.store ?? .init())
+        let snapshot = restored.snapshot(plans: [:], providers: [.claude, .codex], now: now, calendar: calendar)
+        let claudeCounts: [AgentToolKind: Int] = [.read: 1, .mcp: 1]
+        let codexToday: [AgentToolKind: Int] = [.edit: 1, .subagent: 1, .web: 1, .other: 1, .mcp: 2]
+        var codexWeek = codexToday
+        codexWeek[.shell] = 1
+        suite.expect(snapshot.toolCalls[.today] == [.codex: codexToday]
+                        && snapshot.toolCalls[.week] == [.claude: claudeCounts, .codex: codexWeek],
+                     "copies count once on the earliest observed day after an archive round trip")
+
+        let pruned = AgentUsageStore(saved: saved?.store ?? .init())
+        _ = pruned.snapshot(plans: [:], providers: [.codex], now: now, calendar: calendar)
+        pruned.dropRecords(before: now)
+        let retained = pruned.snapshot(plans: [:], providers: [.codex], now: now, calendar: calendar)
+        suite.expect(retained.toolCalls[.today]?[.codex]?[.shell] == 1,
+                     "pruning an older observation retains the newer live copy")
+
+        let removedOriginal = restored.forgetMissingLogs(["original"])
+        let copied = restored.snapshot(plans: [:], providers: [.codex], now: now, calendar: calendar)
+        suite.expect(removedOriginal && copied.toolCalls[.today]?[.codex]?[.shell] == 1,
+                     "removing the original updates the date using the remaining copies")
+        let removedCompletion = restored.forgetMissingLogs(["session"])
+        let pending = restored.snapshot(plans: [:], providers: [.codex], now: now, calendar: calendar)
+        suite.expect(removedCompletion && pending.toolCalls[.today]?[.codex]?[.mcp] == 1
+                        && pending.toolCalls[.today]?[.codex]?[.other] == 2,
+                     "removing a completion leaves the invocation with its own category")
+        suite.expect(restored.forgetMissingLogs(["archive"]), "deleting the last source updates the published counts")
+        let remaining = restored.snapshot(plans: [:], providers: [.claude, .codex], now: now, calendar: calendar)
+        suite.expect(remaining.toolCalls[.week] == [.claude: [.read: 1, .mcp: 1]],
+                     "removing the last source retracts the calls from the published counts")
     }
 
     // MARK: OpenCode logs
@@ -3272,7 +3355,7 @@ enum NotchAgentTests {
 
         defaults.set("trend,unknown,trend,spend", forKey: DefaultsKey.notchAgentsCardOrder)
         defaults.set("activity,projects", forKey: DefaultsKey.notchAgentsHiddenCards)
-        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
+        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets, .tools],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor], "an agent can be left out")
@@ -3363,7 +3446,7 @@ enum NotchAgentTests {
                      "cards pair in reading order, and charts and lone cards take the row")
         suite.expect(NotchAgentSupport.rows([limits, codex], width: 330) == [[limits], [codex]],
                      "a narrow island stacks every card")
-        suite.expect(NotchAgentCard.allCases.filter(\.followsPeriod) == [.spend, .trend, .models, .projects],
+        suite.expect(NotchAgentCard.allCases.filter(\.followsPeriod) == [.spend, .trend, .models, .projects, .tools],
                      "the period in the island's top row covers spending, the trend, models and projects")
         suite.expect(NotchAgentSupport.contentHeight([[limits, codex], [trend]])
                         == NotchAgentSupport.cardHeight + NotchAgentSupport.spacing + NotchAgentSupport.chartHeight

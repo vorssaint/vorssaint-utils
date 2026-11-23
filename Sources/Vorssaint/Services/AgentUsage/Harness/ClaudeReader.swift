@@ -107,6 +107,10 @@ struct ClaudeReader: AgentHarnessReader {
                 provider: .claude, date: date, model: model, project: state.project, session: state.session,
                 tokens: billable.tokens, cost: priced.cost, savings: priced.savings), billable: billable))
         }
+        if let observed = AgentLogParser.timestamp(json["timestamp"]) {
+            let blocks = message["content"] as? [[String: Any]] ?? []
+            entries += blocks.compactMap { toolCall($0, date: observed) }
+        }
         // A subagent's own ending is not the end of the turn it serves.
         guard json["isSidechain"] as? Bool != true else { return entries }
         // A client can write bare local output with the assistant role. A
@@ -132,6 +136,22 @@ struct ClaudeReader: AgentHarnessReader {
             state.turnOpen = true
         }
         return entries
+    }
+
+    private func toolCall(_ block: [String: Any], date: Date) -> AgentLogEntry? {
+        let kind: AgentToolKind
+        switch block["type"] as? String {
+        case "mcp_tool_use":
+            kind = .mcp
+        case "tool_use", "server_tool_use":
+            guard let name = block["name"] as? String, !name.isEmpty else { return nil }
+            kind = AgentToolKind.claude(name)
+        default:
+            return nil
+        }
+        guard let id = block["id"] as? String,
+              let call = AgentToolCall(provider: .claude, id: id, date: date, kind: kind) else { return nil }
+        return .toolCall(call)
     }
 
     /// The interruption or local command output the person's message holds,

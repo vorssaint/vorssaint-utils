@@ -135,6 +135,8 @@ struct NotchAgentsView: View {
                                 shares: snapshot.usage(shown).projects, byCost: snapshot.usage(shown).fullyPriced, text: text)
         case .activity:
             NotchAgentActivityCard(snapshot: snapshot, text: text)
+        case .tools:
+            NotchAgentToolCallsCard(counts: snapshot.toolCalls[shown] ?? [:], providers: providers, text: text)
         case .resets:
             NotchAgentResetsCard(now: now, text: text, showsDefaultAccount: tile.namesDefaultAccount)
         }
@@ -911,6 +913,95 @@ private struct NotchAgentActivityCard: View {
 
     private func value(_ totals: AgentTotals, byCost: Bool, partial: Bool) -> String {
         byCost ? AgentFormat.cost(totals.cost, partial: partial) : AgentFormat.tokens(totals.tokens.total)
+    }
+}
+
+private struct NotchAgentToolCallsCard: View {
+    let counts: AgentToolCounts
+    let providers: [AgentProvider]
+    let text: NotchAgentStrings
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        NotchAgentCardChrome {
+            VStack(alignment: .leading, spacing: 5) {
+                NotchAgentCardHeader(title: text.toolsCard, symbol: NotchAgentCard.tools.symbol)
+                if counts.isEmpty {
+                    Text(text.noActivity).foregroundStyle(.secondary)
+                } else {
+                    table
+                }
+            }
+            .font(.system(size: 10, weight: .medium))
+        }
+    }
+
+    private var table: some View {
+        let columns = providers.filter { $0 == .claude || $0 == .codex }
+        let peak = AgentToolKind.allCases.map { kind in
+            columns.reduce(0) { $0 + (counts[$1]?[kind] ?? 0) }
+        }.max() ?? 0
+        return Grid(alignment: .trailing, horizontalSpacing: 10, verticalSpacing: 3) {
+            GridRow {
+                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                ForEach(columns, content: legend)
+            }
+            .accessibilityHidden(true)
+            ForEach(AgentToolKind.allCases, id: \.self) { kind in
+                row(kind, columns: columns, peak: max(1, peak))
+            }
+        }
+        .monospacedDigit()
+    }
+
+    private func legend(_ provider: AgentProvider) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(provider.tint).frame(width: 5, height: 5)
+            Text(provider.displayName).lineLimit(1).foregroundStyle(.secondary)
+        }
+    }
+
+    private func row(_ kind: AgentToolKind, columns: [AgentProvider], peak: Int) -> some View {
+        GridRow {
+            Text(text.toolNames[kind.rawValue])
+                .gridColumnAlignment(.leading)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .help(text.toolNames[kind.rawValue])
+            bar(kind, columns: columns, peak: peak)
+            ForEach(columns) { provider in count(for: provider, kind: kind) }
+        }
+    }
+
+    private func bar(_ kind: AgentToolKind, columns: [AgentProvider], peak: Int) -> some View {
+        GeometryReader { proxy in
+            let widthPerCall = proxy.size.width / CGFloat(peak)
+            segments(kind, columns: columns, widthPerCall: widthPerCall)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.white.opacity(0.10))
+                .clipShape(Capsule())
+        }
+        .frame(height: 4)
+        .accessibilityHidden(true)
+    }
+
+    private func segments(_ kind: AgentToolKind, columns: [AgentProvider], widthPerCall: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            ForEach(columns) { provider in
+                let amount = counts[provider]?[kind] ?? 0
+                Rectangle()
+                    .fill(provider.tint.opacity(0.95))
+                    .frame(width: widthPerCall * CGFloat(amount))
+            }
+        }
+    }
+
+    private func count(for provider: AgentProvider, kind: AgentToolKind) -> some View {
+        let value = counts[provider].map { ($0[kind] ?? 0).formatted(.number.locale(locale)) } ?? "–"
+        return Text(value)
+            .accessibilityLabel(provider.displayName + ", " + text.toolNames[kind.rawValue])
+            .accessibilityValue(value)
     }
 }
 
