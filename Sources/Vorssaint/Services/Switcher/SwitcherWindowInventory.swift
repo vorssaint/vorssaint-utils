@@ -35,7 +35,7 @@ final class SwitcherWindowInventory {
     private let discoveryQueue = DispatchQueue(label: "com.vorssaint.switcher.discovery", qos: .utility)
     private let titles = SwitcherWindowTitles()
 
-    var onReady: (() -> Void)?
+    var onReady: (([SwitcherItem]) -> Void)?
     private(set) var isReady = false
 
     func start() {
@@ -130,6 +130,7 @@ final class SwitcherWindowInventory {
             frontmostPID: frontmostPID,
             focusedWindowID: focused,
             displayScope: displayScope)
+        titles.refreshUnobserved(in: list.items, accessibilityGranted: Permissions.shared.accessibility)
         return (list, focused)
     }
 
@@ -304,6 +305,7 @@ final class SwitcherWindowInventory {
             terminatedDuringRefresh.contains(item.pid) || terminatedDuringRefresh.contains(item.windowOwnerPID)
                 || item.windowID.map { destroyedDuringRefresh.contains($0) } == true
         }
+        let refreshedItems = updated.items
         if let pids {
             let retained = remembered.items.filter { !pids.contains($0.pid) }
             updated.items = retained + updated.items
@@ -320,6 +322,6 @@ final class SwitcherWindowInventory {
         setFallbackPolling(!observesWindowEvents || !watching)
         titles.update(updated.accessibilityElements)
         isReady = true
-        onReady?()
+        onReady?(refreshedItems)
     }
 }
