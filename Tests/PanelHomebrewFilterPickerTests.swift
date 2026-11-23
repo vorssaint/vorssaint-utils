@@ -85,7 +85,8 @@ enum PanelHomebrewFilterPickerTests {
                                      "the segments fit their labels and stay inside the card: \(context), "
                                      + "frame \(frame), intrinsic width \(control.intrinsicContentSize.width)")
                     } else {
-                        checkRadios(in: host, window: window, labels: labels, suite: suite, context: context)
+                        checkRadios(in: host, window: window, title: strings.homebrewInstalled,
+                                    labels: labels, suite: suite, context: context)
                     }
                 }
             }
@@ -122,7 +123,8 @@ enum PanelHomebrewFilterPickerTests {
         let labels = changed.labels
         draw(changed, width: 140)
         suite.expect(segments(in: host) == nil, "a narrow filter draws the radio choices")
-        let choices = checkRadios(in: host, window: window, labels: labels, suite: suite, context: "narrow Turkish filter")
+        let choices = checkRadios(in: host, window: window, title: strings.homebrewInstalled,
+                                  labels: labels, suite: suite, context: "narrow Turkish filter")
         func selectsOnly(_ title: String) -> Bool {
             let radios = Self.radios(in: host)
             return radios.count == 3 && radios.allSatisfy { radio in
@@ -132,9 +134,10 @@ enum PanelHomebrewFilterPickerTests {
         }
         suite.expect(selectsOnly(labels[1]), "the narrow filter exposes the selected cask option")
         let formula = choices.first { name($0) == labels[2] }
-        let pressed = formula?.accessibilityPerformPress?() ?? false
+        // NSButtonCell can return false after delivering AXPress. Verify its effect on the binding and AX values.
+        _ = formula?.accessibilityPerformPress?()
         draw(changed, width: 140)
-        suite.expect(pressed && model.selection == .formula && selectsOnly(labels[2]),
+        suite.expect(model.selection == .formula && selectsOnly(labels[2]),
                      "activating the narrow filter changes the selection and clears the previous radio")
 
         // A fresh host reads the current counts and selection when the panel opens again.
@@ -176,24 +179,100 @@ enum PanelHomebrewFilterPickerTests {
         suite.expect(segments(in: host)?.selectedSegment == PanelHomebrewFilter.cask.rawValue,
                      "the 296-package filter opens with the cask segment selected at \(width) pt")
         draw(changed, width: CGFloat(width))
-        let refreshed = checkRadios(in: host, window: window, labels: changed.labels, suite: suite,
-                                    context: "growing from 296 to 9999 packages at \(width) pt")
+        let refreshed = checkRadios(in: host, window: window, title: strings.homebrewInstalled, labels: changed.labels,
+                                    suite: suite, context: "growing from 296 to 9999 packages at \(width) pt")
         suite.expect(segments(in: host) == nil && selectsOnly(changed.labels[1]),
                      "growing counts at \(width) pt switches to the radio group with casks still selected")
-        let pressedFormula = refreshed.first { name($0) == changed.labels[2] }?.accessibilityPerformPress?() ?? false
+        _ = refreshed.first { name($0) == changed.labels[2] }?.accessibilityPerformPress?()
         draw(usual, width: CGFloat(width))
         let restored = segments(in: host)
         let restoredTitles = restored.map { control in
             (0..<control.segmentCount).compactMap { control.label(forSegment: $0) }
         }
-        suite.expect(pressedFormula && model.selection == .formula && restored?.selectedSegment == PanelHomebrewFilter.formula.rawValue
+        suite.expect(model.selection == .formula && restored?.selectedSegment == PanelHomebrewFilter.formula.rawValue
                      && restoredTitles == usual.labels, "shrinking counts at \(width) pt restores the segments with the "
                      + "selection made in the radio group and the current titles, got \(String(describing: restoredTitles))")
+
+        checkFocusTransfers(suite, window: window, usual: usual, changed: changed, width: CGFloat(width))
+    }
+
+    private enum FieldFocus: CaseIterable {
+        case keepFilterFocus, beforeUpdate, beforeLayout, afterLayout
+    }
+
+    @MainActor private static func checkFocusTransfers(_ suite: TestSuite, window: NSWindow,
+                                                       usual: Fixture, changed: Fixture, width: CGFloat) {
+        let size = CGSize(width: width, height: 150)
+        let content = NSView(frame: CGRect(origin: .zero, size: size))
+        window.contentView = content
+        window.setContentSize(size)
+        let host = NSHostingView(rootView: usual)
+        host.frame = CGRect(x: 0, y: 30, width: width, height: 120)
+        let field = NSTextField(string: "package name")
+        field.frame = CGRect(x: 0, y: 0, width: width, height: 24)
+        content.addSubview(host)
+        content.addSubview(field)
+        func settle() {
+            content.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+            content.layoutSubtreeIfNeeded()
+        }
+        func fieldHasFocus() -> Bool {
+            if window.firstResponder === field { return true }
+            guard let editor = field.currentEditor() else { return false }
+            return window.firstResponder === editor
+        }
+        func moveToField(_ context: String) {
+            suite.expect(window.makeFirstResponder(field) && fieldHasFocus(), "the text field receives focus: \(context)")
+        }
+        func activeControl(radio: Bool) -> NSControl? {
+            if radio {
+                let title = changed.labels[PanelHomebrewFilter.cask.rawValue]
+                return visibleControl(in: host) { (button: NSButton) in button.title == title && button.state == .on }
+            }
+            return segments(in: host)
+        }
+        usual.model.selection = .cask
+        settle()
+        for timing in FieldFocus.allCases {
+            for toRadio in [true, false] {
+                let context = "\(toRadio ? "segments to radios" : "radios to segments"), \(timing), \(width) pt"
+                if let source = activeControl(radio: !toRadio) {
+                    suite.expect(window.makeFirstResponder(source) && window.firstResponder === source,
+                                 "the source control takes keyboard focus: \(context)")
+                } else {
+                    suite.expect(false, "the source control is visible: \(context)")
+                }
+                if timing == .beforeUpdate { moveToField(context) }
+                host.rootView = toRadio ? changed : usual
+                if timing == .beforeLayout { moveToField(context) }
+                host.layoutSubtreeIfNeeded()
+                if timing == .afterLayout {
+                    suite.expect(activeControl(radio: toRadio) != nil, "layout draws the new control before focus leaves: \(context)")
+                    moveToField(context)
+                }
+                settle()
+                guard let target = activeControl(radio: toRadio) else {
+                    suite.expect(false, "the new control is visible: \(context)")
+                    continue
+                }
+                let expected = timing == .keepFilterFocus ? window.firstResponder === target : fieldHasFocus()
+                suite.expect(expected, "focus stays with the user's control: \(context), got \(String(describing: window.firstResponder))")
+            }
+        }
     }
 
     @MainActor private static func segments(in view: NSView) -> NSSegmentedControl? {
-        if let control = view as? NSSegmentedControl { return control }
-        return view.subviews.lazy.compactMap { segments(in: $0) }.first
+        visibleControl(in: view) { (_: NSSegmentedControl) in true }
+    }
+
+    @MainActor private static func visibleControl<T: NSControl>(in view: NSView, matching: (T) -> Bool) -> T? {
+        guard !view.isHidden else { return nil }
+        if let control = view as? T, matching(control) { return control }
+        for child in view.subviews {
+            if let match = visibleControl(in: child, matching: matching) { return match }
+        }
+        return nil
     }
 
     @MainActor private static func radios(in element: AnyObject) -> [AnyObject] {
@@ -213,10 +292,13 @@ enum PanelHomebrewFilterPickerTests {
     }
 
     @MainActor @discardableResult
-    private static func checkRadios(in host: NSView, window: NSWindow, labels: [String],
+    private static func checkRadios(in host: NSView, window: NSWindow, title: String, labels: [String],
                                     suite: TestSuite, context: String) -> [AnyObject] {
         let choices = radios(in: host)
-        suite.expect(choices.count == labels.count && Set(choices.compactMap(name)) == Set(labels),
+        let group = choices.first?.accessibilityParent?() as AnyObject?
+        suite.expect(group?.accessibilityRole?() == .radioGroup && group.flatMap(name) == title,
+                     "the radio buttons belong to the named installed filter: \(context)")
+        suite.expect(choices.compactMap(name) == labels,
                      "the radio group exposes every name and count: \(context)")
         let bounds = window.convertToScreen(host.convert(host.bounds, to: nil))
         let font = NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .small))
@@ -226,7 +308,7 @@ enum PanelHomebrewFilterPickerTests {
             let title = (name(choice) ?? "") as NSString
             let textWidth = title.size(withAttributes: [.font: font]).width
             let separateRow = rows.allSatisfy { frame.maxY <= $0.minY + 1 || $0.maxY <= frame.minY + 1 }
-            suite.expect(frame.height > 0 && frame.minX >= bounds.minX - 1 && frame.maxX <= bounds.maxX + 1
+            suite.expect(frame.height > 0 && bounds.insetBy(dx: -1, dy: -1).contains(frame)
                          && frame.width >= textWidth - 1 && separateRow,
                          "the full radio title fits on its own row: \(context), \(title)")
             rows.append(frame)
