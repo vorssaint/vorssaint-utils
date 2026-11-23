@@ -239,12 +239,16 @@ enum CommandBarExpressions {
             return 1
         }
 
-        /// Whether a unit name starts at `p`, used to tell "5 ft 11 in cm"
-        /// (the "in" is the connector) from "5 in to cm" (inches).
-        func unitAhead(at start: Int) -> Bool {
+        func unitAhead(at start: Int, asConversionTarget: Bool = false) -> Bool {
             var p = start
             while p < characters.count, characters[p].isWhitespace { p += 1 }
-            return readUnit(at: p) != nil
+            guard let next = readUnit(at: p) else { return false }
+            // In "5 ft 11 in in cm" the second "in" introduces a target.
+            // In "5 ft 11 in in" that same word is the target (inches).
+            if asConversionTarget, next.raw != "A", conversionWords.contains(fold(next.raw)) {
+                return !unitAhead(at: next.end, asConversionTarget: true)
+            }
+            return true
         }
 
         // A detached negative inch remainder is invalid (5ft -1in). A binary
@@ -316,7 +320,7 @@ enum CommandBarExpressions {
             }
             if separators.isPart(ofNumber: character), !isUnitSymbol(character) {
                 guard let number = readNumber(characters, &index, separators: separators,
-                                              unitAhead: unitAhead, argumentComma: commaSeparatesArguments,
+                                              unitAhead: { unitAhead(at: $0) }, argumentComma: commaSeparatesArguments,
                                               measuredFraction: { numerator, denominator in
                     fractions.append(MeasuredFraction(index: tokens.count, numerator: numerator,
                                                       denominator: denominator))
@@ -334,6 +338,12 @@ enum CommandBarExpressions {
                         return nil
                     }
                 }
+                continue
+            }
+            // π is a symbol even when the next character is a letter (2πx2).
+            if character == "π" {
+                tokens.append(.constant(Double.pi))
+                index += 1
                 continue
             }
             // A letter or a unit symbol: a unit name, an operator word or a
@@ -371,10 +381,10 @@ enum CommandBarExpressions {
                     case .some(.number(_, _)), .some(.to), .some(.inKeyword): inchesHere = true
                     default: inchesHere = false
                     }
-                    if matched.unit.id == "in", fold(matched.raw) == "in", inchesHere,
+                    if matched.unit.id == "in", fold(matched.raw) == "in", case .number? = tokens.last,
                        tokens.contains(where: { if case .unit = $0 { return true } else { return false } }),
                        tokenStart > 0, characters[tokenStart - 1].isWhitespace,
-                       unitAhead(at: index) {
+                       unitAhead(at: index, asConversionTarget: true) {
                         inchesHere = false
                     }
                     if matched.unit.id == "in", fold(matched.raw) == "in", !inchesHere {
@@ -398,10 +408,6 @@ enum CommandBarExpressions {
                 // A lone x between numbers is the written multiplication sign.
                 if raw.count == 1, lower == "x" {
                     tokens.append(.times)
-                    continue
-                }
-                if lower == "π" {
-                    tokens.append(.constant(Double.pi))
                     continue
                 }
                 if let token = wordToken(for: lower, characters: characters, index: &index) {
@@ -439,7 +445,6 @@ enum CommandBarExpressions {
                 _ = argumentLists.popLast()
                 tokens.append(.right(character))
             case ",", ";": tokens.append(.comma)
-            case "π": tokens.append(.constant(Double.pi))
             case ">": tokens.append(.to)
             case "\u{2192}": tokens.append(.to)   // →
             default: return nil
@@ -521,7 +526,10 @@ enum CommandBarExpressions {
         case "to":
             if matchAhead(["the"]) {
                 consume(1)
-                if matchAhead(["power"]) { consume(2); return .powerWord }
+                if matchAhead(["power"]) {
+                    consume(1)
+                    if matchAhead(["of"]) { consume(1) }
+                }
                 return .powerWord
             }
             return .to
@@ -532,7 +540,7 @@ enum CommandBarExpressions {
             return .rootWord
         case "logarithm":
             return .function(.log)
-        case "pi": return .constant(Double.pi)
+        case "pi", "π": return .constant(Double.pi)
         case "e": return .constant(Foundation.exp(1))
         default:
             if let function = Function(rawValue: lower) { return .function(function) }
