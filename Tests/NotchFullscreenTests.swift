@@ -49,6 +49,10 @@ enum NotchFullscreenTests {
     enum NotchService { static var shared = Service() }
     class VolumeState {
         var running = false
+        var nativeOutputKeysHeld: [Int32: NativeVolumeKeyPress] = [:]
+        var drainingNativeKeys = false
+        var nativeDrainWork: DispatchWorkItem?
+        func scheduleNativeDrainExpiry(_ work: DispatchWorkItem) {}
         func start() { running = true }
         func stop() { running = false }
     }
@@ -385,6 +389,28 @@ enum NotchFullscreenTests {
         volume.syncWithPreferences()
         suite.expect(!volume.running && BrightnessService.sharedReads == reads,
                      "the Essential preset's mixer starts without loading brightness for monitor volume keys")
+
+        volume.nativeOutputKeysHeld[0] = .fine
+        volume.syncWithPreferences()
+        suite.expect(volume.running && volume.drainingNativeKeys,
+                     "turning off volume handling keeps the tap until a modified native key is released")
+        let firstDeadline = volume.nativeDrainWork
+        volume.syncWithPreferences()
+        suite.expect(firstDeadline != nil && firstDeadline === volume.nativeDrainWork,
+                     "unrelated preference refreshes cannot postpone a lost release")
+        volume.renewNativeKeyDrain()
+        suite.expect(firstDeadline?.isCancelled == true && volume.nativeDrainWork?.isCancelled == false,
+                     "activity from the held key renews the quiet deadline without leaving the old one active")
+        volume.nativeDrainWork?.perform()
+        suite.expect(!volume.running && !volume.drainingNativeKeys && volume.nativeOutputKeysHeld.isEmpty,
+                     "a keyboard disconnected without an up or a tap timeout cannot keep the tap running")
+        volume.nativeOutputKeysHeld[0] = .fine
+        volume.syncWithPreferences()
+        let releaseDeadline = volume.nativeDrainWork
+        volume.nativeOutputKeysHeld.removeAll()
+        volume.syncWithPreferences()
+        suite.expect(!volume.running && !volume.drainingNativeKeys && releaseDeadline?.isCancelled == true,
+                     "the idle volume tap stops after the last modified native key is released")
 
         AppFeature.brightness.isAvailable = true
         BrightnessService.shared.wantsMonitorVolumeKeys = true

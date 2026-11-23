@@ -23,6 +23,10 @@ struct AgentTotals: Equatable {
     var requests = 0
     /// Responses from a model without a known price, left out of `cost`.
     var unpriced = 0
+    /// A Cursor reply in this total's scope had no usable counters.
+    var includesUnmeteredCursorActivity = false
+
+    var hasPartialCost: Bool { unpriced > 0 || includesUnmeteredCursorActivity }
 
     mutating func add(_ record: AgentUsageRecord) {
         tokens += record.tokens
@@ -37,6 +41,7 @@ struct AgentTotals: Equatable {
         lhs.savings += rhs.savings
         lhs.requests += rhs.requests
         lhs.unpriced += rhs.unpriced
+        lhs.includesUnmeteredCursorActivity = lhs.includesUnmeteredCursorActivity || rhs.includesUnmeteredCursorActivity
     }
 
     /// Cost when every response had a price, tokens otherwise, so shares
@@ -58,7 +63,7 @@ struct AgentPeriodUsage: Equatable {
     var models: [AgentShare] = []
     var projects: [AgentShare] = []
 
-    /// Whether every response in the period could be priced.
+    /// Whether every recorded usage entry in the period could be priced.
     var fullyPriced: Bool { total.unpriced == 0 }
 }
 
@@ -66,10 +71,11 @@ struct AgentPeriodUsage: Equatable {
 struct AgentBucket: Equatable, Identifiable {
     let start: Date
     var byProvider: [AgentProvider: AgentTotals] = [:]
+    var observedCursorActivity = false
     var id: Date { start }
 
     var total: AgentTotals {
-        byProvider.values.reduce(into: AgentTotals()) { $0 += $1 }
+        byProvider.values.reduce(into: AgentTotals(includesUnmeteredCursorActivity: observedCursorActivity)) { $0 += $1 }
     }
 }
 
@@ -81,8 +87,17 @@ struct AgentBlock: Equatable {
     var totals: AgentTotals
 }
 
+struct CursorTranscriptActivity {
+    let project: String
+    var minutes = IndexSet()
+    var modelMinutes: [String: Int] = [:]
+    /// An undated replay supplies only an upper bound.
+    var undatedThrough: Date?
+}
+
 struct AgentUsageSnapshot: Equatable {
     static let dayCount = 91
+    static let historyDuration = TimeInterval(dayCount) * 86_400
 
     var loaded = false
     var now = Date.distantPast
@@ -102,9 +117,84 @@ struct AgentUsageSnapshot: Equatable {
     var seen: Set<AgentProvider> = []
     /// The enabled Cursor transcript root can exist before the first session.
     var cursorProjectsFound = false
+    private(set) var hasUndatedCursorActivity = false
 
     func usage(_ period: AgentPeriod) -> AgentPeriodUsage { periods[period] ?? AgentPeriodUsage() }
     func working(_ provider: AgentProvider) -> [AgentLiveSession] { live.filter { $0.provider == provider } }
+
+    var historyTotal: AgentTotals {
+        days.reduce(into: AgentTotals(includesUnmeteredCursorActivity: hasUndatedCursorActivity)) { $0 += $1.total }
+    }
+
+    func hasPartialCost(_ period: AgentPeriod) -> Bool {
+        let usage = usage(period)
+        return usage.total.hasPartialCost || (seen == [.cursor] && usage.byProvider[.cursor] == nil)
+    }
+
+    /// Apply transcript observations to the publication, leaving measured records and their rankings intact.
+    mutating func includeCursorActivity(_ activity: [CursorTranscriptActivity]) {
+        guard !activity.isEmpty else { return }
+        let dayStarts = days.map(\.start)
+        let hourStarts = hours.map(\.start)
+        let lastMinute = Int((now.timeIntervalSince1970 / 60).rounded(.down))
+        // Seek past each visited bucket, even when every minute has an unmetered reply.
+        func mark(_ buckets: inout [AgentBucket], starts: [Date], minutes: IndexSet) -> Int? {
+            func nextMinute(from start: Date) -> Int? {
+                minutes.integerGreaterThanOrEqualTo(max(0, Int((start.timeIntervalSince1970 / 60).rounded(.up))))
+            }
+            var next = starts.first.flatMap(nextMinute)
+            var last: Int?
+            while let minute = next, minute <= lastMinute {
+                let date = Date(timeIntervalSince1970: Double(minute) * 60)
+                guard let index = AgentUsageSummary.index(of: date, in: starts) else { break }
+                buckets[index].observedCursorActivity = true
+                buckets[index].byProvider[.cursor]?.includesUnmeteredCursorActivity = true
+                last = index
+                guard index + 1 < starts.count else { break }
+                next = nextMinute(from: starts[index + 1])
+            }
+            return last
+        }
+        var lastDay = -1
+        var projectDays: [String: Int] = [:]
+        var modelDays: [String: Int] = [:]
+        for source in activity {
+            if let through = source.undatedThrough, through <= now,
+               let day = AgentUsageSummary.index(of: through, in: dayStarts) {
+                hasUndatedCursorActivity = true
+                lastDay = max(lastDay, day)
+            }
+            guard let day = mark(&days, starts: dayStarts, minutes: source.minutes) else { continue }
+            lastDay = max(lastDay, day)
+            if day == days.count - 1 { _ = mark(&hours, starts: hourStarts, minutes: source.minutes) }
+            if !source.project.isEmpty {
+                projectDays[source.project] = max(projectDays[source.project] ?? -1, day)
+            }
+            for (model, minute) in source.modelMinutes where minute <= lastMinute {
+                let date = Date(timeIntervalSince1970: Double(minute) * 60)
+                if let day = AgentUsageSummary.index(of: date, in: dayStarts) {
+                    let name = AgentPricing.displayName(model)
+                    modelDays[name] = max(modelDays[name] ?? -1, day)
+                }
+            }
+        }
+        guard lastDay >= 0 else { return }
+        seen.insert(.cursor)
+        for period in AgentPeriod.allCases {
+            let firstDay = max(0, days.count - period.days)
+            guard lastDay >= firstDay, var usage = periods[period] else { continue }
+            usage.total.includesUnmeteredCursorActivity = true
+            usage.byProvider[.cursor]?.includesUnmeteredCursorActivity = true
+            for index in usage.projects.indices where (projectDays[usage.projects[index].id] ?? -1) >= firstDay {
+                usage.projects[index].totals.includesUnmeteredCursorActivity = true
+            }
+            for index in usage.models.indices where usage.models[index].provider == .cursor
+                && (modelDays[usage.models[index].name] ?? -1) >= firstDay {
+                usage.models[index].totals.includesUnmeteredCursorActivity = true
+            }
+            periods[period] = usage
+        }
+    }
 }
 
 enum AgentUsageSummary {

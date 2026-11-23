@@ -16,6 +16,23 @@ enum SwitcherRememberedSelectionTests {
 
     enum WindowEvents {}
 
+    final class OwnWindow: NSObject {
+        static let didChangeScreenNotification = NSWindow.didChangeScreenNotification
+        var windowNumber = 42
+        var styleMask: NSWindow.StyleMask = .titled
+        var level: NSWindow.Level = .normal
+        var canBecomeKey = true
+        var isVisible = true
+        var isMiniaturized = false
+    }
+
+    final class Inventory {
+        typealias NSWindow = OwnWindow
+        enum WindowEnumerator { typealias NSWindow = OwnWindow }
+        var onInvalidate: (pid_t?) -> Void = { _ in }
+        func invalidate(pid: pid_t? = nil) { onInvalidate(pid) }
+    }
+
     private static func window(
         _ id: CGWindowID,
         pid: pid_t? = nil,
@@ -38,6 +55,7 @@ enum SwitcherRememberedSelectionTests {
     }
 
     static func run(_ suite: TestSuite) {
+        ownWindowScreenChanges(suite)
         let lifetime = SwitcherNotificationLifetime()
         lifetime.start()
         let queued = lifetime.current
@@ -145,5 +163,77 @@ enum SwitcherRememberedSelectionTests {
         let capped = select()
         suite.expect(capped.items.count == 48 && capped.items.contains { $0.pid == 300 },
                      "the visible cap reserves an entry for another app on a crowded desktop")
+    }
+
+    private static func ownWindowScreenChanges(_ suite: TestSuite) {
+        let editor = OwnWindow()
+        guard let id = Inventory.WindowEnumerator.ownWindowID(for: editor) else {
+            suite.expect(false, "a visible titled capture editor is eligible for the inventory")
+            return
+        }
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let bounds = [CGRect(x: 0, y: 0, width: 1000, height: 800),
+                      CGRect(x: 1000, y: 0, width: 1000, height: 800)]
+        let snapshot = Enumerator.Snapshot(accessibilityGranted: false, runningApps: [],
+                                           ownWindowTitles: [id: "Capture Editor"], screenFrames: bounds,
+                                           displayIDsByUUID: [:])
+        Enumerator.raw = [[kCGWindowNumber as String: NSNumber(value: id),
+                           kCGWindowOwnerPID as String: NSNumber(value: pid),
+                           kCGWindowLayer as String: 0, kCGWindowIsOnscreen as String: true,
+                           kCGWindowBounds as String: ["X": 100, "Y": 0, "Width": 640, "Height": 480]]]
+        SwitcherFullscreenScopeTests.Bridge.memberships = [id: [1]]
+        defer {
+            Enumerator.raw = []
+            SwitcherFullscreenScopeTests.Bridge.memberships = [:]
+        }
+        var remembered = Enumerator.rememberSwitcherWindows(snapshot: snapshot, isCancelled: { false })
+        func windows(on index: Int) -> [CGWindowID] {
+            Selection.select(remembered: remembered, scope: .allWindows, frontmostPID: pid,
+                             focusedWindowID: id, displayScope: .init(bounds: bounds, targetIndex: index))
+                .items.compactMap(\.windowID)
+        }
+        suite.expect(remembered.items.first?.pid == pid && remembered.items.first?.title == "Capture Editor"
+                     && windows(on: 0) == [id] && windows(on: 1).isEmpty,
+                     "the capture editor is listed on the first display with its own process ID")
+        let inventory = Inventory()
+        var requests: [pid_t?] = []
+        inventory.onInvalidate = { owner in
+            requests.append(owner)
+            remembered = Enumerator.rememberSwitcherWindows(snapshot: snapshot, filterPID: owner, isCancelled: { false })
+        }
+        let center = NotificationCenter()
+        let observers = inventory.observeScreenChanges(in: center)
+        defer { for observer in observers { center.removeObserver(observer) } }
+        Enumerator.raw[0][kCGWindowBounds as String] = ["X": 1100, "Y": 0, "Width": 640, "Height": 480]
+        center.post(name: NSWindow.didMoveNotification, object: editor)
+        suite.expect(requests.isEmpty && windows(on: 0) == [id] && windows(on: 1).isEmpty,
+                     "ordinary movement and shortcut selection leave the remembered frame intact")
+        func changeScreen(_ window: OwnWindow) {
+            center.post(name: NSWindow.didChangeScreenNotification, object: window)
+        }
+        changeScreen(editor)
+        suite.expect(requests == [pid] && windows(on: 0).isEmpty && windows(on: 1) == [id],
+                     "a screen change refreshes only the editor's process and moves its entry within the same Space")
+
+        let helpers: [(String, (OwnWindow) -> Void)] = [
+            ("the Switcher panel", {
+                $0.styleMask = [.borderless, .nonactivatingPanel]
+                $0.level = .statusBar
+            }),
+            ("a borderless window", { $0.styleMask = .borderless }),
+            ("a floating titled window", { $0.level = .floating }),
+            ("a window unable to become key", { $0.canBecomeKey = false }),
+            ("a hidden window", { $0.isVisible = false }),
+            ("an unallocated window", { $0.windowNumber = -1 })
+        ]
+        for (name, configure) in helpers {
+            let helper = OwnWindow()
+            helper.windowNumber = 43
+            configure(helper)
+            changeScreen(helper)
+            suite.expect(requests == [pid], "a screen change for \(name) leaves the inventory idle")
+        }
+        center.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        suite.expect(requests == [pid, nil], "a display configuration change still refreshes the whole inventory")
     }
 }

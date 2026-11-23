@@ -21,18 +21,16 @@ struct CameraPreviewView: View {
     }
 
     var body: some View {
-        ZStack {
+        let outline = RoundedRectangle(cornerRadius: CameraPreviewLayout.cornerRadius, style: .continuous)
+        return ZStack {
             Color.black
             content
         }
         .frame(width: size.width, height: size.height)
         .overlay(alignment: .bottom) { controls }
         .animation(.easeInOut(duration: 0.15), value: hovering)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
-        )
+        .clipShape(outline)
+        .overlay(outline.strokeBorder(Color.white.opacity(0.14), lineWidth: CameraPreviewLayout.borderWidth))
         // The surface is always black, so the controls (spinner, menu,
         // buttons) must draw for a dark background in either system look.
         .environment(\.colorScheme, .dark)
@@ -44,7 +42,9 @@ struct CameraPreviewView: View {
         switch service.state {
         case .running:
             if let session = service.session {
+                let video = CameraPreviewLayout.videoSize(in: size)
                 CameraLayerView(session: session)
+                    .frame(width: video.width, height: video.height)
             }
         case .idle, .waitingPermission, .starting:
             ProgressView()
@@ -130,7 +130,7 @@ struct CameraPreviewView: View {
     private func statusMessage<Extra: View>(icon: String,
                                             text: String,
                                             @ViewBuilder extra: () -> Extra) -> some View {
-        VStack(spacing: 10) {
+        let message = VStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 26, weight: .light))
                 .foregroundStyle(.white.opacity(0.55))
@@ -142,6 +142,10 @@ struct CameraPreviewView: View {
             extra()
         }
         .padding(.horizontal, 28)
+        return ViewThatFits(in: .vertical) {
+            message
+            ScrollView { message.frame(maxWidth: .infinity) }
+        }
     }
 }
 
@@ -158,7 +162,8 @@ private struct CameraLayerView: NSViewRepresentable {
             previewLayer = AVCaptureVideoPreviewLayer(session: session)
             super.init(frame: .zero)
             wantsLayer = true
-            previewLayer.videoGravity = .resizeAspectFill
+            // Fit the frame delivered by the current camera as the island or input changes.
+            previewLayer.videoGravity = .resizeAspect
             layer = previewLayer
             applyMirroring()
         }

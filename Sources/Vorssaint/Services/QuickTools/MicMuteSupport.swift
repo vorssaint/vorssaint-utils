@@ -67,6 +67,10 @@ enum MicMuteSupport {
         enum Gain { case unavailable, unreadable, silent, audible }
         let gain: Gain
         let muteSwitch: UInt32?
+        /// Gain addresses actually read at or below the silence threshold.
+        var silentGains: Set<String> = []
+        /// Mute elements actually observed engaged: the main switch or all channels.
+        var mutedElements: ClosedRange<UInt32>?
 
         var isSilenced: Bool {
             gain == .silent || (gain == .unavailable && muteSwitch == 1)

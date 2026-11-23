@@ -192,6 +192,7 @@ struct MonitorSpeakerVolumeRow: View {
     let audio: BrightnessDisplay.Audio
     let strings: BrightnessFeatureStrings
     let compact: Bool
+    @State private var feedback = SpeakerSliderFeedback()
 
     var body: some View {
         HStack(spacing: compact ? 6 : 12) {
@@ -213,11 +214,11 @@ struct MonitorSpeakerVolumeRow: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 16)
             }
-            Slider(value: Binding(get: { audio.volume }, set: {
-                BrightnessService.shared.requestSpeakers(.set(volume: $0, muted: nil), target: audio.target)
-            }),
-                   in: 0...1,
-                   onEditingChanged: { if !$0 { PreciseVolumeRollerService.playVolumeFeedback() } })
+            Slider(value: Binding(get: { audio.volume }, set: { volume in
+                let request = feedback.request()
+                BrightnessService.shared.requestSpeakers(.set(volume: volume, muted: nil),
+                                                         target: audio.target, sliderFeedback: request)
+            }), in: 0...1, onEditingChanged: feedback.editingChanged)
                 .controlSize(compact ? .small : .regular)
                 .accessibilityLabel("\(displayName) \(strings.volumeLabel)")
             Text("\(Int((audio.volume * 100).rounded()))%")
@@ -226,6 +227,8 @@ struct MonitorSpeakerVolumeRow: View {
                 .fixedSize()
                 .frame(minWidth: compact ? 30 : 52, alignment: .trailing)
         }
+        .onChange(of: audio.target) { _, _ in feedback.cancel() }
+        .onDisappear { feedback.cancel() }
     }
 }
 

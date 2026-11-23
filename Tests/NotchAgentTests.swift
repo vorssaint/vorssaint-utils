@@ -2303,6 +2303,7 @@ enum NotchAgentTests {
                                                   limits: [:], live: [], plans: [:], providers: [.claude, .codex],
                                                   now: now, calendar: calendar)
         suite.expect(!unpriced.usage(.today).fullyPriced && unpriced.usage(.today).total.unpriced == 1
+                        && AgentFormat.cost(unpriced, for: .today, locale: Locale(identifier: "en_US")) == "≥ $2.00"
                         && unpriced.usage(.today).models.first?.name == "Opus 5",
                      "an unpriced model makes totals a minimum and ranks fall back to tokens")
         let claudeOnly = AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:],
@@ -3257,13 +3258,22 @@ enum NotchAgentTests {
         suite.expect(cursorCards.map(\.card) == [.live] && NotchAgentSupport.contentHeight([cursorCards]) == NotchAgentSupport.cardHeight
                         && NotchAgentSupport.tiles(cards: [.spend, .projects], providers: [.cursor]).isEmpty,
                      "Cursor alone shows the Now card at its ordinary height and respects hiding it")
+        var cursorHistory = AgentUsageSnapshot()
+        let usage = AgentTotals(tokens: AgentTokens(output: 7), requests: 1)
+        cursorHistory.days = [AgentBucket(start: Date(), byProvider: [.claude: usage])]
+        suite.expect(NotchAgentSupport.tiles(cards: NotchAgentCard.allCases, providers: [.cursor], snapshot: cursorHistory)
+                        .map(\.card) == [.live], "another provider's usage cannot unlock Cursor history")
+        cursorHistory.days[0].byProvider[.cursor] = usage
+        suite.expect(NotchAgentSupport.tiles(cards: NotchAgentCard.allCases, providers: [.cursor], snapshot: cursorHistory)
+                        .map(\.card) == [.spend, .live, .trend, .models, .projects, .activity],
+                     "recorded Cursor tokens enable history without offering plan limits or resets")
         let allProviders = AgentProvider.allCases
         let active = AgentLiveSession(id: "active", provider: .cursor, started: .now, lastActivity: .now,
                                       model: "", project: "demo", tokens: AgentTokens(), cost: 0)
         for count in 4...5 {
             let providers = Array(allProviders.suffix(count))
             let idle = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers)
-            let live = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers, live: [active])
+            let live = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers, snapshot: AgentUsageSnapshot(live: [active]))
             suite.expect(NotchAgentSupport.contentHeight([idle]) >= 44 + 15 * CGFloat(count) + 5 * CGFloat(count - 1)
                             && NotchAgentSupport.contentHeight([live]) == NotchAgentSupport.cardHeight,
                          "the Now card fits all \(count) idle rows and returns to its regular height while working")
@@ -3315,17 +3325,16 @@ enum NotchAgentTests {
         suite.expect(AgentFormat.day(Date(timeIntervalSince1970: 1_790_035_200), locale: english) == "Sep 22, 2026",
                      "the price list's day reads the same in every time zone")
 
-        func openCodeCardCost(unpriced: Int, cost: Double) -> String {
-            if unpriced > 0 {
-                return cost > 0 ? "≥ " + AgentFormat.cost(cost, locale: english) : "—"
-            }
-            return AgentFormat.cost(cost, locale: english)
-        }
-        suite.expect(openCodeCardCost(unpriced: 0, cost: 12.5) == "$12.50"
-                        && openCodeCardCost(unpriced: 1, cost: 12.5) == "≥ $12.50"
-                        && openCodeCardCost(unpriced: 2, cost: 0) == "—"
-                        && openCodeCardCost(unpriced: 0, cost: 0) == "$0.00",
-                     "OpenCode limits card formats unpriced costs as lower bound or em dash")
+        suite.expect(AgentFormat.cost(12.5, locale: english) == "$12.50"
+                        && AgentFormat.cost(12.5, partial: true, locale: portuguese) == "≥ $12,50"
+                        && AgentFormat.cost(100.60, partial: true, locale: english) == "≥ $100"
+                        && AgentFormat.cost(100.60, locale: english) == "$101"
+                        && AgentFormat.cost(0.019, partial: true, locale: english) == "≥ $0.01"
+                        && AgentFormat.cost(0.019, locale: english) == "$0.02"
+                        && AgentFormat.cost(0.009, partial: true, locale: portuguese) == "> $0,00"
+                        && AgentFormat.cost(0, partial: true, locale: english) == "—"
+                        && AgentFormat.cost(0, locale: english) == "$0.00",
+                     "partial costs never round a lower bound up, even below one cent, and a known zero keeps its value")
     }
 }
 

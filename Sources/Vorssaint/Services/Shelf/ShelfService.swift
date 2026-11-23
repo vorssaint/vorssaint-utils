@@ -59,16 +59,18 @@ final class ShelfService: ObservableObject {
         /// Needed because replaceItem swaps in a same-id item with a
         /// healed URL/title after a moved or renamed file's bookmark
         /// resolves - an id-only comparison would call that unchanged.
-        func hasSameContent(as other: Item) -> Bool {
+        func hasSameContent(as other: Item, ignoringThumbnails: Bool = false) -> Bool {
             guard id == other.id, title == other.title, isImage == other.isImage,
-                  hasContentThumbnail == other.hasContentThumbnail,
-                  icon === other.icon else { return false }
+                  ignoringThumbnails || (hasContentThumbnail == other.hasContentThumbnail && icon === other.icon)
+            else { return false }
             switch (payload, other.payload) {
             case let (.file(lhs), .file(rhs)): return lhs == rhs
             case let (.text(lhs), .text(rhs)): return lhs == rhs
             case let (.link(lhs), .link(rhs)): return lhs == rhs
             case let (.batch(lhs), .batch(rhs)):
-                return lhs.count == rhs.count && zip(lhs, rhs).allSatisfy { $0.hasSameContent(as: $1) }
+                return lhs.count == rhs.count && zip(lhs, rhs).allSatisfy {
+                    $0.hasSameContent(as: $1, ignoringThumbnails: ignoringThumbnails)
+                }
             default: return false
             }
         }
