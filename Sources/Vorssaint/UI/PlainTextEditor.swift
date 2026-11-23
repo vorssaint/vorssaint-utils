@@ -37,6 +37,9 @@ struct PlainTextEditor: NSViewRepresentable {
     }
 
     @Binding var text: String
+    /// Reusing the editor for a different pad invalidates the old pad's undo,
+    /// even when both pads happen to contain the same text.
+    private let documentID: UUID?
     /// Character offsets rather than String.Index: an index computed
     /// against one version of the text is undefined behavior to read back
     /// against another, and this binding outlives the edit that produced
@@ -59,6 +62,7 @@ struct PlainTextEditor: NSViewRepresentable {
     /// Command-Return, which the caller takes for its own: the pad turns it into
     /// the formatted reading.
     var onCommandReturn: (() -> Void)?
+    var onSwipe: ((ScratchpadDirection) -> Void)?
     /// False while the editor sits under something else, as the pad's
     /// formatted reading covers it: it is then hidden, so its text cursor
     /// does not show over what is on top.
@@ -67,6 +71,7 @@ struct PlainTextEditor: NSViewRepresentable {
     var onCreate: ((NSTextView) -> Void)?
 
     init(text: Binding<String>,
+         documentID: UUID? = nil,
          fontSize: CGFloat = PlainTextEditor.defaultFontSize,
          selectedRange: Binding<Range<Int>?>? = nil,
          textColor: NSColor? = nil,
@@ -75,9 +80,11 @@ struct PlainTextEditor: NSViewRepresentable {
          completesTaskBoxes: Bool = false,
          continuesLists: Bool = false,
          onCommandReturn: (() -> Void)? = nil,
+         onSwipe: ((ScratchpadDirection) -> Void)? = nil,
          isActive: Bool = true,
          onCreate: ((NSTextView) -> Void)? = nil) {
         self._text = text
+        self.documentID = documentID
         self.fontSize = fontSize
         self.selectedRange = selectedRange
         self.textColor = textColor
@@ -86,12 +93,13 @@ struct PlainTextEditor: NSViewRepresentable {
         self.completesTaskBoxes = completesTaskBoxes
         self.continuesLists = continuesLists
         self.onCommandReturn = onCommandReturn
+        self.onSwipe = onSwipe
         self.isActive = isActive
         self.onCreate = onCreate
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSTextView.scrollableTextView()
+        let scroll = makeScrollView()
         scroll.drawsBackground = false
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
@@ -133,11 +141,23 @@ struct PlainTextEditor: NSViewRepresentable {
         return scroll
     }
 
+    private func makeScrollView() -> NSScrollView {
+        let standard = NSTextView.scrollableTextView()
+        guard let onSwipe, let editor = standard.documentView else { return standard }
+        // Preserve the text system and sizing AppKit set up for the editor.
+        let scratchpad = ScratchpadScrollView(frame: standard.frame)
+        standard.documentView = nil
+        scratchpad.documentView = editor
+        scratchpad.onSwipe = onSwipe
+        return scratchpad
+    }
+
     static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
         coordinator.removeLineMoveMonitor()
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
+        (nsView as? ScratchpadScrollView)?.onSwipe = onSwipe
         guard let textView = nsView.documentView as? NSTextView else { return }
         context.coordinator.continuesLists = continuesLists
         context.coordinator.onCommandReturn = onCommandReturn
@@ -149,7 +169,9 @@ struct PlainTextEditor: NSViewRepresentable {
         if textView.font?.pointSize != fontSize {
             textView.font = .systemFont(ofSize: fontSize)
         }
-        guard textView.string != text, !textView.hasMarkedText() else { return }
+        let changedDocument = context.coordinator.documentID != documentID
+        guard !textView.hasMarkedText(), changedDocument || textView.string != text else { return }
+        context.coordinator.documentID = documentID
         // Setting .string posts a selection notification, and answering it
         // here would write state from inside a view update.
         context.coordinator.isApplyingExternalText = true
@@ -162,12 +184,13 @@ struct PlainTextEditor: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, selectedRange: selectedRange)
+        Coordinator(text: $text, selectedRange: selectedRange, documentID: documentID)
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         private let text: Binding<String>
         private let selectedRange: Binding<Range<Int>?>?
+        var documentID: UUID?
         var isApplyingExternalText = false
         var completesTaskBoxes = false
         var continuesLists = false
@@ -175,9 +198,10 @@ struct PlainTextEditor: NSViewRepresentable {
         private weak var textView: NSTextView?
         private var lineMoveMonitor: Any?
 
-        init(text: Binding<String>, selectedRange: Binding<Range<Int>?>?) {
+        init(text: Binding<String>, selectedRange: Binding<Range<Int>?>?, documentID: UUID?) {
             self.text = text
             self.selectedRange = selectedRange
+            self.documentID = documentID
         }
 
         /// Option-Up/Down moves the current line (or every line a selection

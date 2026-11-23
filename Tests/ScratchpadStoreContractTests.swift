@@ -13,9 +13,41 @@ import UniformTypeIdentifiers
 import VMStatisticsCompat
 
 enum ScratchpadStoreContractTests {
+    private static func testSwipeNavigation(_ suite: TestSuite) {
+        var swipe = ScratchpadSwipe()
+        swipe.begin()
+        swipe.move(x: -18, y: 2)
+        suite.expect(swipe.finish() == nil, "short movement does not turn a page")
+        for cancelled in [true, false] {
+            swipe.begin()
+            swipe.move(x: -44, y: 3)
+            let direction = swipe.finish(cancelled: cancelled)
+            let expected: ScratchpadDirection? = cancelled ? nil : .next
+            suite.expect(direction == expected && swipe.finish() == nil,
+                         "a completed swipe turns once and a cancelled swipe does not turn")
+        }
+
+        swipe.begin()
+        swipe.move(x: 3, y: 20)
+        swipe.move(x: 66, y: 0)
+        suite.expect(swipe.finish() == nil, "a vertical scroll never turns a page")
+
+        let original = ScratchpadDocument.initial(defaultName: "Notes", text: "Keep this edit")
+        let blank = original.navigating(.next, defaultName: "Notes")
+        let back = blank?.navigating(.previous, defaultName: "Notes")
+        let forwardAgain = back?.navigating(.next, defaultName: "Notes")
+        suite.expect(blank?.pads.count == 2 && blank?.pads.last?.text == "" && blank == forwardAgain
+                     && back?.selectedID == original.selectedID && back?.pads.first == original.pads.first,
+                     "swiping past the last pad starts a blank pad and preserves edits when revisiting")
+        suite.expect(original.navigating(.previous, defaultName: "Notes") == nil
+                     && blank?.navigating(.next, defaultName: "Notes") == nil,
+                     "swiping past the oldest or an already blank newest pad does nothing")
+    }
+
     static func run(_ suite: TestSuite) {
         ScratchpadExportContract.run(suite)
         ScratchpadSaveContract.run(suite)
+        testSwipeNavigation(suite)
         let manager = FileManager.default
         let now = Date(timeIntervalSince1970: 1_784_000_000)
         let original = ScratchpadDocument.initial(defaultName: "Scratchpad", text: "Keep these notes",
@@ -400,8 +432,27 @@ enum ScratchpadSaveContract {
         static var messages: [String] = []
         static func show(icon: String, message: String) { messages.append(message) }
     }
+    final class Editor {
+        var marked = false
+        func hasMarkedText() -> Bool { marked }
+    }
+    struct Window {
+        var isVisible = true
+        var firstResponder: Any?
+    }
+    struct Island {
+        static let shared = Self()
+        let presentationWindow: Window? = nil
+    }
     class Fixture {
         typealias QuickToolHUD = HUD
+        typealias NSTextView = Editor
+        typealias NotchService = Island
+        var panel: Window?
+        var textView: Editor?
+        var modalInteractionActive = false
+        var isPreviewing = false
+        func focusText() {}
         var store = Store()
         var pendingSave: DispatchWorkItem?
         var hasLoaded = true
@@ -416,6 +467,17 @@ enum ScratchpadSaveContract {
 
     static func run(_ suite: TestSuite) {
         defer { HUD.messages = [] }
+        let navigating = Service()
+        navigating.store.succeeds = true
+        navigating.createPad(defaultName: "Notes")
+        let before = navigating.document
+        let composing = Editor()
+        composing.marked = true
+        navigating.panel = Window(firstResponder: composing)
+        navigating.navigate(.previous, through: Editor())
+        suite.expect(navigating.document == before && navigating.store.writes == 1,
+                     "swiping in one host leaves both pads intact while the other host composes text")
+
         let service = Service()
         let message = FeatureStrings.scratchpad(L10n.shared.language).saveFailed
         service.flushSave()

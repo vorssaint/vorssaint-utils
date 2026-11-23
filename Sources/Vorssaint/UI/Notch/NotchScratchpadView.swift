@@ -51,13 +51,14 @@ struct NotchScratchpadView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     ZStack(alignment: .topLeading) {
-                        PlainTextEditor(text: $pad.text, fontSize: textSize,
+                        PlainTextEditor(text: $pad.text, documentID: pad.selectedPadID, fontSize: textSize,
                                         textColor: .white,
                                         textContainerInset: Self.editorInset,
                                         usesFindBar: true,
                                         completesTaskBoxes: true,
                                         continuesLists: true,
                                         onCommandReturn: { pad.togglePreview() },
+                                        onSwipe: { pad.navigate($0, through: editor.view) },
                                         isActive: !pad.isPreviewing) { view in
                             view.insertionPointColor = .white
                             editor.view = view
@@ -70,7 +71,8 @@ struct NotchScratchpadView: View {
                             MarkdownPreview(blocks: ScratchpadSupport.markdownPreview(pad.text),
                                             baseSize: textSize,
                                             taskStates: (done: text.taskDone, notDone: text.taskNotDone),
-                                            onToggleTask: { pad.toggleTask(box: $0, through: editor.view) })
+                                            onToggleTask: { pad.toggleTask(box: $0, through: editor.view) },
+                                            onSwipe: { pad.navigate($0, through: editor.view) })
                         } else if pad.text.isEmpty {
                             Text(text.placeholder)
                                 .font(.system(size: textSize))

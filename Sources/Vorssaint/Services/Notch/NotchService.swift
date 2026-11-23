@@ -1876,20 +1876,19 @@ final class NotchService: ObservableObject {
     private func handleScratchpadKey(_ event: NSEvent) -> Bool {
         guard selected == .scratchpad, !showingAppPanel, !showingSections, selectedMetric == nil else { return false }
         let pad = ScratchpadService.shared
-        let commandOnly = event.modifierFlags.intersection([.command, .control, .option]) == .command
-        let shift = event.modifierFlags.contains(.shift)
-        guard let action = ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: event.charactersIgnoringModifiers,
-                                                               commandOnly: commandOnly,
-                                                               shift: shift,
-                                                               canCreatePad: pad.canCreatePad,
-                                                               canClosePad: pad.canClosePad) else {
+        guard let action = ScratchpadFocusedShortcut.action(for: event,
+                                                            canCreatePad: pad.canCreatePad,
+                                                            canClosePad: pad.canClosePad) else {
             // At the tab limit Command-T still belongs to the pad, not the text.
-            return commandOnly && !shift && event.charactersIgnoringModifiers?.lowercased() == "t"
+            let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
+            return modifiers == .command && event.charactersIgnoringModifiers?.lowercased() == "t"
         }
         switch action {
         case .createPad: pad.createPad(defaultName: FeatureStrings.scratchpad(L10n.shared.language).pageTitle)
         case .closeSelectedPad: scratchpadCloseSerial += 1
         case .hidePad: collapse()
+        case .navigate(let direction):
+            pad.navigate(direction, through: event.window?.firstResponder as? NSTextView)
         case .find: requestScratchpadFind(.showFindInterface)
         case .findNext: requestScratchpadFind(.nextMatch)
         case .findPrevious: requestScratchpadFind(.previousMatch)
@@ -3981,6 +3980,7 @@ final class NotchService: ObservableObject {
                     self.openSettings()
                     return nil
                 }
+                if self.handleScratchpadKey(event) { return nil }
                 if modifiers == [.command, .option],
                    let module = NotchSupport.moduleShortcut(event.charactersIgnoringModifiers ?? "", modules: self.modules) {
                     self.select(module)
@@ -3997,7 +3997,6 @@ final class NotchService: ObservableObject {
                     return nil
                 }
                 if self.handleSectionKey(event) { return nil }
-                if self.handleScratchpadKey(event) { return nil }
                 if self.handleClipboardPasteKey(event) { return nil }
             }
             if event.type == .keyDown, event.window === self.panel, self.selected == .tools, !self.showingAppPanel, !self.showingSections {

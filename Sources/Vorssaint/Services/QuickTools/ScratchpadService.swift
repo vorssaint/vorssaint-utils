@@ -237,6 +237,21 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         apply(next, focus: true)
     }
 
+    func navigate(_ direction: ScratchpadDirection, through editor: NSTextView? = nil) {
+        // Either nonactivating panel can hold a composition while the pointer is in the other.
+        let composing = [panel, NotchService.shared.presentationWindow].contains { window in
+            guard window?.isVisible == true else { return false }
+            return (window?.firstResponder as? NSTextView)?.hasMarkedText() == true
+        }
+        guard !modalInteractionActive, !composing,
+              (editor ?? textView)?.hasMarkedText() != true,
+              let document else { return }
+        let defaultName = FeatureStrings.scratchpad(L10n.shared.language).pageTitle
+        guard let next = document.navigating(direction, defaultName: defaultName), save(next) else { return }
+        apply(next)
+        if !isPreviewing { focusText() }
+    }
+
     func renamePad(_ id: UUID, to name: String) {
         guard let document, let next = document.renaming(id, to: name), save(next) else { return }
         apply(next, focus: id == selectedPadID)
@@ -535,6 +550,8 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             keyboardCloseSelectedPadSerial += 1
         case .hidePad:
             hide()
+        case .navigate(let direction):
+            navigate(direction)
         case .find:
             performFind(.showFindInterface)
         case .findNext:
@@ -591,21 +608,15 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
                 return nil
             }
             guard !self.modalInteractionActive else { return event }
-            let commandOnly = event.modifierFlags
-                .intersection([.command, .option, .control]) == .command
-            let shift = event.modifierFlags.contains(.shift)
-            if let action = ScratchpadFocusedShortcut.action(
-                charactersIgnoringModifiers: event.charactersIgnoringModifiers,
-                commandOnly: commandOnly,
-                shift: shift,
-                canCreatePad: self.canCreatePad,
-                canClosePad: self.canClosePad
-            ) {
+            if let action = ScratchpadFocusedShortcut.action(for: event,
+                                                              canCreatePad: self.canCreatePad,
+                                                              canClosePad: self.canClosePad) {
                 self.performFocusedTabShortcut(action)
                 return nil
             }
             // At the tab limit Command-T still belongs to the pad, not the text.
-            if commandOnly, !shift, event.charactersIgnoringModifiers?.lowercased() == "t" {
+            let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+            if modifiers == .command, event.charactersIgnoringModifiers?.lowercased() == "t" {
                 return nil
             }
             return event

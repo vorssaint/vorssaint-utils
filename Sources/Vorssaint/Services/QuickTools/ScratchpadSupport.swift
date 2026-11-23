@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
 
 /// How long each scratchpad keeps text that nobody edits. The check runs only
@@ -130,6 +131,14 @@ struct ScratchpadDocument: Codable, Equatable {
         return next
     }
 
+    func navigating(_ direction: ScratchpadDirection, defaultName: String) -> ScratchpadDocument? {
+        guard let current = pads.firstIndex(where: { $0.id == selectedID }) else { return nil }
+        let destination = current + direction.rawValue
+        if pads.indices.contains(destination) { return selecting(pads[destination].id) }
+        guard direction == .next, !pads[current].text.isEmpty else { return nil }
+        return addingPad(defaultName: defaultName)
+    }
+
     func renaming(_ id: UUID, to proposedName: String) -> ScratchpadDocument? {
         let name = ScratchpadSupport.sanitizedPadName(proposedName)
         guard !name.isEmpty, let index = pads.firstIndex(where: { $0.id == id }) else { return nil }
@@ -165,6 +174,37 @@ struct ScratchpadDocument: Codable, Equatable {
     }
 }
 
+enum ScratchpadDirection: Int {
+    case previous = -1
+    case next = 1
+}
+
+/// Track one phased scroll at a time. Once vertical movement is established,
+/// a change of direction later in the same scroll cannot switch pads.
+struct ScratchpadSwipe {
+    private var x = 0.0
+    private var y = 0.0
+    private var tracking = false
+
+    mutating func begin() {
+        self = Self()
+        tracking = true
+    }
+
+    mutating func move(x deltaX: Double, y deltaY: Double) {
+        guard tracking else { return }
+        x += deltaX
+        y += deltaY
+        if abs(y) >= 12, abs(y) >= abs(x) { tracking = false }
+    }
+
+    mutating func finish(cancelled: Bool = false) -> ScratchpadDirection? {
+        defer { self = Self() }
+        guard !cancelled, tracking, abs(x) >= 40, abs(x) > abs(y) * 1.5 else { return nil }
+        return x > 0 ? .previous : .next
+    }
+}
+
 /// What the keyboard means while the pad has focus. Tabs mirror the browser:
 /// Command-T opens one and Command-W closes one, or hides the pad when only the
 /// last tab remains. Command-F is the system's own find, which the text view
@@ -177,31 +217,58 @@ enum ScratchpadFocusedShortcut {
         case createPad
         case closeSelectedPad
         case hidePad
+        case navigate(ScratchpadDirection)
         case find
         case findNext
         case findPrevious
     }
 
+    static func action(for event: NSEvent, canCreatePad: Bool, canClosePad: Bool) -> Action? {
+        let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+        let layoutModifiers = modifiers.subtracting(.command)
+        let commandChord = modifiers.contains(.command) && !modifiers.contains(.control)
+        let layoutCharacter = commandChord && !layoutModifiers.isEmpty
+            ? event.characters(byApplyingModifiers: layoutModifiers) : nil
+        return action(charactersIgnoringModifiers: event.charactersIgnoringModifiers,
+                      commandOnly: modifiers.subtracting(.shift) == .command,
+                      shift: modifiers.contains(.shift),
+                      chordCharacter: commandChord ? event.characters : nil,
+                      layoutCharacter: layoutCharacter,
+                      canCreatePad: canCreatePad,
+                      canClosePad: canClosePad)
+    }
+
     static func action(charactersIgnoringModifiers: String?,
                        commandOnly: Bool,
                        shift: Bool = false,
+                       chordCharacter: String? = nil,
+                       layoutCharacter: String? = nil,
                        canCreatePad: Bool,
                        canClosePad: Bool) -> Action? {
-        guard commandOnly else { return nil }
-        switch charactersIgnoringModifiers?.lowercased() {
+        let bracket = bracketCharacter(chordCharacter) ?? bracketCharacter(layoutCharacter)
+        guard commandOnly || bracket != nil else { return nil }
+        switch (bracket ?? charactersIgnoringModifiers)?.lowercased() {
         case "g":
             return shift ? .findPrevious : .findNext
-        case _ where shift:
+        case _ where shift && bracket == nil:
             return nil
         case "t":
             return canCreatePad ? .createPad : nil
         case "w":
             return canClosePad ? .closeSelectedPad : .hidePad
+        case "[":
+            return .navigate(.previous)
+        case "]":
+            return .navigate(.next)
         case "f":
             return .find
         default:
             return nil
         }
+    }
+
+    private static func bracketCharacter(_ character: String?) -> String? {
+        character == "[" || character == "]" ? character : nil
     }
 }
 
