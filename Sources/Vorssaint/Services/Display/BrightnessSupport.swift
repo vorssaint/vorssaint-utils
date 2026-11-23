@@ -1231,11 +1231,37 @@ enum BrightnessSupport {
 /// Each mounted slider waits for both the end of its edit and the monitor's
 /// confirmation of its last request. Either can arrive first.
 final class SpeakerSliderFeedback {
+    struct Endpoint {
+        let registryEntryID: UInt64?
+        let fallbackService: CFTypeRef?
+        let chipAddress: UInt32
+
+        func matches(_ live: Self, confirmedOwnWrite: Bool = false) -> Bool {
+            guard chipAddress == live.chipAddress else { return false }
+            if let id = registryEntryID, let liveID = live.registryEntryID {
+                return id == liveID
+            }
+            // A rescan can wrap the same proxy again. An unidentified wrapper
+            // cannot inherit another's write, but this request can confirm its own.
+            return confirmedOwnWrite || fallbackService === live.fallbackService
+        }
+    }
+
+    typealias Confirmation = (endpoint: Endpoint, wrote: Bool)
+
     /// Consecutive requests from one drag can land on the same hardware step.
     /// Only the serial DDC queue records and verifies these writes.
     final class Writes {
+        private var endpoint: Endpoint?
         var volume: BrightnessSupport.SpeakerLevel?
         var muted: Bool?
+
+        func begin(on endpoint: Endpoint) {
+            guard self.endpoint?.matches(endpoint) != true else { return }
+            self.endpoint = endpoint
+            volume = nil
+            muted = nil
+        }
     }
 
     final class Request {
