@@ -16,6 +16,8 @@ final class AgentUsageStore {
     private var index: [String: Int] = [:]
     /// Only responses present in multiple Cursor transcripts need per-file readings.
     private var cursorCopies: [Int: [String: AgentUsageRecord]] = [:]
+    private var cursorUsageRevisions: [String: (count: Int, revision: UInt64)] = [:]
+    private var cursorUsageGeneration: UInt64 = 0
     private let summary = AgentUsageSummaryCache()
     private(set) var limits: [AgentProvider: AgentLimits] = [:]
     private(set) var codexPlan: String?
@@ -49,16 +51,44 @@ final class AgentUsageStore {
 
     var live: [AgentLiveSession] { Array(turns.values) }
 
+    /// Any copy with counters resolves the missing usage for that response ID.
+    func transcriptActivity(for state: AgentLogState) -> CursorTranscriptActivity {
+        var activity = CursorTranscriptActivity(project: state.project, minutes: state.cursorUnmeteredMinutes,
+                                               modelMinutes: state.cursorUnmeteredModelMinutes,
+                                               undatedThrough: state.cursorUndatedResponseThrough)
+        for (id, response) in state.cursorUnmeteredResponses {
+            guard index[CursorReader.usageKey(session: state.session, id: id)] == nil else { continue }
+            if let minute = response.minute {
+                activity.minutes.insert(minute)
+                if !response.model.isEmpty {
+                    activity.modelMinutes[response.model] = max(activity.modelMinutes[response.model] ?? minute, minute)
+                }
+            } else if let through = response.undatedThrough {
+                activity.undatedThrough = max(activity.undatedThrough ?? .distantPast, through)
+            }
+        }
+        return activity
+    }
+
+    func cursorUsageRevision(for session: String) -> UInt64 { cursorUsageRevisions[session]?.revision ?? 0 }
+
+    private func cursorKeyCountChanged(for session: String, by delta: Int) {
+        let count = (cursorUsageRevisions[session]?.count ?? 0) + delta
+        cursorUsageGeneration &+= 1
+        cursorUsageRevisions[session] = count == 0 ? nil : (count, cursorUsageGeneration)
+    }
+
     func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>, now: Date,
                   calendar: Calendar = .current, cursorProjectsFound: Bool = false,
-                  cursorLastActivity: Date? = nil) -> AgentUsageSnapshot {
+                  cursorActivity: [CursorTranscriptActivity] = [], cursorLastActivity: Date? = nil) -> AgentUsageSnapshot {
         var result = summary.snapshot(records: records, limits: limits, live: live, plans: plans,
                                       providers: providers, now: now, calendar: calendar)
         if providers.contains(.cursor) {
             result.cursorProjectsFound = cursorProjectsFound
+            result.includeCursorActivity(cursorActivity)
             if let cursorLastActivity {
                 result.seen.insert(.cursor)
-                result.lastActivity[.cursor] = cursorLastActivity
+                result.lastActivity[.cursor] = max(result.lastActivity[.cursor] ?? .distantPast, cursorLastActivity)
             }
         }
         return result
@@ -256,6 +286,7 @@ final class AgentUsageStore {
             records.append(record)
             billables.append(billable)
             sources.append([source])
+            if record.provider == .cursor { cursorKeyCountChanged(for: record.session, by: 1) }
         }
         guard let file else { return }
         // Noted before the turn check, which skips a reply dated before its
@@ -475,7 +506,10 @@ final class AgentUsageStore {
         records = saved.records.map(\.record)
         billables = saved.records.map(\.billable)
         sources = saved.records.map(\.sources)
-        for (position, entry) in saved.records.enumerated() { index[entry.key] = position }
+        for (position, entry) in saved.records.enumerated() {
+            index[entry.key] = position
+            if entry.record.provider == .cursor { cursorKeyCountChanged(for: entry.record.session, by: 1) }
+        }
         limits = Dictionary(saved.limits.map { ($0.provider, $0) }, uniquingKeysWith: { $1 })
         codexPlan = saved.codexPlan
         codexPlanObserved = saved.codexPlanObserved
@@ -537,7 +571,11 @@ final class AgentUsageStore {
         var keptBillables: [AgentBillable] = []
         var keptSources: [[String]] = []
         var positions: [Int: Int] = [:]
-        for offset in records.indices where keep(offset) {
+        for offset in records.indices {
+            guard keep(offset) else {
+                if records[offset].provider == .cursor { cursorKeyCountChanged(for: records[offset].session, by: -1) }
+                continue
+            }
             positions[offset] = kept.count
             kept.append(records[offset])
             keptBillables.append(billables[offset])
@@ -718,6 +756,8 @@ final class AgentLogCursor {
     /// Matches an open prompt across rewrites in this process. Never archived.
     var cursorPromptFingerprint: UInt64?
     var cursorPrefix = CursorTranscriptPrefix()
+    private weak var coverageStore: AgentUsageStore?
+    fileprivate var cachedCoverage: (revision: UInt64, activity: CursorTranscriptActivity)?
     /// Restored copies share one archived total. Replay to recover each file's own contribution.
     var needsUsageReplay = false
     var modified = Date.distantPast
@@ -752,6 +792,24 @@ final class AgentLogCursor {
                 .max { $0.modified < $1.modified }?.path
         }
         return codexParentLog
+    }
+
+    /// Resolving missing response IDs against other copies is necessary only after a change.
+    func transcriptActivity(in store: AgentUsageStore) -> CursorTranscriptActivity {
+        guard !state.cursorUnmeteredResponses.isEmpty else { return store.transcriptActivity(for: state) }
+        let revision = store.cursorUsageRevision(for: state.session)
+        if coverageStore === store, let cachedCoverage, cachedCoverage.revision == revision { return cachedCoverage.activity }
+        let activity = store.transcriptActivity(for: state)
+        coverageStore = store
+        cachedCoverage = (revision, activity)
+        return activity
+    }
+
+    @discardableResult
+    func dropCursorCoverage(before horizon: Date) -> Bool {
+        guard state.dropCursorCoverage(before: horizon) else { return false }
+        cachedCoverage = nil
+        return true
     }
 
     /// Where reading stopped, at a line boundary: a line still being written
@@ -790,6 +848,7 @@ final class AgentLogCursor {
         state = AgentLogState()
         cursorPromptFingerprint = nil
         cursorPrefix = CursorTranscriptPrefix()
+        cachedCoverage = nil
         if provider == .cursor { CursorReader.adopt(path: path, into: &state) }
         fingerprinted = nil
         codexParentSearch = -1
@@ -898,14 +957,16 @@ enum AgentLogReader {
             cursor.startOver(identity: 0)
             return store.forget(files: [cursor.path]) || hadActivity
         }
-        let previous = cursor.state
+        let coverageStart = max(horizon, now.addingTimeInterval(-AgentUsageSnapshot.historyDuration))
+        var changed = cursor.dropCursorCoverage(before: coverageStart)
+        let previous = (turnOpen: cursor.state.turnOpen, cursorPromptCount: cursor.state.cursorPromptCount,
+                        cursorPromptTimestamp: cursor.state.cursorPromptTimestamp, cursorLastActivity: cursor.state.cursorLastActivity)
         let previousPrompt = cursor.cursorPromptFingerprint
         defer { if !cursor.state.turnOpen { cursor.cursorPromptFingerprint = nil } }
         var preservedPrefix = false
         var replay = cursor.offset == 0
         var replayStart: Date?
         var succeeded = false
-        var changed = false
         func apply(_ entries: [AgentLogEntry]) {
             store.apply(entries, file: cursor.path, provider: .cursor, tracksTurns: true,
                         modified: cursor.modified, now: now).forEach(report)
@@ -919,12 +980,14 @@ enum AgentLogReader {
                 preservedPrefix = matches
             }
             replay = true
-            if cursor.offset > 0 { changed = store.forgetUsage(files: [cursor.path]) }
+            if cursor.offset > 0 { changed = store.forgetUsage(files: [cursor.path]) || changed }
             return true
         }) { line in
+            cursor.cachedCoverage = nil
             let moment = min(cursor.modified, now)
             let promptCount = cursor.state.cursorPromptCount
-            let entries = CursorReader(replaying: replay).parse(line, state: &cursor.state, now: moment)
+            let entries = CursorReader(replaying: replay, coverageWindow: (coverageStart, now))
+                .parse(line, state: &cursor.state, now: moment)
             guard !entries.isEmpty else { return }
             if cursor.state.cursorPromptCount != promptCount {
                 cursor.cursorPromptFingerprint = CursorReader.promptFingerprint(line)

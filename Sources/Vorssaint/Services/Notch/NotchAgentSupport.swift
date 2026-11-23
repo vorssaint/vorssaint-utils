@@ -396,6 +396,10 @@ enum NotchAgentSupport {
 /// Numbers in the reader's region; costs in US dollars, the currency both
 /// providers list their prices in.
 enum AgentFormat {
+    static func cost(_ totals: AgentTotals, locale: Locale = .autoupdatingCurrent) -> String {
+        cost(totals.cost, partial: totals.hasPartialCost, locale: locale)
+    }
+
     static func cost(_ snapshot: AgentUsageSnapshot, for period: AgentPeriod, locale: Locale = .autoupdatingCurrent) -> String {
         cost(snapshot.usage(period).total.cost, partial: snapshot.hasPartialCost(period), locale: locale)
     }

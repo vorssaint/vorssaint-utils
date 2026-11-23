@@ -11,6 +11,7 @@ struct NotchNotice: Equatable {
     let title: String
     let detail: String
     let symbol: String
+    var accessibilityDetail: String? = nil
     var level: Double? = nil
     var notification: NotchNotificationContent? = nil
     var notificationID: UUID? = nil
@@ -89,7 +90,7 @@ struct NotchNotice: Equatable {
     var cameraGap: CGFloat { event == .battery ? 16 : readsFromEnds ? 6 : 0 }
 
     var accessibilityText: String {
-        notification?.accessibilityText ?? [title, detail].filter { !$0.isEmpty }.joined(separator: ", ")
+        notification?.accessibilityText ?? [title, accessibilityDetail ?? detail].filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
     /// Room a closed notice keeps inside its curved ends, which a side as
@@ -4381,9 +4382,10 @@ final class NotchService: ObservableObject {
             show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
                              detail: text.limitRenewed, symbol: "arrow.clockwise", agent: provider, mascot: .celebrate))
             reactMascot(.celebrate)
-        case .budgetReached(let spent, _):
-            show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
-                             symbol: "dollarsign.circle.fill"))
+        case .budgetReached(let spent, _, let partial):
+            let amount = AgentFormat.cost(spent, partial: partial)
+            show(NotchNotice(event: .agents, title: text.budgetTitle, detail: amount, symbol: "dollarsign.circle.fill",
+                             accessibilityDetail: text.costDescription(amount, partial: partial)))
         }
     }
 

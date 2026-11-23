@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 6
+    private static let format = 7
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -82,12 +82,15 @@ enum AgentUsageArchive {
                        shouldContinue: () -> Bool) -> Resumed? {
         var cursors: [String: AgentLogCursor] = [:]
         let root = cursorRoot.map { AgentLogRoot(provider: .cursor, url: $0) }
-        var verifiedPending = false
+        var cursorChanged = false
         for saved in contents.cursors {
             guard shouldContinue() else { return nil }
             guard found.contains(saved.path), (saved.provider == .cursor) == (root?.accepts(saved.path) == true) else { continue }
             cursors[saved.path] = AgentLogCursor(saved: saved, cursorRoot: cursorRoot, shouldContinue: shouldContinue)
-            if saved.provider == .cursor && saved.cursorSample == nil { verifiedPending = true }
+            if saved.provider == .cursor {
+                let pruned = cursors[saved.path]?.dropCursorCoverage(before: horizon) == true
+                if pruned || saved.cursorSample == nil { cursorChanged = true }
+            }
         }
         guard shouldContinue() else { return nil }
         let store = AgentUsageStore(saved: contents.store)
@@ -109,7 +112,7 @@ enum AgentUsageArchive {
         // Prices may be newer than the ones the counts were saved with.
         store.reprice()
         store.dropRecords(before: horizon)
-        return (store, cursors, !verifiedPending && shared.isEmpty && cursors.count == contents.cursors.count && store.saved == contents.store)
+        return (store, cursors, !cursorChanged && shared.isEmpty && cursors.count == contents.cursors.count && store.saved == contents.store)
     }
 
     static func remove() {
@@ -366,6 +369,19 @@ enum AgentUsageArchive {
                 int(value.cursorPromptCount)
                 optional(value.cursorPromptTimestamp) { $0.date($1) }
                 optional(value.cursorLastActivity) { $0.date($1) }
+                let ranges = value.cursorUnmeteredMinutes.rangeView
+                count(ranges.count)
+                for range in ranges {
+                    unsigned(UInt64(range.lowerBound))
+                    unsigned(UInt64(range.count))
+                }
+                dictionary(value.cursorUnmeteredModelMinutes) { $0.int($1) }
+                optional(value.cursorUndatedResponseThrough) { $0.date($1) }
+                dictionary(value.cursorUnmeteredResponses) { writer, gap in
+                    writer.optional(gap.minute) { $0.int($1) }
+                    writer.string(gap.model)
+                    writer.optional(gap.undatedThrough) { $0.date($1) }
+                }
             }
         }
     }
@@ -530,6 +546,32 @@ enum AgentUsageArchive {
                 guard UInt64(value.cursorPromptCount) <= offset / 8 else { throw Malformed() }
                 value.cursorPromptTimestamp = try optional { try $0.date() }
                 value.cursorLastActivity = try optional { try $0.date() }
+                let ranges = try count()
+                var remaining = min(offset / 8, UInt64(AgentUsageSnapshot.historyDuration / 60) + 1)
+                var previousEnd: UInt64?
+                for _ in 0..<ranges {
+                    let start = try unsigned(), length = try unsigned()
+                    guard length > 0, length <= remaining, start < UInt64(Int.max), length <= UInt64(Int.max) - start,
+                          previousEnd.map({ start > $0 }) ?? true else { throw Malformed() }
+                    let end = start + length
+                    value.cursorUnmeteredMinutes.insert(integersIn: Int(start)..<Int(end))
+                    previousEnd = end
+                    remaining -= length
+                }
+                value.cursorUnmeteredModelMinutes = try dictionary { try $0.amount() }
+                guard value.cursorUnmeteredModelMinutes.allSatisfy({ model, minute in
+                    !model.isEmpty && model.utf8.count <= 256 && !model.hasPrefix("<") && value.cursorUnmeteredMinutes.contains(minute)
+                }) else { throw Malformed() }
+                value.cursorUndatedResponseThrough = try optional { try $0.date() }
+                let responses = try dictionary { reader in
+                    CursorUnmeteredResponse(minute: try reader.optional { try $0.amount() }, model: try reader.string(),
+                                            undatedThrough: try reader.optional { try $0.date() })
+                }
+                guard UInt64(responses.count) <= offset / 8, responses.allSatisfy({ id, gap in
+                    !id.isEmpty && id.utf8.count <= 256 && gap.model.utf8.count <= 256 && !gap.model.hasPrefix("<")
+                        && (gap.minute == nil) != (gap.undatedThrough == nil) && gap.minute != Int.max
+                }) else { throw Malformed() }
+                value.restoreUnmeteredResponses(responses)
             }
             return value
         }

@@ -7,6 +7,7 @@ import Foundation
 struct CursorReader: AgentHarnessReader {
     var provider: AgentProvider { .cursor }
     var replaying = false
+    var coverageWindow: (from: Date, through: Date)?
 
     func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         guard let envelope = AgentLogObject(line) else { return [] }
@@ -39,27 +40,77 @@ struct CursorReader: AgentHarnessReader {
             let event: AgentLogEntry = state.turnOpen ? .turnActive(now) : .turnBegan(now)
             state.turnOpen = true
             state.cursorLastActivity = now
-            if let usage = Self.responseUsage(envelope, state: state) { return [event, context, usage] }
+            if let usage = response(envelope, state: &state, observedAt: now) { return [event, context, usage] }
             return [event, context]
         default:
             return []
         }
     }
 
-    /// Replays, streamed updates and multiple replies in the same second need
-    /// an explicit message ID. The file's last write cannot date older replies.
-    private static func responseUsage(_ envelope: AgentLogObject, state: AgentLogState) -> AgentLogEntry? {
-        guard !state.session.isEmpty, let message = envelope.object("message"),
-              let usage = message.object("usage") else { return nil }
-        let ids = [usage.string("message_id", maxBytes: 256), message.string("id", maxBytes: 256)]
-        guard let id = ids.compactMap({ $0 }).first(where: { !$0.isEmpty }) else { return nil }
-        let date: Date?
-        if let timestamp = envelope.string("timestamp", maxBytes: 64) {
-            date = AgentTimestamp.parseCursor(timestamp)
-        } else {
-            date = envelope.unsignedInteger("timestamp").flatMap { AgentLogParser.seconds($0) }
+    private func response(_ envelope: AgentLogObject, state: inout AgentLogState, observedAt now: Date) -> AgentLogEntry? {
+        let message = envelope.object("message")
+        let usage = message?.object("usage")
+        let id = Self.responseID(message, usage: usage)
+        let date = Self.responseDate(envelope)
+        let model = message.flatMap(Self.model) ?? ""
+        let window = coverageWindow ?? (from: now.addingTimeInterval(-AgentUsageSnapshot.historyDuration), through: now)
+        if let id, let date, date < window.from, let previous = state.cursorUnmeteredResponses[id], previous.minute == nil {
+            state.setUnmeteredResponse(nil, id: id)
         }
-        guard let date else { return nil }
+        if let date, let id, let usage,
+           let entry = Self.responseUsage(usage, state: state, date: date, id: id, model: model) { return entry }
+
+        let minute: Int?
+        if let date {
+            guard date >= window.from, date <= window.through,
+                  let index = Int(exactly: (date.timeIntervalSince1970 / 60).rounded(.down)), index >= 0, index < Int.max else { return nil }
+            minute = index
+        } else {
+            guard now >= window.from else { return nil }
+            minute = nil
+        }
+        if let id {
+            var gap = state.cursorUnmeteredResponses[id] ?? CursorUnmeteredResponse()
+            gap.minute = gap.minute ?? minute
+            if gap.model.isEmpty { gap.model = model }
+            // The first observation already bounds this particular reply. A dated update replaces that bound.
+            gap.undatedThrough = gap.minute == nil ? min(gap.undatedThrough ?? now, now) : nil
+            state.setUnmeteredResponse(gap, id: id)
+        } else if let minute {
+            state.cursorUnmeteredMinutes.insert(minute)
+            if !model.isEmpty {
+                state.cursorUnmeteredModelMinutes[model] = max(state.cursorUnmeteredModelMinutes[model] ?? minute, minute)
+            }
+        } else {
+            state.cursorUndatedResponseThrough = max(state.cursorUndatedResponseThrough ?? .distantPast, now)
+        }
+        return nil
+    }
+
+    static func responseID(_ message: AgentLogObject?, usage: AgentLogObject?) -> String? {
+        let ids = [usage?.string("message_id", maxBytes: 256), message?.string("id", maxBytes: 256)]
+        return ids.compactMap { $0 }.first { !$0.isEmpty }
+    }
+
+    static func usageKey(session: String, id: String) -> String {
+        "cursor-transcript:\(session.utf8.count):\(session):\(id)"
+    }
+
+    /// The file's last write cannot date older replies.
+    private static func responseDate(_ envelope: AgentLogObject) -> Date? {
+        if let timestamp = envelope.string("timestamp", maxBytes: 64) { return AgentTimestamp.parseCursor(timestamp) }
+        return envelope.unsignedInteger("timestamp").flatMap { AgentLogParser.seconds($0) }
+    }
+
+    private static func model(_ message: AgentLogObject) -> String? {
+        let candidates = [message.string("model", maxBytes: 256),
+                          message.object("modelInfo")?.string("modelId", maxBytes: 256)]
+        return candidates.compactMap { $0 }.first { !$0.isEmpty && !$0.hasPrefix("<") }
+    }
+
+    /// Replays, streamed updates and multiple replies in the same second need an explicit message ID.
+    private static func responseUsage(_ usage: AgentLogObject, state: AgentLogState, date: Date, id: String, model: String) -> AgentLogEntry? {
+        guard !state.session.isEmpty else { return nil }
         func count(_ field: String, in object: AgentLogObject) -> Int {
             min(object.unsignedInteger(field) ?? 0, 1_000_000_000_000)
         }
@@ -70,14 +121,11 @@ struct CursorReader: AgentHarnessReader {
                                  cacheRead: count("cache_read_input_tokens", in: usage),
                                  output: output, reasoning: min(reasoning, output))
         guard tokens.total > 0 else { return nil }
-        let candidates = [message.string("model", maxBytes: 256),
-                          message.object("modelInfo")?.string("modelId", maxBytes: 256)]
-        let model = candidates.compactMap { $0 }.first { !$0.isEmpty && !$0.hasPrefix("<") } ?? ""
         let billable = AgentBillable(tokens: tokens)
         let priced = AgentPricing.cost(billable, model: model)
         let record = AgentUsageRecord(provider: .cursor, date: date, model: model, project: state.project,
                                       session: state.session, tokens: tokens, cost: priced.cost, savings: priced.savings)
-        return .usage(key: "cursor-transcript:\(state.session.utf8.count):\(state.session):\(id)", record: record, billable: billable)
+        return .usage(key: usageKey(session: state.session, id: id), record: record, billable: billable)
     }
 
     /// Session id and project folder taken from the transcript path, so the
