@@ -24,6 +24,7 @@ struct CachedSensorReading {
 
 enum TemperatureSensorSelector {
     static let minimumChipTemperature = 10.0
+    static let modelIdentifier = sysctlString("hw.model")
 
     // The alternate M1 layout was read on a MacBook Pro 13-inch
     // (MacBookPro17,1) on macOS 27 and reported on a Mac mini (Macmini9,1,
@@ -98,7 +99,7 @@ enum TemperatureSensorSelector {
             return identified
         }
         return platform(brandString: brand,
-                        modelIdentifier: sysctlString("hw.model"),
+                        modelIdentifier: modelIdentifier,
                         performanceCoreCount: sysctlInteger("hw.perflevel0.physicalcpu"),
                         efficiencyCoreCount: sysctlInteger("hw.perflevel1.physicalcpu"))
     }

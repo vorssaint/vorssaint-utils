@@ -106,11 +106,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // Service Management can stall while answering (issue #2539).
         LaunchAtLogin.repairAtStartup()
 
-        // Switch back on any display a previous run left off. A run that ends
-        // without putting one back leaves a screen dark with no app around to
-        // offer it back, so the repair happens before anything else can care
-        // about which displays are attached.
-        BrightnessService.shared.restoreDisplaysLeftOff()
+        // Recover displays before other services read the screen layout. The
+        // saved list can outlive an uninstall, so it alone decides whether
+        // this launch needs the brightness service for recovery.
+        if BrightnessService.hasDisplaysToRestore {
+            BrightnessService.shared.restoreDisplaysLeftOff()
+        }
 
         // An accessory (LSUIElement) app gets no default main menu, so the standard
         // keyboard shortcuts (Cmd+H/M/W/Q and the Edit shortcuts Cmd+C/V/X/A) have
@@ -144,8 +145,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             // any status item.
             ClipboardHistoryService.shared.toggleHistoryWindow()
         }
-        // The shelf drop zone chip anchors itself under the menu bar icon.
-        ShelfService.shared.statusItemFrameProvider = { [weak self] in
+        // The shelf drop zone chip anchors itself under the menu bar icon. The
+        // provider is registered on the type, so a launch with no shelf
+        // installed never builds the service (and its saved items) for it.
+        ShelfService.statusItemFrameProvider = { [weak self] in
             guard let item = self?.statusController.statusItem, item.isVisible,
                   let window = self?.statusController.button?.window else { return nil }
             let frame = window.frame
@@ -1118,8 +1121,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func installPopoverDismissMonitor() {
         removePopoverDismissMonitor()
-        // A global monitor only sees events delivered to OTHER apps, so a click in
-        // another app or on the desktop dismisses the panel.
+        // AppKit can send the global monitor a copy of an activation click
+        // delivered to the panel. The event retains its target window number.
         popoverDismissMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] event in
@@ -1127,6 +1130,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             guard !PanelInteractionState.shared.preventsPopoverDismissal else { return }
             let point = NSEvent.mouseLocation
             guard self.statusController.containsStatusItem(at: point) == false else { return }
+            let panelNumber = self.popover.contentViewController?.view.window?.windowNumber
+            guard !StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: event.windowNumber,
+                                                            panelWindowNumber: panelNumber) else { return }
             self.logPanelDismissal(source: "outside", event: event, location: point)
             self.closePopover(reason: .outsideClick)
         }

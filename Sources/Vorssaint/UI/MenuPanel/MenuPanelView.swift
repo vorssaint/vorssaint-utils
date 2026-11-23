@@ -3019,7 +3019,8 @@ struct KeepAwakeCard: View {
         Group {
             if awake.isActive {
                 if awake.sessionTrigger == .automation {
-                    Text(automationStrings.activeStatus(for: awake.activeAutomationConditions))
+                    Text(automationStrings.activeStatus(for: awake.activeAutomationConditions,
+                                                        waitingForPower: awake.waitingForPower))
                 } else if let end = awake.endDate {
                     TimelineView(.periodic(from: .now, by: 1)) { _ in
                         Text("\(l10n.s.keepAwakeEndsIn) \(Self.remainingText(until: end))")
