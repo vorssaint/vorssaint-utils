@@ -41,6 +41,8 @@ final class PastePlainService: ObservableObject {
     /// again: long enough for the destination to have read the restored
     /// content, short enough that a following copy still owns the clipboard.
     private static let repasteRestripDelay: TimeInterval = 0.5
+    /// How long a failed strip waits before the same copy is attempted again.
+    private static let retryBackoff: TimeInterval = 2
 
     private final class PollToken {
         private let lock = NSLock()
@@ -60,10 +62,12 @@ final class PastePlainService: ObservableObject {
     }
 
     /// What one lane transaction decided and did. `stripped` is nil when the
-    /// clipboard was left alone or the transaction expired.
+    /// clipboard was left alone or the transaction expired; `aborted` marks a
+    /// copy that could not be read back and must be retried, not consumed.
     struct StripTransaction {
         let changeCount: Int
         let stripped: (originalItems: [NSPasteboardItem], plainText: String)?
+        let aborted: Bool
     }
 
     private var timer: Timer?
@@ -74,6 +78,11 @@ final class PastePlainService: ObservableObject {
     /// text is never stripped again and the shortcut knows the clipboard is
     /// still the stripped one.
     private var lastStrippedChangeCount = 0
+    /// The copy the last strip could not read back, with when it was last
+    /// attempted: the change stays unconsumed so a later poll retries it,
+    /// but no more often than one attempt per backoff window.
+    private var lastFailedChangeCount: Int?
+    private var lastFailedAt = Date.distantPast
     /// The rich content the last strip set aside, restorable on the shortcut
     /// while the clipboard still holds the plain text that replaced it.
     private var originalItems: [NSPasteboardItem]?
@@ -256,6 +265,8 @@ final class PastePlainService: ObservableObject {
         let frontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         let ownBundleID = Bundle.main.bundleIdentifier
         let transforms = Self.readTransformOptions()
+        let failedCount = lastFailedChangeCount
+        let failedAt = lastFailedAt
         GeneralPasteboardAccess.shared.async(timeout: Self.pasteboardTimeout, { isExpired in
             guard !token.isCancelled, !isExpired() else { return nil }
             return Self.stripPasteboard(NSPasteboard.general,
@@ -264,6 +275,8 @@ final class PastePlainService: ObservableObject {
                                         ownBundleID: ownBundleID,
                                         excludedApps: excluded,
                                         frontmostBundleID: frontmost,
+                                        failedChangeCount: failedCount,
+                                        failedAt: failedAt,
                                         transforms: transforms,
                                         isExpired: isExpired)
         }, then: { [weak self] (result: StripTransaction?) in
@@ -284,6 +297,16 @@ final class PastePlainService: ObservableObject {
     /// original when someone else copied since.
     private func applyStrip(_ result: StripTransaction?) {
         guard let result else { return }
+        if result.aborted {
+            // The copy could not be read back and stays rich on the
+            // clipboard. The change is deliberately not consumed, so a later
+            // poll retries it; `failedAt` keeps that retry bounded to one
+            // attempt per backoff window until the copy is replaced.
+            lastFailedChangeCount = result.changeCount
+            lastFailedAt = Date()
+            return
+        }
+        lastFailedChangeCount = nil
         lastChangeCount = max(lastChangeCount, result.changeCount)
         if let stripped = result.stripped {
             lastStrippedChangeCount = result.changeCount
@@ -300,20 +323,30 @@ final class PastePlainService: ObservableObject {
 
     /// Runs only on GeneralPasteboardAccess. The change count, the types and
     /// the rewrite are one serialized transaction, and the types decide
-    /// before any content is read: a picture or a file is never fetched only
-    /// to be left alone.
+    /// before any content is read: a file copy is never fetched only to be
+    /// left alone, and a media copy is asked about its text before its
+    /// picture is fetched.
     private static func stripPasteboard(_ pasteboard: NSPasteboard,
                                         sinceChangeCount: Int?,
                                         ownLastWriteCount: Int,
                                         ownBundleID: String?,
                                         excludedApps: Set<String>,
                                         frontmostBundleID: String?,
+                                        failedChangeCount: Int?,
+                                        failedAt: Date,
                                         transforms: PastePlainSupport.TransformOptions,
                                         isExpired: () -> Bool) -> StripTransaction? {
         let changeCount = pasteboard.changeCount
         guard !isExpired() else { return nil }
         if let sinceChangeCount, changeCount == sinceChangeCount {
-            return StripTransaction(changeCount: changeCount, stripped: nil)
+            return StripTransaction(changeCount: changeCount, stripped: nil, aborted: false)
+        }
+        // A copy that failed to read back is retried, but no more often than
+        // one attempt per backoff window: a provider that never answers must
+        // not turn the poll into a read loop.
+        if changeCount == failedChangeCount,
+           Date().timeIntervalSince(failedAt) < Self.retryBackoff {
+            return nil
         }
         let rawTypes = (pasteboard.types ?? []).map(\.rawValue)
         let decision = PastePlainSupport.decision(
@@ -324,36 +357,56 @@ final class PastePlainService: ObservableObject {
             frontmostBundleID: frontmostBundleID,
             excludedApps: excludedApps,
             isOwnLastWrite: changeCount == ownLastWriteCount)
-        guard case .strip = decision, !isExpired() else {
-            return StripTransaction(changeCount: changeCount, stripped: nil)
+        guard !isExpired() else { return nil }
+        // A picture beside its text is confirmed against the copy's plain
+        // string before anything is read: real text means the picture is a
+        // preview of it and the copy strips; a link or file name means the
+        // picture is the copy and it stays whole.
+        if case .stripWhenTextIsReal = decision {
+            let strings = (pasteboard.pasteboardItems ?? [])
+                .compactMap { $0.string(forType: .string) }
+            guard PastePlainSupport.mediaCopyStrips(plain: strings.joined(separator: "\n")),
+                  !isExpired() else {
+                return StripTransaction(changeCount: changeCount, stripped: nil, aborted: false)
+            }
+        } else if case .strip = decision {
+            // Formatting the copy can lose: proceed to the snapshot and write.
+        } else {
+            return StripTransaction(changeCount: changeCount, stripped: nil, aborted: false)
         }
-        // Snapshot the original first: a strip may only happen when every
-        // advertised flavor can be read back, because the shortcut restores
-        // this exact content later. A promised flavor that fails to render
-        // aborts the strip instead of clearing incomplete user data.
-        guard let items = pasteboard.pasteboardItems else {
-            return StripTransaction(changeCount: changeCount, stripped: nil)
+        // Snapshot the original next: the shortcut restores this exact
+        // content later. A flavor the item cannot produce — a synthesized
+        // stand-in like the external UTF-16 form of a string — is skipped,
+        // because a restore never needs it; an item that yields no readable
+        // flavor at all aborts the strip, which is retried on a later poll
+        // instead of clearing incomplete user data.
+        guard let items = pasteboard.pasteboardItems, !items.isEmpty else {
+            return StripTransaction(changeCount: changeCount, stripped: nil, aborted: true)
         }
         var snapshot: [NSPasteboardItem] = []
         for item in items {
             let copy = NSPasteboardItem()
             for type in item.types {
-                guard let data = item.data(forType: type) else {
-                    return StripTransaction(changeCount: changeCount, stripped: nil)
+                if let data = item.data(forType: type) {
+                    copy.setData(data, forType: type)
                 }
-                copy.setData(data, forType: type)
+            }
+            guard !copy.types.isEmpty else {
+                return StripTransaction(changeCount: changeCount, stripped: nil, aborted: true)
             }
             snapshot.append(copy)
         }
         let plain = snapshot.compactMap(plainText(of:)).joined(separator: "\n")
         guard !plain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return StripTransaction(changeCount: changeCount, stripped: nil)
+            // Nothing to write: the copy is left as it is and the change
+            // counts as seen. Retrying could not produce text either.
+            return StripTransaction(changeCount: changeCount, stripped: nil, aborted: false)
         }
         let transformed = PastePlainSupport.applyTransforms(plain, options: transforms)
         // Another app may have copied since the read. Nothing compares and
         // swaps across processes, so this narrows the window, not closes it.
         guard pasteboard.changeCount == changeCount, !isExpired() else {
-            return StripTransaction(changeCount: pasteboard.changeCount, stripped: nil)
+            return StripTransaction(changeCount: pasteboard.changeCount, stripped: nil, aborted: false)
         }
         let source = pasteboard.string(forType: .source)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -370,7 +423,8 @@ final class PastePlainService: ObservableObject {
         }
         pasteboard.setData(Data(), forType: .init(PastePlainSupport.modifiedTypeMarker))
         pasteboard.setData(Data(), forType: .init(PastePlainSupport.hasRunMarker))
-        return StripTransaction(changeCount: pasteboard.changeCount, stripped: (snapshot, transformed))
+        return StripTransaction(changeCount: pasteboard.changeCount, stripped: (snapshot, transformed),
+                                aborted: false)
     }
 
     /// The text one item carries without formatting: its plain string when
@@ -440,6 +494,8 @@ final class PastePlainService: ObservableObject {
         isRichPasteInFlight = false
         originalItems = nil
         lastStrippedChangeCount = 0
+        lastFailedChangeCount = nil
+        lastFailedAt = .distantPast
     }
 }
 

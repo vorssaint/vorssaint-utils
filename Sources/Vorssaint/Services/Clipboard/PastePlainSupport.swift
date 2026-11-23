@@ -8,6 +8,12 @@ import UniformTypeIdentifiers
 enum PastePlainDecision: Equatable {
     /// The clipboard carries formatting it can lose: rewrite it as plain text.
     case strip
+    /// The copy carries a picture, clip or PDF beside its text: strip only
+    /// when the plain string turns out to be real text rather than the
+    /// media's own link or file name. Answered by the service after one
+    /// string read, which is the only flavor that can be judged without
+    /// rendering the media.
+    case stripWhenTextIsReal
     /// The clipboard is left exactly as the user made it, for the reason below.
     case leaveAlone(PastePlainSupport.LeaveReason)
 }
@@ -21,9 +27,12 @@ enum PastePlainSupport {
         case empty
         /// No copy of this ever pastes as text (a picture, a file, a sound).
         case notText
-        /// The copy is text beside its own picture, a document snapshot or a
-        /// file — the text alone would lose the rest.
+        /// A file being copied or promised: stripping would turn "copy this
+        /// file" into "paste a name".
         case protectedContent
+        /// A media copy whose text is only the picture's own link or file
+        /// name, or no text at all: the picture is the copy.
+        case mediaFallback
         /// A password manager handing over a secret.
         case concealed
         /// Content an app made up or is about to take back.
@@ -40,8 +49,12 @@ enum PastePlainSupport {
 
     // MARK: - The decision
 
-    /// Decides from raw pasteboard type names alone — no data is read — so a
-    /// picture or a file is never fetched only to be left alone.
+    /// Decides from raw pasteboard type names alone, so a picture or a file
+    /// is never fetched only to be left alone. The one exception is a copy
+    /// that also carries a picture of its own text — a document's snapshot of
+    /// a selection — which answers `.stripWhenTextIsReal` and is confirmed
+    /// against the copy's plain string, the only flavor whose text can be
+    /// judged without rendering anything.
     ///
     /// A copy that arrived over Universal Clipboard is stripped too, even
     /// though writing the stripped text locally clears the remote marker and
@@ -59,7 +72,10 @@ enum PastePlainSupport {
         if isOwnLastWrite { return .leaveAlone(.ownWrite) }
         if rawTypes.contains(concealedType) { return .leaveAlone(.concealed) }
         if rawTypes.contains(where: transientTypes.contains) { return .leaveAlone(.transient) }
-        if rawTypes.contains(where: isProtectedContent) { return .leaveAlone(.protectedContent) }
+        // A file copy is left before anything else is even considered, and
+        // nothing is read from it: the name it carries as text is not text
+        // the user asked to have stripped.
+        if rawTypes.contains(where: isFileContent) { return .leaveAlone(.protectedContent) }
         guard rawTypes.contains(where: isTextBearing) else { return .leaveAlone(.notText) }
         // The pasteboard says what was copied, never who copied it, so the
         // frontmost app is only consulted when no app named itself: the same
@@ -71,6 +87,13 @@ enum PastePlainSupport {
         } else if let frontmost = frontmostBundleID, excludedApps.contains(frontmost) {
             return .leaveAlone(.excludedApp)
         }
+        // A picture, clip or PDF beside text is judged by the text: spreadsheets,
+        // slides and documents put a snapshot of the selection on the
+        // pasteboard next to the real rich text, and those copies are exactly
+        // the ones the feature exists to strip. A picture copied on its own
+        // carries only its link or file name as text, which answers the media
+        // check below and keeps the copy whole.
+        if rawTypes.contains(where: isMedia) { return .stripWhenTextIsReal }
         guard isRich(rawTypes, itemCount: itemCount) else { return .leaveAlone(.alreadyPlain) }
         return .strip
     }
@@ -97,16 +120,49 @@ enum PastePlainSupport {
         return type.conforms(to: .text) || type.conforms(to: .url)
     }
 
-    /// A copy whose content is not text at all, or is text plus the thing the
-    /// text is about: a file, a picture of a spreadsheet's cells, a PDF
-    /// preview. Stripping would turn "copy this file/image" into "paste a
-    /// name", which is never what the user asked for.
-    static func isProtectedContent(_ rawType: String) -> Bool {
+    /// A file being copied or promised, under the names that are not types
+    /// the system knows and would otherwise pass as private notes. A file URL
+    /// beside its name as text is still a file copy.
+    static func isFileContent(_ rawType: String) -> Bool {
         if legacyFileTypes.contains(rawType) { return true }
         guard let type = UTType(rawType), type.isDeclared else { return false }
-        return type.conforms(to: .fileURL) || type.conforms(to: .image)
-            || type.conforms(to: .movie) || type.conforms(to: .video)
-            || type.conforms(to: .audio) || type.conforms(to: .pdf)
+        return type.conforms(to: .fileURL)
+    }
+
+    /// A picture, a movie, an audio clip or a PDF — content that may be the
+    /// copy itself, or just a preview of the text beside it.
+    static func isMedia(_ rawType: String) -> Bool {
+        guard let type = UTType(rawType), type.isDeclared else { return false }
+        return type.conforms(to: .image) || type.conforms(to: .movie)
+            || type.conforms(to: .video) || type.conforms(to: .audio)
+            || type.conforms(to: .pdf)
+    }
+
+    /// Whether a media copy should be stripped, judged by its plain string:
+    /// real text means the picture is only a preview of it (a cell, a slide),
+    /// while a link or a file name is what a browser or a chat writes when
+    /// the picture itself is the copy — that copy stays whole.
+    static func mediaCopyStrips(plain: String) -> Bool {
+        let trimmed = plain.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && !isMediaTextFallback(trimmed)
+    }
+
+    /// The text a picture or clip copied on its own carries beside it: nothing,
+    /// or one link or media file name, as a browser or a chat copies an image.
+    /// Anything else, a cell's "example.com" or "2.4GHz" included, is text
+    /// that came with a picture of itself and still strips to plain text.
+    static func isMediaTextFallback(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        guard !trimmed.contains(where: { $0.isWhitespace }) else { return false }
+        let lowercased = trimmed.lowercased()
+        if lowercased.hasPrefix("data:") || lowercased.hasPrefix("blob:")
+            || (trimmed.contains("://") && URL(string: trimmed)?.scheme != nil) { return true }
+        let name = trimmed as NSString
+        guard !name.deletingPathExtension.isEmpty, !name.pathExtension.isEmpty,
+              let type = UTType(filenameExtension: name.pathExtension.lowercased()) else { return false }
+        return type.conforms(to: .image) || type.conforms(to: .audiovisualContent)
+            || type.conforms(to: .pdf)
     }
 
     // MARK: - Type names

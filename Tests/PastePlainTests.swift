@@ -15,6 +15,9 @@ enum PastePlainTests {
         static let general = NSPasteboard()
         /// The items on the board, in order, as their declared data.
         private(set) var items: [[PasteboardType: Data]] = []
+        /// Simulates promised content: types are advertised, but no item ever
+        /// renders behind them.
+        var phantomTypes: [PasteboardType]?
         var changeCount = 0
         var reads = 0
         var dataReads = 0
@@ -22,11 +25,13 @@ enum PastePlainTests {
         var writeCount = 0
 
         var types: [PasteboardType]? {
-            items.isEmpty ? nil : Array(Set(items.flatMap { Array($0.keys) }))
+            if let phantomTypes { return phantomTypes }
+            return items.isEmpty ? nil : Array(Set(items.flatMap { Array($0.keys) }))
         }
 
         var pasteboardItems: [NSPasteboardItem]? {
-            items.isEmpty ? nil : items.map { item in
+            if phantomTypes != nil { return nil }
+            return items.isEmpty ? nil : items.map { item in
                 let copy = NSPasteboardItem()
                 copy.contents = item
                 return copy
@@ -174,6 +179,8 @@ enum PastePlainTests {
 
         var lastChangeCount = 0
         var lastStrippedChangeCount = 0
+        var lastFailedChangeCount: Int?
+        var lastFailedAt = Date.distantPast
         var originalItems: [NSPasteboardItem]?
         var originalCapturedAt = Date()
         var isRichPasteInFlight = false
@@ -189,6 +196,7 @@ enum PastePlainTests {
 
         static let pasteboardTimeout: TimeInterval = 5
         static let pollInterval: TimeInterval = 0.12
+        static let retryBackoff: TimeInterval = 2
         // The generated methods post the re-strip with asyncAfter; a zero
         // delay lets the tests drain it by spinning the run loop.
         static var repasteRestripDelay: TimeInterval = 0
@@ -200,6 +208,7 @@ enum PastePlainTests {
     struct StripTransaction {
         let changeCount: Int
         let stripped: (originalItems: [NSPasteboardItem], plainText: String)?
+        let aborted: Bool
     }
 
     /// Exercises the real forwarding method while the unchanged event-post
@@ -253,18 +262,23 @@ enum PastePlainTests {
         let rtf = "public.rtf"
         let html = "public.html"
         suite.expect(decide([]) == .leaveAlone(.empty), "an empty clipboard is left alone")
-        for media in ["public.png", "public.tiff", "public.jpeg", "public.heic", "com.adobe.pdf",
-                      "public.mp3", "public.mpeg-4", "com.apple.quicktime-movie", "public.movie"] {
-            suite.expect(decide([media]) == .leaveAlone(.protectedContent),
-                         "\(media) is never read or rewritten")
-            suite.expect(decide([media, string]) == .leaveAlone(.protectedContent),
-                         "\(media) beside its text keeps the whole copy")
-        }
+        // Files are hard-skipped before anything else, even when the name
+        // they carry as text looks like text worth stripping.
         for file in ["public.file-url", "NSFilenamesPboardType", "NSFileContentsPboardType",
                      "com.apple.NSFilePromiseItemMetaData", "Apple files promise pasteboard type",
                      "com.apple.pasteboard.promised-file-url"] {
             suite.expect(decide([file, string]) == .leaveAlone(.protectedContent),
                          "\(file) is a file copy, not text")
+        }
+        for media in ["public.png", "public.tiff", "public.jpeg", "public.heic", "com.adobe.pdf",
+                      "public.mp3", "public.mpeg-4", "com.apple.quicktime-movie", "public.movie"] {
+            suite.expect(decide([media]) == .leaveAlone(.notText),
+                         "\(media) alone has no text and is never read")
+            // A picture beside its text is confirmed against the string: the
+            // strip happens only when that text is real, not the media's own
+            // link or file name.
+            suite.expect(decide([media, string]) == .stripWhenTextIsReal,
+                         "\(media) beside text is judged by the text")
         }
         suite.expect(decide([string]) == .leaveAlone(.alreadyPlain),
                      "plain text alone has nothing to lose")
@@ -302,11 +316,32 @@ enum PastePlainTests {
         suite.expect(decide([string, rtf], declaredSource: "com.example.files",
                             excluded: []) == .strip,
                      "a remote-clipboard copy strips locally like any other")
+        // An excluded app's copy is skipped before its media text is read.
+        suite.expect(decide(["public.png", string], declaredSource: "com.example.editor",
+                            excluded: ["com.example.editor"]) == .leaveAlone(.excludedApp),
+                     "an excluded app's media copy is not read either")
     }
 
     // MARK: - Transforms
 
     private static func transforms(_ suite: TestSuite) {
+        // What a picture copied on its own carries as text, judged the way a
+        // media copy's strip decision judges it.
+        for fallback in ["", " \n", "https://example.com/a.png", "data:image/png;base64,AAAA",
+                         "blob:https://example.com/1", "IMG_1234.HEIC", "photo.jpeg", "clip.mp4", "scan.pdf"] {
+            suite.expect(PastePlainSupport.isMediaTextFallback(fallback),
+                         "'\(fallback)' is the text a lone picture or clip carries")
+            suite.expect(!PastePlainSupport.mediaCopyStrips(plain: fallback),
+                         "'\(fallback)' beside a picture keeps the picture")
+        }
+        for text in ["Total", "Total:", "1.2.3", "3.14", "e.g.", "Item\tQty\nA\t1", "see https://example.com",
+                     "two words", "U.S.", "example.com", "2.4GHz", "12.5kg", "config.yaml", "john@example.com"] {
+            suite.expect(!PastePlainSupport.isMediaTextFallback(text),
+                         "'\(text)' is copied text that came with a picture of itself")
+            suite.expect(PastePlainSupport.mediaCopyStrips(plain: text),
+                         "'\(text)' beside a picture strips to plain text")
+        }
+
         let none = PastePlainSupport.TransformOptions()
         let code = "let greeting = \"héllo\"\nif greeting == \"héllo\" {\n    print(greeting)\n}"
         suite.expect(PastePlainSupport.applyTransforms(code, options: none) == code,
@@ -356,6 +391,7 @@ enum PastePlainTests {
         func strip(since: Int? = nil,
                    ownWrite: Int = 0,
                    excluded: Set<String> = [],
+                   failed: (count: Int, at: Date)? = nil,
                    transforms: PastePlainSupport.TransformOptions = .init()) -> StripTransaction? {
             board.reads = 0
             board.dataReads = 0
@@ -365,6 +401,8 @@ enum PastePlainTests {
                                            ownBundleID: "com.vorssaint.tests",
                                            excludedApps: excluded,
                                            frontmostBundleID: nil,
+                                           failedChangeCount: failed?.count,
+                                           failedAt: failed?.at ?? .distantPast,
                                            transforms: transforms,
                                            isExpired: { false })
         }
@@ -396,14 +434,31 @@ enum PastePlainTests {
                      "the strip markers are added")
         suite.expect(board.clears == 1, "the board is cleared before the write")
 
-        // Media: the types alone decide, so nothing is ever fetched.
-        for media: AppKit.NSPasteboard.PasteboardType in [.png, .tiff, .init("public.mpeg-4")] {
-            board.setItems([[media: Data([1, 2, 3])]])
-            let mediaResult = strip()
-            suite.expect(mediaResult?.stripped == nil && board.writeCount == 0
-                         && board.dataReads == 0,
-                         "\(media): media is left alone without a single data read")
+        // Media beside its text: a document's snapshot of a selection strips
+        // to the text, while a picture copied on its own is left whole.
+        let table = "Item\tQty\nA\t1"
+        for media: AppKit.NSPasteboard.PasteboardType in [.tiff, .init("com.adobe.pdf"), .png] {
+            board.setItems([[.string: Data(table.utf8), media: Data([1, 2, 3])]])
+            let snapshot = strip()
+            suite.expect(snapshot?.stripped?.plainText == table && board.writeCount == 1
+                         && board.items.count == 1
+                         && board.items[0][.string] == Data(table.utf8),
+                         "\(media): a cell's text beside its picture strips to the text")
         }
+        // A browser's "Copy Image" names the picture as text: the picture is
+        // the copy, so nothing is rewritten.
+        for fallback in ["https://example.com/image.png", "IMG_1234.HEIC"] {
+            board.setItems([[.png: Data([1, 2, 3]), .string: Data(fallback.utf8),
+                             .html: Data("<b>x</b>".utf8)]])
+            let kept = strip()
+            suite.expect(kept?.stripped == nil && board.writeCount == 0 && board.dataReads == 0,
+                         "a picture whose text is its own '\(fallback)' stays whole")
+        }
+        // A picture on its own has no text at all and is never read.
+        board.setItems([[.png: Data([1, 2, 3])]])
+        suite.expect(strip()?.stripped == nil && board.writeCount == 0 && board.dataReads == 0,
+                     "a picture alone is left alone without a single data read")
+
         // A file copy is left alone even when it also carries text.
         board.setItems([[.string: Data("Report.pdf".utf8),
                          AppKit.NSPasteboard.PasteboardType("public.file-url"): Data([1])]])
@@ -418,6 +473,29 @@ enum PastePlainTests {
             suite.expect(strip()?.stripped == nil && board.writeCount == 0,
                          "\(mark) is never rewritten")
         }
+
+        // A flavor the pasteboard synthesizes for a string but no item can
+        // produce, like the external UTF-16 form, is skipped rather than
+        // aborting the strip of the whole copy.
+        board.setItems([[.string: Data("hello world".utf8), .rtf: Data(#"{\rtf1\ansi h}"#.utf8),
+                         AppKit.NSPasteboard.PasteboardType("public.utf16-external-plain-text"): Data()]])
+        let synthesized = strip()
+        suite.expect(synthesized?.stripped?.plainText == "hello world" && !synthesized!.aborted,
+                     "a synthesized flavor does not abort the strip")
+
+        // Promised content that never renders: types without items abort the
+        // strip, and the change stays unconsumed so a later poll retries it.
+        board.setItems([[.string: Data("gone".utf8)]])
+        board.phantomTypes = [.string, .rtf]
+        let unreadable = strip()
+        suite.expect(unreadable?.aborted == true && unreadable?.stripped == nil,
+                     "promised content that never renders aborts the strip")
+        suite.expect(strip(failed: (count: unreadable!.changeCount, at: Date())) == nil,
+                     "the retry is throttled to one attempt per backoff window")
+        suite.expect(strip(failed: (count: unreadable!.changeCount,
+                                    at: Date(timeIntervalSinceNow: -60)))!.aborted,
+                     "after the backoff the same copy is attempted again")
+        board.phantomTypes = nil
 
         // Nothing to read back: the strip aborts instead of clearing content.
         board.setItems([[.string: Data("  \n".utf8), .rtf: Data(#"{\rtf1 }"#.utf8)]])
