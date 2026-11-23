@@ -1171,6 +1171,7 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
 
 struct QuickControlsSection: View {
     @ObservedObject private var l10n = L10n.shared
+    @State private var windowCycleKey = GlobalShortcut.windowCycleKeyLabel()
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var inverter = ScrollInverter.shared
@@ -1258,6 +1259,9 @@ struct QuickControlsSection: View {
             }
             .onAppear {
                 MiddleClickService.shared.refreshDragGestureConflict()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: GlobalShortcut.keyboardLayoutDidChange)) { _ in
+                windowCycleKey = GlobalShortcut.windowCycleKeyLabel()
             }
         }
     }
@@ -1693,7 +1697,8 @@ struct QuickControlsSection: View {
                 }
         case .dockClickCycle:
             PanelToggleRow(title: l10n.s.dockClickCycleWindows,
-                           caption: caption(GlobalShortcut.localizingWindowCycleKey(in: l10n.s.dockClickCycleWindowsCaption), needsAccessibility: dockClickCycleEnabled),
+                           caption: caption(GlobalShortcut.localizingWindowCycleKey(in: l10n.s.dockClickCycleWindowsCaption,
+                                                                          key: windowCycleKey), needsAccessibility: dockClickCycleEnabled),
                            systemImage: "dock.rectangle",
                            isOn: $dockClickCycleEnabled,
                            isEditing: editing,

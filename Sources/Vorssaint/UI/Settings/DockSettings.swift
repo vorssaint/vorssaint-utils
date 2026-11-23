@@ -7,6 +7,7 @@ import SwiftUI
 /// Preview shares with the switcher.
 struct DockSettings: View {
     @ObservedObject private var l10n = L10n.shared
+    @State private var windowCycleKey = GlobalShortcut.windowCycleKeyLabel()
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var dockPreview = DockPreviewService.shared
@@ -72,6 +73,9 @@ struct DockSettings: View {
             .padding(22)
         }
         .toggleStyle(.switch)
+        .onReceive(NotificationCenter.default.publisher(for: GlobalShortcut.keyboardLayoutDidChange)) { _ in
+            windowCycleKey = GlobalShortcut.windowCycleKeyLabel()
+        }
     }
 
     private var dockPreviewCard: some View {
@@ -170,7 +174,8 @@ struct DockSettings: View {
                     }
             }
             SettingsRow(symbol: "arrow.triangle.2.circlepath", title: l10n.s.dockClickCycleWindows,
-                        caption: GlobalShortcut.localizingWindowCycleKey(in: l10n.s.dockClickCycleWindowsCaption)) {
+                        caption: GlobalShortcut.localizingWindowCycleKey(in: l10n.s.dockClickCycleWindowsCaption,
+                                                                   key: windowCycleKey)) {
                 Toggle(l10n.s.dockClickCycleWindows, isOn: $dockClickCycleWindows)
                     .labelsHidden()
                     .onChange(of: dockClickCycleWindows) { _, _ in

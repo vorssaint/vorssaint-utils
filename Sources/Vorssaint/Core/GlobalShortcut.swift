@@ -489,8 +489,13 @@ struct GlobalShortcut: Equatable, Hashable {
     /// Localized copy writes that shortcut as the US ⌘` in every language.
     /// Swaps in the cap the user's keyboard actually has, so the caption names
     /// the key they can press.
-    static func localizingWindowCycleKey(in text: String) -> String {
-        text.replacingOccurrences(of: "⌘`", with: "⌘" + windowCycleKeyLabel())
+    ///
+    /// A view that shows the text keeps the key in state and passes it here,
+    /// refreshing it on `keyboardLayoutDidChange`, so a layout switch updates
+    /// a caption that is already on screen.
+    static func localizingWindowCycleKey(in text: String,
+                                         key: String = windowCycleKeyLabel()) -> String {
+        text.replacingOccurrences(of: "⌘`", with: "⌘" + key)
     }
 
     private static func fallbackAnsiKeyLabel(for keyCode: Int64) -> String? {
