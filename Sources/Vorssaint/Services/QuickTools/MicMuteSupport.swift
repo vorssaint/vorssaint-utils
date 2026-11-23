@@ -63,6 +63,26 @@ enum MicMuteSupport {
         !owned && captureSilenced
     }
 
+    struct InputControls {
+        enum Gain { case unavailable, unreadable, silent, audible }
+        let gain: Gain
+        let muteSwitch: UInt32?
+        /// Gain addresses actually read at or below the silence threshold.
+        var silentGains: Set<String> = []
+        /// Mute elements actually observed engaged: the main switch or all channels.
+        var mutedElements: ClosedRange<UInt32>?
+
+        var isSilenced: Bool {
+            gain == .silent || (gain == .unavailable && muteSwitch == 1)
+        }
+
+        /// A driver losing a readable gain control does not establish that it opened.
+        func opened(since previous: InputControls) -> Bool {
+            previous.isSilenced && ((previous.gain == .silent && gain == .audible)
+                || (previous.muteSwitch == 1 && muteSwitch == 0))
+        }
+    }
+
     /// What an unmute has to do to a device this app muted. The mute switch
     /// and the volume are separate controls: clearing one must not skip the
     /// other, or a mute that zeroed the level would leave the microphone dead.
@@ -119,5 +139,29 @@ enum MicMuteSupport {
     static func absentClaims(recorded: [String]?, present: [String]) -> [String] {
         let here = Set(present)
         return (recorded ?? []).filter { !here.contains($0) }
+    }
+
+    /// Only consecutive attempts to silence an input accumulate. A quiet
+    /// sweep or a new device ID starts over; persistent failures back off
+    /// from a quarter second to half a minute.
+    struct Retry {
+        let deviceID: UInt32
+        let onlyWhileIdle: Bool
+        let attempts: Int
+        let lastAttempt: TimeInterval
+        let deadline: TimeInterval?
+
+        init(deviceID: UInt32, onlyWhileIdle: Bool, previous: Retry?, now: TimeInterval) {
+            self.deviceID = deviceID
+            self.onlyWhileIdle = onlyWhileIdle
+            lastAttempt = now
+            if let previous, previous.deviceID == deviceID, previous.onlyWhileIdle == onlyWhileIdle,
+               !onlyWhileIdle || previous.deadline != nil || now - previous.lastAttempt < 0.25 {
+                attempts = min(previous.attempts + 1, 10)
+            } else {
+                attempts = 1
+            }
+            deadline = attempts < 3 ? nil : now + min(30, 0.25 * Double(1 << (attempts - 3)))
+        }
     }
 }

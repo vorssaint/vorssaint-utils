@@ -14,6 +14,7 @@ struct NotchClipboardView: View {
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var enabled = false
     @State private var query = ""
+    @State private var searchSurface = ClipboardHistorySearchSurface.view(UUID())
     @State private var copiedID: UUID?
     private var pinnedOnly: Bool {
         get { service.clipboardPinnedOnly }
@@ -44,7 +45,8 @@ struct NotchClipboardView: View {
     private static let listSpace = "notch.clipboard.list"
 
     private var entries: [ClipboardHistoryEntry] {
-        history.filteredEntries(matching: query).filter { !pinnedOnly || $0.isPinned }
+        let visible = preview ? history.entries : history.filteredEntries(matching: query, surface: searchSurface)
+        return visible.filter { !pinnedOnly || $0.isPinned }
     }
 
     /// Moving swaps neighbours in the list, which a search would misreport.
@@ -142,6 +144,7 @@ struct NotchClipboardView: View {
             if !focused, query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { searchOpen = false }
         }
         .onDisappear {
+            if !preview { history.cancelSearch(on: searchSurface) }
             dwell?.task.cancel()
             closing?.task.cancel()
             if !preview { service.setPageLayer(.clipboard, close: nil) }
