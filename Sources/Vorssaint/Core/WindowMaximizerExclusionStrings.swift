@@ -28,6 +28,8 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -135,4 +137,17 @@ extension WindowMaximizerExclusionStrings {
         removeButton: "移除",
         caption: "在這些 App 中，綠色按鈕會保留 macOS 原本的行為，遊戲、模擬器和影片播放器仍然可以進入全螢幕。"
     )
+
+    static let ar = WindowMaximizerExclusionStrings(
+        listTitle: "إبقاء ملء الشاشة في هذه التطبيقات",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        caption: "يحتفظ الزر الأخضر بسلوكه في macOS داخل هذه التطبيقات، فتبقى الألعاب والمحاكيات ومشغّلات الفيديو قادرة على الدخول إلى ملء الشاشة."
+    )
+
+    static let fa = WindowMaximizerExclusionStrings(
+        listTitle: "حفظ تمام‌صفحه در این برنامه‌ها",
+        addButton: "افزودن برنامه…",
+        removeButton: "حذف",
+        caption: "دکمهٔ سبز در این برنامه‌ها رفتار macOS خود را نگه می‌دارد، پس بازی‌ها، شبیه‌سازها و پخش‌کننده‌های ویدیو همچنان می‌توانند تمام‌صفحه شوند.")
 }

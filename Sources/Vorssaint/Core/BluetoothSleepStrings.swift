@@ -34,6 +34,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -187,4 +189,23 @@ extension BluetoothSleepStrings {
         restoreCaption: "Лише коли Vorssaint сам його вимкнув.",
         unsupported: "На цьому Mac немає Bluetooth-контролера."
     )
+
+    static let ar = BluetoothSleepStrings(
+        pageTitle: "بلوتوث عند السكون",
+        hubDescription: "يُوقف بلوتوث أثناء سكون الـ Mac، حتى لا تتصل به السماعات الموضوعة في الحقيبة.",
+        enable: "إيقاف بلوتوث عند سكون الـ Mac",
+        enableCaption: "إذا كان بلوتوث متوقفًا أصلًا قبل السكون فلن يُمس، وسيبقى متوقفًا عند الاستيقاظ.",
+        restoreToggle: "إعادة تشغيل بلوتوث عند استيقاظ الـ Mac",
+        restoreCaption: "فقط إذا كان Vorssaint هو من أوقفه.",
+        unsupported: "لا يحتوي هذا الـ Mac على وحدة بلوتوث."
+    )
+
+    static let fa = BluetoothSleepStrings(
+        pageTitle: "بلوتوث هنگام خواب",
+        hubDescription: "هنگام خواب مک بلوتوث را خاموش می‌کند تا هدفون‌های داخل کیف دیگر به آن وصل نشوند.",
+        enable: "خاموش کردن بلوتوث هنگام خواب مک",
+        enableCaption: "بلوتوثی که پیش از خواب خاموش بوده دست‌نخورده می‌ماند و هنگام بیدار شدن هم خاموش می‌ماند.",
+        restoreToggle: "روشن کردن دوبارهٔ بلوتوث هنگام بیدار شدن مک",
+        restoreCaption: "فقط وقتی که Vorssaint آن را خاموش کرده باشد.",
+        unsupported: "این مک کنترل‌کنندهٔ بلوتوث ندارد.")
 }

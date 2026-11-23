@@ -1456,7 +1456,10 @@ def main():
           + "}\nstruct Editor {\n"
           + availability_declaration("Sources/Vorssaint/UI/Settings/RadialMenuSettings.swift",
                                      "    private var availableQuickToggles:").replace("private var", "var", 1)
-          + "}\n}\n")
+          + "}\n}\n"
+          # The panel's root follows the app language's direction, which the
+          # harness has no language for.
+          + "extension View { func appLayoutDirection() -> Self { self } }\n")
     write("OverlayPanelDeclaration.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/UI/OverlayPanel.swift", "class OverlayPanel:"))
     shelf = "Sources/Vorssaint/Services/Shelf/ShelfService.swift"
@@ -2017,6 +2020,9 @@ def main():
     media_workspace = "Sources/Vorssaint/UI/Media/MediaWorkspaceView.swift"
     menu_panel = "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift"
     write("MediaWorkspaceLayout.swift", "import AppKit\nimport SwiftUI\nimport UniformTypeIdentifiers\n"
+          # The scroll host mirrors with the app language, which the harness
+          # has no language for; the helper itself comes from the quit panel's.
+          + "typealias MirroredView<Content: View> = Content\n"
           + declaration(menu_panel, "private struct OverlayScrollView<")
           + declaration(menu_panel, "private final class HeightReportingHostingView<")
           + "extension MediaWorkspaceLayoutTests {\n"

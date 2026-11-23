@@ -72,6 +72,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -601,4 +603,72 @@ extension QuitProtectionStrings {
         optionKey: "Option",
         controlKey: "Control"
     )
+
+    static let ar = QuitProtectionStrings(
+        name: "الحماية من الإنهاء والإغلاق",
+        description: "يحمي ⌘Q و⌘W من الضغطات غير المقصودة",
+        intro: "اضبط كل اختصار على حدة. ولا يمر الإجراء الأصلي إلا بعد التأكيد المحدد.",
+        enabled: "حماية هذا الاختصار",
+        enabledCaption: "تواصل اختصارات Command الأخرى عملها بشكل طبيعي.",
+        mode: "وضع التأكيد",
+        hold: "الاستمرار بالضغط للتأكيد",
+        doublePress: "ضغطة مزدوجة",
+        extraModifier: "طلب مفتاح تعديل إضافي",
+        holdDuration: "مدة الضغط",
+        doublePressInterval: "الفاصل بين الضغطتين",
+        modifier: "مفتاح التعديل الإضافي",
+        appScope: "التطبيقات",
+        allApps: "كل التطبيقات",
+        selectedOnly: "التطبيقات المحددة فقط",
+        allExceptSelected: "كل التطبيقات عدا المحددة",
+        exceptions: "التطبيقات المحددة",
+        noExceptions: "لم يتم تحديد أي تطبيق",
+        addApp: "إضافة تطبيق…",
+        feedback: "إظهار تأكيد مرئي",
+        accessibilityCaption: "تستخدم الحماية تسهيلات الاستخدام لمراقبة ⌘Q و⌘W عامةً فقط.",
+        holdQuitHUDFormat: "استمر بالضغط على %@ للإنهاء",
+        holdCloseHUDFormat: "استمر بالضغط على %@ للإغلاق",
+        doubleQuitHUDFormat: "اضغط %@ مجددًا للإنهاء",
+        doubleCloseHUDFormat: "اضغط %@ مجددًا للإغلاق",
+        extraQuitHUDFormat: "استخدم %@ للإنهاء",
+        extraCloseHUDFormat: "استخدم %@ للإغلاق",
+        cancelHint: "Esc للإلغاء",
+        releaseHint: "أفلِت للتأكيد",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control")
+
+    static let fa = QuitProtectionStrings(
+        name: "محافظت از خروج و بستن",
+        description: "⌘Q و ⌘W را از فشردن اتفاقی محافظت می‌کند",
+        intro: "هر میان‌بر را مستقل پیکربندی کنید. کنش اصلی فقط پس از تأیید انتخاب‌شده عبور می‌کند.",
+        enabled: "محافظت از این میان‌بر",
+        enabledCaption: "میان‌بُرهای Command دیگر عادی کار می‌کنند.",
+        mode: "حالت تأیید",
+        hold: "نگه داشتن برای تأیید",
+        doublePress: "فشار دوبار",
+        extraModifier: "نیاز به کلید تغییردهندهٔ اضافی",
+        holdDuration: "مدت نگه داشتن",
+        doublePressInterval: "فاصلهٔ فشار دوبار",
+        modifier: "کلید تغییردهندهٔ اضافی",
+        appScope: "برنامه‌ها",
+        allApps: "همهٔ برنامه‌ها",
+        selectedOnly: "فقط برنامه‌های انتخاب‌شده",
+        allExceptSelected: "همه به‌جز برنامه‌های انتخاب‌شده",
+        exceptions: "برنامه‌های انتخاب‌شده",
+        noExceptions: "برنامه‌ای انتخاب نشده",
+        addApp: "افزودن برنامه…",
+        feedback: "نمایش بازخورد دیداری",
+        accessibilityCaption: "محافظت از دسترس‌پذیری استفاده می‌کند تا فقط ⌘Q و ⌘W را به‌صورت سراسری زیر نظر بگیرد.",
+        holdQuitHUDFormat: "برای خروج %@ را نگه دارید",
+        holdCloseHUDFormat: "برای بستن %@ را نگه دارید",
+        doubleQuitHUDFormat: "برای خروج %@ را دوباره بزنید",
+        doubleCloseHUDFormat: "برای بستن %@ را دوباره بزنید",
+        extraQuitHUDFormat: "برای خروج از %@ استفاده کنید",
+        extraCloseHUDFormat: "برای بستن از %@ استفاده کنید",
+        cancelHint: "Esc لغو می‌کند",
+        releaseHint: "برای تأیید رها کنید",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control")
 }

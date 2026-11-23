@@ -36,6 +36,8 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -235,4 +237,29 @@ extension SettingsPageStrings {
         switcherLayoutIcons: "大圖示",
         switcherLayoutSimple: "簡單列表"
     )
+
+    static let ar = SettingsPageStrings(
+        energyDescription: "أبقِ الـ Mac مستيقظًا، وتحكّم في شاشاتك، ووفّر البطارية.",
+        monitorDescription: "ما يعرضه شريط القوائم واللوحة عن الـ Mac، ومتى ينبّهك.",
+        mouseDescription: "امنح العجلة والأزرار الجانبية ولوحة التعقب وظائف جديدة.",
+        switcherDescription: "بدّل بين التطبيقات والنوافذ على طريقتك.",
+        dockTitle: "شريط الأيقونات",
+        dockDescription: "اعرض نوافذ أي تطبيق من أيقونته في شريط الأيقونات، واختر ما تفعله النقرة عليها.",
+        switcherLayoutWindows: "معاينات النوافذ",
+        switcherLayoutWindowsCaption: "معاينة لكل نافذة، بما فيها المصغّرة.",
+        switcherLayoutIcons: "أيقونات كبيرة",
+        switcherLayoutSimple: "قائمة بسيطة"
+    )
+
+    static let fa = SettingsPageStrings(
+        energyDescription: "مک را بیدار نگه دارید، نمایشگرهایتان را کنترل کنید و باتری ذخیره کنید.",
+        monitorDescription: "آنچه نوار منو و پنل دربارهٔ مک شما نشان می‌دهند، و زمان هشدار دادن به شما.",
+        mouseDescription: "به چرخ، دکمه‌های کناری و ترک‌پد کارهای تازه بدهید.",
+        switcherDescription: "بین برنامه‌ها و پنجره‌ها به شیوهٔ خودتان جابه‌جا شوید.",
+        dockTitle: "داک",
+        dockDescription: "پنجره‌های یک برنامه را از نماد داکش ببینید و انتخاب کنید کلیک روی آن چه بکند.",
+        switcherLayoutWindows: "پیش‌نمایش پنجره‌ها",
+        switcherLayoutWindowsCaption: "یک پیش‌نمایش برای هر پنجره، از جمله پنجره‌های کوچک‌شده.",
+        switcherLayoutIcons: "نمادهای بزرگ",
+        switcherLayoutSimple: "فهرست ساده")
 }

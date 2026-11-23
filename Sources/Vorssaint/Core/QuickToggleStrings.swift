@@ -63,6 +63,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -651,4 +653,81 @@ extension QuickToggleFeatureStrings {
         screenSaverCaption: "Запускається одразу, на кожному дисплеї.",
         actionFailed: "Не вдалося завершити."
     )
+
+    static let ar = QuickToggleFeatureStrings(
+        pageTitle: "التبديلات السريعة",
+        hubDescription: "إجراءات بنقرة واحدة مثل الوضع الداكن والمهملات",
+        panelCaption: "إجراءات نظام بنقرة واحدة في لوحة شريط القوائم وفي اللوحة السريعة.",
+        darkModeToDark: "التبديل إلى الوضع الداكن",
+        darkModeToLight: "التبديل إلى الوضع الفاتح",
+        darkModeCaption: "يغيّر مظهر النظام بأكمله.",
+        emptyTrashTitle: "إفراغ المهملات",
+        emptyTrashCaption: "يزيل كل شيء من المهملات.",
+        emptyTrashConfirmTitle: "إفراغ المهملات؟",
+        emptyTrashConfirmMessage: "ستُزال كل العناصر الموجودة في المهملات. ولا يمكن التراجع عن ذلك.",
+        emptyTrashConfirmButton: "إفراغ المهملات",
+        quitAllTitle: "إنهاء كل التطبيقات",
+        quitOthersTitle: "إنهاء كل التطبيقات عدا الأمامي",
+        quitAppsHeader: "التطبيقات المفتوحة",
+        quitAppsQuitAll: "إنهاء الكل",
+        quitAppsQuitAllExcept: "إنهاء الكل عدا %@",
+        quitAppsQuitOne: "إنهاء %@",
+        quitAppsFrontBadge: "الأمامي",
+        quitAppsKeptBadge: "مُبقى",
+        quitAppsEmpty: "لا توجد تطبيقات أخرى مفتوحة.",
+        exceptionsTitle: "التطبيقات المُبقاة",
+        exceptionsCaption: "يترك “إنهاء الكل” هذه التطبيقات تعمل. ويبقى فايندر وVorssaint وPhone مُبقاة دائمًا. ويمكنك مع ذلك إنهاء تطبيق مُبقى من صفّه.",
+        ejectTitle: "إخراج كل الأقراص",
+        ejectCaption: "يُخرج كل قرص خارجي بأمان.",
+        hiddenFilesShow: "إظهار الملفات المخفية",
+        hiddenFilesHide: "إخفاء الملفات المخفية",
+        desktopIconsHide: "إخفاء أيقونات سطح المكتب",
+        desktopIconsShow: "إظهار أيقونات سطح المكتب",
+        finderRestartCaption: "يُعاد تشغيل فايندر لتطبيق ذلك.",
+        lockScreenTitle: "قفل الشاشة",
+        lockScreenCaption: "يطلب كلمة السر للعودة.",
+        displayOffTitle: "إيقاف الشاشة",
+        displayOffCaption: "يواصل الـ Mac عمله والشاشة مطفأة.",
+        screenSaverTitle: "بدء حافظة الشاشة",
+        screenSaverCaption: "تبدأ فورًا على كل الشاشات.",
+        actionFailed: "تعذّر الإكمال."
+    )
+
+    static let fa = QuickToggleFeatureStrings(
+        pageTitle: "کلیدهای سریع",
+        hubDescription: "کنش‌های تک‌کلیکی مانند حالت تاریک و سطل زباله",
+        panelCaption: "کنش‌های سیستمی تک‌کلیکی در پنل نوار منو و پنل سریع.",
+        darkModeToDark: "رفتن به حالت تاریک",
+        darkModeToLight: "رفتن به حالت روشن",
+        darkModeCaption: "ظاهر کل سیستم را تغییر می‌دهد.",
+        emptyTrashTitle: "خالی کردن سطل زباله",
+        emptyTrashCaption: "همه‌چیز را از سطل زباله حذف می‌کند.",
+        emptyTrashConfirmTitle: "سطل زباله خالی شود؟",
+        emptyTrashConfirmMessage: "همهٔ موارد سطل زباله حذف می‌شوند. این کار قابل واگرد نیست.",
+        emptyTrashConfirmButton: "خالی کردن سطل زباله",
+        quitAllTitle: "خروج از همهٔ برنامه‌ها",
+        quitOthersTitle: "خروج از همهٔ برنامه‌ها به‌جز برنامهٔ جلو",
+        quitAppsHeader: "برنامه‌های باز",
+        quitAppsQuitAll: "خروج از همه",
+        quitAppsQuitAllExcept: "خروج از همه به‌جز %@",
+        quitAppsQuitOne: "خروج از %@",
+        quitAppsFrontBadge: "جلو",
+        quitAppsKeptBadge: "نگه‌داشته",
+        quitAppsEmpty: "برنامهٔ باز دیگری نیست.",
+        exceptionsTitle: "برنامه‌های نگه‌داشته",
+        exceptionsCaption: "“خروج از همه” این برنامه‌ها را در حال اجرا می‌گذارد. Finder، Vorssaint و Phone همیشه نگه داشته می‌شوند. همچنان می‌توانید از ردیف خودش از یک برنامهٔ نگه‌داشته خارج شوید.",
+        ejectTitle: "بیرون دادن همهٔ دیسک‌ها",
+        ejectCaption: "هر دیسک خارجی را با ایمنی بیرون می‌دهد.",
+        hiddenFilesShow: "نمایش فایل‌های پنهان",
+        hiddenFilesHide: "پنهان کردن فایل‌های پنهان",
+        desktopIconsHide: "پنهان کردن نمادهای میز کار",
+        desktopIconsShow: "نمایش نمادهای میز کار",
+        finderRestartCaption: "برای اعمال آن Finder دوباره راه‌اندازی می‌شود.",
+        lockScreenTitle: "قفل کردن صفحه",
+        lockScreenCaption: "برای بازگشت گذرواژه می‌خواهد.",
+        displayOffTitle: "خاموش کردن نمایشگر",
+        displayOffCaption: "مک با نمایشگر خاموش به کار ادامه می‌دهد.",
+        screenSaverTitle: "شروع محافظ صفحه",
+        screenSaverCaption: "بلافاصله روی همهٔ نمایشگرها شروع می‌شود.",
+        actionFailed: "انجام نشد.")
 }

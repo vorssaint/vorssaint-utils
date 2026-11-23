@@ -29,6 +29,8 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -49,4 +51,7 @@ extension WindowLayoutIgnoredAppsStrings {
     static let zhHans = WindowLayoutIgnoredAppsStrings(sectionTitle: "忽略的 App", listTitle: "在这些 App 中暂停", addButton: "添加 App…", removeButton: "移除", caption: "当这些 App 之一处于焦点时，窗口布局不会使用鼠标或键盘输入。")
     static let zhTW = WindowLayoutIgnoredAppsStrings(sectionTitle: "忽略的 App", listTitle: "在這些 App 中暫停", addButton: "加入 App…", removeButton: "移除", caption: "當這些 App 之一處於焦點時，視窗排列不會使用滑鼠或鍵盤輸入。")
     static let zhHK = WindowLayoutIgnoredAppsStrings(sectionTitle: "忽略的 App", listTitle: "在這些 App 中暫停", addButton: "加入 App…", removeButton: "移除", caption: "當這些 App 之一處於焦點時，視窗排列不會使用滑鼠或鍵盤輸入。")
+    static let ar = WindowLayoutIgnoredAppsStrings(sectionTitle: "تجاهل التطبيقات", listTitle: "الإيقاف في هذه التطبيقات", addButton: "إضافة تطبيق…", removeButton: "إزالة", caption: "لا يستخدم تخطيط النوافذ الماوس أو لوحة المفاتيح أثناء تركيز أحد هذه التطبيقات.")
+
+    static let fa = WindowLayoutIgnoredAppsStrings(sectionTitle: "نادیده گرفتن برنامه‌ها", listTitle: "توقف در این برنامه‌ها", addButton: "افزودن برنامه…", removeButton: "حذف", caption: "وقتی یکی از این برنامه‌ها در تمرکز است، چیدمان پنجره از ورودی ماوس یا صفحه‌کلید استفاده نمی‌کند.")
 }

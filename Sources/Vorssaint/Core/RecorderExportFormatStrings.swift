@@ -117,6 +117,20 @@ extension FeatureStrings {
                 gifSize: "GIF 大小",
                 customSize: "自訂大小",
                 frameRate: "影格率")
+        case .ar:
+            return RecorderExportFormatStrings(
+                format: "صيغة التصدير",
+                video: "فيديو",
+                gifSize: "حجم GIF",
+                customSize: "حجم مخصص",
+                frameRate: "معدل الإطارات")
+        case .fa:
+            return RecorderExportFormatStrings(
+                format: "قالب خروجی",
+                video: "ویدیو",
+                gifSize: "اندازهٔ GIF",
+                customSize: "اندازهٔ دلخواه",
+                frameRate: "نرخ فریم")
         }
     }
 }
