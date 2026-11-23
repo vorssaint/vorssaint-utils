@@ -396,6 +396,17 @@ enum CleanerEligibilityTests {
     }
 
     static func run(_ suite: TestSuite) {
+        var loads = 0
+        for ids in [Set<String>(), ["com.fixture.editor"]] {
+            let previousLoads = loads
+            let installedApps = cachedAppLookup {
+                loads += 1
+                return ids
+            }
+            suite.expect(loads == previousLoads, "creating a cleanup leaves the app inventory unread")
+            suite.expect(installedApps() == ids && installedApps() == ids && loads == previousLoads + 1,
+                         "each cleanup reads its own inventory once, including an empty inventory")
+        }
         let manager = FileManager.default
         let sandbox = manager.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("vorssaint-cleaner-\(UUID().uuidString)", isDirectory: true)

@@ -1338,14 +1338,14 @@ def main():
                     for name in ["scanLeftovers(", "appendLeftovers(", "scanCaches(", "scanLogs(",
                                  "scanOrphanedLaunchPlists(", "directorySize(", "fileSize(", "sorted(",
                                  "scanScreenshots(", "isScreenCapture(", "extendedAttribute(",
-                                 "installedAudioPluginBundleIDs("])
+                                 "installedAudioPluginBundleIDs(", "cachedAppLookup("])
           + declaration(cleaner, "    private static func leftoverOwner(")
           + declaration(cleaner, "    private static func containerOwner(")
           + declaration(cleaner, "    private static func mayRemove(")
           + "static func owner(_ url: URL, metadata: Bool = false) -> String? {\n"
           + "leftoverOwner(entry: url.lastPathComponent, url: url, usesContainerMetadata: metadata)\n}\n"
           + "static func canRemove(_ item: Item, installed: @autoclosure () -> Set<String> = [], audioPluginIDs: Set<String> = []) -> Bool {\n"
-          + "mayRemove(item, installedApps: installed(), audioPluginIDs: audioPluginIDs)\n}\n}\n")
+          + "mayRemove(item, installedApps: installed, audioPluginIDs: audioPluginIDs)\n}\n}\n")
     write("CleanerScanFlow.swift", "import Foundation\nextension CleanerScanFlowTests {\n"
           + declaration(cleaner, "    enum Phase:")
           + "final class Scanner: ScannerState {\nstatic let shared = Scanner()\n"
