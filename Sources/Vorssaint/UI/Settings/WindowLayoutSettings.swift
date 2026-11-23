@@ -224,7 +224,7 @@ struct WindowLayoutSettings: View {
                         .onChange(of: dockClickCycleWindows) { _, _ in
                             DockClickService.shared.syncWithPreferences()
                         }
-                    Text(l10n.s.dockClickCycleWindowsCaption)
+                    Text(GlobalShortcut.localizingWindowCycleKey(in: l10n.s.dockClickCycleWindowsCaption))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

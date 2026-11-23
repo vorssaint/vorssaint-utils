@@ -170,7 +170,7 @@ struct DockSettings: View {
                     }
             }
             SettingsRow(symbol: "arrow.triangle.2.circlepath", title: l10n.s.dockClickCycleWindows,
-                        caption: l10n.s.dockClickCycleWindowsCaption) {
+                        caption: GlobalShortcut.localizingWindowCycleKey(in: l10n.s.dockClickCycleWindowsCaption)) {
                 Toggle(l10n.s.dockClickCycleWindows, isOn: $dockClickCycleWindows)
                     .labelsHidden()
                     .onChange(of: dockClickCycleWindows) { _, _ in

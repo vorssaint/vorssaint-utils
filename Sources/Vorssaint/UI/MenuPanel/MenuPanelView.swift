@@ -1693,7 +1693,7 @@ struct QuickControlsSection: View {
                 }
         case .dockClickCycle:
             PanelToggleRow(title: l10n.s.dockClickCycleWindows,
-                           caption: caption(l10n.s.dockClickCycleWindowsCaption, needsAccessibility: dockClickCycleEnabled),
+                           caption: caption(GlobalShortcut.localizingWindowCycleKey(in: l10n.s.dockClickCycleWindowsCaption), needsAccessibility: dockClickCycleEnabled),
                            systemImage: "dock.rectangle",
                            isOn: $dockClickCycleEnabled,
                            isEditing: editing,
