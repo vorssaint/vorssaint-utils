@@ -348,17 +348,15 @@ final class RecentCaptureService: ObservableObject {
         return image
     }
 
-    func dragItemProvider(for entry: RecentCaptureEntry) -> NSItemProvider? {
+    func dragFileURL(for entry: RecentCaptureEntry) -> URL? {
         guard let url = existingFileURL(for: entry) else { return nil }
         switch entry.kind {
         case .screenshot:
-            return ScreenshotService.dragItemProvider(
+            return ScreenshotService.temporaryExportFile(
                 pngAt: url, capturedAt: entry.createdAt,
                 strings: FeatureStrings.screenshot(L10n.shared.language))
         case .recording:
-            let provider = NSItemProvider(contentsOf: url)
-            provider?.suggestedName = url.lastPathComponent
-            return provider
+            return url
         }
     }
 

@@ -999,21 +999,6 @@ final class ScreenshotService: ObservableObject {
                                            preferredFormat: preferredFormat) else {
             return nil
         }
-        return temporaryDragItemProvider(at: url)
-    }
-
-    static func dragItemProvider(pngAt source: URL, capturedAt: Date,
-                                 strings: ScreenshotFeatureStrings) -> NSItemProvider? {
-        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: capturedAt)
-        // The history cache can evict the source before the receiver reads it.
-        guard let data = try? Data(contentsOf: source),
-              let url = temporaryExportFile(data: data, name: name) else { return nil }
-        let provider = temporaryDragItemProvider(at: url)
-        provider?.suggestedName = name
-        return provider
-    }
-
-    private static func temporaryDragItemProvider(at url: URL) -> NSItemProvider? {
         guard let provider = NSItemProvider(contentsOf: url) else {
             try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
             return nil
@@ -1035,6 +1020,14 @@ final class ScreenshotService: ObservableObject {
         let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date(),
                                              fileExtension: file.format.fileExtension)
         return temporaryExportFile(data: file.data, name: name)
+    }
+
+    static func temporaryExportFile(pngAt source: URL, capturedAt: Date,
+                                    strings: ScreenshotFeatureStrings) -> URL? {
+        // The history cache can evict the source before the receiver reads it.
+        guard let data = try? Data(contentsOf: source) else { return nil }
+        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: capturedAt)
+        return temporaryExportFile(data: data, name: name)
     }
 
     private static func temporaryExportFile(data: Data, name: String) -> URL? {
