@@ -74,7 +74,8 @@ enum NotchCompactTests {
         func loadForEmbedding() -> Bool { true }
         func commitEdits() {}
         func createPad(defaultName: String) {}
-        func navigate(_ direction: ScratchpadDirection, through editor: NSTextView?) {}
+        func navigate(_ direction: ScratchpadDirection) {}
+        func registerIslandTextView(_ view: NSTextView) {}
         func closePad(_ id: UUID) -> Bool { true }
         func renamePad(_ id: UUID, to name: String) {}
         func selectPad(_ id: UUID) {}

@@ -117,10 +117,11 @@ struct ScratchpadDocument: Codable, Equatable {
     func addingPad(defaultName: String, id: UUID = UUID()) -> ScratchpadDocument? {
         guard pads.count < Self.maximumPadCount else { return nil }
         var next = self
-        let name = ScratchpadSupport.nextPadName(defaultName: defaultName,
-                                                 existingNames: pads.map(\.name))
-        next.pads.append(ScratchpadPad(id: id, name: name, text: "", modifiedAt: nil))
         next.selectedID = id
+        next.discardInactiveEmptyPads()
+        let name = ScratchpadSupport.nextPadName(defaultName: defaultName,
+                                                 existingNames: next.pads.map(\.name))
+        next.pads.append(ScratchpadPad(id: id, name: name, text: "", modifiedAt: nil))
         return next
     }
 
@@ -128,7 +129,12 @@ struct ScratchpadDocument: Codable, Equatable {
         guard pads.contains(where: { $0.id == id }) else { return nil }
         var next = self
         next.selectedID = id
+        next.discardInactiveEmptyPads()
         return next
+    }
+
+    mutating func discardInactiveEmptyPads() {
+        pads.removeAll { $0.id != selectedID && $0.text.isEmpty }
     }
 
     func navigating(_ direction: ScratchpadDirection, defaultName: String) -> ScratchpadDocument? {

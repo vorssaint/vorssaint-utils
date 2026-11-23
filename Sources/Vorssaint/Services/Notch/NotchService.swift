@@ -1888,7 +1888,7 @@ final class NotchService: ObservableObject {
         case .closeSelectedPad: scratchpadCloseSerial += 1
         case .hidePad: collapse()
         case .navigate(let direction):
-            pad.navigate(direction, through: event.window?.firstResponder as? NSTextView)
+            pad.navigate(direction)
         case .find: requestScratchpadFind(.showFindInterface)
         case .findNext: requestScratchpadFind(.nextMatch)
         case .findPrevious: requestScratchpadFind(.previousMatch)

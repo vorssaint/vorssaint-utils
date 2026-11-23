@@ -46,6 +46,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     private var localClickMonitor: Any?
     private var outsideClickMonitor: Any?
     private weak var textView: NSTextView?
+    private weak var islandTextView: NSTextView?
     private var pendingSave: DispatchWorkItem?
     private var document: ScratchpadDocument?
     private var store = ScratchpadStore(directoryURL: PrivateFileStore.containerURL,
@@ -179,6 +180,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             defaults.string(forKey: DefaultsKey.scratchpadRetention))
         do {
             let loaded = try store.load(defaultName: defaultName, retention: retention, now: Date())
+            saveFailed = loaded != store.lastSavedDocument
             apply(loaded)
             hasLoaded = true
             return true
@@ -228,28 +230,29 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     }
 
     func createPad(defaultName: String) {
-        guard let document, let next = document.addingPad(defaultName: defaultName), save(next) else { return }
+        guard !hasMarkedText(), let document, let next = document.addingPad(defaultName: defaultName),
+              save(next) else { return }
         apply(next, focus: true)
     }
 
     func selectPad(_ id: UUID) {
-        guard id != selectedPadID, let document, let next = document.selecting(id), save(next) else { return }
+        guard id != selectedPadID, !hasMarkedText(),
+              let document, let next = document.selecting(id), save(next) else { return }
         apply(next, focus: true)
     }
 
-    func navigate(_ direction: ScratchpadDirection, through editor: NSTextView? = nil) {
-        // Either nonactivating panel can hold a composition while the pointer is in the other.
-        let composing = [panel, NotchService.shared.presentationWindow].contains { window in
-            guard window?.isVisible == true else { return false }
-            return (window?.firstResponder as? NSTextView)?.hasMarkedText() == true
-        }
-        guard !modalInteractionActive, !composing,
-              (editor ?? textView)?.hasMarkedText() != true,
-              let document else { return }
+    func navigate(_ direction: ScratchpadDirection) {
+        guard !modalInteractionActive, !hasMarkedText(), let document else { return }
         let defaultName = FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         guard let next = document.navigating(direction, defaultName: defaultName), save(next) else { return }
         apply(next)
         if !isPreviewing { focusText() }
+    }
+
+    private func hasMarkedText() -> Bool {
+        [textView, islandTextView].contains { view in
+            view?.window?.isVisible == true && view?.hasMarkedText() == true
+        }
     }
 
     func renamePad(_ id: UUID, to name: String) {
@@ -450,6 +453,10 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     /// only ever aims focus and the undoable clear at it.
     func registerTextView(_ view: NSTextView) {
         textView = view
+    }
+
+    func registerIslandTextView(_ view: NSTextView) {
+        islandTextView = view
     }
 
     /// Document actions keep focus in their host. Only an explicit show may
