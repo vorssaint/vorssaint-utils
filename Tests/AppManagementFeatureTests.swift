@@ -1032,8 +1032,8 @@ enum AppManagementFeatureTests {
             encoding: .utf8)) ?? ""
         let cleanSelectedBody = sourceBody(of: junkCleanerSource, from: "func cleanSelected(",
                                            to: "private static func mayRemove")
-        suite.expect(cleanSelectedBody.contains("lazy var installedApps = Self.installedBundleIDs()")
-               && cleanSelectedBody.components(separatedBy: "Self.installedBundleIDs()").count == 2,
+        suite.expect(cleanSelectedBody.contains("let installedApps = Self.cachedAppLookup(Self.installedBundleIDs)")
+               && cleanSelectedBody.components(separatedBy: "Self.installedBundleIDs").count == 2,
                "a clean shares one on-demand inventory of installed apps across its selected rows")
         suite.expect(cleanSelectedBody.contains("let needsPluginIDs = chosen.contains { [.leftovers, .caches, .logs].contains($0.category) }")
                && cleanSelectedBody.contains("needsPluginIDs ? Self.installedAudioPluginBundleIDs() : []"),
