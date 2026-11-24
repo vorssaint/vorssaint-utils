@@ -85,7 +85,7 @@ enum AgentKiroLog {
         let identity = UInt64(info.st_ino)
         cursor.modified = Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec)
                                 + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000)
-        if identity == cursor.identity, size == cursor.offset, cursor.holdsWhatWasRead { return }
+        if identity == cursor.identity, size == cursor.offset, cursor.holdsWhatWasRead(descriptor: nil) { return }
         guard size <= UInt64(maximumSnapshot), shouldContinue() else { return }
         let lines: [Data]? = autoreleasepool {
             guard let data = FileManager.default.contents(atPath: cursor.path),

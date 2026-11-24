@@ -1255,6 +1255,8 @@ enum AgentLogReader {
                         }
                     }
                 }
+                continue
+            }
             if root.provider == .kiro {
                 for log in AgentKiroLog.logs(in: root.url) { include(log, from: root) }
                 continue

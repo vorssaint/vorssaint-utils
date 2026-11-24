@@ -36,12 +36,9 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        _ = (claude, codex, opencode, copilot, cursor, antigravity, gemini)
+        _ = (claude, codex, opencode, copilot, cursor, antigravity, gemini, kiro)
         return NotchAgentSupport.pageProviders(snapshot: usage.snapshot, hasCodexAccounts: !codexAccounts.isEmpty,
                                                hasClaudeAccount: !usage.claudeProfile.isDefault)
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil,
-         kiro ? .kiro : nil].compactMap { $0 }
-            .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty) }
     }
 
     private var tiles: [NotchAgentTile] {
@@ -143,14 +140,8 @@ struct NotchAgentsView: View {
     }
 
     @ViewBuilder private func card(_ tile: NotchAgentTile, now: Date, expanded: Bool = false) -> some View {
-    /// Cards that sum every agent stay neutral, unless only one agent is
-    /// shown: then they take its color, as its own cards do.
-    private var sharedTint: Color { providers.count == 1 ? providers[0].tint : .secondary }
-
-    @ViewBuilder private func card(_ tile: NotchAgentTile, now: Date) -> some View {
         let snapshot = usage.snapshot
         let shown = chosenPeriod
-        let tint = sharedTint
         switch tile.card {
         case .limits:
             if let provider = tile.provider {
@@ -159,25 +150,21 @@ struct NotchAgentsView: View {
                                      account: account(tile, now: now),
                                      accountName: provider == .claude ? claudeAccountName : nil,
                                      expanded: expanded)
-                                     accountUnreachable: provider == .kiro && usage.kiroAccountFailure != nil)
             }
         case .spend:
-            NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text, tint: tint)
+            NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
         case .live:
             NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text)
         case .trend:
-            NotchAgentTrendCard(snapshot: snapshot, providers: providers, period: shown, text: text, tint: tint)
+            NotchAgentTrendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
         case .models:
             NotchAgentShareCard(title: text.modelsCard, symbol: NotchAgentCard.models.symbol,
-                                shares: snapshot.usage(shown).models, byCost: snapshot.usage(shown).fullyPriced, text: text,
-                                tint: tint)
+                                shares: snapshot.usage(shown).models, byCost: snapshot.usage(shown).fullyPriced, text: text)
         case .projects:
             NotchAgentShareCard(title: text.projectsCard, symbol: NotchAgentCard.projects.symbol,
-                                shares: snapshot.usage(shown).projects, byCost: snapshot.usage(shown).fullyPriced, text: text,
-                                tint: tint)
+                                shares: snapshot.usage(shown).projects, byCost: snapshot.usage(shown).fullyPriced, text: text)
         case .activity:
             NotchAgentActivityCard(snapshot: snapshot, providers: providers, text: text)
-            NotchAgentActivityCard(snapshot: snapshot, text: text, tint: tint)
         case .resets:
             NotchAgentResetsCard(now: now, text: text, showsDefaultAccount: tile.namesDefaultAccount)
         case .kilo:
@@ -306,8 +293,6 @@ private struct NotchAgentLimitsCard: View {
     /// Claude's tall card: its status line's details under the limits.
     var expanded = false
     @ObservedObject private var service = AgentUsageService.shared
-    /// The agent's own check of its account failed, so no reading is coming.
-    var accountUnreachable = false
     @Environment(\.locale) private var locale
 
     private var limits: AgentLimits? {
@@ -356,9 +341,7 @@ private struct NotchAgentLimitsCard: View {
                                 .accessibilityLabel(account.checkLabel)
                             }
                         } else {
-                            if let plan = snapshot.plans[provider] {
-                                NotchAgentChip(text: plan.name, tint: provider.tint).help(planHelp(plan))
-                            }
+                            if let plan = snapshot.plans[provider] { NotchAgentChip(text: plan.name, tint: provider.tint) }
                             if !snapshot.working(provider).isEmpty { NotchAgentPulse(tint: provider.tint, size: 5) }
                         }
                     }
@@ -418,9 +401,7 @@ private struct NotchAgentLimitsCard: View {
     /// what is left or used, as chosen, and when the window renews.
     private func row(_ window: AgentLimitWindow) -> some View {
         let pace = AgentLimitSupport.pace(for: window, now: now)
-        // Credits spent past the limit are billed on top: that reads as trouble.
-        let over = window.credits?.isOver == true
-        let tint = over ? Color.red : agentLimitTint(provider, usedFraction: window.usedFraction)
+        let tint = agentLimitTint(provider, usedFraction: window.usedFraction)
         let remaining = display == .remaining
         let fraction = remaining ? window.remainingFraction : window.usedFraction
         let reset = AgentLimitSupport.displayedReset(window, now: now).map {
@@ -430,74 +411,14 @@ private struct NotchAgentLimitsCard: View {
             NotchAgentLimitReading(title: label(window),
                                   share: NotchAgentSupport.limitShare(window, display: display, text: text),
                                   countdown: reset, tint: tint == provider.tint ? Color.white : tint)
-        let share = remaining ? window.remainingFraction : window.credits?.usedShare ?? window.usedFraction
-        return VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 5) {
-                Text(label(window))
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(1)
-                    .layoutPriority(1)
-                Group {
-                    if let resets = AgentLimitSupport.displayedReset(window, now: now) {
-                        Label((window.estimatedResetsAt == nil ? "" : "≈ ") + countdown(to: resets),
-                              systemImage: "arrow.clockwise")
-                            .labelStyle(NotchAgentInlineLabel())
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .font(.system(size: 9.5))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                Spacer(minLength: 2)
-                Text(AgentFormat.percent(share, capped: window.credits == nil || remaining, locale: locale))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(tint == provider.tint ? Color.white : tint)
-                    .contentTransition(.numericText())
-            }
             NotchAgentMeter(value: fraction, pace: pace.map { remaining ? 1 - $0.elapsed : $0.elapsed },
                             tint: tint, height: 4)
-            if let credits = window.credits { creditLines(credits) }
         }
         .help(help(window))
     }
 
-    /// The plan's list price and allowance, when they are known.
-    private func planHelp(_ plan: AgentPlan) -> String {
-        var parts = [provider.displayName + " " + plan.name]
-        if let price = plan.monthlyPrice { parts.append(text.listPrice(AgentFormat.cost(price, locale: locale))) }
-        if let limit = limits?.windows.lazy.compactMap(\.credits).first?.limit {
-            parts.append(text.creditCount(AgentFormat.credits(limit, locale: locale)) + " / " + text.monthly)
-        }
-        return parts.joined(separator: " · ")
-    }
-
-    /// What the month's credits come to, and what passing them costs.
-    @ViewBuilder private func creditLines(_ credits: AgentCredits) -> some View {
-        Text(creditSummary(credits))
-            .font(.system(size: 9.5))
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-        if credits.isOver {
-            Text(text.overage(AgentFormat.credits(credits.overage, locale: locale),
-                              cost: AgentFormat.cost(credits.overageCharges, locale: locale)))
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(.orange)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-    }
-
-    private func creditSummary(_ credits: AgentCredits) -> String {
-        text.credits(AgentFormat.credits(credits.used, locale: locale), of: AgentFormat.credits(credits.limit, locale: locale))
-            + " · " + text.left(AgentFormat.credits(credits.remaining, locale: locale))
-    }
-
     /// What the window covers: its length, or the model it is kept for.
     private func label(_ window: AgentLimitWindow) -> String {
-        if window.credits != nil { return text.monthly }
         switch window.kind {
         case .session: return window.scope.map { "\(text.session) · \($0)" } ?? text.session
         case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
@@ -517,16 +438,8 @@ private struct NotchAgentLimitsCard: View {
     }
 
     private func help(_ window: AgentLimitWindow) -> String {
-        var parts = [label(window), text.usedShare(AgentFormat.percent(window.credits?.usedShare ?? window.usedFraction,
-                                                                         capped: window.credits == nil)),
+        var parts = [label(window), text.usedShare(AgentFormat.percent(window.usedFraction)),
                      text.left(AgentFormat.percent(window.remainingFraction))]
-        if let credits = window.credits {
-            parts.append(creditSummary(credits))
-            if credits.isOver {
-                parts.append(text.overage(AgentFormat.credits(credits.overage, locale: locale),
-                                          cost: AgentFormat.cost(credits.overageCharges, locale: locale)))
-            }
-        }
         if let resets = AgentLimitSupport.displayedReset(window, now: now) {
             parts.append(resets.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale)))
             if window.estimatedResetsAt != nil { parts.append(text.estimated) }
@@ -589,11 +502,6 @@ private struct NotchAgentLimitsCard: View {
                 Text(text.waitingForLimits).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
                 lastUsed
             }
-        } else if provider == .kiro {
-            // Kiro's credits come from the account, never from the logs.
-            Text(accountUnreachable ? text.creditsUnavailable : text.loading)
-                .font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
-            lastUsed
         } else {
             Text(text.waitingForLimits).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
             lastUsed
@@ -678,8 +586,6 @@ private struct NotchAgentSpendCard: View {
     let providers: [AgentProvider]
     let period: AgentPeriod
     let text: NotchAgentStrings
-    var tint: Color = .secondary
-    @Environment(\.locale) private var locale
 
     var body: some View {
         let usage = snapshot.usage(period)
@@ -687,7 +593,7 @@ private struct NotchAgentSpendCard: View {
         let amount = AgentFormat.cost(snapshot, for: period)
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 5) {
-                NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol, tint: tint) {
+                NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol) {
                     if period == .month { multiples(usage) }
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
@@ -707,8 +613,6 @@ private struct NotchAgentSpendCard: View {
                 .accessibilityLabel(text.apiValue)
                 .accessibilityValue(text.costDescription(amount, partial: partial))
                 .help(partial ? text.partialCostNote : text.valueNote)
-                .help(([usage.fullyPriced ? text.valueNote : text.unpriced] + (kiroNote.map { [$0] } ?? []))
-                    .joined(separator: "\n\n"))
                 split(usage)
                 Text(footer(usage))
                     .font(.system(size: 10))
@@ -720,17 +624,6 @@ private struct NotchAgentSpendCard: View {
         }
     }
 
-    /// Kiro's turns cost nothing past its plan's price; what is billed on
-    /// top, the month's credits past the allowance, is the only Kiro spending.
-    private var kiroNote: String? {
-        guard providers.contains(.kiro) else { return nil }
-        let credits = snapshot.limits[.kiro]?.windows.lazy.compactMap(\.credits).first
-        let rate = AgentFormat.cost(credits?.overageRate ?? AgentKiroServer.addOnPrice, locale: locale)
-        guard let credits, credits.isOver else { return text.kiroWithinPlan(rate) }
-        return text.kiroOverage(AgentFormat.credits(credits.overage, locale: locale), rate: rate,
-                                cost: AgentFormat.cost(credits.overageCharges, locale: locale))
-    }
-
     /// Thirty days of API value against a plan's monthly price.
     @ViewBuilder private func multiples(_ usage: AgentPeriodUsage) -> some View {
         HStack(spacing: 3) {
@@ -739,10 +632,6 @@ private struct NotchAgentSpendCard: View {
                    let totals = usage.byProvider[provider], !totals.hasPartialCost, totals.cost > 0 {
                     let ratio = totals.cost / price
                     let multiple = ratio.formatted(.number.precision(.fractionLength(ratio < 10 ? 1 : 0))) + "×"
-                // Kiro's spending is only its overage, never the value of its use.
-                if provider != .kiro, let plan = snapshot.plans[provider], let price = plan.monthlyPrice, price > 0,
-                   let spent = usage.byProvider[provider]?.cost, spent > 0 {
-                    let multiple = (spent / price).formatted(.number.precision(.fractionLength(spent / price < 10 ? 1 : 0))) + "×"
                     NotchAgentChip(text: multiple, tint: provider.tint)
                         .help(text.planMultiple(multiple, plan: "\(provider.displayName) \(plan.name)"))
                 }
@@ -870,7 +759,6 @@ private struct NotchAgentTrendCard: View {
     let allProviders: [AgentProvider]
     let period: AgentPeriod
     let text: NotchAgentStrings
-    var tint: Color = .secondary
     @State private var hovered: Date?
     @State private var lensPage = 0
     @ObservedObject private var kilo = AgentKiloService.shared
@@ -905,8 +793,6 @@ private struct NotchAgentTrendCard: View {
                                      symbol: NotchAgentCard.trend.symbol) {
                     NotchAgentLensDots(count: lenses.count, current: lensPage)
                     Text(caption.reading)
-                NotchAgentCardHeader(title: text.trendCard, symbol: NotchAgentCard.trend.symbol, tint: tint) {
-                    Text(caption(byCost: byCost))
                         .font(.system(size: 9.5, weight: .medium))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
@@ -942,16 +828,6 @@ private struct NotchAgentTrendCard: View {
         let value = byCost ? AgentFormat.cost(total.cost, partial: partial)
             : text.tokens(AgentFormat.tokens(total.tokens.total))
         return (text.period(period) + " · " + value, partial)
-            let tokens = byCost && bucket.total.tokens.total > 0
-                ? " · " + text.tokens(AgentFormat.tokens(bucket.total.tokens.total)) : ""
-            return label(bucket.start, long: true) + " · " + value(bucket.total, byCost: byCost) + tokens
-        }
-        return text.period(period) + " · " + value(snapshot.usage(period).work, byCost: byCost)
-    }
-
-    private func value(_ totals: AgentTotals, byCost: Bool) -> String {
-        guard byCost || totals.credits > 0 else { return text.tokens(AgentFormat.tokens(totals.tokens.total)) }
-        return AgentFormat.use(totals, byCost: byCost, credits: text.creditCount)
     }
 
     private func label(_ date: Date, long: Bool) -> String {
@@ -991,14 +867,13 @@ private struct NotchAgentShareCard: View {
     let shares: [AgentShare]
     let byCost: Bool
     let text: NotchAgentStrings
-    var tint: Color = .secondary
 
     var body: some View {
         let shown = Array(shares.prefix(3))
-        let peak = max(shown.map { $0.totals.use(byCost: byCost) }.max() ?? 0, .leastNonzeroMagnitude)
+        let peak = max(shown.map { $0.totals.weight(byCost: byCost) }.max() ?? 0, .leastNonzeroMagnitude)
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
-                NotchAgentCardHeader(title: title, symbol: symbol, tint: tint)
+                NotchAgentCardHeader(title: title, symbol: symbol)
                 if shown.isEmpty {
                     Text(text.noActivity).font(.system(size: 10.5)).foregroundStyle(.secondary)
                 } else {
@@ -1011,7 +886,7 @@ private struct NotchAgentShareCard: View {
     }
 
     private func row(_ share: AgentShare, peak: Double) -> some View {
-        let weight = share.totals.use(byCost: byCost)
+        let weight = share.totals.weight(byCost: byCost)
         let tint = share.provider?.tint ?? .white
         let tokens = AgentFormat.tokens(share.totals.tokens.total)
         let amount = AgentFormat.cost(share.totals)
@@ -1028,7 +903,6 @@ private struct NotchAgentShareCard: View {
                 .frame(width: max(3, 44 * weight / peak), height: 4)
                 .frame(width: 44, alignment: .leading)
             Text(byCost ? amount : tokens)
-            Text(AgentFormat.use(share.totals, byCost: byCost, credits: text.creditCount))
                 .font(.system(size: 10, weight: .medium))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
@@ -1037,9 +911,6 @@ private struct NotchAgentShareCard: View {
         .frame(height: 14)
         .accessibilityRepresentation { Text(verbatim: reading) }
         .help(reading)
-        .help(([share.name, text.tokens(AgentFormat.tokens(share.totals.tokens.total))]
-               + (share.totals.credits > 0 ? [text.creditCount(AgentFormat.credits(share.totals.credits))]
-                  : [AgentFormat.cost(share.totals.cost)])).joined(separator: " · "))
     }
 }
 
@@ -1049,7 +920,6 @@ private struct NotchAgentActivityCard: View {
     let base: AgentUsageSnapshot
     let allProviders: [AgentProvider]
     let text: NotchAgentStrings
-    var tint: Color = .secondary
     @State private var hovered: Date?
     @State private var lensPage = 0
     @ObservedObject private var kilo = AgentKiloService.shared
@@ -1096,13 +966,12 @@ private struct NotchAgentActivityCard: View {
                 NotchAgentCardHeader(title: lens.name(kilo: text.kiloCard).map { text.activityCard + " · " + $0 } ?? text.activityCard,
                                      symbol: NotchAgentCard.activity.symbol) {
                     NotchAgentLensDots(count: lenses.count, current: lensPage)
-                NotchAgentCardHeader(title: text.activityCard, symbol: NotchAgentCard.activity.symbol, tint: tint) {
                     if streak > 1 {
                         Label("\(streak)", systemImage: "flame.fill")
                             .labelStyle(NotchAgentInlineLabel())
                             .font(.system(size: 9.5, weight: .semibold))
                             .foregroundStyle(.orange)
-                            .help(text.streakHelp(streak.formatted(.number.locale(locale))))
+                            .help(text.streak)
                             .accessibilityLabel(text.streak)
                             .accessibilityValue("\(streak)")
                     }
@@ -1111,8 +980,6 @@ private struct NotchAgentActivityCard: View {
                     let map = NotchAgentHeatmap.width(height: proxy.size.height, days: snapshot.days)
                     HStack(alignment: .top, spacing: 14) {
                         NotchAgentHeatmap(days: snapshot.days, byCost: byCost, hovered: $hovered, tint: lens.tint ?? .white)
-                        NotchAgentHeatmap(days: snapshot.days, byCost: byCost, hovered: $hovered,
-                                          tint: tint == .secondary ? .white : tint)
                             .frame(width: map, height: proxy.size.height)
                         figures(total: total, byCost: byCost)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -1130,9 +997,6 @@ private struct NotchAgentActivityCard: View {
         let activeDays = snapshot.days.lazy.filter(hasActivity).count
         let busiest = snapshot.days.lazy.filter { $0.total.requests > 0 }
             .max { $0.total.weight(byCost: byCost) < $1.total.weight(byCost: byCost) }
-    private func figures(byCost: Bool) -> some View {
-        let active = snapshot.days.filter { $0.total.requests > 0 }
-        let busiest = active.max { $0.total.use(byCost: byCost) < $1.total.use(byCost: byCost) }
         let pointed = hovered.flatMap { date in snapshot.days.first { $0.start == date } }
         let partial = byCost && total.hasPartialCost
         let amount = value(total, byCost: byCost, partial: partial)
@@ -1288,8 +1152,6 @@ private struct NotchAgentKiloCard: View {
         .font(.system(size: 10))
         .lineLimit(1)
         .minimumScaleFactor(0.85)
-    private func value(_ totals: AgentTotals, byCost: Bool) -> String {
-        AgentFormat.use(totals, byCost: byCost, credits: text.creditCount)
     }
 }
 
