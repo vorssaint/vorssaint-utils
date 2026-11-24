@@ -675,6 +675,8 @@ def main():
                         "    private func retryResume(", "    private func applyStatus(", "    private func apply(_ response:",
                         "    private var interruptedStop:",
                         "    func restoreAutomatic()", "    private func restoreAutomatic(supersedingCurrentRequest:",
+                        "    static func restoreBeforeTerminationIfNeeded()", "    private func restoreBeforeTermination()",
+                        "    private func restoreThenUnregister()",
                         "    private func finishSystemHandoff()", "    private func startTimerIfNeeded()",
                         "    private func observeFailedHandoff(", "    private func poll(", "    private func heartbeat(",
                         "    private func requestStatus(", "    private func beginRequest(", "    private func finishRequest("])

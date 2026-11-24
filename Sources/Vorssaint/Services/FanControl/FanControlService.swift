@@ -272,13 +272,21 @@ final class FanControlService: ObservableObject {
     }
 
     private func restoreBeforeTermination() {
-        send { proxy, reply in proxy.restoreAutomatic(withReply: reply) } completion: { response in
-            if let response, response.succeeded, !response.snapshot.isCooling {
-                UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
+        if awaitingSystemControl {
+            // Another connection may own the fans. Leave confirmation to the
+            // next launch, including when a reply from this one is in flight.
+            timer?.invalidate()
+            timer = nil
+            requestGeneration += 1
+            requestInFlight = false
+        } else {
+            send { proxy, reply in proxy.restoreAutomatic(withReply: reply) } completion: { response in
+                if let response, response.succeeded, !response.snapshot.isCooling {
+                    UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
+                }
             }
         }
-        // Losing the authenticated client connection is itself a restore
-        // trigger in the helper, including if the reply cannot beat app exit.
+        // On disconnect the helper restores only its owning connection's session.
         connection?.invalidate()
         connection = nil
     }
@@ -523,7 +531,7 @@ final class FanControlService: ObservableObject {
             // Bootstrap unversioned registrations. A compatible reply can also
             // come from an older daemon awaiting replacement after recovery.
             let registered = UserDefaults.standard.string(forKey: DefaultsKey.fanControlHelperVersion) ?? ""
-            if registered.isEmpty {
+            if registered.isEmpty, AppFeature.fanControl.isAvailable {
                 UserDefaults.standard.set(Self.helperVersion, forKey: DefaultsKey.fanControlHelperVersion)
             }
         }
@@ -755,26 +763,7 @@ final class FanControlService: ObservableObject {
             }
             return
         }
-        let generation = beginRequest()
-        isWorking = true
-        send { proxy, reply in proxy.restoreAutomatic(withReply: reply) } completion: { response in
-            guard self.finishRequest(generation, response: response) else { return }
-            self.isWorking = false
-            guard let response, response.succeeded, !response.snapshot.isCooling else { return }
-            UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
-            guard !AppFeature.fanControl.isAvailable else {
-                self.stopIdleWorkIfPossible()
-                return
-            }
-            do {
-                try Self.appService.unregister()
-                UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlHelperVersion)
-                self.refreshAccessState()
-            } catch {
-                self.error = .helperUnavailable
-            }
-            self.stopIdleWorkIfPossible()
-        }
+        restoreAutomatic(supersedingCurrentRequest: true)
     }
 
     // MARK: - Timers and system state
