@@ -36,6 +36,11 @@ final class MouseAppExceptions: ObservableObject {
     /// The stored lists, as bundle identifiers per feature.
     @Published private(set) var lists: [MouseExceptionScope: [String]] = [:]
     @Published private(set) var runningScopes = Set<MouseExceptionScope>()
+    /// The scopes whose list contains the app in front right now, published
+    /// on the main thread whenever that app changes (issue #1227). The
+    /// feature that follows the frontmost app observes this and mirrors the
+    /// answer behind its own lock for the tap thread to read.
+    @Published private(set) var frontmostScopes = Set<MouseExceptionScope>()
 
     /// The same lists as sets, for the lookups the taps make. Under `lock`.
     private var lookups: [MouseExceptionScope: Set<String>] = [:]
@@ -50,6 +55,8 @@ final class MouseAppExceptions: ObservableObject {
     private var sourceProcessIDs: [MouseExceptionScope: Set<Int32>] = [:]
     private var trackedSourceScopes: Set<MouseExceptionScope> = []
     private var runningApplicationsObservation: NSKeyValueObservation?
+    /// Watches the app in front while any frontmost-keyed scope has a list.
+    private var frontmostObserver: NSObjectProtocol?
 
     /// The last resolved answer: what the app answers to, the window it came
     /// from (nil when the pointer was over nothing), where the pointer was and
@@ -98,9 +105,65 @@ final class MouseAppExceptions: ObservableObject {
         }
         invalidateCache()
         refreshSourceTracking()
+        refreshFrontmostTracking()
     }
 
     func list(_ scope: MouseExceptionScope) -> [String] { lists[scope] ?? [] }
+
+    // MARK: - The app in front (issue #1227)
+
+    /// The scopes that key off the app in front and currently hold a list,
+    /// so the workspace observer runs only while one of them can answer.
+    private var frontmostTrackingScopes: Set<MouseExceptionScope> {
+        let scopes = lock.withLock { lookups }
+        return Set(MouseExceptionScope.allCases.filter {
+            $0.keysOffFrontmostApp && !(scopes[$0]?.isEmpty ?? true)
+        })
+    }
+
+    /// Resolves the app in front and publishes which frontmost-keyed lists
+    /// contain it. Main thread only: the workspace notification center posts
+    /// here, and `NSWorkspace.frontmostApplication` belongs to the main
+    /// thread. The PID set answers first when the frontmost app is running
+    /// under a helper identity (issue #1009); the identities answer the rest.
+    private func refreshFrontmostApp() {
+        let app = NSWorkspace.shared.frontmostApplication
+        let identities = identities(for: app)
+        let pid = app?.processIdentifier
+        let (lookups, sources) = lock.withLock { (self.lookups, self.sourceProcessIDs) }
+        var matches = Set<MouseExceptionScope>()
+        for scope in MouseExceptionScope.allCases where scope.keysOffFrontmostApp {
+            guard let exceptions = lookups[scope], !exceptions.isEmpty else { continue }
+            let pidListed = pid.map { sources[scope]?.contains($0) ?? false } ?? false
+            if pidListed
+                || MouseAppExceptionSupport.isExcepted(identities, exceptions: exceptions) {
+                matches.insert(scope)
+            }
+        }
+        if frontmostScopes != matches { frontmostScopes = matches }
+    }
+
+    /// Installs or removes the frontmost-app observer with the same lifetime
+    /// as the source tracking: no frontmost-keyed list, no observer.
+    private func refreshFrontmostTracking() {
+        let shouldTrack = !frontmostTrackingScopes.isEmpty
+        guard shouldTrack else {
+            if let frontmostObserver {
+                NSWorkspace.shared.notificationCenter.removeObserver(frontmostObserver)
+                self.frontmostObserver = nil
+            }
+            if !frontmostScopes.isEmpty { frontmostScopes = [] }
+            return
+        }
+        if frontmostObserver == nil {
+            frontmostObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didActivateApplicationNotification,
+                object: nil, queue: .main) { [weak self] _ in
+                self?.refreshFrontmostApp()
+            }
+        }
+        refreshFrontmostApp()
+    }
 
     /// The lists and source ids a tap needs, copied out under the lock.
     private func lookup(_ scope: MouseExceptionScope) -> (exceptions: Set<String>, sources: Set<Int32>) {
@@ -199,7 +262,7 @@ final class MouseAppExceptions: ObservableObject {
             runningApplicationsObservation = NSWorkspace.shared.observe(
                 \.runningApplications, options: [.initial, .new]) { [weak self] workspace, _ in
                     self?.rebuildSourceProcesses(workspace.runningApplications)
-            }
+                }
         } else {
             rebuildSourceProcesses(NSWorkspace.shared.runningApplications)
         }
@@ -210,6 +273,7 @@ final class MouseAppExceptions: ObservableObject {
         runningApplicationsObservation = nil
         lock.withLock { sourceProcessIDs.removeAll(keepingCapacity: false) }
         if !runningScopes.isEmpty { runningScopes.removeAll() }
+        refreshFrontmostApp()
     }
 
     private func rebuildSourceProcesses(_ applications: [NSRunningApplication]) {
@@ -229,6 +293,7 @@ final class MouseAppExceptions: ObservableObject {
         let updatedScopes = Set(rebuilt.keys)
         Self.onMain {
             if runningScopes != updatedScopes { runningScopes = updatedScopes }
+            refreshFrontmostApp()
         }
     }
 
