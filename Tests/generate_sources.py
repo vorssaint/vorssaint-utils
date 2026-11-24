@@ -47,6 +47,14 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    write("MenuBarOrganizerLifecycle.swift", "import AppKit\nimport Foundation\n"
+          + "extension MenuBarOrganizerLifecycleTests {\nfinal class Host: Fixture {\n"
+          + "".join(declaration("Sources/Vorssaint/App/MenuBarOrganizerService.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in [
+                        "    private func synchronizeVisibility(", "    private func completeRefresh(",
+                        "    private func clockHoverChanged(", "    private func toggleHiddenBar(",
+                        "    private func presentHiddenBar("])
+          + "}\n}\n")
     shortcut_row = "Sources/Vorssaint/UI/ShortcutRecorderButton.swift"
     # Keep the registrars, takeover ownership and recording lifecycle intact.
     # Only the existing preference-reader arguments point at the isolated suite;

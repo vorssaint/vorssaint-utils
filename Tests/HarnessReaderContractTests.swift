@@ -202,6 +202,8 @@ enum HarnessReaderContractTests {
         let idleSystem = line(#"{"step_index":3,"source":"SYSTEM","type":"MEMORY_OPERATION","status":"DONE","created_at":"2026-10-31T20:00:21Z"}"#)
         suite.expect(reader.parse(idleSystem, state: &state, now: now).isEmpty,
                      "an Antigravity background operation outside an open turn parses to nothing")
+    }
+
     private static func kiroGolden(_ suite: TestSuite) {
         let now = Date(timeIntervalSince1970: 0)
         var state = AgentLogState()
