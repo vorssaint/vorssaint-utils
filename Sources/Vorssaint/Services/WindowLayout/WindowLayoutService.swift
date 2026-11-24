@@ -2191,8 +2191,8 @@ final class WindowLayoutService: ObservableObject {
               canSetFrame(on: resolved.window), let current = frame(of: resolved.window) else { return }
         let target = WindowLayoutGeometry.rect(for: action, current: visibleFrame, visibleFrame: visibleFrame,
                                                windowGap: WindowLayoutGaps.windowGap,
-                                               screenGap: WindowLayoutGaps.screenGap,
-                                               marginPercent: WindowLayoutMargin.percent)
+                                               screenInsets: WindowLayoutGaps.screenInsets,
+                                               margin: WindowLayoutMargin.edges)
         coverSnapLanding(target.integral)
         pruneWindowState(keeping: resolved.key)
         _ = applyPlacement(action, to: WindowLayoutTarget(window: resolved.window, key: resolved.key, frame: current),
