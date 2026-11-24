@@ -41,6 +41,7 @@ enum ClipboardCaptureRestoreTests {
         }
         typealias GeneralPasteboardAccess = Lane
         var isRunning = true
+        func clearPasteStack() {}
         var lastChangeCount = 0
         var captureState = ClipboardHistoryCaptureState()
         var panel: NSPanel?

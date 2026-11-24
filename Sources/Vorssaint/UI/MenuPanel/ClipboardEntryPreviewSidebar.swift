@@ -13,6 +13,7 @@ struct ClipboardEntryPreviewSidebar: View {
     var entry: ClipboardHistoryEntry?
     @Binding var isEditing: Bool
     var onClose: () -> Void
+    var startsEditing = false
     @State private var draft = ""
     @State private var editingEntryID: UUID?
     /// Laid out off the main thread for the entry it was made from.
@@ -37,6 +38,9 @@ struct ClipboardEntryPreviewSidebar: View {
             } else {
                 emptyState
             }
+        }
+        .onAppear {
+            if startsEditing, let entry, entry.kind == .text { beginEditing(entry) }
         }
         .onChange(of: entry?.id) { _, newID in
             if editingEntryID != nil, editingEntryID != newID {

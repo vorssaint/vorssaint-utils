@@ -439,6 +439,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/URLCleanerLinkMetadata.swift
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift
         Sources/Vorssaint/Services/Clipboard/ClipboardHistoryWrite.swift
+        Sources/Vorssaint/Services/Clipboard/ClipboardPasteStack.swift
         Sources/Vorssaint/Services/Audio/AirPlayRouteManager.swift
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift
         Sources/Vorssaint/Services/Audio/MusicLaunchSupport.swift

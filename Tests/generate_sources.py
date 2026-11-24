@@ -787,17 +787,24 @@ def main():
     write("ClipboardPreview.swift", "import Foundation\nimport Combine\n"
           + "extension ClipboardPreviewContract {\nfinal class Service: Fixture {\n"
           + declaration(clipboard, "    @Published private(set) var entries:")
+          + declaration(clipboard, "    @Published var quickQuery =")
+          + declaration(clipboard, "    @Published private(set) var quickShelfSearchExpanded =")
           + declaration(clipboard, "    func updateText(")
+          + declaration(clipboard, "    func renameEntry(")
           + "".join(declaration(clipboard, prefix).replace("private ", "", 1) for prefix in [
               "    func togglePin(", "    func clearRecent(", "    var recentEntries:", "    var recentEntriesSnapshot:",
               "    func copy(_ entry:", "    func copy(_ selectedEntries:", "    private func copyEntries(",
               "    private func touch(", "    var quickSearchIsActive:",
+              "    var quickShelfSearchIsActive:", "    private func isQuickShelfSearchActive(",
+              "    private func quickSearchSurface(", "    func beginQuickShelfSearch(",
+              "    func clearQuickShelfSearch(",
               "    private var firstRecentIndex:", "    private func normalizeEntryOrder(",
               "    func cancelSearch(", "    func filteredEntries(", "    var filteredQuickEntries:", "    var selectedQuickEntry:",
               "    private var quickSearchSurface:", "    func setQuickSourceApp(",
               "    func setQuickContentType(", "    func setQuickCollection(", "    private func setQuickFilter(",
               "    func createPinboard(", "    func renamePinboard(", "    func deletePinboard(",
-              "    func assignPinboard(", "    private func storePinboards(",
+              "    func assignPinboard(", "    private func entriesAssigningPinboard(",
+              "    private func storePinboards(",
               "    private func resetQuickSelection(", "    func clearQuickBatchSelection(",
               "    private func scheduleDeferredSearch(",
               "    func moveQuickSelection(", "    func removeSelectedQuickEntries(",

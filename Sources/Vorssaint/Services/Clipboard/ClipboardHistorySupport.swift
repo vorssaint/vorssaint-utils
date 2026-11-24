@@ -45,8 +45,7 @@ enum ClipboardShelfEdge: String, CaseIterable {
         }
     }
 
-    func previewFrame(beside shelf: CGRect, within screen: CGRect,
-                      preferredSize: CGSize = CGSize(width: 640, height: 500)) -> CGRect {
+    func previewFrame(beside shelf: CGRect, within screen: CGRect, alignedTo card: CGRect? = nil) -> CGRect {
         let available: CGRect
         switch self {
         case .top: available = screen.divided(atDistance: max(0, shelf.minY - screen.minY), from: .minYEdge).slice
@@ -55,9 +54,26 @@ enum ClipboardShelfEdge: String, CaseIterable {
         case .right: available = screen.divided(atDistance: max(0, shelf.minX - screen.minX), from: .minXEdge).slice
         }
         let area = available.width >= 280 && available.height >= 200 ? available : screen
-        let width = min(preferredSize.width, area.width * 0.94)
-        let height = min(preferredSize.height, area.height * 0.94)
-        return CGRect(x: area.midX - width / 2, y: area.midY - height / 2, width: width, height: height)
+        let width = area.width * 0.94
+        let height = area.height * 0.90
+        var x = area.midX - width / 2
+        var y = area.midY - height / 2
+        if area != screen {
+            let horizontalGap = min(12, (area.width - width) / 2)
+            let verticalGap = min(12, (area.height - height) / 2)
+            let inset = area.insetBy(dx: horizontalGap, dy: verticalGap)
+            if let card {
+                x = min(max(card.midX - width / 2, inset.minX), inset.maxX - width)
+                y = min(max(card.midY - height / 2, inset.minY), inset.maxY - height)
+            }
+            switch self {
+            case .top: y = area.maxY - height - verticalGap
+            case .bottom: y = area.minY + verticalGap
+            case .left: x = area.minX + horizontalGap
+            case .right: x = area.maxX - width - horizontalGap
+            }
+        }
+        return CGRect(x: x, y: y, width: width, height: height)
     }
 
     func hiddenOffset(for size: CGSize) -> CGSize {
@@ -148,6 +164,18 @@ struct ClipboardPinboard: Codable, Identifiable, Equatable {
 enum ClipboardShelfCollection: Hashable {
     case history, pinned, pinboard(UUID)
 
+    func adjacent(for keyCode: UInt16, boards: [ClipboardPinboard]) -> Self? {
+        let step: Int
+        switch Int(keyCode) {
+        case kVK_LeftArrow: step = -1
+        case kVK_RightArrow: step = 1
+        default: return nil
+        }
+        let tabs: [Self] = [.history, .pinned] + boards.map { .pinboard($0.id) }
+        let current = tabs.firstIndex(of: self) ?? 0
+        return tabs[(current + step + tabs.count) % tabs.count]
+    }
+
     func includes(_ entry: ClipboardHistoryEntry) -> Bool {
         switch self {
         case .history: return true
@@ -162,7 +190,8 @@ struct ClipboardShelfFilter: Hashable {
     var bundleID: String?
     var type: ClipboardShelfContentType?
 
-    var isActive: Bool { collection != .history || bundleID != nil || type != nil }
+    var hasSearchCriteria: Bool { bundleID != nil || type != nil }
+    var isActive: Bool { collection != .history || hasSearchCriteria }
 
     func includes(_ entry: ClipboardHistoryEntry) -> Bool {
         collection.includes(entry)
@@ -353,6 +382,15 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     /// version reading this file skips the key.
     var sourceBundleID: String?
     var pinboardID: UUID?
+    var customTitle: String?
+
+    var plainTextForPaste: String? {
+        switch kind {
+        case .text: return text
+        case .files: return filePaths.isEmpty ? nil : filePaths.joined(separator: "\n")
+        case .image: return nil
+        }
+    }
 
     init(id: UUID = UUID(),
          text: String,
@@ -492,8 +530,14 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         return end == text.endIndex ? (text, false) : (String(text[..<end]), true)
     }
 
-    /// Includes the localized image label and dimensions for image entries.
+    /// Includes custom titles and the localized image label and dimensions.
     func searchableText(imageLabel: String) -> String {
+        let content = searchableContent(imageLabel: imageLabel)
+        guard let customTitle else { return content }
+        return customTitle + " " + content
+    }
+
+    private func searchableContent(imageLabel: String) -> String {
         switch kind {
         case .text: return text
         case .image: return "\(imageLabel) png \(imageDimensionsLabel)"
@@ -506,7 +550,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
 
     private enum CodingKeys: String, CodingKey {
         case id, text, copiedAt, pinnedAt, kind, filePaths, imageFile, imageHash, imageWidth, imageHeight
-        case sourceBundleID, pinboardID
+        case sourceBundleID, pinboardID, customTitle
     }
 
     init(from decoder: Decoder) throws {
@@ -524,10 +568,19 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         imageHeight = try container.decodeIfPresent(Int.self, forKey: .imageHeight)
         sourceBundleID = try container.decodeIfPresent(String.self, forKey: .sourceBundleID)
         pinboardID = pinnedAt == nil ? nil : (try? container.decodeIfPresent(UUID.self, forKey: .pinboardID))
+        customTitle = (try? container.decodeIfPresent(String.self, forKey: .customTitle))
+            .flatMap(ClipboardHistoryEditing.clipTitle)
     }
 }
 
 enum ClipboardHistoryEditing {
+    static func clipTitle(_ draft: String) -> String? {
+        let title = String(draft.unicodeScalars.prefix(120))
+            .components(separatedBy: .newlines).joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return title.isEmpty ? nil : title
+    }
+
     /// A copied document should stay available, while a pathological
     /// pasteboard payload still has a firm in-memory and on-disk bound.
     static let maxCharacters = 1_000_000
@@ -625,6 +678,7 @@ enum ClipboardHistoryEditing {
         // never encoded on the main thread just to be measured.
         let rawBound = pinned.reduce(0) { total, entry in
             total + 512 + entry.text.utf8.count + (entry.imageFile?.utf8.count ?? 0)
+                + (entry.customTitle?.utf8.count ?? 0)
                 + entry.filePaths.reduce(0) { $0 + $1.utf8.count + 3 }
         }
         guard rawBound > (byteLimit - 2) / 6 else { return true }

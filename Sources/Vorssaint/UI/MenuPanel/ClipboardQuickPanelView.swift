@@ -15,7 +15,7 @@ struct ClipboardQuickPanelView: View {
     private enum FilterChoice: Hashable {
         case source(String)
         case collection(ClipboardShelfCollection)
-        case search, closeSearch, filters, addBoard, actions
+        case search, closeSearch, filters, addBoard, actions, pasteStack
         case type(ClipboardShelfContentType?)
     }
     @State private var previewSelection = QuickPreviewSelection()
@@ -25,6 +25,7 @@ struct ClipboardQuickPanelView: View {
     @State private var clearingIDs: [UUID: Date]?
     @State private var shelfScrollerStyle = NSScroller.preferredScrollerStyle
     @State private var boardEditor: PinboardEditor.Mode?
+    @State private var historyRevealEntryID: UUID?
     @State private var deletingBoard: ClipboardPinboard?
     @State private var visibleShelfLinks: [URL] = []
     @State private var failedShelfLinks: Set<URL> = []
@@ -73,6 +74,7 @@ struct ClipboardQuickPanelView: View {
             .allowsHitTesting(!concealed)
             .accessibilityHidden(concealed)
         }
+        .coordinateSpace(name: Self.shelfCoordinates)
         .clipped()
         .ignoresSafeArea(.container, edges: .top)
         .onReceive(NotificationCenter.default.publisher(for: NSScroller.preferredScrollerStyleDidChangeNotification)) { _ in
@@ -103,10 +105,9 @@ struct ClipboardQuickPanelView: View {
     private var shelfContent: some View {
         VStack(spacing: 0) {
             toolbar
-                .disabled(boardEditor != nil)
                 .modifier(ClipboardClearRecentConfirmation(entryIDs: $clearingIDs))
             if layout == .list {
-                filterChoices
+                filterChoices.disabled(boardEditor != nil)
                 Divider()
             }
             shelfResults
@@ -132,6 +133,9 @@ struct ClipboardQuickPanelView: View {
             closeBoardEditor(restoreSearch: false)
             history.quickFilterChoiceIsFocused = false
         }
+        .onChange(of: boardEditorTargetAvailable) { _, available in
+            if !available { closeBoardEditor() }
+        }
         .onChange(of: filterChoiceFocus) { _, choice in
             history.quickFilterChoiceIsFocused = choice != nil
         }
@@ -147,6 +151,7 @@ struct ClipboardQuickPanelView: View {
         .onChange(of: history.quickWindowPresentationID) { _, _ in
             closeBoardEditor(restoreSearch: false)
             deletingBoard = nil
+            historyRevealEntryID = nil
             previewSelection.select(history.selectedQuickEntryID)
             DispatchQueue.main.async { searchFocused = true }
         }
@@ -156,9 +161,13 @@ struct ClipboardQuickPanelView: View {
         contentWithPreview
             .allowsHitTesting(boardEditor == nil)
             .accessibilityHidden(boardEditor != nil)
-            .overlay(alignment: .topLeading) { filterFlyout }
+            .overlay(alignment: .top) { filterFlyout }
             .overlay(alignment: .topTrailing) {
-                if let mode = boardEditor { boardEditorFlyout(mode) }
+                if let mode = boardEditor, usesBoardEditorFlyout {
+                    pinboardEditor(mode)
+                        .background(ShelfFlyout())
+                        .padding(8)
+                }
             }
     }
 
@@ -218,29 +227,39 @@ struct ClipboardQuickPanelView: View {
         if history.quickTypePickerPresented { typeChoices } else { sourceChoices }
     }
 
-    private func boardEditorFlyout(_ mode: PinboardEditor.Mode) -> some View {
-        PinboardEditor(mode: mode, shelfText: shelfText, text: text,
+    private var usesBoardEditorFlyout: Bool { layout != .cards || vertical }
+
+    private var boardEditorTargetAvailable: Bool {
+        guard let mode = boardEditor else { return true }
+        if let id = mode.entryID { return history.entries.contains { $0.id == id } }
+        if let board = mode.board { return history.pinboards.contains { $0.id == board.id } }
+        return true
+    }
+
+    private func pinboardEditor(_ mode: PinboardEditor.Mode) -> some View {
+        PinboardEditor(mode: mode, inline: !usesBoardEditorFlyout, shelfText: shelfText, text: text,
                        emojiLabel: FeatureStrings.commandBar(l10n.language).sourceEmoji,
                        onCancel: { closeBoardEditor() }) { name, emoji in
-            guard boardEditor?.id == mode.id else { return }
+            guard boardEditor?.id == mode.id, boardEditorTargetAvailable else { return }
             if let board = mode.board {
                 history.renamePinboard(board.id, to: name, emoji: emoji)
             } else {
-                history.createPinboard(named: name, emoji: emoji)
+                guard let board = history.createPinboard(named: name, emoji: emoji,
+                                                         assigningEntryID: mode.entryID) else { return }
+                history.browseQuickCollection(.pinboard(board.id))
             }
             closeBoardEditor()
         }
         .id(mode.id)
-        .background(ShelfFlyout())
-        .padding(8)
     }
 
-    private func editPinboard(_ board: ClipboardPinboard?) {
+    private func editPinboard(_ board: ClipboardPinboard? = nil, assigning entryID: UUID? = nil) {
         history.quickSourcePickerPresented = false
         history.quickTypePickerPresented = false
         history.quickPinboardEditorIsActive = true
+        filterChoiceFocus = nil
         searchFocused = false
-        boardEditor = .init(board: board)
+        boardEditor = .init(board: board, entryID: entryID)
     }
 
     private func closeBoardEditor(restoreSearch: Bool = true) {
@@ -271,14 +290,9 @@ struct ClipboardQuickPanelView: View {
     @ViewBuilder
     private var toolbar: some View {
         if layout == .cards {
-            HStack(spacing: 6) {
-                shelfSearch
-                if vertical && shelfSearchExpanded {
-                    compactPinboardMenu
-                } else {
-                    pinboardBar
-                }
-                compactActions
+            GeometryReader { bar in
+                shelfToolbar(width: bar.size.width)
+                    .frame(height: bar.size.height)
             }
             .padding(.horizontal, vertical ? 10 : 18)
             .frame(height: 44)
@@ -290,9 +304,39 @@ struct ClipboardQuickPanelView: View {
                 previewButton
                 closeButton
             }
+            .disabled(boardEditor != nil)
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
         }
+    }
+
+    private func shelfToolbar(width: CGFloat) -> some View {
+        let expanded = shelfSearchExpanded
+        let reservedWidth: CGFloat = vertical && history.pasteStackCount > 0 ? 174 : 96
+        let fieldWidth = expanded ? min(520, max(80, width - reservedWidth), max(220, width * 0.4)) : 28
+        let leading = expanded ? (width - fieldWidth) / 2 : 0
+
+        return ZStack(alignment: .leading) {
+            HStack(spacing: 6) {
+                if vertical && expanded {
+                    compactPinboardMenu.disabled(boardEditor != nil)
+                    Spacer(minLength: 0)
+                } else {
+                    pinboardBar.padding(.leading, leading + fieldWidth + 6)
+                }
+                if history.pasteStackCount > 0 {
+                    ClipboardPasteStackMenu(language: l10n.language)
+                        .focused($filterChoiceFocus, equals: .pasteStack)
+                        .disabled(boardEditor != nil)
+                }
+                compactActions.disabled(boardEditor != nil)
+            }
+            shelfSearch
+                .disabled(boardEditor != nil)
+                .frame(width: fieldWidth)
+                .offset(x: leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var shelfSearchExpanded: Bool {
@@ -339,7 +383,8 @@ struct ClipboardQuickPanelView: View {
             }
         }
         .padding(.horizontal, expanded ? 6 : 0)
-        .frame(width: expanded ? (vertical ? 165 : 260) : 28, height: 28)
+        .frame(maxWidth: .infinity)
+        .frame(height: 28)
         .background(expanded ? Color.primary.opacity(0.09) : .clear, in: Capsule())
     }
 
@@ -486,45 +531,73 @@ struct ClipboardQuickPanelView: View {
         .accessibilityValue(sourceName ?? "")
     }
 
+    @ViewBuilder
+    private var newPinboardButton: some View {
+        if let mode = boardEditor, mode.board == nil, !usesBoardEditorFlyout {
+            pinboardEditor(mode)
+        } else {
+            Button { editPinboard() } label: {
+                Image(systemName: "plus").frame(width: 24, height: 26)
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("n", modifiers: [.command, .shift])
+            .focused($filterChoiceFocus, equals: .addBoard)
+            .help(shelfText.newPinboard)
+            .accessibilityLabel(shelfText.newPinboard)
+            .disabled(boardEditor != nil)
+        }
+    }
+
     private var pinboardBar: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 6) {
-                collectionButton(shelfText.history, symbol: "clock.arrow.circlepath", collection: .history)
-                collectionButton(text.pinned, symbol: "pin", collection: .pinned)
-                ForEach(history.pinboards, content: pinboardButton)
-                Button { editPinboard(nil) } label: {
-                    Image(systemName: "plus").frame(width: 24, height: 26)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal) {
+                HStack(spacing: 6) {
+                    collectionButton(shelfText.history, symbol: "clock.arrow.circlepath", collection: .history)
+                    collectionButton(text.pinned, symbol: "pin", collection: .pinned)
+                    ForEach(history.pinboards, content: pinboardButton)
+                    newPinboardButton
                 }
-                .buttonStyle(.plain)
-                .keyboardShortcut("n", modifiers: [.command, .shift])
-                .focused($filterChoiceFocus, equals: .addBoard)
-                .help(shelfText.newPinboard)
-                .accessibilityLabel(shelfText.newPinboard)
+            }
+            .scrollIndicators(.hidden)
+            .onChange(of: history.quickFilter.collection, initial: true) { _, collection in
+                proxy.scrollTo(collection)
+            }
+            .onChange(of: boardEditor?.id) { _, id in
+                guard !usesBoardEditorFlyout else { return }
+                if let id {
+                    proxy.scrollTo(id, anchor: .trailing)
+                } else {
+                    proxy.scrollTo(history.quickFilter.collection)
+                }
             }
         }
-        .scrollIndicators(.hidden)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(shelfText.pinboards)
     }
 
     private func selectCollection(_ collection: ClipboardShelfCollection) {
-        history.setQuickCollection(collection)
-        if let first = history.selectedQuickEntry { history.selectQuickEntry(first) }
+        history.browseQuickCollection(collection)
         searchFocused = true
     }
 
+    @ViewBuilder
     private func pinboardButton(_ board: ClipboardPinboard) -> some View {
-        collectionButton(board.name, symbol: "square.on.square",
-                         collection: .pinboard(board.id), emoji: board.emoji ?? "📌")
-            .contextMenu {
-                Button(shelfText.renamePinboard) { editPinboard(board) }
-                Button(shelfText.deletePinboard, role: .destructive) { deletingBoard = board }
-            }
+        if let mode = boardEditor, mode.board?.id == board.id, !usesBoardEditorFlyout {
+            pinboardEditor(mode)
+        } else {
+            collectionButton(board.name, symbol: "square.on.square",
+                             collection: .pinboard(board.id), emoji: board.emoji ?? "📌")
+                .contextMenu {
+                    Button(shelfText.renamePinboard) { editPinboard(board) }
+                    Button(shelfText.deletePinboard, role: .destructive) { deletingBoard = board }
+                }
+                .disabled(boardEditor != nil)
+        }
     }
 
     private func collectionButton(_ name: String, symbol: String,
                                   collection: ClipboardShelfCollection, emoji: String? = nil) -> some View {
-        let selected = history.quickFilter.collection == collection
+        let selected = !history.quickShelfSearchIsActive && history.quickFilter.collection == collection
         return Button {
             selectCollection(collection)
         } label: {
@@ -534,7 +607,7 @@ struct ClipboardQuickPanelView: View {
                 } else {
                     Image(systemName: symbol).accessibilityHidden(true)
                 }
-                if emoji == nil && !vertical && collection == .history { Text(name) }
+                if collection == .history && !vertical && !shelfSearchExpanded { Text(name) }
             }
             .font(.system(size: emoji == nil ? 12 : 16, weight: selected ? .semibold : .regular))
             .lineLimit(1)
@@ -547,7 +620,9 @@ struct ClipboardQuickPanelView: View {
         .help(name)
         .accessibilityLabel(name)
         .focused($filterChoiceFocus, equals: .collection(collection))
+        .disabled(boardEditor != nil)
         .accessibilityAddTraits(selected ? .isSelected : [])
+        .id(collection)
     }
 
     private var typeFilter: some View {
@@ -679,33 +754,52 @@ struct ClipboardQuickPanelView: View {
         if filtered.isEmpty {
             emptyState(history.entries.isEmpty ? text.empty : text.noResults)
         } else {
-            ScrollViewReader { proxy in
-                // A plain stack for an ordinary history: with every entry
-                // already laid out, scrolling is the clip view moving and
-                // nothing else, which is what makes it smooth. Only a very
-                // large history goes lazy, where building every entry (and
-                // decoding every thumbnail) on open would cost more than the
-                // placement work a lazy stack does per tick.
-                resultsScroll
-                .background(ScrollBounceDisabler())
-                .onChange(of: history.quickSelectionID) { _, _ in
+            scrollableResults
+        }
+    }
+
+    private var scrollableResults: some View {
+        ScrollViewReader { proxy in
+            // A plain stack for an ordinary history: with every entry
+            // already laid out, scrolling is the clip view moving and
+            // nothing else, which is what makes it smooth. Only a very
+            // large history goes lazy, where building every entry (and
+            // decoding every thumbnail) on open would cost more than the
+            // placement work a lazy stack does per tick.
+            resultsScroll
+            .background(ScrollBounceDisabler())
+            .onChange(of: history.quickSelectionID) { _, _ in
+                scrollSelectedEntry(with: proxy)
+            }
+            .onChange(of: history.quickSelectionIsVisible) { _, _ in
+                scrollSelectedEntry(with: proxy)
+            }
+            .onChange(of: historyRevealEntryID) { _, id in
+                guard let id else { return }
+                DispatchQueue.main.async {
+                    guard historyRevealEntryID == id else { return }
+                    proxy.scrollTo(id)
+                    historyRevealEntryID = nil
+                }
+            }
+            .onChange(of: history.quickQuery) { _, _ in
+                if layout == .cards {
+                    proxy.scrollTo(Self.topAnchorID, anchor: vertical ? .top : .leading)
+                } else {
                     scrollSelectedEntry(with: proxy)
                 }
-                .onChange(of: history.quickSelectionIsVisible) { _, _ in
-                    scrollSelectedEntry(with: proxy)
-                }
-                .onChange(of: history.quickQuery) { _, _ in
-                    scrollSelectedEntry(with: proxy)
-                }
-                // The window is only hidden between uses, so without this it
-                // reopens wherever it was scrolled, while the selection and
-                // ⌘1 to ⌘9 already start from the first entries.
-                .onChange(of: history.quickFilter) { _, _ in
-                    proxy.scrollTo(Self.topAnchorID, anchor: vertical || layout == .list ? .top : .leading)
-                }
-                .onChange(of: history.quickWindowPresentationID) { _, _ in
-                    proxy.scrollTo(Self.topAnchorID, anchor: vertical || layout == .list ? .top : .leading)
-                }
+            }
+            .onChange(of: history.quickShelfSearchIsActive) { _, _ in
+                proxy.scrollTo(Self.topAnchorID, anchor: vertical ? .top : .leading)
+            }
+            // The window is only hidden between uses, so without this it
+            // reopens wherever it was scrolled, while the selection and
+            // ⌘1 to ⌘9 already start from the first entries.
+            .onChange(of: history.quickFilter) { _, _ in
+                proxy.scrollTo(Self.topAnchorID, anchor: vertical || layout == .list ? .top : .leading)
+            }
+            .onChange(of: history.quickWindowPresentationID) { _, _ in
+                proxy.scrollTo(Self.topAnchorID, anchor: vertical || layout == .list ? .top : .leading)
             }
         }
     }
@@ -749,6 +843,7 @@ struct ClipboardQuickPanelView: View {
                     .padding(vertical ? .bottom : .trailing, inset)
             }
             .coordinateSpace(name: Self.cardViewport)
+            .onPreferenceChange(VisibleCardFrames.self) { history.quickCardFrames = $0 }
             .onPreferenceChange(VisibleShelfLinks.self) { visibleShelfLinks = $0 }
             .background { shelfThumbnail }
             .onDisappear { visibleShelfLinks = [] }
@@ -798,6 +893,16 @@ struct ClipboardQuickPanelView: View {
     private static let listVerticalInset: CGFloat = 6
     private static let topAnchorID = "clipboard-list-top"
     private static let cardViewport = "clipboard-card-viewport"
+
+    private static let shelfCoordinates = "clipboard-shelf-panel"
+
+    private struct VisibleCardFrames: PreferenceKey {
+        static let defaultValue: [UUID: CGRect] = [:]
+
+        static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+            value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
+        }
+    }
 
     private struct VisibleShelfLinks: PreferenceKey {
         static let defaultValue: [URL] = []
@@ -861,18 +966,18 @@ struct ClipboardQuickPanelView: View {
                 .overlay(alignment: vertical ? .top : .leading) {
                     if entry.id == firstRecentID { cardGroupDivider }
                 }
-                .background { visibleLink(for: entry, in: viewport) }
+                .background { cardGeometry(for: entry, in: viewport) }
         }
     }
 
-    @ViewBuilder
-    private func visibleLink(for entry: ClipboardHistoryEntry, in viewport: CGRect) -> some View {
-        if linkPreviewsEnabled, let url = entry.shelfLink {
-            GeometryReader { card in
-                let frame = card.frame(in: .named(Self.cardViewport))
-                Color.clear.preference(key: VisibleShelfLinks.self,
-                                       value: frame.intersects(viewport) ? [url] : [])
-            }
+    private func cardGeometry(for entry: ClipboardHistoryEntry, in viewport: CGRect) -> some View {
+        GeometryReader { card in
+            let visible = card.frame(in: .named(Self.cardViewport)).intersects(viewport)
+            let frame = card.frame(in: .named(Self.shelfCoordinates))
+            let link = visible && linkPreviewsEnabled ? entry.shelfLink : nil
+            Color.clear
+                .preference(key: VisibleCardFrames.self, value: visible ? [entry.id: frame] : [:])
+                .preference(key: VisibleShelfLinks.self, value: link.map { [$0] } ?? [])
         }
     }
 
@@ -910,9 +1015,18 @@ struct ClipboardQuickPanelView: View {
                        previewIsEditing: previewIsEditing,
                        presentationID: history.quickWindowPresentationID,
                        language: l10n.language,
-                       previewSelection: previewSelection)
+                       previewSelection: previewSelection,
+                       onCreatePinboard: { editPinboard(assigning: $0) },
+                       onRevealInHistory: revealInHistory)
             .equatable()
             .id(entry.id)
+    }
+
+    private func revealInHistory(_ entry: ClipboardHistoryEntry) {
+        history.browseQuickCollection(.history)
+        history.selectQuickEntry(entry)
+        historyRevealEntryID = entry.id
+        searchFocused = true
     }
 
     private func emptyState(_ message: String) -> some View {
@@ -1034,9 +1148,11 @@ private struct PinboardEditor: View {
     struct Mode: Identifiable {
         let id = UUID()
         let board: ClipboardPinboard?
+        let entryID: UUID?
     }
 
     let mode: Mode
+    let inline: Bool
     let shelfText: ClipboardShelfStrings
     let text: ClipboardFeatureStrings
     let emojiLabel: String
@@ -1067,22 +1183,65 @@ private struct PinboardEditor: View {
     }
 
     var body: some View {
+        Group {
+            if inline { inlineEditor } else { flyoutEditor }
+        }
+        .onSubmit(save)
+        .onExitCommand(perform: onCancel)
+        .onAppear {
+            name = mode.board?.name ?? ""
+            emoji = mode.board?.emoji ?? ""
+            focusedField = .name
+        }
+    }
+
+    private var inlineEditor: some View {
+        HStack(spacing: 4) {
+            emojiField.frame(width: 20)
+            Menu {
+                ForEach(Self.emojiChoices, id: \.self, content: emojiChoice)
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .frame(width: 13, height: 24)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .accessibilityLabel(emojiLabel)
+            .help(emojiLabel)
+
+            nameField
+                .frame(width: 112)
+            Button(text.cancel, systemImage: "xmark", action: onCancel)
+                .keyboardShortcut(.cancelAction)
+                .help(text.cancel)
+            Button(text.save, systemImage: "checkmark", action: save)
+                .keyboardShortcut(.defaultAction)
+                .help(text.save)
+                .disabled(!canSave)
+        }
+        .font(.system(size: 12))
+        .buttonStyle(.plain)
+        .textFieldStyle(.plain)
+        .labelStyle(.iconOnly)
+        .padding(.horizontal, 9)
+        .frame(height: 28)
+        .background(Color.primary.opacity(0.14), in: Capsule())
+    }
+
+    private var flyoutEditor: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(mode.board == nil ? shelfText.newPinboard : shelfText.renamePinboard)
                 .font(.headline)
             HStack {
-                TextField(shelfText.pinboardName, text: $name)
-                    .focused($focusedField, equals: .name)
-                TextField(emojiLabel, text: $emoji)
-                    .focused($focusedField, equals: .emoji)
-                    .multilineTextAlignment(.center)
-                    .frame(width: 60)
+                nameField
+                emojiField.frame(width: 60)
                 Button(emojiLabel, systemImage: "face.smiling") { showsEmojiChoices.toggle() }
                     .labelStyle(.iconOnly)
                     .accessibilityAddTraits(showsEmojiChoices ? .isSelected : [])
             }
             .textFieldStyle(.roundedBorder)
-            .onSubmit(save)
             if showsEmojiChoices { emojiGrid }
             HStack {
                 Spacer()
@@ -1097,24 +1256,35 @@ private struct PinboardEditor: View {
         }
         .padding(14)
         .frame(maxWidth: 288)
-        .onExitCommand(perform: onCancel)
-        .onAppear {
-            name = mode.board?.name ?? ""
-            emoji = mode.board?.emoji ?? ""
-            focusedField = .name
-        }
+    }
+
+    private var nameField: some View {
+        TextField(shelfText.pinboardName, text: $name)
+            .focused($focusedField, equals: .name)
+    }
+
+    private var emojiField: some View {
+        TextField(emojiLabel, text: $emoji, prompt: Text("📌"))
+            .focused($focusedField, equals: .emoji)
+            .multilineTextAlignment(.center)
+    }
+
+    private func selectEmoji(_ character: String) {
+        emoji = character
+        showsEmojiChoices = false
+        focusedField = .name
+    }
+
+    private func emojiChoice(_ character: String) -> some View {
+        Button(character) { selectEmoji(character) }
     }
 
     private var emojiGrid: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 8), spacing: 3) {
             ForEach(Self.emojiChoices, id: \.self) { character in
-                Button(character) {
-                    emoji = character
-                    showsEmojiChoices = false
-                    focusedField = .name
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                emojiChoice(character)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
             }
         }
         .accessibilityElement(children: .contain)
@@ -1172,7 +1342,11 @@ private struct QuickEntryView: View, Equatable {
     let presentationID: UUID
     let language: AppLanguage
     let previewSelection: QuickPreviewSelection
+    let onCreatePinboard: (UUID) -> Void
+    let onRevealInHistory: (ClipboardHistoryEntry) -> Void
     @State private var isHovered = false
+    @State private var isRenaming = false
+    @State private var titleDraft = ""
     /// The pane follows a row only once the pointer has rested on it: while
     /// rows stream under a still pointer during a scroll, every one of them
     /// would otherwise redraw the pane, and a long entry costs a frame or two
@@ -1183,11 +1357,11 @@ private struct QuickEntryView: View, Equatable {
     private var history: ClipboardHistoryService { .shared }
     private var l10n: L10n { .shared }
     private var text: ClipboardFeatureStrings { FeatureStrings.clipboard(language) }
+    private var shelfText: ClipboardShelfStrings { .forLanguage(language) }
 
     private var isRow: Bool { layout == .list }
 
-    // Preview selection is a channel to the sidebar, not part of this row's
-    // appearance, so it stays out of the comparison.
+    // These callbacks affect the panel, while the inputs below determine the row's appearance.
     static func == (lhs: QuickEntryView, rhs: QuickEntryView) -> Bool {
         lhs.layout == rhs.layout
             && lhs.vertical == rhs.vertical
@@ -1223,6 +1397,13 @@ private struct QuickEntryView: View, Equatable {
         }
         .contentShape(Rectangle())
         .contextMenu { entryActions(entry) }
+        .alert(shelfText.renameClip, isPresented: $isRenaming) {
+            TextField(shelfText.clipName, text: $titleDraft)
+            Button(text.cancel, role: .cancel) {}
+            Button(text.save) {
+                if !history.renameEntry(entry.id, to: titleDraft) { NSSound.beep() }
+            }
+        }
         .onHover { hovering in
             // A row arriving under a pointer that has not moved since the
             // arrow keys took over is not a hover.
@@ -1367,9 +1548,9 @@ private struct QuickEntryView: View, Equatable {
     }
 
     private var cardTitle: some View {
-        let type = ClipboardShelfStrings.forLanguage(language).typeName(entry.shelfContentType)
+        let title = entry.customTitle ?? shelfText.typeName(entry.shelfContentType)
         return HStack(spacing: 5) {
-            Text(type)
+            Text(title)
                 .font(.system(size: 14, weight: .semibold))
                 .lineLimit(1)
             if entry.isPinned {
@@ -1639,20 +1820,18 @@ private struct QuickEntryView: View, Equatable {
 
     @ViewBuilder
     private func entryActions(_ entry: ClipboardHistoryEntry) -> some View {
-        Button(l10n.s.menuPaste) {
-            history.copyQuickEntry(entry)
-        }
-        Button(text.copy) {
-            history.copyOnlyQuickEntry(entry)
-        }
-        if !isRow {
-            Button(text.previewLabel) { history.showShelfPreview(entry) }
-        }
+        Button(pasteActionTitle) { history.copyQuickEntry(entry) }
+        Button(text.copy) { history.copyOnlyQuickEntry(entry) }
+        if !isRow { cardActions(entry) }
         Divider()
-        Button(entry.isPinned ? text.unpin : text.pin) {
-            history.togglePin(entry)
+        if isRow {
+            Button(entry.isPinned ? text.unpin : text.pin) { history.togglePin(entry) }
+        } else {
+            pinboardActions(entry)
+            if entry.isPinned {
+                Button(text.unpin) { history.togglePin(entry) }
+            }
         }
-        if !isRow { pinboardActions(entry) }
         Button(text.moveUp) {
             history.move(entry, .up)
         }
@@ -1667,20 +1846,51 @@ private struct QuickEntryView: View, Equatable {
         }
     }
 
+    private var pasteActionTitle: String {
+        guard !isRow, let name = history.quickPasteTargetName else { return l10n.s.menuPaste }
+        return String(format: shelfText.pasteToFormat, name)
+    }
+
     @ViewBuilder
+    private func cardActions(_ entry: ClipboardHistoryEntry) -> some View {
+        if entry.plainTextForPaste != nil {
+            Button(l10n.s.pastePlainName) { history.pastePlainTextQuickEntry(entry) }
+        }
+        ClipboardPasteStackEntryAction(entry: entry, language: language)
+        Divider()
+        Button(text.previewLabel) { history.showShelfPreview(entry) }
+        if entry.kind == .text {
+            Button(text.edit) { history.showShelfPreview(entry, editText: true) }
+        } else if entry.kind == .image, AppFeature.screenshot.isAvailable {
+            Button(text.edit) { history.editImage(entry) }
+        }
+        Button(shelfText.renameClip) {
+            titleDraft = entry.customTitle ?? ""
+            isRenaming = true
+        }
+        Button(shelfText.showInHistory) { onRevealInHistory(entry) }
+    }
+
     private func pinboardActions(_ entry: ClipboardHistoryEntry) -> some View {
-        let shelfText = ClipboardShelfStrings.forLanguage(language)
-        if !pinboards.isEmpty {
-            Menu(shelfText.moveToPinboard) {
-                ForEach(pinboards) { board in
-                    Button(board.label) { history.assignPinboard(board.id, to: entry) }
-                        .disabled(entry.pinboardID == board.id)
-                }
+        Menu {
+            pinboardDestination(text.pinned, id: nil, entry: entry)
+            ForEach(pinboards) { board in
+                pinboardDestination("\(board.emoji ?? "📌") \(board.name)", id: board.id, entry: entry)
             }
+            Divider()
+            Button(shelfText.newPinboard, systemImage: "plus") { onCreatePinboard(entry.id) }
+        } label: {
+            Label(text.pin, systemImage: "pin")
         }
-        if entry.pinboardID != nil {
-            Button(shelfText.removeFromPinboard) { history.assignPinboard(nil, to: entry) }
-        }
+    }
+
+    private func pinboardDestination(_ title: String, id: UUID?, entry: ClipboardHistoryEntry) -> some View {
+        Toggle(title, isOn: Binding(
+            get: { entry.isPinned && entry.pinboardID == id },
+            set: { selected in
+                if selected { history.assignPinboard(id, to: entry) }
+            }
+        ))
     }
 
     private func activate(_ entry: ClipboardHistoryEntry, paste: Bool) {

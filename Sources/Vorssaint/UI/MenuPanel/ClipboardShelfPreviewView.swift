@@ -4,11 +4,71 @@
 import QuickLookUI
 import SwiftUI
 
+struct ClipboardShelfPreviewChrome<Content: View>: View {
+    let edge: ClipboardShelfEdge
+    let pointer: CGFloat?
+    let content: Content
+
+    private var facingEdge: Edge.Set {
+        switch edge {
+        case .top: return .top
+        case .bottom: return .bottom
+        case .left: return .leading
+        case .right: return .trailing
+        }
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let shape = RoundedRectangle(cornerRadius: 13, style: .continuous)
+            ZStack {
+                content
+                    .clipShape(shape)
+                    .overlay { shape.strokeBorder(Color.primary.opacity(0.12), lineWidth: 1) }
+                    .padding(facingEdge, pointer == nil ? 0 : 8)
+                pointerView(in: geometry.size)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pointerView(in size: CGSize) -> some View {
+        if let pointer {
+            tail(at: pointer, in: size)
+                .fill(Color(nsColor: .windowBackgroundColor))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func tail(at position: CGFloat, in size: CGSize) -> Path {
+        let extent = edge.isVertical ? size.height : size.width
+        let center = min(max(20, position), max(20, extent - 20))
+        func point(_ along: CGFloat, _ inset: CGFloat) -> CGPoint {
+            switch edge {
+            case .top: return CGPoint(x: along, y: inset)
+            case .bottom: return CGPoint(x: along, y: size.height - inset)
+            case .left: return CGPoint(x: inset, y: along)
+            case .right: return CGPoint(x: size.width - inset, y: along)
+            }
+        }
+        return Path { path in
+            path.move(to: point(center - 8, 9))
+            path.addLine(to: point(center, 0))
+            path.addLine(to: point(center + 8, 9))
+            path.closeSubpath()
+        }
+    }
+}
+
 struct ClipboardShelfPreviewView: View {
     let entry: ClipboardHistoryEntry
     let text: ClipboardFeatureStrings
+    let title: String
     let loadLinkImmediately: Bool
+    let editText: Bool
     let linkSnapshot: ClipboardShelfLinkSnapshot?
+    let close: () -> Void
     let onLinkSnapshot: (ClipboardShelfLinkSnapshot) -> Void
 
     @ObservedObject private var l10n = L10n.shared
@@ -28,19 +88,53 @@ struct ClipboardShelfPreviewView: View {
 
     var body: some View {
         Group {
-            if let color = entry.color {
-                colorPreview(color)
-            } else if let url = entry.shelfLink {
-                ClipboardShelfLinkPreview(url: url, snapshot: linkSnapshot, strings: .forLanguage(l10n.language),
-                                          openInBrowser: FeatureStrings.commandBar(l10n.language).openInBrowser,
-                                          loadImmediately: loadLinkImmediately, onSnapshot: onLinkSnapshot)
-            } else if entry.kind == .text {
-                ClipboardTextPreview(text: entry.text).padding(14)
+            if editText {
+                ClipboardShelfTextEditor(entryID: entry.id, text: text, close: close)
             } else {
-                filePreview
+                VStack(spacing: 0) {
+                    header
+                    content
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .ignoresSafeArea(.container, edges: .top)
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Button(action: close) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 26, height: 26)
+                    .background(Color.primary.opacity(0.09), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(l10n.s.menuClose)
+            .help(l10n.s.menuClose)
+
+            Text(title).font(.headline)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let color = entry.color {
+            colorPreview(color)
+        } else if let url = entry.shelfLink {
+            ClipboardShelfLinkPreview(url: url, snapshot: linkSnapshot, strings: .forLanguage(l10n.language),
+                                      openInBrowser: FeatureStrings.commandBar(l10n.language).openInBrowser,
+                                      loadImmediately: loadLinkImmediately, onSnapshot: onLinkSnapshot)
+        } else if entry.kind == .text {
+            ClipboardTextPreview(text: entry.text).padding(14)
+        } else {
+            filePreview
+        }
     }
 
     private func colorPreview(_ color: ColorValue) -> some View {
@@ -57,20 +151,82 @@ struct ClipboardShelfPreviewView: View {
 
     private var filePreview: some View {
         let files = files
-        return VStack(spacing: 0) {
+        return VStack(spacing: 8) {
             if files.count > 1 {
                 Picker(text.previewLabel, selection: $selectedFile) {
                     ForEach(files.indices, id: \.self) { index in
                         Text(files[index].lastPathComponent).tag(index)
                     }
                 }
-                .padding(10)
             }
             if files.indices.contains(selectedFile) {
-                ClipboardFileQuickLook(file: files[selectedFile])
+                let file = files[selectedFile]
+                ClipboardFileQuickLook(file: file)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 9))
+                if entry.kind == .files {
+                    ClipboardShelfFileDetails(file: file, revealLabel: l10n.s.cleanerRevealInFinder)
+                        .id(file)
+                }
             } else {
-                Text(text.noResults).foregroundStyle(.secondary)
+                Text(text.noResults)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 10)
+    }
+}
+
+private struct ClipboardShelfTextEditor: View {
+    @ObservedObject private var history = ClipboardHistoryService.shared
+    @State private var isEditing = false
+    let entryID: UUID
+    let text: ClipboardFeatureStrings
+    let close: () -> Void
+
+    var body: some View {
+        ClipboardEntryPreviewSidebar(text: text,
+                                     entry: history.entries.first { $0.id == entryID },
+                                     isEditing: $isEditing, onClose: close, startsEditing: true)
+    }
+}
+
+private struct ClipboardShelfFileDetails: View {
+    let file: URL
+    let revealLabel: String
+    @State private var size: String?
+
+    var body: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 5) {
+                Text((file.path as NSString).abbreviatingWithTildeInPath)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                    .help(file.path)
+                if let size {
+                    Text("·").accessibilityHidden(true)
+                    Text(size).fixedSize()
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([file])
+            } label: {
+                Label(revealLabel, systemImage: "folder")
+            }
+            .fixedSize()
+        }
+        .task {
+            let path = file.path
+            let fileSize = await Task.detached(priority: .utility) {
+                ClipboardImageStore.fileSizeString(atPath: path)
+            }.value
+            if !Task.isCancelled { size = fileSize }
         }
     }
 }
@@ -83,6 +239,7 @@ private struct ClipboardFileQuickLook: NSViewRepresentable {
     }
 
     func updateNSView(_ view: QLPreviewView, context: Context) {
+        guard (view.previewItem as? URL) != file else { return }
         view.previewItem = file as NSURL
     }
 }
