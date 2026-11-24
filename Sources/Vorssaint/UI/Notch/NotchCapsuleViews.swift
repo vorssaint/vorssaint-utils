@@ -76,6 +76,7 @@ struct NotchCapsuleNoticeView: View {
         // A warning reads as one in any agent's color; other AI notices wear it.
         case .agents: return notice.symbol.hasPrefix("exclamationmark") ? .orange : notice.agent?.tint ?? .white
         case .timer: return .orange
+        case .volume, .brightness, .keyboardLight: return NotchPrismLevelBar.accentColor(for: notice)
         default: return .white
         }
     }
@@ -109,17 +110,23 @@ struct NotchCapsuleNoticeView: View {
     /// always has the room of its widest value.
     private func levelRow(_ level: Double) -> some View {
         HStack(spacing: CapsuleLayout.spacing) {
-            NotchCapsuleSymbol(name: notice.symbol, tint: tint)
-            NotchMeter(value: level, height: CapsuleLayout.meterHeight, tint: tint)
-                .frame(width: CapsuleLayout.meterWidth)
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: level)
+            NotchCapsuleSymbol(name: NotchPrismLevelBar.displaySymbol(for: notice), tint: tint)
+            Group {
+                if let kind = NotchPrismLevelBar.levelKind(for: notice.event), NotchPrismLevelBar.usesPrismBars() {
+                    NotchPrismLevelBar(value: level, kind: kind, muted: kind == .volume && level <= 0.001, height: CapsuleLayout.meterHeight)
+                } else {
+                    NotchMeter(value: level, height: CapsuleLayout.meterHeight, tint: tint)
+                }
+            }
+            .frame(width: CapsuleLayout.meterWidth)
+            .animation(reduceMotion ? nil : .interpolatingSpring(stiffness: 240, damping: 27), value: level)
             Text(notice.detail)
                 .font(Font(CapsuleLayout.levelFont as CTFont))
                 .lineLimit(1)
                 .contentTransition(.numericText())
                 .frame(width: CapsuleLayout.levelReadingWidth(notice.detail), alignment: .trailing)
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: notice.detail)
+        .animation(reduceMotion ? nil : .interpolatingSpring(stiffness: 240, damping: 27), value: notice.detail)
         .transaction { $0.disablesAnimations = false }
     }
 

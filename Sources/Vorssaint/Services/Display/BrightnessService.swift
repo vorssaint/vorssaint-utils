@@ -471,6 +471,9 @@ final class BrightnessService: ObservableObject {
             return
         }
         showKeyboardLightNotice(target)
+        if NotchLightsSupport.isEnabled(), NotchLightsSupport.tracksLevelBars() {
+            NotchHaloController.shared.triggerLevelHUD(kind: .keyboardLight, level: Double(target), muted: false)
+        }
     }
 
     /// The slider's own begin and end events bracket a drag. A pause while
@@ -532,6 +535,9 @@ final class BrightnessService: ObservableObject {
         if target > 0 { lastKeyboardLightLevel = target }
         keyboardLightEnabled = target > 0
         showKeyboardLightNotice(target)
+        if NotchLightsSupport.isEnabled(), NotchLightsSupport.tracksLevelBars() {
+            NotchHaloController.shared.triggerLevelHUD(kind: .keyboardLight, level: Double(target), muted: false)
+        }
     }
 
     private func showKeyboardLightNotice(_ level: Float) {
@@ -805,7 +811,11 @@ final class BrightnessService: ObservableObject {
                        showOSD: Bool = false, smooth: Bool = false, announces: Bool = true) {
         guard value.isFinite else { return }
         let clamped = min(max(value, 0), 1)
+        NotchBrightnessObserver.shared.noteObservedBrightness(clamped)
         let shownInNotch = announces ? NotchService.shared.showBrightness(clamped) : false
+        if !shownInNotch, NotchLightsSupport.isEnabled(), NotchLightsSupport.tracksLevelBars() {
+            NotchHaloController.shared.triggerLevelHUD(kind: .brightness, level: clamped, muted: false)
+        }
         if let index = displays.firstIndex(where: { $0.id == id }),
            displays[index].brightness != clamped {
             displays[index].brightness = clamped

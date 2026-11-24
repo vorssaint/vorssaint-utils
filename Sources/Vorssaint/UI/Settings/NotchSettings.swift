@@ -661,6 +661,7 @@ struct NotchSettings: View {
                 switchRow("lock.display", locked.show, caption: locked.showHint, isOn: $lockScreen)
                 switchRow("speaker.wave.2", locked.sounds, caption: locked.soundsHint, isOn: $lockSounds)
             }
+            NotchLightsSettingsCard()
         }
     }
 
