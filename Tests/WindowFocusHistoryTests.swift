@@ -27,8 +27,12 @@ enum WindowFocusHistoryTests {
                "rapid A then B activation selects A next even when both AX reads are missing")
         expect(history.focus(11, for: a) && windows(history) == [20, 11, 30, 10],
                "a late AX response resolves A in place without displacing B")
+        expect(history.focusedWindowID(for: 1) == nil && history.focusedWindowID(for: 2) == nil,
+               "late focus from the previous app cannot identify the current shortcut's source")
         expect(history.focus(20, for: b) && windows(history) == [20, 11, 30, 10],
                "B resolving its window retains the unresolved activation of A")
+        expect(history.focusedWindowID(for: 2) == 20,
+               "the current activation reports its focused window before the inventory lists it")
         let againA = history.activate(1)!
         expect(!history.focus(10, for: a), "returning to the same PID does not accept its old request")
         expect(history.focus(11, for: againA) && windows(history) == [11, 20, 30, 10],

@@ -43,10 +43,10 @@ enum SwitcherRememberedSelectionTests {
         typealias NSWindow = OwnWindow
         typealias Permissions = SwitcherHoverSelectionTests.Permissions
 
-        struct Desktop {
+        final class Desktop {
             let notificationCenter = NotificationCenter()
             let windows: [NSWindow] = []
-            let frontmostApplication: NSRunningApplication? = nil
+            var frontmostApplication: NSRunningApplication?
         }
         static let desktop = Desktop()
 
@@ -90,10 +90,21 @@ enum SwitcherRememberedSelectionTests {
             func refreshUnobserved(in items: [SwitcherItem], accessibilityGranted: Bool) {}
             func stop() {}
         }
-        struct WindowUseTracker {
+        enum WindowActivator {
+            static var focus: [pid_t: CGWindowID] = [:]
+            static func focusedWindowID(for pid: pid_t) -> CGWindowID? { focus[pid] }
+        }
+        final class WindowUseTracker {
             static let shared = WindowUseTracker()
-            let windows: [CGWindowID] = []
-            func recordObservedFocus(windowID: CGWindowID, pid: pid_t) {}
+            var focus: [pid_t: CGWindowID] = [:]
+            private(set) var historyRevision = UUID()
+            var windows: [CGWindowID] { Tracker.shared.history }
+            func focusedWindowID(for pid: pid_t) -> CGWindowID? { focus[pid] }
+            func recordObservedFocus(windowID: CGWindowID, pid: pid_t) {
+                focus[pid] = windowID
+                historyRevision = UUID()
+                Tracker.shared.history = WindowUseOrder.promoting(windowID, in: windows)
+            }
         }
         enum WindowEnumerator {
             typealias WindowList = Enumerator.WindowList
@@ -106,7 +117,8 @@ enum SwitcherRememberedSelectionTests {
             }
             static func runningApplications() -> [Enumerator.AppSnapshot] { [] }
             static func snapshot(includingRunningApps: Bool) -> Snapshot {
-                .init(accessibilityGranted: false, runningApps: [], ownWindowTitles: [:], screenFrames: [], displayIDsByUUID: [:])
+                .init(accessibilityGranted: Permissions.shared.accessibility,
+                      runningApps: [], ownWindowTitles: [:], screenFrames: [], displayIDsByUUID: [:])
             }
             static func rememberSwitcherWindows(snapshot: Snapshot, filterPID: pid_t? = nil,
                                                 isCancelled: () -> Bool) -> WindowList {

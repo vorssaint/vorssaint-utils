@@ -70,6 +70,10 @@ final class WindowUseTracker {
 
     var historyRevision: UUID { stateLock.withLock { focusHistory.revision } }
 
+    func focusedWindowID(for pid: pid_t) -> CGWindowID? {
+        stateLock.withLock { focusHistory.focusedWindowID(for: pid) }
+    }
+
     func recordObservedFocus(windowID: CGWindowID, pid: pid_t) {
         stateLock.withLock {
             guard recording, let request = focusHistory.current, request.pid == pid,

@@ -16,11 +16,36 @@ struct SwitcherInventorySpaces {
 }
 
 final class SwitcherWindowInventory {
-    private struct EmptySelectionRefresh: Equatable {
+    private struct SourceFocus: Equatable {
+        let pid: pid_t
+        let windowID: CGWindowID?
+        let revision: UUID
+        let confirmed: Bool
+    }
+
+    private struct SelectionRefresh: Equatable {
         let generation: UInt64
         let isFollowup: Bool
         var discoveries: Set<CGWindowID>
+        let sourcePID: pid_t?
+        let previousFocus: SourceFocus?
+        let focusRevision: UUID
+        var focusedWindowID: CGWindowID?
         var completed = false
+
+        func resolveFocus(in items: [SwitcherItem]) -> CGWindowID? {
+            guard let sourcePID else { return nil }
+            if let id = focusedWindowID {
+                if let item = items.first(where: { $0.windowID == id }) {
+                    if item.pid == sourcePID || item.windowOwnerPID == sourcePID { return id }
+                } else if !isFollowup {
+                    // Keep the reported focus for the retry if the first scan still predates its window.
+                    return id
+                }
+            }
+            // Creation alone does not identify the focused window. This AX read runs on the inventory queue.
+            return WindowActivator.focusedWindowID(for: sourcePID)
+        }
     }
 
     private var remembered = WindowEnumerator.WindowList(items: [], sourceItems: [])
@@ -32,9 +57,12 @@ final class SwitcherWindowInventory {
     private var fallbackTimer: Timer?
     private var observesWindowEvents = false
     private var needsFullRefresh = false
-    private var emptySelectionRefresh: EmptySelectionRefresh?
+    private var selectionRefresh: SelectionRefresh?
     private var pendingPIDs: Set<pid_t> = []
     private var pendingWindowIDs: Set<CGWindowID> = []
+    // Owner discovery can finish before the new window or its focus reaches the inventory.
+    private var newWindowByApp: [pid_t: CGWindowID] = [:]
+    private var sourceFocus: SourceFocus?
     private var destroyedDuringRefresh: Set<CGWindowID> = []
     private var terminatedDuringRefresh: Set<pid_t> = []
     private let lifetimeLock = NSLock()
@@ -111,9 +139,11 @@ final class SwitcherWindowInventory {
         pendingRefresh = nil
         refreshInFlight = false
         needsFullRefresh = false
-        emptySelectionRefresh = nil
+        selectionRefresh = nil
         pendingPIDs = []
         pendingWindowIDs = []
+        newWindowByApp = [:]
+        sourceFocus = nil
         for observer in observers { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
         observers = []
         for observer in screenObservers { NotificationCenter.default.removeObserver(observer) }
@@ -136,36 +166,59 @@ final class SwitcherWindowInventory {
         displayScope: WindowEnumerator.DisplayScope?
     ) -> (list: WindowEnumerator.WindowList, focusedWindowID: CGWindowID?)? {
         // An older scan may publish while this shortcut's confirmation is queued.
-        if let request = emptySelectionRefresh, request.generation == generation, !request.completed { return nil }
+        let request = selectionRefresh.flatMap { $0.generation == generation ? $0 : nil }
+        if let request, !request.completed { return nil }
         let appPID = SwitcherSupport.appPID(forFrontmost: frontmostPID, items: remembered.items)
-        let focused = WindowUseTracker.shared.windows.first { id in
+        let tracker = WindowUseTracker.shared
+        let evidence = sourceFocus.flatMap {
+            $0.pid == frontmostPID && $0.revision == tracker.historyRevision ? $0 : nil
+        }
+        let reported = evidence?.windowID ?? tracker.focusedWindowID(for: frontmostPID)
+        let sourceID = request?.focusedWindowID ?? reported
+        func visibleSource(_ id: CGWindowID) -> Bool {
             remembered.items.contains { $0.windowID == id && $0.pid == appPID && $0.isOnScreen && !$0.isMinimized }
         }
+        let focused = sourceID.flatMap { visibleSource($0) ? $0 : nil } ?? tracker.windows.first(where: visibleSource)
         let list = SwitcherWindowSelection.select(
             remembered: remembered,
             scope: scope,
             frontmostPID: frontmostPID,
             focusedWindowID: focused,
             displayScope: displayScope)
-        if list.items.isEmpty, !confirmedEmptySelection(for: generation) { return nil }
-        emptySelectionRefresh = nil
+        let newWindow = newWindowByApp[appPID]
+        let missingFocus: CGWindowID? = sourceID.flatMap { id in remembered.items.contains { $0.windowID == id } ? nil : id }
+        let needsFocusCheck = missingFocus != nil && (request != nil || evidence?.confirmed != true)
+        let sourceMayBeMissing = !pendingWindowIDs.isEmpty || needsFocusCheck
+            || (newWindow != nil && newWindow != focused)
+        if list.items.isEmpty || sourceMayBeMissing {
+            guard confirmedSelection(for: generation, previous: request, sourcePID: sourceMayBeMissing ? frontmostPID : nil,
+                                     reportedFocus: missingFocus) else { return nil }
+        }
+        if let newWindow, newWindow == focused {
+            newWindowByApp.removeValue(forKey: appPID)
+        }
+        selectionRefresh = nil
         titles.refreshUnobserved(in: list.items, accessibilityGranted: Permissions.shared.accessibility)
         return (list, focused)
     }
 
-    private func confirmedEmptySelection(for generation: UInt64) -> Bool {
-        let isFollowup = emptySelectionRefresh?.generation == generation
-        if let request = emptySelectionRefresh, isFollowup {
+    private func confirmedSelection(for generation: UInt64, previous: SelectionRefresh?,
+                                    sourcePID: pid_t?, reportedFocus: CGWindowID?) -> Bool {
+        if let previous {
             // If a window event overtook the scan, include the work already known
             // at its return. Later background traffic cannot prolong this request.
-            if request.isFollowup || (pendingWindowIDs.isEmpty && pendingPIDs.isEmpty && !needsFullRefresh) {
+            let caughtUp = reportedFocus == nil && pendingWindowIDs.isEmpty && pendingPIDs.isEmpty && !needsFullRefresh
+            if previous.isFollowup || caughtUp {
                 return true
             }
         }
         // The shortcut can beat even the notification that introduces a new window.
-        let discoveries = isFollowup ? pendingWindowIDs : []
-        emptySelectionRefresh = EmptySelectionRefresh(generation: generation, isFollowup: isFollowup,
-                                                     discoveries: discoveries)
+        let discoveries = previous != nil ? pendingWindowIDs : []
+        selectionRefresh = SelectionRefresh(generation: generation, isFollowup: previous != nil,
+                                           discoveries: discoveries, sourcePID: sourcePID,
+                                           previousFocus: previous == nil ? sourceFocus : previous?.previousFocus,
+                                           focusRevision: previous?.focusRevision ?? WindowUseTracker.shared.historyRevision,
+                                           focusedWindowID: reportedFocus)
         if discoveries.isEmpty { invalidate() }
         return false
     }
@@ -218,14 +271,21 @@ final class SwitcherWindowInventory {
         let item = remembered.items.first { $0.windowID == windowID }
         switch event {
         case .focused:
-            if let item,
-               let frontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+            sourceFocus = nil
+            let frontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+            if let item, let frontPID,
                item.pid == frontPID || item.windowOwnerPID == frontPID {
                 WindowUseTracker.shared.recordObservedFocus(windowID: windowID, pid: frontPID)
             } else if item == nil {
+                if let frontPID {
+                    sourceFocus = SourceFocus(pid: frontPID, windowID: windowID,
+                                              revision: WindowUseTracker.shared.historyRevision, confirmed: false)
+                }
                 discover(windowID)
             }
         case .destroyed:
+            if sourceFocus?.windowID == windowID { sourceFocus = nil }
+            newWindowByApp = newWindowByApp.filter { $0.value != windowID }
             destroyedDuringRefresh.insert(windowID)
             remembered.items.removeAll { $0.windowID == windowID }
             remembered.observedWindowIDs.remove(windowID)
@@ -250,17 +310,21 @@ final class SwitcherWindowInventory {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.lifetime == generation else { return }
                 self.pendingWindowIDs.remove(windowID)
-                if self.emptySelectionRefresh?.discoveries.remove(windowID) != nil,
-                   self.emptySelectionRefresh?.discoveries.isEmpty == true {
+                if self.selectionRefresh?.discoveries.remove(windowID) != nil,
+                   self.selectionRefresh?.discoveries.isEmpty == true {
                     self.invalidate()
                 }
                 guard layer == 0, let owner, owner != ProcessInfo.processInfo.processIdentifier else { return }
+                let appPID = SwitcherSupport.appPID(forFrontmost: owner, items: self.remembered.items)
+                self.newWindowByApp[appPID] = windowID
                 self.invalidate(pid: regular ? owner : nil)
             }
         }
     }
 
     private func remove(pid: pid_t) {
+        newWindowByApp.removeValue(forKey: pid)
+        if sourceFocus?.pid == pid { sourceFocus = nil }
         terminatedDuringRefresh.insert(pid)
         let removed = remembered.items.filter { $0.pid == pid || $0.windowOwnerPID == pid }
         let affectedPIDs = Set(removed.map(\.pid))
@@ -279,8 +343,12 @@ final class SwitcherWindowInventory {
               needsFullRefresh || !pendingPIDs.isEmpty else { return }
         pendingRefresh = nil
         let spaceRevision = spaces.revision
-        let sessionRefresh = emptySelectionRefresh
         let pids = needsFullRefresh ? nil : pendingPIDs
+        let sessionRefresh = selectionRefresh.flatMap {
+            pids == nil && !$0.completed && $0.discoveries.isEmpty ? $0 : nil
+        }
+        let sourceApp = sessionRefresh?.sourcePID.map { SwitcherSupport.appPID(forFrontmost: $0, items: remembered.items) }
+        let newWindow = sourceApp.flatMap { newWindowByApp[$0] }
         needsFullRefresh = false
         pendingPIDs = []
         destroyedDuringRefresh = []
@@ -316,6 +384,7 @@ final class SwitcherWindowInventory {
             } else {
                 result = WindowEnumerator.rememberSwitcherWindows(snapshot: snapshot, isCancelled: isCancelled)
             }
+            let focus = sessionRefresh?.resolveFocus(in: result.items)
             DispatchQueue.main.async {
                 guard let self, !isCancelled() else { return }
                 self.refreshInFlight = false
@@ -323,9 +392,20 @@ final class SwitcherWindowInventory {
                     self.refresh()
                     return
                 }
-                if pids == nil, let sessionRefresh, sessionRefresh.discoveries.isEmpty,
-                   self.emptySelectionRefresh == sessionRefresh {
-                    self.emptySelectionRefresh?.completed = true
+                if let sessionRefresh, self.selectionRefresh == sessionRefresh {
+                    self.selectionRefresh?.completed = true
+                    self.selectionRefresh?.focusedWindowID = focus
+                    if let pid = sessionRefresh.sourcePID {
+                        let examinedFocus = focus == nil || result.items.contains { $0.windowID == focus }
+                        if (examinedFocus || sessionRefresh.isFollowup), self.sourceFocus == sessionRefresh.previousFocus,
+                           WindowUseTracker.shared.historyRevision == sessionRefresh.focusRevision {
+                            self.sourceFocus = SourceFocus(pid: pid, windowID: focus,
+                                                          revision: sessionRefresh.focusRevision, confirmed: true)
+                        }
+                        if let sourceApp, self.newWindowByApp[sourceApp] == newWindow {
+                            self.newWindowByApp.removeValue(forKey: sourceApp)
+                        }
+                    }
                 }
                 self.adopt(result, replacing: pids)
                 if self.needsFullRefresh || !self.pendingPIDs.isEmpty { self.invalidatePendingRefresh() }

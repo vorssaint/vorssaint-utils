@@ -22,6 +22,12 @@ struct WindowFocusHistory {
     private(set) var current: Request?
     private(set) var revision = UUID()
 
+    func focusedWindowID(for pid: pid_t) -> CGWindowID? {
+        guard let current, current.pid == pid,
+              case let .window(id, request)? = recent.first, request == current else { return nil }
+        return id
+    }
+
     mutating func activate(_ pid: pid_t, recording: Bool = true) -> Request? {
         if !recording, let current { invalidate(current.pid, keepingActivation: true) }
         invalidate(pid)
