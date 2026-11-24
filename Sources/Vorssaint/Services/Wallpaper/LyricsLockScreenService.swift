@@ -258,7 +258,7 @@ private struct LyricsLockScreenView: View {
             .mask(Self.band)
             .opacity(playing ? 1 : 0)
             .animation(.easeInOut(duration: 0.6), value: playing)
-            if let lyrics = service.lyrics, let playback = service.playback, !lyrics.lines.isEmpty, playback.hasPosition {
+            if !service.idleHidden, let lyrics = service.lyrics, let playback = service.playback, !lyrics.lines.isEmpty, playback.hasPosition {
                 if LyricsMode.from(style) == .constellation {
                     ConstellationLyricsView(lyrics: lyrics, playback: playback, offset: service.offset,
                                             compact: true, accent: accent)

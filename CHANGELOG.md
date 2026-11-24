@@ -30,10 +30,12 @@ All notable changes to this project are documented here. The format follows
 - Claude Code questions show on the island and stay answerable in the terminal; an answer picked on the island is typed into the terminal.
 - Lower memory and CPU use: windows made for a single use are closed and released, and the wallpaper and lyrics redraw less.
 - The converter's progress bar moves in real time.
+- Lyrics have depth in every style: a lit face, a short extrusion and a soft shadow. The Graph style loses the oval glow behind words and the ring around the active star.
 
 ### Fixed
 - The music wallpaper no longer flashes black several times when a song starts, and goes back to your own wallpaper after playback stops.
 - No permanent yellow glow on the lock screen.
+- Lyrics on the lock screen now go away with the desktop's when music has been paused for two minutes, and return when it plays.
 
 ## [3.4.4] - 2026-11-11
 

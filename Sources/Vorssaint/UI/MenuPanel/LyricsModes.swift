@@ -223,7 +223,7 @@ struct LyricsTextModeView: View {
             }
             Text(String(clock.text.prefix(typed)) + cursor)
                 .font(.system(size: unit * 0.6, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.white).multilineTextAlignment(.leading)
+                .foregroundStyle(lyricFace(.white)).lyricDepth(unit * 0.6).multilineTextAlignment(.leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
@@ -234,7 +234,7 @@ struct LyricsTextModeView: View {
         Text(clock.text.isEmpty ? "♪" : clock.text)
             .font(.system(size: unit * 2.6, weight: .heavy, design: .rounded))
             .minimumScaleFactor(0.2).lineLimit(5).multilineTextAlignment(.center)
-            .foregroundStyle(.white).shadow(color: accent.opacity(0.6), radius: 24)
+            .foregroundStyle(lyricFace(.white)).lyricDepth(unit * 2.6).shadow(color: accent.opacity(0.6), radius: 24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .id(clock.index)
             .transition(.asymmetric(insertion: .scale(scale: 0.88).combined(with: .opacity), removal: .opacity))
@@ -249,7 +249,9 @@ struct LyricsTextModeView: View {
                     let edge = clock.edges[index]
                     let fill = min(1, max(0, (clock.progress - edge.start) / max(0.0001, edge.end - edge.start)))
                     Text(word).font(.system(size: unit * 0.82, weight: .bold, design: .rounded))
-                        .foregroundStyle(fill >= 1 ? accent : (fill > 0 ? Color.white : Color.white.opacity(0.35)))
+                        .foregroundStyle(lyricFace(fill >= 1 ? accent : (fill > 0 ? Color.white : Color.white.opacity(0.35)),
+                                                   lift: fill > 0 ? 0.9 : 0.4))
+                        .lyricDepth(unit * 0.82, strength: fill > 0 ? 1 : 0.5)
                         .scaleEffect(fill > 0 && fill < 1 ? 1.08 : 1)
                 }
             }
@@ -273,7 +275,8 @@ struct LyricsTextModeView: View {
                 // Overshoots a little as it lands, then settles.
                 let scale = t <= 0 ? 0.001 : 0.45 + 0.55 * (1 - pow(1 - t, 3)) + 0.14 * sin(t * .pi)
                 Text(word).font(.system(size: unit * 0.98, weight: .heavy, design: .rounded))
-                    .foregroundStyle(latest ? accent : .white)
+                    .foregroundStyle(lyricFace(latest ? accent : .white))
+                    .lyricDepth(unit * 0.98)
                     .scaleEffect(scale).opacity(min(1, t * 3))
             }
         }
@@ -288,7 +291,9 @@ struct LyricsTextModeView: View {
             .font(.system(size: unit * 0.72, weight: .bold, design: .rounded))
             .multilineTextAlignment(.center).foregroundStyle(.black.opacity(0.88))
             .padding(.horizontal, unit * 0.55).padding(.vertical, unit * 0.34)
-            .background(RoundedRectangle(cornerRadius: unit * 0.38, style: .continuous).fill(.white.opacity(0.96)))
+            .background(RoundedRectangle(cornerRadius: unit * 0.38, style: .continuous)
+                .fill(LinearGradient(colors: [.white, .white.opacity(0.9)], startPoint: .top, endPoint: .bottom)))
+            .shadow(color: .black.opacity(0.35), radius: 0, x: unit * 0.03, y: unit * 0.07)
             .shadow(color: accent.opacity(0.5), radius: 26, y: 8)
             .padding(.horizontal, unit)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -307,7 +312,9 @@ struct LyricsTextModeView: View {
                 let text = lyrics.lines[index].text
                 Text(text.isEmpty ? "♪" : text)
                     .font(.system(size: unit * (distance == 0 ? 0.95 : 0.52), weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(distance == 0 ? 1 : max(0.12, 0.34 - Double(abs(distance) - 1) * 0.14)))
+                    .foregroundStyle(distance == 0 ? AnyShapeStyle(lyricFace(.white))
+                                     : AnyShapeStyle(Color.white.opacity(max(0.12, 0.34 - Double(abs(distance) - 1) * 0.14))))
+                    .lyricDepth(distance == 0 ? unit * 0.95 : 0, strength: distance == 0 ? 1 : 0)
                     .shadow(color: distance == 0 ? accent.opacity(0.7) : .clear, radius: 18)
                     .multilineTextAlignment(.center).lineLimit(2).padding(.horizontal, unit)
                     .offset(y: CGFloat(distance) * unit * 1.6)
@@ -315,5 +322,30 @@ struct LyricsTextModeView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+
+/// The face of a lyric: lit at the top, settling into its colour and a shade
+/// deeper at the base, so flat text reads as a raised surface.
+func lyricFace(_ base: Color, lift: Double = 0.9) -> LinearGradient {
+    LinearGradient(stops: [.init(color: .white.opacity(lift), location: 0),
+                           .init(color: base, location: 0.4),
+                           .init(color: base.opacity(0.8), location: 1)],
+                   startPoint: .top, endPoint: .bottom)
+}
+
+extension View {
+    /// Depth for lyric text: a two-step extrusion down and to the right, and a
+    /// soft shadow under it. `size` is the font size; zero strength draws none.
+    @ViewBuilder func lyricDepth(_ size: CGFloat, strength: Double = 1) -> some View {
+        if strength <= 0 {
+            self
+        } else {
+            self
+                .shadow(color: .black.opacity(0.5 * strength), radius: 0, x: size * 0.02, y: size * 0.03)
+                .shadow(color: .black.opacity(0.45 * strength), radius: 0, x: size * 0.04, y: size * 0.06)
+                .shadow(color: .black.opacity(0.4 * strength), radius: max(1, size * 0.12), x: 0, y: size * 0.08)
+        }
     }
 }

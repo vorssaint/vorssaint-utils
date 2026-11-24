@@ -113,22 +113,33 @@ struct ConstellationLyricsView: View {
             let color = e > 0.05 ? glow.opacity(0.55 + 0.45 * e) : soft.opacity(reached[i] ? 0.8 : 0.5)
             let anchor = CGPoint(x: points[i].x, y: points[i].y + size * 0.55)
             let text = Text(words[i]).font(.system(size: size, weight: .bold, design: .rounded)).foregroundColor(color)
-            if e > 0.3 {
-                // A cheap glow: a soft radial wash behind the word, no per-frame blur.
-                let width = size * Double(max(words[i].count, 2)) * 0.62, height = size * 1.5
-                let rect = CGRect(x: anchor.x - width / 2, y: anchor.y - height / 2, width: width, height: height)
-                gc.fill(Path(ellipseIn: rect), with: .radialGradient(
-                    Gradient(colors: [glow.opacity(0.35 * e * appear), .clear]),
-                    center: anchor, startRadius: 0, endRadius: width / 2))
-            }
             gc.opacity = appear
-            gc.draw(gc.resolve(text), at: anchor, anchor: .center)
+            var resolved = gc.resolve(text)
+            // Depth: a short extrusion of dark copies stepping down and right of the word.
+            let step = max(0.6, size * 0.022)
+            resolved.shading = .color(.black.opacity(0.5))
+            for layer in stride(from: 4, through: 1, by: -1) {
+                gc.draw(resolved, at: CGPoint(x: anchor.x + step * CGFloat(layer) * 0.5, y: anchor.y + step * CGFloat(layer)),
+                        anchor: .center)
+            }
+            // Texture: the face lights from the top and settles into the word's colour.
+            resolved.shading = .linearGradient(
+                Gradient(stops: [.init(color: .white.opacity(0.92), location: 0),
+                                 .init(color: color, location: 0.45),
+                                 .init(color: color, location: 1)]),
+                startPoint: CGPoint(x: anchor.x, y: anchor.y - size * 0.55),
+                endPoint: CGPoint(x: anchor.x, y: anchor.y + size * 0.55))
+            // Shadow: a soft one under the face, only on the words that stand out.
+            if e > 0.05 {
+                gc.drawLayer { layer in
+                    layer.addFilter(.shadow(color: .black.opacity(0.55 * e), radius: size * 0.12, x: 0, y: size * 0.06))
+                    layer.draw(resolved, at: anchor, anchor: .center)
+                }
+            } else {
+                gc.draw(resolved, at: anchor, anchor: .center)
+            }
             gc.opacity = 1
             star(&gc, at: points[i], radius: (6 + 10 * e) * scale, color: e > 0.05 ? glow : soft, alpha: appear)
-            if e > 0.6 {
-                let halo = Path(ellipseIn: CGRect(x: points[i].x - 26 * scale, y: points[i].y - 26 * scale, width: 52 * scale, height: 52 * scale))
-                gc.stroke(halo, with: .color(glow.opacity(0.7 * e * appear)), lineWidth: 1.6)
-            }
         }
     }
 

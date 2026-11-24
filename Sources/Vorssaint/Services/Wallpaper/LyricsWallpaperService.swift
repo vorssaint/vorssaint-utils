@@ -70,7 +70,8 @@ final class LyricsWallpaperService: ObservableObject {
     /// How long music may stay paused before the wallpaper goes, so a still screen is not kept animating for nothing.
     private static let idleLimit: TimeInterval = 120
     private var idleWork: DispatchWorkItem?
-    private var idleHidden = false
+    /// Paused past the limit: the desktop and the lock screen both drop their lyrics until the music moves.
+    @Published private(set) var idleHidden = false
     /// When the music last stopped moving. Kept through dropouts in the player's
     /// feed and rebuilt windows, so a pause is timed from when it really began.
     private var pausedSince: Date?

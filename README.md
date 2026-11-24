@@ -90,7 +90,7 @@ While a song plays, the desktop shows the album cover in full quality with its o
 - **Starts with the app and asks first.** A dialog on first launch asks before song titles are sent to lyric services. Declining turns the wallpaper off.
 - **Timing.** Catalogs time whole lines, so each word's moment inside a line is estimated. Nudge the offset in 0.25 second steps if a song runs early or late.
 
-Two switches control it in the music settings. **Song wallpaper** puts the cover behind your icons. **Show lyrics** draws the lyrics, over your own wallpaper when Song wallpaper is off. It follows Spotify only. Other players, Netflix and videos leave the desktop alone, and your own wallpaper comes back when the music stops.
+Two switches control it in the music settings. **Song wallpaper** puts the cover behind your icons. **Show lyrics** draws the lyrics, over your own wallpaper when Song wallpaper is off. It follows Spotify only. Other players, Netflix and videos leave the desktop alone, and your own wallpaper comes back when the music stops. After two minutes paused, the lyrics leave the lock screen too, and return when the music plays.
 
 ### Dynamic Island additions
 

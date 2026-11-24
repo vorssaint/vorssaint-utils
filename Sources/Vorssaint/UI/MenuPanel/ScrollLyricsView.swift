@@ -27,10 +27,13 @@ struct ScrollLyricsView: View {
                         Color.clear.frame(height: proxy.size.height * 0.4)
                         ForEach(Array(lyrics.lines.enumerated()), id: \.offset) { index, line in
                             let distance = active.map { abs(index - $0) } ?? 99
+                            let fontSize = (index == active ? 46 : 34) * (compact ? 0.55 : 1)
                             Text(line.text.isEmpty ? "♪" : line.text)
-                                .font(.system(size: (index == active ? 46 : 34) * (compact ? 0.55 : 1), weight: .bold))
+                                .font(.system(size: fontSize, weight: .bold))
                                 .multilineTextAlignment(compact ? .center : .leading)
-                                .foregroundStyle(.white.opacity(index == active ? 1 : max(0.16, 0.55 - Double(distance) * 0.13)))
+                                .foregroundStyle(index == active ? AnyShapeStyle(lyricFace(.white))
+                                                 : AnyShapeStyle(Color.white.opacity(max(0.16, 0.55 - Double(distance) * 0.13))))
+                                .lyricDepth(fontSize, strength: index == active ? 1 : 0)
                                 .frame(maxWidth: .infinity, alignment: compact ? .center : .leading)
                                 .id(index)
                         }
