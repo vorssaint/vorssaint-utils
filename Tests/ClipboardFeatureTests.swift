@@ -13,11 +13,21 @@ import SwiftUI
 import VMStatisticsCompat
 
 enum ClipboardFeatureTests {
-    /// Runs the production placement of the history window on a panel that is
-    /// never shown, against a fixed screen and defaults of its own.
+    /// Runs the production placement and geometry observers on panels that
+    /// are never shown, with simulated visibility, screens and user events.
     final class PanelPlacementHost {
-        enum Screen {
+        struct Screen {
             static let pointerVisibleFrame = CGRect(x: 0, y: 25, width: 1512, height: 920)
+            static var screens = [Screen(visibleFrame: pointerVisibleFrame)]
+            let visibleFrame: CGRect
+        }
+        final class Panel: NSPanel {
+            var shown = false
+            override var isVisible: Bool { shown }
+            override var screen: AppKit.NSScreen? { nil }
+            override func constrainFrameRect(_ frameRect: NSRect, to screen: AppKit.NSScreen?) -> NSRect {
+                frameRect
+            }
         }
         typealias NSScreen = Screen
         enum UserDefaults {
@@ -26,6 +36,14 @@ enum ClipboardFeatureTests {
         }
         var quickLayout = ClipboardHistoryLayout.cards
         var quickPreviewPresented = false
+        var adjustingPanelFrame = false
+        var panelResizeObserver: NSObjectProtocol?
+        var panelMoveObserver: NSObjectProtocol?
+
+        deinit {
+            if let panelResizeObserver { NotificationCenter.default.removeObserver(panelResizeObserver) }
+            if let panelMoveObserver { NotificationCenter.default.removeObserver(panelMoveObserver) }
+        }
     }
 
     /// Runs the production `pasteIntoPreviousApp` with a target app, the
@@ -33,7 +51,11 @@ enum ClipboardFeatureTests {
     final class QuickPasteHost {
         final class App {
             let isTerminated: Bool
-            init(isTerminated: Bool) { self.isTerminated = isTerminated }
+            let bundleIdentifier: String?
+            init(isTerminated: Bool, bundleIdentifier: String? = "com.example.writer") {
+                self.isTerminated = isTerminated
+                self.bundleIdentifier = bundleIdentifier
+            }
             func activate(options: [Int]) { host?.events.append("activate") }
         }
         typealias NSRunningApplication = App
@@ -85,9 +107,147 @@ enum ClipboardFeatureTests {
         static let rules = URLCleaning.Rules.none
     }
 
+    private static func panelGeometryPersistence(_ suite: TestSuite) {
+        let defaults = PanelPlacementHost.UserDefaults.standard
+        let screen = PanelPlacementHost.Screen.pointerVisibleFrame
+        let screens = PanelPlacementHost.Screen.screens
+        defaults.removePersistentDomain(forName: PanelPlacementHost.UserDefaults.name)
+        defer {
+            defaults.removePersistentDomain(forName: PanelPlacementHost.UserDefaults.name)
+            PanelPlacementHost.Screen.screens = screens
+        }
+        let host = PanelPlacementHost()
+        let panel = PanelPlacementHost.Panel(contentRect: .zero,
+            styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
+            backing: .buffered, defer: true)
+        panel.isReleasedWhenClosed = false
+        defer {
+            panel.shown = false
+            panel.close()
+        }
+        host.quickLayout = .list
+        host.observePanelGeometry(panel)
+
+        func notify(_ name: Notification.Name) {
+            NotificationCenter.default.post(name: name, object: panel)
+        }
+        func savedFrame() -> NSRect {
+            NSRect(x: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowX),
+                   y: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowY),
+                   width: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowWidth),
+                   height: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowHeight))
+        }
+        func reopen() {
+            panel.shown = false
+            host.position(panel)
+            panel.shown = true
+        }
+        func finishResize(to frame: NSRect) {
+            // Stage the final frame without a move callback. Only the real
+            // live-resize observer may persist it, as on a left/bottom resize.
+            panel.shown = false
+            panel.setFrame(frame, display: false)
+            panel.shown = true
+            notify(NSWindow.didEndLiveResizeNotification)
+        }
+
+        finishResize(to: NSRect(x: 300, y: 300, width: 700, height: 500))
+        panel.setFrameOrigin(NSPoint(x: 350, y: 300))
+        notify(NSWindow.didMoveNotification)
+        reopen()
+        suite.expect(panel.frame == NSRect(x: 350, y: 300, width: 700, height: 500),
+                     "a user move is saved by the production observer and restored on reopening")
+        for (edge, frame) in [
+            ("left", NSRect(x: 300, y: 300, width: 750, height: 500)),
+            ("bottom", NSRect(x: 300, y: 250, width: 750, height: 550)),
+            ("bottom left", NSRect(x: 250, y: 200, width: 800, height: 600)),
+        ] {
+            finishResize(to: frame)
+            suite.expect(savedFrame() == frame,
+                         "finishing a \(edge) resize saves the new origin along with its size")
+            reopen()
+            suite.expect(panel.frame == frame,
+                         "closing and reopening after a \(edge) resize preserves the whole frame")
+        }
+
+        let compact = savedFrame()
+        host.adjustingPanelFrame = true
+        panel.setFrame(NSRect(x: 100, y: 150, width: 900, height: 650), display: false)
+        notify(NSWindow.didMoveNotification)
+        notify(NSWindow.didEndLiveResizeNotification)
+        host.adjustingPanelFrame = false
+        suite.expect(savedFrame() == compact,
+                     "automatic frame changes cannot overwrite either chosen position or size")
+        host.position(panel)
+        suite.expect(savedFrame() == compact && !host.adjustingPanelFrame,
+                     "automatic placement retains the saved frame and releases its guard")
+
+        host.quickPreviewPresented = true
+        host.resize(panel, to: host.preferredPanelSize(visibleFrame: screen),
+                    around: panel.frame, animated: false)
+        suite.expect(savedFrame() == compact && !host.adjustingPanelFrame,
+                     "opening the preview does not save its automatic enlargement or movement")
+        let previewFrame = NSRect(x: 80, y: 140, width: 1100, height: 700)
+        finishResize(to: previewFrame)
+        suite.expect(savedFrame() == NSRect(x: 80, y: 140, width: 820, height: 620),
+                     "a user resize with preview saves its actual origin and compact dimensions")
+        reopen()
+        suite.expect(panel.frame == previewFrame,
+                     "reopening with preview restores the final user resize without adding its size twice")
+        let chosen = savedFrame()
+        host.quickPreviewPresented = false
+        host.resize(panel, to: host.preferredPanelSize(visibleFrame: screen),
+                    around: panel.frame, animated: false)
+        suite.expect(savedFrame() == chosen,
+                     "closing the preview does not replace the chosen geometry")
+        host.quickLayout = .cards
+        host.position(panel)
+        panel.setFrameOrigin(NSPoint(x: 25, y: 50))
+        notify(NSWindow.didMoveNotification)
+        notify(NSWindow.didEndLiveResizeNotification)
+        suite.expect(savedFrame() == chosen,
+                     "card placement, movement and resize notifications leave the list geometry intact")
+        host.quickLayout = .list
+        reopen()
+        suite.expect(panel.frame == chosen, "returning from the cards restores the list's chosen frame")
+
+        panel.shown = false
+        panel.setFrame(NSRect(x: 150, y: 150, width: 900, height: 700), display: false)
+        notify(NSWindow.didMoveNotification)
+        notify(NSWindow.didEndLiveResizeNotification)
+        suite.expect(savedFrame() == chosen, "hidden panel callbacks cannot replace the chosen geometry")
+        reopen()
+        suite.expect(panel.frame == chosen, "reopening ignores movements of the hidden panel")
+
+        let otherScreen = NSRect(x: -1440, y: 0, width: 1440, height: 900)
+        PanelPlacementHost.Screen.screens.append(.init(visibleFrame: otherScreen))
+        panel.setFrameOrigin(NSPoint(x: -1100, y: 180))
+        notify(NSWindow.didMoveNotification)
+        let otherFrame = savedFrame()
+        reopen()
+        suite.expect(panel.frame == otherFrame && otherScreen.contains(panel.frame),
+                     "a saved move restores on the other display while the pointer stays on the first")
+        PanelPlacementHost.Screen.screens = screens
+        reopen()
+        let fallback = panel.frame
+        suite.expect(screen.contains(fallback) && abs(fallback.midX - screen.midX) < 1
+                     && savedFrame() == otherFrame,
+                     "disconnecting the saved display falls back without replacing the user's position")
+        for invalid in [Double.infinity, -Double.infinity, Double.nan] {
+            defaults.set(invalid, forKey: DefaultsKey.clipboardHistoryWindowX)
+            reopen()
+            suite.expect(panel.frame == fallback, "a non-finite saved origin uses the default placement")
+        }
+        defaults.set(200.0, forKey: DefaultsKey.clipboardHistoryWindowX)
+        defaults.removeObject(forKey: DefaultsKey.clipboardHistoryWindowY)
+        reopen()
+        suite.expect(panel.frame == fallback, "a partially saved origin uses the default placement")
+    }
+
     static func run(_ suite: TestSuite) {
         ClipboardSensitiveTextPreferenceTests.run(suite)
         ClipboardPreviewContract.run(suite)
+        ClipboardCaptureRestoreTests.run(suite)
         let source = SourceHost()
         func sourceCheck(declared: String? = nil, remote: Bool = false,
                          panelIsKey: Bool = false, panelClosing: Bool = false)
@@ -186,6 +346,7 @@ enum ClipboardFeatureTests {
                      && cleanerBoard.string(forType: .string) == "https://example.com/path?id=42"
                      && cleanerBoard.string(forType: .source) == nil,
                      "a rewritten copy that named no app gains no mark, so the app that copied it is still credited")
+        URLCleanerMetadataTests.run(suite)
         cleanerBoard.releaseGlobally()
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
@@ -418,6 +579,19 @@ enum ClipboardFeatureTests {
         let initialFoldCount = searchCache.foldCount
         suite.expect(initialFoldCount == testEntries.count, "first search folds every entry exactly once")
 
+        // Golden: a text inside the index limit folds into exactly the
+        // candidate a fresh fold produces, so the rankings compared below are
+        // the naive ones rather than merely similar.
+        let naiveInitialCandidates = testEntries.enumerated().map { index, entry in
+            ClipboardHistorySearchCandidate(index: index,
+                                            text: entry.searchableText(imageLabel: "Image"),
+                                            isPinned: entry.isPinned)
+        }
+        suite.expect(initialCandidates == naiveInitialCandidates,
+                     "a short corpus produces the same candidates as a fresh fold")
+        suite.expect(initialCandidates.allSatisfy { !$0.isIndexTruncated && $0.words != nil },
+                     "every text within the index limit keeps its whole word set")
+
         let testQueries = ["deploy", "dep", "clean", "joao", "сервер", "istanbul", "exact", "missing", ""]
         for q in testQueries {
             let nextCandidates = searchCache.candidates(for: testEntries, stamp: 1, imageLabel: "Image")
@@ -463,7 +637,8 @@ enum ClipboardFeatureTests {
         suite.expect(searchCache.isCached(id: editedID), "edited entry re-folded during next search")
         suite.expect(searchCache.foldCount == foldsAfterAppend + 1, "only the edited entry refolds")
         suite.expect(editedCandidates[0].normalizedText.contains("refactored"), "candidate normalizedText updated after text edit")
-        suite.expect(editedCandidates[0].words.contains("refactored"), "candidate words set updated after text edit")
+        suite.expect(editedCandidates[0].words?.contains("refactored") == true,
+                     "candidate words set updated after text edit")
         let editedRanked = ClipboardHistorySearch.rankedIndexes(candidates: editedCandidates, matching: "refactored")
         suite.expect(editedRanked == [0], "search finds edited text")
 
@@ -533,8 +708,13 @@ enum ClipboardFeatureTests {
         let foldsBeforeSwap = searchCache.foldCount
         testEntries.swapAt(0, 1)
         let swappedCandidates = searchCache.candidates(for: testEntries, stamp: 9, imageLabel: "Image")
-        suite.expect(swappedCandidates[0].text == testEntries[0].text, "candidate 0 reflects swapped entry")
-        suite.expect(swappedCandidates[1].text == testEntries[1].text, "candidate 1 reflects swapped entry")
+        suite.expect(swappedCandidates[0].index == 0 && swappedCandidates[1].index == 1,
+                     "candidate 0 reflects swapped entry")
+        suite.expect(swappedCandidates[0].normalizedText
+                     == ClipboardHistorySearch.normalized(testEntries[0].text)
+                     && swappedCandidates[1].normalizedText
+                     == ClipboardHistorySearch.normalized(testEntries[1].text),
+                     "candidate 1 reflects swapped entry")
         suite.expect(searchCache.cachedEntryCount == testEntries.count, "folded texts reused during swap")
         suite.expect(searchCache.foldCount == foldsBeforeSwap, "reordering entries refolds nothing")
 
@@ -577,6 +757,69 @@ enum ClipboardFeatureTests {
                 suite.expect(matches.first == 42, "finds target entry among 100 long entries")
             }
         }
+
+        // A saved document is indexed only as far as `indexCharacters`, so the
+        // cache stays small however long the entry is. The rest of the text is
+        // left to the deferred pass.
+        let longChunk = "Серверная конфигурация nginx и логи приложения. "
+        let deepMarker = "уникальныймаркервглубинедокумента"
+        var longText = String(repeating: longChunk, count: 3_600)
+        let deepOffset = longText.count
+        longText += deepMarker
+        longText += String(repeating: longChunk, count: 3_600)
+        suite.expect(longText.utf8.count > 300_000 && deepOffset > 100_000,
+                     "the long fixture is a 300 KB document whose marker sits far past the index limit")
+        let longEntry = ClipboardHistoryEntry(text: longText)
+        var longCache = ClipboardHistorySearchCache()
+        let longCandidates = longCache.candidates(for: [longEntry], stamp: 1, imageLabel: "Image")
+        suite.expect(longCache.cachedEntryCount == 1 && longCandidates.count == 1,
+                     "a long entry is cached like any other")
+        suite.expect(longCandidates[0].isIndexTruncated && longCandidates[0].words == nil,
+                     "a long entry is marked truncated and keeps no word set")
+        suite.expect(longCandidates[0].normalizedText.count <= ClipboardHistoryEntry.indexCharacters,
+                     "the folded index text stops at the index limit")
+        suite.expect(ClipboardHistorySearch.rankedIndexes(candidates: longCandidates,
+                                                          matching: "nginx") == [0],
+                     "a match in the indexed opening of a long entry is found at once")
+        suite.expect(ClipboardHistorySearch.rankedIndexes(candidates: longCandidates,
+                                                          matching: deepMarker) == [],
+                     "a match past the index limit is left to the deferred pass")
+        suite.expect(ClipboardHistorySearch.matches(longText, query: deepMarker),
+                     "the deferred pass reads the same deep match in the full text")
+        _ = longCache.candidates(for: [longEntry], stamp: 2, imageLabel: "Image")
+        suite.expect(longCache.foldCount == 1 && longCache.cachedEntryCount == 1,
+                     "a repeat request reuses the long entry's single fold")
+
+        // The limit counts grapheme clusters: a cut inside a decomposed or
+        // composed Character would break the text it indexes.
+        let multilingual = String(repeating: "あ", count: 1500) + " term"
+        let multilingualCandidate = ClipboardHistorySearchCandidate(index: 0, text: multilingual, isPinned: false)
+        suite.expect(!multilingualCandidate.isIndexTruncated && multilingualCandidate.words?.contains("term") == true,
+                     "short multibyte text keeps its word boundaries after passing 4096 bytes")
+        let cut = ClipboardHistorySearchCandidate(index: 0, text: "term      remainder", isPinned: false, limit: 10)
+        let exact = ClipboardHistorySearchCandidate(index: 1, text: "term", isPinned: false)
+        suite.expect(ClipboardHistorySearch.rankedIndexes(candidates: [cut, exact], matching: "term") == [1, 0],
+                     "a trimmed prefix does not take the exact match bonus from a complete entry")
+        let padding = String(repeating: "z", count: 4200)
+        let rankCases: [(texts: [String], pinned: Int?, query: String, order: [Int])] = [
+            ([padding + " xneedlez", "a xneedlez"], 0, "needle", [0, 1]),
+            (["a xneedlez", "a needle " + padding], nil, "needle", [1, 0]),
+            ([padding + " alpha zz beta", padding + " alpha beta"], nil, "alpha beta", [1, 0])
+        ]
+        for example in rankCases {
+            let candidates = example.texts.enumerated().map {
+                ClipboardHistorySearchCandidate(index: $0.offset, text: $0.element, isPinned: $0.offset == example.pinned)
+            }
+            let complete = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: example.query,
+                                                                completeText: { example.texts[$0] })
+            suite.expect(complete == example.order, "deep results preserve pin, word and contiguous phrase ranking")
+        }
+        let clusterText = String(repeating: "a👨‍👩‍👧‍👦", count: 3_000)
+        let clusterIndex = ClipboardHistoryEntry.indexedText(clusterText).text
+        suite.expect(clusterIndex.count == ClipboardHistoryEntry.indexCharacters
+                     && clusterIndex.unicodeScalars.count > ClipboardHistoryEntry.indexCharacters
+                     && clusterText.hasPrefix(clusterIndex),
+                     "the index cut keeps every Character whole")
 
         // MARK: Clipboard history color swatches
 
@@ -663,6 +906,9 @@ enum ClipboardFeatureTests {
                "auto clear starts at twenty seconds")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryQuickPreview] as? Bool == false,
                "clipboard history quick preview is closed by default")
+
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryShowSourceAppIcons] as? Bool == false,
+                     "source app icons are opt-in, preserving the existing list by default")
 
         // MARK: Clipboard history layout
 
@@ -752,6 +998,47 @@ enum ClipboardFeatureTests {
         placement.position(placementPanel)
         suite.expect(placementPanel.frame.size == NSSize(width: 700, height: 500),
                "the list reopens at the size the user gave it")
+        placementDefaults.set(100.0, forKey: DefaultsKey.clipboardHistoryWindowX)
+        placementDefaults.set(200.0, forKey: DefaultsKey.clipboardHistoryWindowY)
+        placement.position(placementPanel)
+        suite.expect(placementPanel.frame == NSRect(x: 100, y: 200, width: 700, height: 500),
+               "reopening the list reads its saved coordinates and restores its frame")
+        placement.quickLayout = .cards
+        placement.position(placementPanel)
+        suite.expect(placementPanel.frame.minX == placementScreen.minX + 16
+                     && placementPanel.frame.minY == placementScreen.minY + 8,
+               "saved list coordinates do not move the card shelf")
+        placement.quickLayout = .list
+        placementDefaults.removeObject(forKey: DefaultsKey.clipboardHistoryWindowX)
+        placementDefaults.removeObject(forKey: DefaultsKey.clipboardHistoryWindowY)
+        let otherDisplay = NSRect(x: -1440, y: 0, width: 1440, height: 900)
+        let savedOrigin = NSPoint(x: -1100, y: 180)
+        let restored = ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: savedOrigin, visibleFrames: [placementScreen, otherDisplay],
+            size: { ClipboardHistoryWindowSizing.contentSize(preview: false,
+                        savedWidth: 700, savedHeight: 500, visibleFrame: $0) })
+        suite.expect(restored == NSRect(origin: savedOrigin, size: NSSize(width: 700, height: 500)),
+               "a list reopens on its chosen display even when the pointer is elsewhere")
+        suite.expect(ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: placementScreen.origin, visibleFrames: [placementScreen],
+            size: { _ in compactSize }) == NSRect(origin: placementScreen.origin, size: compactSize),
+               "a chosen position against the display edges is retained")
+        suite.expect(ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: NSPoint(x: -20, y: 180), visibleFrames: [placementScreen],
+            size: { _ in compactSize }) == NSRect(x: 0, y: 180, width: 560, height: 420),
+               "a partly offscreen window stays on its display with its frame brought into view")
+        suite.expect(ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: savedOrigin, visibleFrames: [placementScreen], size: { _ in compactSize }) == nil
+            && ClipboardHistoryWindowPlacement.restoredFrame(
+                origin: NSPoint(x: CGFloat.infinity, y: 100), visibleFrames: [placementScreen],
+                size: { _ in compactSize }) == nil,
+               "a disconnected display or invalid position uses the default placement")
+        suite.expect(ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: NSPoint(x: 600, y: 180), visibleFrames: [placementScreen],
+            size: { ClipboardHistoryWindowSizing.contentSize(preview: true,
+                        savedWidth: 700, savedHeight: 500, visibleFrame: $0) })
+                == NSRect(x: 532, y: 180, width: 980, height: 580),
+               "preview expansion keeps the chosen display and brings the larger window into view")
         placement.quickPreviewPresented = true
         placement.position(placementPanel)
         suite.expect(placementPanel.frame.size == NSSize(width: 980, height: 580),
@@ -797,6 +1084,7 @@ enum ClipboardFeatureTests {
         placement.refreshQuickLayout()
         suite.expect(placement.quickLayout == .cards, "an opening after choosing the cards shows the cards")
         placementDefaults.removePersistentDomain(forName: PanelPlacementHost.UserDefaults.name)
+        panelGeometryPersistence(suite)
 
         // MARK: Clipboard history arrow keys
 
@@ -949,6 +1237,10 @@ enum ClipboardFeatureTests {
                    && !clipboardStrings.historyLayoutList.isEmpty
                    && clipboardStrings.historyLayoutCards != clipboardStrings.historyLayoutList,
                    "\(language.rawValue) clipboard history layout choice is localized")
+            suite.expect(!clipboardStrings.showSourceAppIconsInList.isEmpty
+                         && (language == .enUS || clipboardStrings.showSourceAppIconsInList
+                             != FeatureStrings.clipboard(.enUS).showSourceAppIconsInList),
+                         "\(language.rawValue) source app icons setting is localized")
             let layoutStrings = FeatureStrings.windowLayout(language)
             suite.expect(!layoutStrings.sixths.isEmpty
                    && !layoutStrings.topLeftSixth.isEmpty
@@ -984,7 +1276,7 @@ enum ClipboardFeatureTests {
             expectFormat(alertStrings.cpuBodyFormat, ["d"], "\(language.rawValue) CPU alert format")
             expectFormat(alertStrings.cpuTemperatureBodyFormat, ["@"],
                          "\(language.rawValue) CPU temperature alert format")
-            expectFormat(alertStrings.diskBodyFormat, ["@", "d"], "\(language.rawValue) disk alert format")
+            expectFormat(alertStrings.diskBodyFormat, ["@", "@"], "\(language.rawValue) disk alert format")
             expectFormat(alertStrings.batteryBodyFormat, ["d"], "\(language.rawValue) battery alert format")
             expectFormat(alertStrings.batteryTemperatureBodyFormat, ["@"],
                          "\(language.rawValue) battery temperature alert format")
@@ -1278,6 +1570,24 @@ enum ClipboardFeatureTests {
         } else {
             suite.expect(false, "clipboard legacy history decodes")
         }
+        // The search index is derived at runtime: an entry saves no index of
+        // its own, so an older build reads the file exactly as it wrote it.
+        let longSavedText = String(repeating: "строка документации\n", count: 400)
+        if let encoded = try? JSONEncoder().encode([ClipboardHistoryEntry(text: longSavedText)]),
+           let rows = try? JSONSerialization.jsonObject(with: encoded) as? [[String: Any]] {
+            suite.expect(rows.count == 1
+                         && Set(rows[0].keys) == ["id", "text", "copiedAt", "kind", "filePaths"],
+                         "a saved history entry carries no search index key")
+        } else {
+            suite.expect(false, "clipboard entry encodes to JSON")
+        }
+        if let encoded = try? JSONEncoder().encode([ClipboardHistoryEntry(text: longSavedText)]),
+           let decoded = try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: encoded) {
+            suite.expect(decoded.first?.text == longSavedText,
+                         "the whole text of a long entry survives a save and load")
+        } else {
+            suite.expect(false, "a long clipboard entry round-trips")
+        }
         var editedTextEntry = ClipboardHistoryEntry(text: "before", pinnedAt: Date(timeIntervalSince1970: 42))
         editedTextEntry.sourceBundleID = "com.apple.TextEdit"
         editedTextEntry.text = ClipboardHistoryEditing.storableText("after") ?? editedTextEntry.text
@@ -1365,6 +1675,15 @@ enum ClipboardFeatureTests {
                                                                  plainText: "/tmp/example.txt") ?? "",
                     "/tmp/example.txt",
                     "clipboard history ignores non-web URL pasteboard types")
+        suite.expect(ClipboardHistoryPasteboardText.containsHTMLCells(
+                        "<TABLE class='sheet'><TR><TH>total</TH></TR></TABLE>"),
+                     "cell markup may include attributes and a single header cell")
+        for html in ["<p>chart</p>", "<table></table>",
+                     "<table-view><tr><td>chart</td></tr></table-view>",
+                     "<table><tr><td><img src='chart.png'></td></tr></table>"] {
+            suite.expect(!ClipboardHistoryPasteboardText.containsHTMLCells(html),
+                         "rich content and pictures in layout tables keep their image")
+        }
         suite.expect(!ClipboardHistorySensitiveText.looksSensitive("http://localhost:3000/page"),
                "clipboard history does not treat normal web URLs as secrets")
         suite.expect(ClipboardHistorySensitiveText.looksSensitive("https://example.com/callback?token=abc"),
@@ -1457,6 +1776,15 @@ enum ClipboardFeatureTests {
         expectEqual(ClipboardHistorySensitiveText.concealedPasteboardType,
                     "org.nspasteboard.ConcealedType",
                     "the secret mark keeps the exact name the apps that write it use")
+        // A dictation app marks the text it pastes and then takes back.
+        suite.expect(ClipboardHistorySensitiveText.isTransient(["public.utf8-plain-text",
+                                                          "org.nspasteboard.TransientType"]),
+               "clipboard history leaves out content its app is about to take back")
+        suite.expect(ClipboardHistorySensitiveText.isTransient(["org.nspasteboard.AutoGeneratedType"]),
+               "clipboard history leaves out content an app made up rather than copied")
+        suite.expect(!ClipboardHistorySensitiveText.isTransient(["public.utf8-plain-text",
+                                                           "NSStringPboardType"]),
+               "ordinary copied text is not a paste about to be taken back")
 
         // MARK: Separated link copies
 
@@ -1609,6 +1937,16 @@ enum ClipboardFeatureTests {
             suite.expect(host.events == expected,
                    "quick paste beeps or asks for Accessibility when it cannot paste, found \(host.events)")
         }
+        for bundleID in ["com.microsoft.rdc.macos", "com.microsoft.rdc.mac"] {
+            let host = QuickPasteHost()
+            host.pasteIntoPreviousApp(QuickPasteHost.App(isTerminated: false, bundleIdentifier: bundleID))
+            suite.expect(host.events == ["activate"],
+                   "quick paste into a remote desktop session leaves the pick on the clipboard, found \(host.events)")
+        }
+        let unnamed = QuickPasteHost()
+        unnamed.pasteIntoPreviousApp(QuickPasteHost.App(isTerminated: false, bundleIdentifier: nil))
+        suite.expect(unnamed.events == ["activate", "paste"],
+               "quick paste still pastes into an app without a bundle identifier, found \(unnamed.events)")
         for trusted in [true, false] {
             let host = QuickPasteHost()
             host.trusted = trusted
@@ -1623,13 +1961,29 @@ enum ClipboardFeatureTests {
 /// History mutations run their production observer without touching the system
 /// pasteboard. A saved-text edit must not claim that the clipboard changed.
 enum ClipboardPreviewContract {
+    class CommandSearchFixture {
+        typealias ClipboardHistoryService = Service
+        weak var searchedClipboardHistory: Service?
+        var clipboardHistoryChanges: AnyCancellable?
+        enum Mode { case search }
+        enum Source { case clipboard }
+        let mode = Mode.search
+        let activeCategory: Source? = nil
+        var isVisible = true
+        var enabled = true
+        func isEnabled(_ source: Source) -> Bool { enabled }
+        var render: () -> Void = {}
+        func refreshResults() { render() }
+    }
+
     class Fixture {
         func pruneQuickBatchSelection() {}
         var latestPasteboardEntry: ClipboardHistoryEntry?
         var entriesStamp = 0
         var searchCache = ClipboardHistorySearchCache()
-        var filterCache: (query: String, stamp: Int, imageLabel: String,
-                          result: [ClipboardHistoryEntry])?
+        var filterCache: [ClipboardHistorySearchSurface: ClipboardHistorySearchResults] = [:]
+        var deferredSearchWork: [ClipboardHistorySearchSurface: Task<Void, Never>] = [:]
+        let objectWillChange = PassthroughSubject<Void, Never>()
         var pendingWrite: ((Bool) -> Void)?
         func writeToPasteboard(_ list: [ClipboardHistoryEntry], completion: @escaping (Bool) -> Void) {
             pendingWrite = completion
@@ -1648,8 +2002,11 @@ enum ClipboardPreviewContract {
             struct Preferences {
                 var skipSensitive = Defaults.registeredDefaults[
                     DefaultsKey.clipboardHistoryFilterSensitiveText] as? Bool ?? true
+                var includeImages = false
                 func bool(forKey key: String) -> Bool {
-                    key == DefaultsKey.clipboardHistoryFilterSensitiveText && skipSensitive
+                    if key == DefaultsKey.clipboardHistoryFilterSensitiveText { return skipSensitive }
+                    if key == DefaultsKey.clipboardHistoryIncludeImagesFiles { return includeImages }
+                    return false
                 }
             }
             static var standard = Preferences()
@@ -1813,9 +2170,9 @@ enum ClipboardPreviewContract {
                      "search cache retains exactly remaining pinned entry count without search")
         suite.expect(service.searchCache.candidateCount == 0,
                      "service search candidate list cleared on clearing recent history")
-        service.filterCache = ("recent", service.entriesStamp, "Image", [recentItem])
+        service.filterCache[.quick] = ("recent", service.entriesStamp, "Image", [recentItem])
         service.setEntries([pinnedItem])
-        suite.expect(service.filterCache == nil,
+        suite.expect(service.filterCache.isEmpty,
                      "history mutation drops the retained filtered result texts without a search")
 
         suite.expect(service.updateText(pinnedItem, to: "Modified Alpha content"),
@@ -1845,7 +2202,7 @@ enum ClipboardPreviewContract {
                      "production search ranks the prefix match first")
         suite.expect(service.searchCache.foldCount == foldsAtStart + 3, "production search folds each entry exactly once")
         suite.expect(service.searchCache.candidateCount == 3, "production search populates the candidate cache")
-        suite.expect(service.filterCache?.query == "alpha", "production search caches its result")
+        suite.expect(service.filterCache[.quick]?.query == "alpha", "production search caches its result")
         let keystrokePass = service.filteredEntries(matching: "alph")
         suite.expect(keystrokePass.map(\.text) == firstPass.map(\.text),
                      "keystroke search returns the same ranking")
@@ -1854,7 +2211,7 @@ enum ClipboardPreviewContract {
         let whitespacePass = service.filteredEntries(matching: "   ")
         suite.expect(whitespacePass.count == 3, "whitespace query returns every entry")
         suite.expect(service.searchCache.foldCount == foldsAtStart + 3, "whitespace query performs no folds")
-        suite.expect(service.filterCache?.result.count == 3, "whitespace query caches the full list")
+        suite.expect(service.filterCache[.quick]?.result.count == 3, "whitespace query caches the full list")
         let nonePass = service.filteredEntries(matching: "nomatch")
         suite.expect(nonePass.isEmpty, "unmatched query returns nothing")
         suite.expect(service.searchCache.cachedEntryCount == 3 && service.searchCache.candidateCount == 3,
@@ -1870,7 +2227,11 @@ enum ClipboardPreviewContract {
         let editedPass = service.filteredEntries(matching: "edited")
         suite.expect(editedPass.map(\.text) == ["Beta edited notes"], "search sees the edited text")
         suite.expect(service.searchCache.foldCount == foldsAtStart + 4, "only the edited entry refolds")
+        overlappingSearches(suite)
         searchFolding(suite)
+        if ProcessInfo.processInfo.environment["VORSSAINT_CLIPBOARD_SEARCH_SMOKE"] == "1" {
+            measureSearch(suite)
+        }
         quickSelection(suite)
         promotedSource(suite)
         sensitiveText(suite)
@@ -1951,6 +2312,82 @@ enum ClipboardPreviewContract {
                      "deleting the highlighted entry highlights the one that took its place")
     }
 
+    private static func overlappingSearches(_ suite: TestSuite) {
+        let service = Service()
+        let command = CommandSearch()
+        let firstPanel = ClipboardHistorySearchSurface.view(UUID())
+        let secondPanel = ClipboardHistorySearchSurface.view(UUID())
+        let prefix = String(repeating: "x", count: ClipboardHistoryEntry.indexCharacters) + " "
+        let old = ClipboardHistoryEntry(text: prefix + "find old")
+        let newest = ClipboardHistoryEntry(text: prefix + "find new")
+        service.setEntries([old])
+        var commandRows: [UUID] = []
+        command.observeClipboardSearch(service)
+        command.render = { [weak command] in
+            commandRows = service.filteredEntries(matching: "find", surface: .commandBar,
+                onDeferredResults: { [weak command] in command?.refreshClipboardSearch() }).map(\.id)
+        }
+        command.refreshClipboardSearch()
+        service.setEntries([newest]) // cancels the original tail scan before it can notify the bar
+        var abandoned = 0, surviving = 0
+        _ = service.filteredEntries(matching: "find", surface: firstPanel) { abandoned += 1 }
+        _ = service.filteredEntries(matching: "new", surface: secondPanel) { surviving += 1 }
+        service.cancelSearch(on: firstPanel)
+        let deadline = Date().addingTimeInterval(3)
+        while (commandRows != [newest.id] || surviving == 0) && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        suite.expect(commandRows == [newest.id] && abandoned == 0 && surviving == 1,
+                     "a mutation restarts the visible command bar's cancelled search while closing one panel leaves the other alive")
+        service.setEntries([])
+        let clearedBy = Date().addingTimeInterval(1)
+        while !commandRows.isEmpty && Date() < clearedBy { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        suite.expect(commandRows.isEmpty, "clearing history removes previously searchable command rows without another keystroke")
+        command.stopClipboardSearch()
+        command.isVisible = false
+        var hiddenRefreshes = 0
+        command.render = { hiddenRefreshes += 1 }
+        service.setEntries([old])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        suite.expect(hiddenRefreshes == 0 && command.clipboardHistoryChanges == nil,
+                     "a closed command bar releases its search and ignores later copies")
+    }
+
+    private static func measureSearch(_ suite: TestSuite) {
+        let service = Service()
+        let panelSurface = ClipboardHistorySearchSurface.view(UUID()), islandSurface = ClipboardHistorySearchSurface.view(UUID())
+        let prefix = String(repeating: "alpha ", count: 2048)
+        var documents = (0..<256).map { ClipboardHistoryEntry(text: prefix + "deep target-\($0)!") }
+        service.setEntries(documents)
+        let start = ProcessInfo.processInfo.systemUptime
+        let first = service.filteredEntries(matching: "alpha")
+        let indexed = ProcessInfo.processInfo.systemUptime
+        documents[17].text += " unique edit"
+        service.setEntries(documents)
+        let edited = ProcessInfo.processInfo.systemUptime
+        var command = false, panel = false
+        _ = service.filteredEntries(matching: "unique edit", surface: .commandBar, onDeferredResults: { command = true })
+        _ = service.filteredEntries(matching: "target-93!", surface: panelSurface, onDeferredResults: { panel = true })
+        for step in 0..<32 { _ = service.filteredEntries(matching: "superseded-\(step)", surface: islandSurface) }
+        let deadline = Date().addingTimeInterval(6)
+        while (!command || !panel) && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        let completed = ProcessInfo.processInfo.systemUptime
+        suite.expect(first.count == documents.count && service.searchCache.foldCount == documents.count + 1,
+                     "the 256-document history refolds exactly one edit")
+        suite.expect(command && panel && service.filterCache[.commandBar]?.result.map(\.id) == [documents[17].id]
+                        && service.filterCache[panelSurface]?.result.map(\.id) == [documents[93].id],
+                     "parallel clipboard consumers find their own deep matches under rapid typing")
+        var deliveredAfterClear = false
+        _ = service.filteredEntries(matching: "target-10!", surface: islandSurface, onDeferredResults: { deliveredAfterClear = true })
+        service.setEntries([])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        suite.expect(!deliveredAfterClear && service.filterCache.isEmpty && service.deferredSearchWork.isEmpty
+                         && service.searchCache.cachedEntryCount == 0,
+                     "clearing cancels all jobs and drops the saved documents and result caches")
+        print(String(format: "256 synthetic documents, initial index %.1f ms, edit %.1f ms, concurrent tail results %.1f ms",
+                     (indexed-start)*1000, (edited-indexed)*1000, (completed-edited)*1000))
+    }
+
     /// #1885: typing searches the history once per keystroke, so the folded
     /// text has to be reused between keystrokes and still rank exactly as a
     /// fresh fold would.
@@ -1990,5 +2427,86 @@ enum ClipboardPreviewContract {
                      "a history change folds the new text and drops the old fold")
         suite.expect(service.searchCache.foldCount == foldsBeforeSearch + entries.count + 1,
                      "only the new entry refolds after a history change")
+
+        // A document runs past the index, so the opening is searched at once
+        // and the rest arrives from the deferred pass over the full text.
+        var document = String(repeating: "Серверная конфигурация nginx и логи приложения. ", count: 3_600)
+        let deepMarker = "уникальныймаркервглубинедокумента"
+        document += deepMarker
+        document += String(repeating: " хвост документа", count: 3_600)
+        let documentEntry = ClipboardHistoryEntry(text: document)
+        let shortNote = ClipboardHistoryEntry(text: "Short note about nginx")
+        let deepService = Service()
+        deepService.setEntries([shortNote, documentEntry])
+        suite.expect(deepService.filteredEntries(matching: deepMarker).isEmpty,
+                     "the indexed pass alone cannot see a match deep inside a long entry")
+        let islandSurface = ClipboardHistorySearchSurface.view(UUID())
+        let panelSurface = ClipboardHistorySearchSurface.view(UUID())
+        var refreshedCommandBar = false
+        _ = deepService.filteredEntries(matching: " хвост", surface: .commandBar,
+                                        onDeferredResults: { refreshedCommandBar = true })
+        _ = deepService.filteredEntries(matching: "", surface: islandSurface)
+        var deepMatches = deepService.filteredEntries(matching: deepMarker)
+        let deepDeadline = Date().addingTimeInterval(5)
+        while deepMatches.isEmpty && Date() < deepDeadline {
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.02))
+            deepMatches = deepService.filteredEntries(matching: deepMarker)
+        }
+        suite.expect(deepMatches.map(\.id) == [documentEntry.id],
+                     "the deferred pass appends the deep match once the typing settles")
+        while !refreshedCommandBar && Date() < deepDeadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        suite.expect(refreshedCommandBar && deepService.filteredEntries(matching: " хвост", surface: .commandBar)
+                        .map(\.id) == [documentEntry.id],
+                     "the command bar and quick window both receive their deep results while the island browses")
+        let rankedService = Service()
+        let filler = String(repeating: ".", count: ClipboardHistoryEntry.indexCharacters)
+        let partials = (0..<4).map { ClipboardHistoryEntry(text: "a tool-needle-\($0)") }
+        let pinnedDeep = ClipboardHistoryEntry(text: filler + " needle", pinnedAt: Date())
+        let improved = ClipboardHistoryEntry(text: "partial-needle " + filler + " needle")
+        let tied = ClipboardHistoryEntry(text: filler + " needle")
+        let corpus = partials + [pinnedDeep, improved, tied]
+        rankedService.setEntries(corpus)
+        var completedSurfaces = Set<ClipboardHistorySearchSurface>()
+        for surface in [panelSurface, .commandBar] {
+            let instant = rankedService.filteredEntries(matching: "needle", surface: surface) {
+                completedSurfaces.insert(surface)
+            }
+            suite.expect(!instant.contains(pinnedDeep) && instant.contains(improved),
+                         "a search returns prefix matches immediately before ranking the full documents")
+        }
+        let rankedDeadline = Date().addingTimeInterval(3)
+        while completedSurfaces.count < 2 && Date() < rankedDeadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        let whole = corpus.enumerated().map { ClipboardHistorySearchCandidate(index: $0.offset, text: $0.element.text,
+                                                                              isPinned: $0.element.isPinned, limit: .max) }
+        let expected = ClipboardHistorySearch.rankedIndexes(candidates: whole, matching: "needle").map { corpus[$0].id }
+        for surface in [panelSurface, .commandBar] {
+            let final = rankedService.filteredEntries(matching: "needle", surface: surface).map(\.id)
+            suite.expect(completedSurfaces.contains(surface) && final == expected
+                            && Array(final.prefix(3)) == [pinnedDeep.id, improved.id, tied.id],
+                         "final ranking promotes deep whole words and pins before the command bar limit and breaks ties in history order")
+        }
+        var boundary = ClipboardHistoryEntry(text: String(repeating: "x", count: ClipboardHistoryEntry.indexCharacters))
+        deepService.setEntries([boundary])
+        _ = deepService.filteredEntries(matching: "boundary")
+        boundary.text += " boundary"
+        deepService.setEntries([boundary])
+        var boundaryIDs = deepService.filteredEntries(matching: "boundary").map(\.id)
+        let boundaryDeadline = Date().addingTimeInterval(3)
+        while boundaryIDs.isEmpty && Date() < boundaryDeadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+            boundaryIDs = deepService.filteredEntries(matching: "boundary").map(\.id)
+        }
+        suite.expect(boundaryIDs == [boundary.id], "appending to an exact-length index makes its suffix searchable")
+        _ = deepService.filteredEntries(matching: "absent")
+        deepService.setEntries([])
+        suite.expect(deepService.deferredSearchWork.isEmpty && deepService.filterCache.isEmpty,
+                     "clearing history cancels pending readers and releases every cached search")
+        deepService.setEntries([shortNote, documentEntry])
+        suite.expect(deepService.filteredEntries(matching: "nginx").map(\.id) == [shortNote.id, documentEntry.id],
+                     "an indexed match keeps its place above the deferred one")
     }
 }

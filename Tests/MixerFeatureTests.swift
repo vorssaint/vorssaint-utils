@@ -34,6 +34,11 @@ enum MixerFeatureTests {
         suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 2)), 2, "the boost range keeps its ceiling")
         suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: -1)), 0, "a level below zero never plays")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: 0.456) == 46, "a volume shows as a rounded percent")
+        suite.expect(MixerRoutingSupport.inputPercentText(forVolume: 0) == "0%"
+                    && MixerRoutingSupport.inputPercentText(forVolume: Double(Float(0.005))) == "<1%"
+                    && MixerRoutingSupport.inputPercentText(forVolume: 0.00005) == "<1%"
+                    && MixerRoutingSupport.inputPercentText(forVolume: 0.456) == "46%",
+                    "input gain labels reserve 0% for zero and keep positive residuals visible")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: 2) == 200, "a boosted volume shows above 100%")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: .infinity) == 0, "infinity shows as 0% instead of trapping")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: -.infinity) == 0, "negative infinity shows as 0%")
@@ -61,6 +66,24 @@ enum MixerFeatureTests {
             let restored = curveDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
             suite.expectClose(restored["com.example.quiet"] ?? -1, 0.5,
                         "a backup restored from before the change is converted on the next launch")
+            curveDefaults.set(["com.example.quiet": 0.5, "com.example.boosted": 1.5], forKey: DefaultsKey.appVolumes)
+            let exported = SettingsBackupSupport.payload(appVersion: "test") { curveDefaults.object(forKey: $0) }
+            let exportedSettings = exported[SettingsBackupSupport.settingsKey] as? [String: Any] ?? [:]
+            let exportedVolumes = exportedSettings[DefaultsKey.appVolumes] as? [String: Double] ?? [:]
+            suite.expectClose(exportedVolumes["com.example.quiet"] ?? -1, 0.25,
+                        "a backup saves app volumes as the gains 3.4.1 plays, at the same loudness")
+            suite.expect(exportedVolumes["com.example.boosted"] == 1.5
+                   && exportedSettings[DefaultsKey.appVolumesArePositions] == nil,
+                   "a backup keeps boosted levels and leaves the position marker out")
+            let imported = SettingsBackupSupport.sanitizedSettings(from: exported) ?? [:]
+            for key in SettingsBackupSupport.keysToClear(whenImporting: imported) {
+                curveDefaults.removeObject(forKey: key)
+            }
+            for (key, value) in imported { curveDefaults.set(value, forKey: key) }
+            Defaults.migrateAppVolumesToPositions(in: curveDefaults)
+            let reimported = curveDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
+            suite.expectClose(reimported["com.example.quiet"] ?? -1, 0.5,
+                        "importing that backup here puts the sliders back where they were")
             curveDefaults.removePersistentDomain(forName: curveSuite)
         }
         suite.expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: "40",
@@ -256,6 +279,33 @@ enum MixerFeatureTests {
                                                               uid: "",
                                                               dataSourceName: nil),
                "Bluetooth speakers are not treated as headphones")
+        for name in ["HUAWEI FreeClip 2", "My renamed audio device", ""] {
+            suite.expect(MixerRoutingSupport.outputLooksLikeHeadphones(
+                name: name, uid: "output", dataSourceName: nil,
+                terminalTypes: [kAudioStreamTerminalTypeHeadphones]),
+                "a headphone terminal identifies the output independently of its name: \(name)")
+        }
+        suite.expect(MixerRoutingSupport.outputLooksLikeHeadphones(
+            name: "HUAWEI FreeClip 2", uid: "output", dataSourceName: nil,
+            terminalTypes: [kAudioStreamTerminalTypeUnknown, kAudioStreamTerminalTypeHeadphones]),
+            "an unknown first stream does not hide a later headphone terminal")
+        for terminal in [kAudioStreamTerminalTypeSpeaker, kAudioStreamTerminalTypeLFESpeaker,
+                         kAudioStreamTerminalTypeReceiverSpeaker] {
+            suite.expect(!MixerRoutingSupport.outputLooksLikeHeadphones(
+                name: "Soundcore speaker", uid: "output", dataSourceName: nil, terminalTypes: [terminal]),
+                "a speaker terminal takes precedence over headphone brand keywords")
+        }
+        for terminals: [UInt32] in [[], [kAudioStreamTerminalTypeUnknown], [kAudioStreamTerminalTypeLine]] {
+            suite.expect(MixerRoutingSupport.outputLooksLikeHeadphones(
+                name: "AirPods Pro", uid: "output", dataSourceName: nil, terminalTypes: terminals),
+                "unavailable or generic terminal metadata preserves named headphone support")
+            suite.expect(MixerRoutingSupport.outputLooksLikeHeadphones(
+                name: "Built-in Output", uid: "output", dataSourceName: "Headphones", terminalTypes: terminals),
+                "unavailable or generic terminal metadata preserves wired headphone data sources")
+            suite.expect(!MixerRoutingSupport.outputLooksLikeHeadphones(
+                name: "JBL Flip", uid: "output", dataSourceName: nil, terminalTypes: terminals),
+                "an unknown terminal does not turn every output into headphones")
+        }
         // Issue #256: some browsers' audio helpers answer for themselves, so
         // the mixer walks the parent chain to the nearest regular app.
         let helperParents: [pid_t: pid_t] = [500: 100, 100: 1, 700: 1,
@@ -281,21 +331,40 @@ enum MixerFeatureTests {
                "a regular app within the depth cap is still found")
         suite.expect(owningApp(of: 0) == nil,
                "a missing responsible pid maps to no app")
-        func resolvedOwningApp(responsible: pid_t, pid: pid_t, regularApps: Set<pid_t> = [100]) -> pid_t? {
-            let isRegular: (pid_t) -> Bool = { regularApps.contains($0) }
-            let parent: (pid_t) -> pid_t = { helperParents[$0] ?? 0 }
-            return MixerRoutingSupport.owningRegularAppPid(
+        func resolvedOwningApp(responsible: pid_t, pid: pid_t, regularApps: Set<pid_t> = [100],
+                               preferProcessItself: Bool = true) -> pid_t? {
+            MixerRoutingSupport.regularAppOwnerPid(
+                of: pid,
                 responsiblePid: responsible,
-                isRegularApp: isRegular,
-                parentPid: parent
-            ) ?? (responsible != pid ? MixerRoutingSupport.owningRegularAppPid(
-                responsiblePid: pid,
-                isRegularApp: isRegular,
-                parentPid: parent
-            ) : nil)
+                preferProcessItself: preferProcessItself,
+                isRegularApp: { regularApps.contains($0) },
+                parentPid: { helperParents[$0] ?? 0 })
         }
         suite.expect(resolvedOwningApp(responsible: 700, pid: 500) == 100,
                "a helper whose responsibility returns a daemon still falls back to its parent app")
+        suite.expect(resolvedOwningApp(responsible: 100, pid: 500) == 100,
+               "a helper is billed to the regular app responsible for it")
+        // Issue #3929: Steam (real pid 14271) and Device Hub (2836) both report
+        // a running-application pid of -1. Rows are keyed by the real pid that
+        // was checked, so they stay apart, and a game Steam launched is a
+        // regular app of its own and gets its own row.
+        let steamApps: Set<pid_t> = [14271, 2836, 44794]
+        let steamOwners = [(responsible: pid_t(14271), pid: pid_t(14271)),
+                           (responsible: 2836, pid: 2836),
+                           (responsible: 14271, pid: 44794)]
+            .map { resolvedOwningApp(responsible: $0.responsible, pid: $0.pid, regularApps: steamApps) }
+        suite.expect(steamOwners == [14271, 2836, 44794],
+               "apps the workspace lists with pid -1 are keyed by their real pids, never merged")
+        suite.expect(resolvedOwningApp(responsible: 14271, pid: 44794, regularApps: steamApps,
+                                       preferProcessItself: false) == 14271,
+               "Secure Input and Now Playing still attribute a regular child to its responsible app")
+        suite.expect(resolvedOwningApp(responsible: 700, pid: 500, preferProcessItself: false) == 100,
+               "a legacy owner lookup still falls back to the child's parent when responsibility dead-ends")
+        suite.expect(resolvedOwningApp(responsible: 14271, pid: 44794, regularApps: [14271]) == 14271,
+               "a non-regular process launched by Steam is still billed to Steam")
+        suite.expect([pid_t(-1), 0].allSatisfy {
+            resolvedOwningApp(responsible: $0, pid: $0, regularApps: [-1, 0]) == nil
+        }, "a non-positive pid is never a row key")
         suite.expect(!MixerRoutingSupport.requiresEngine(volume: 1,
                                                    selectedOutputDeviceUID: nil,
                                                    targetOutputDeviceUID: "BuiltInSpeakerDevice",
@@ -834,6 +903,19 @@ enum MixerFeatureTests {
         suite.expect(framesGuard != nil && cycleCount != nil && framesGuard! < cycleCount!,
                "a cycle is counted only once the engine has handed the device audio")
 
+        // A refresh pass has to publish and reconcile the volumes resolved when it
+        // lands, not the ones captured when it was requested. The pass lives in a
+        // class the contracts cannot instantiate, so its body is read as text.
+        let applyBody = mixerBody
+            .range(of: "private func apply(_ snapshot: RefreshSnapshot, generation: Int) {")
+            .flatMap { start in
+                mixerBody.range(of: "\n    }\n", range: start.upperBound..<mixerBody.endIndex)
+                    .map { String(mixerBody[start.upperBound..<$0.lowerBound]) }
+            } ?? ""
+        suite.expect(appearsInOrder(applyBody, ["let next = applyingCurrentVolumes(to: readApps)", "apps = next",
+                                                "reconcileEngines(with: next)"]),
+                     "a refresh pass publishes and reconciles the current saved volumes, not the ones captured at request time")
+
         let identifiedRow = MixerRoutingSupport.rowIdentity(bundleIdentifier: "com.example.Player",
                                                            ownerPid: 501,
                                                            displayName: "Player")
@@ -956,6 +1038,43 @@ enum MixerFeatureTests {
                "Studio Pro is kept out of process-tap audio routing")
         suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "com.spotify.client", name: "Spotify"),
                "music players remain eligible for process-tap audio routing")
+        for id in ["com.hnc.Discord", "com.hnc.Discord.helper.Renderer", "com.hnc.DiscordPTB",
+                   "com.hnc.DiscordCanary", "com.hnc.DiscordDevelopment", "COM.HNC.DISCORD",
+                   "com.microsoft.teams", "com.microsoft.teams2", "com.microsoft.teams2.helper"] {
+            suite.expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Call"),
+                         "\(id) bypasses processing before any user override, preventing screen-share echo")
+            suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Call",
+                                                                allowCallAppVolume: true),
+                         "\(id) volume control is available after explicit opt-in")
+        }
+        for id in ["com.hnc.discordian", "com.microsoft.teams2000", "com.microsoft.teamspeak",
+                   "com.spotify.client", "com.apple.Safari"] {
+            suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Discord"),
+                         "\(id) is not blocked by a similar bundle prefix or app name")
+        }
+        suite.expect(!MixerRoutingSupport.needsScreenSharingProtection(bundleIdentifier: nil),
+                     "an unknown process is not assumed to be a call app")
+        suite.expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "us.zoom.xos", name: "Zoom",
+                                                            allowCallAppVolume: true)
+                     && MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "com.apple.logic10", name: "Logic Pro",
+                                                               allowCallAppVolume: true),
+                     "the optional call app override cannot remove permanent Zoom or DAW bypasses")
+        suite.expect(MixerRoutingSupport.sanitizedCallAppVolumeIDs([
+            "com.hnc.Discord", "COM.HNC.DISCORD", "com.microsoft.teams2", "com.microsoft.teams2000", "", "us.zoom.xos"
+        ]) == ["com.hnc.discord", "com.microsoft.teams2"],
+                     "saved opt-ins normalize bundle case, deduplicate and reject unrelated apps")
+        let callSettings: [String: Any] = [DefaultsKey.mixerCallAppVolumeEnabled: ["com.hnc.discord"]]
+        let callBackup = SettingsBackupSupport.payload(appVersion: "test") { callSettings[$0] }
+        let restoredCalls = SettingsBackupSupport.sanitizedSettings(from: callBackup)
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.mixerCallAppVolumeEnabled)
+                     && restoredCalls?[DefaultsKey.mixerCallAppVolumeEnabled] as? [String] == ["com.hnc.discord"],
+                     "explicit call app volume choices round-trip through settings backup")
+        for language in AppLanguage.allCases {
+            let strings = MixerScreenSharingStrings.localized(language)
+            suite.expect(!strings.allowVolumeControl.isEmpty && !strings.protectedCaption.isEmpty
+                         && !strings.sharingWarning.isEmpty,
+                         "\(language) explains call audio protection and the override")
+        }
         suite.expect(MixerRoutingSupport.effectiveDeviceUID(selectedUID: "ExternalDisplay",
                                                       availableUIDs: ["BuiltInSpeakerDevice"],
                                                       defaultUID: "BuiltInSpeakerDevice") == "BuiltInSpeakerDevice",

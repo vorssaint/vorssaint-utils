@@ -30,6 +30,8 @@ struct FanControlSection: View {
                                   accessState: service.accessState,
                                   error: service.error,
                                   isWorking: service.isWorking,
+                                  systemControlUnconfirmed: service.awaitingSystemControl,
+                                  interruption: service.interruption,
                                   mode: modeBinding,
                                   coolingLevel: $coolingLevel,
                                   curves: curvesBinding,
@@ -48,7 +50,10 @@ struct FanControlSection: View {
     private var modeBinding: Binding<FanControlMode> {
         Binding(
             get: { FanControlMode(rawValue: modeRaw) ?? .system },
-            set: { modeRaw = $0.rawValue }
+            set: { selection in
+                modeRaw = selection.rawValue
+                if selection == .system { service.forgetResume() }
+            }
         )
     }
 
@@ -79,6 +84,8 @@ struct FanControlCardContent: View {
     let accessState: FanControlService.AccessState
     let error: FanControlErrorCode?
     let isWorking: Bool
+    let systemControlUnconfirmed: Bool
+    let interruption: FanControlInterruption?
     @Binding var mode: FanControlMode
     @Binding var coolingLevel: Int
     @Binding var curves: [FanControlCurve]
@@ -99,6 +106,10 @@ struct FanControlCardContent: View {
                 fanRows
             }
 
+            if error != .helperUnavailable, error != .controlFailed {
+                temperatureSummary
+            }
+
             if let message = stateMessage {
                 Text(message)
                     .font(.system(size: 10))
@@ -116,7 +127,7 @@ struct FanControlCardContent: View {
                 case .curve:
                     FanControlCurveEditor(strings: strings,
                                           curves: $curves,
-                                          temperatures: snapshot.temperatures ?? [],
+                                          snapshot: snapshot,
                                           temperatureUnit: temperatureUnit,
                                           disabled: isWorking)
                     if !curveCanRun {
@@ -143,6 +154,38 @@ struct FanControlCardContent: View {
                     .foregroundStyle(Color.secondary.opacity(0.84))
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var temperatureSummary: some View {
+        let readings = snapshot.temperatures ?? []
+        let targets: [(FanControlTemperatureSource, String)] = [
+            (.hottestSoC, strings.hottestSoC),
+            (.hottestCPU, strings.hottestCPU),
+            (.hottestGPU, strings.hottestGPU)
+        ]
+
+        let formatted: [String] = targets.compactMap { target -> String? in
+            let (source, name) = target
+            guard let reading = readings.first(where: { $0.source == source }) else {
+                return source == .hottestGPU && snapshot.gpuPoweredDown == true ? strings.gpuIdle : nil
+            }
+            return "\(name) \(MetricFormat.temperature(reading.celsius, unit: temperatureUnit))"
+        }
+
+        if !formatted.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(strings.temperature)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+
+                Text(formatted.joined(separator: " · "))
+                    .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 2)
         }
     }
 
@@ -176,13 +219,13 @@ struct FanControlCardContent: View {
     }
 
     private var statusHeader: some View {
-        HStack(spacing: 8) {
-            Image(systemName: snapshot.isCooling ? "fanblades.fill" : "fanblades")
+        let cooling = snapshot.isCooling && !systemControlUnconfirmed
+        return HStack(spacing: 8) {
+            Image(systemName: cooling ? "fanblades.fill" : "fanblades")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(snapshot.isCooling ? AnyShapeStyle(Color.cyan)
-                                                     : AnyShapeStyle(Color.secondary))
+                .foregroundStyle(cooling ? AnyShapeStyle(Color.cyan) : AnyShapeStyle(Color.secondary))
                 .symbolEffect(.variableColor.iterative, options: .repeating,
-                              isActive: snapshot.isCooling)
+                              isActive: cooling)
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 1) {
@@ -198,7 +241,8 @@ struct FanControlCardContent: View {
                 }
                 Text(statusText)
                     .font(.system(size: 10).monospacedDigit())
-                    .foregroundStyle(snapshot.isCooling ? Color.cyan : Color.secondary)
+                    .foregroundStyle(cooling ? Color.cyan : Color.secondary)
+                    .accessibilityIdentifier("fanControl.status")
             }
             Spacer()
             if isWorking { ProgressView().controlSize(.small) }
@@ -278,7 +322,7 @@ struct FanControlCardContent: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(isWorking)
+                .disabled(isWorking || systemControlUnconfirmed)
                 .frame(maxWidth: .infinity)
             case .curve:
                 Button(strings.applyCurve) {
@@ -286,13 +330,14 @@ struct FanControlCardContent: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(isWorking || !curveCanRun)
+                .disabled(isWorking || systemControlUnconfirmed || !curveCanRun)
                 .frame(maxWidth: .infinity)
             }
         }
     }
 
     private var statusText: String {
+        if systemControlUnconfirmed { return strings.controlUnconfirmed }
         guard snapshot.isCooling else { return strings.systemControl }
         let level = snapshot.coolingLevel ?? FanControlPolicy.defaultCoolingLevel
         switch snapshot.configuration?.mode ?? .manual {
@@ -319,19 +364,22 @@ struct FanControlCardContent: View {
         case .alreadyControlled: return strings.alreadyControlled
         case .unsupportedHardware: return strings.unsupported
         case .helperUnavailable: return strings.helperUnavailable
-        case .controlFailed: return strings.failed
+        case .controlFailed where !systemControlUnconfirmed: return strings.failed
         case .authorizationRequired: return strings.approvalCaption
-        case .noFans, .none: break
+        case .controlFailed, .noFans, .none: break
         }
         if accessState == .notRegistered, !snapshot.fans.isEmpty { return strings.approvalCaption }
         if accessState == .requiresApproval { return strings.approvalCaption }
-        switch snapshot.stopReason {
-        case .temperatureUnavailable: return strings.temperatureUnavailable
-        case .timeLimit, .appDisconnected, .heartbeatLost, .hardwareChanged,
-             .thermalPressure, .recovery:
-            return strings.safetyStopped
-        case .none:
-            return nil
+        if systemControlUnconfirmed { return strings.awaitingSystemControl }
+        guard !snapshot.isCooling else { return nil }
+        switch interruption {
+        case .dismissed: return nil
+        case .applyFailed: return strings.applyFailed
+        case .resumeFailed: return strings.failed
+        case .stopped(nil): return strings.controlStopped
+        case .stopped(.temperatureUnavailable): return strings.temperatureUnavailable
+        case .stopped: return strings.safetyStopped
+        case nil: return snapshot.stopReason == nil ? nil : strings.controlStopped
         }
     }
 
@@ -340,7 +388,11 @@ struct FanControlCardContent: View {
         case .alreadyControlled, .unsupportedHardware, .helperUnavailable, .controlFailed:
             return true
         default:
-            return false
+            break
+        }
+        switch interruption {
+        case .stopped, .applyFailed, .resumeFailed: return !snapshot.isCooling
+        case .dismissed, .none: return false
         }
     }
 
@@ -369,7 +421,7 @@ struct FanControlCardContent: View {
 
     private var curveCanRun: Bool {
         guard FanControlPolicy.validCurves(curves) else { return false }
-        let available = Set((snapshot.temperatures ?? []).map(\.source))
+        let available = snapshot.availableTemperatureSources
         return curves.allSatisfy { available.contains($0.sensor) }
     }
 }

@@ -20,11 +20,17 @@ enum UninstallerSupport {
     /// An app the uninstaller has agreed to take: its verified bundle
     /// identifier, its standardized path, and the identities that later
     /// prove the bundle on disk is still the one that was selected.
-    struct Selection {
+    struct Selection: Equatable {
         let bundleID: String
         let url: URL
         let identity: FileIdentity
         let infoIdentity: FileIdentity
+
+        var isCurrent: Bool {
+            url == url.resolvingSymlinksInPath()
+                && applicationIdentityMatches(url, appIdentity: identity, infoIdentity: infoIdentity)
+                && bundleIdentifier(of: url) == bundleID
+        }
     }
 
     /// Why the uninstaller turned an app down. A refused drop springs back,
@@ -45,6 +51,7 @@ enum UninstallerSupport {
         case link
         /// No Info.plist or bundle identifier that says which app it is.
         case unidentified
+        case unverifiedTrashMove
     }
 
     /// An app the uninstaller turned down, named the way the drop zone says it.
@@ -61,6 +68,7 @@ enum UninstallerSupport {
             case .thisApp: return String(format: strings.uninstallerRefusedSelfFormat, strings.tabAdvanced)
             case .link: return String(format: strings.uninstallerRefusedLinkFormat, name)
             case .unidentified: return String(format: strings.uninstallerRefusedUnidentifiedFormat, name)
+            case .unverifiedTrashMove: return strings.uninstallerTrashUnavailable
             }
         }
     }
@@ -81,6 +89,26 @@ enum UninstallerSupport {
         case exact
         /// Related by a longer name fragment or team prefix. Starts unchecked.
         case related
+    }
+
+    /// What a select-all control shows for the leftover rows: nothing chosen,
+    /// everything chosen, or some of each.
+    enum BulkSelection: Equatable {
+        case none, some, all
+
+        init(included: Int, total: Int) {
+            if total == 0 || included == 0 {
+                self = .none
+            } else if included >= total {
+                self = .all
+            } else {
+                self = .some
+            }
+        }
+
+        /// The choice the next click applies: anything short of all fills in
+        /// the rest, a full selection clears.
+        var nextInclude: Bool { self != .all }
     }
 
     struct DirListing: Equatable {
@@ -154,6 +182,19 @@ enum UninstallerSupport {
         return paths.contains { path in protected.contains { path.contains($0) } }
     }
 
+    /// A bundle's Info.plist values, read from disk on every call.
+    /// Bundle(url:) caches by path for the life of the process, so a
+    /// different app that later sits at a path already read, such as a
+    /// Trash name reused after Empty Trash, would still show the old one.
+    /// This reads the same Info.plist Bundle would, wrappers included.
+    static func infoDictionary(of bundleURL: URL) -> [String: Any]? {
+        CFBundleCopyInfoDictionaryInDirectory(bundleURL as CFURL) as? [String: Any]
+    }
+
+    static func bundleIdentifier(of bundleURL: URL) -> String? {
+        infoDictionary(of: bundleURL)?["CFBundleIdentifier"] as? String
+    }
+
     static func verifiedBundleID(_ rawValue: String?) -> String? {
         guard let rawValue,
               CleanerSupport.looksLikeBundleID(rawValue),
@@ -179,13 +220,13 @@ enum UninstallerSupport {
         // Something named like an app that does not read as one is still
         // reported as an app, never as a stray document.
         let unreadable: Refusal = appURL.pathExtension.lowercased() == "app" ? .unidentified : .notAnApp
-        guard let bundle = Bundle(url: appURL) else { return .failure(unreadable) }
+        guard let info = infoDictionary(of: appURL) else { return .failure(unreadable) }
         // System apps are SIP-protected and their support data is live OS
         // state; removing either would be wrong, so refuse the selection.
         guard !InstalledApps.isSystemApplication(at: appURL) else { return .failure(.systemApp) }
         // Only a verified bundle identifier becomes a path component. A
         // display name is presentation only and can never claim user data.
-        guard let rawBundleID = bundle.bundleIdentifier,
+        guard let rawBundleID = info["CFBundleIdentifier"] as? String,
               CleanerSupport.looksLikeBundleID(rawBundleID) else { return .failure(unreadable) }
         guard let bundleID = verifiedBundleID(rawBundleID) else {
             return .failure(isOwnBundleID(rawBundleID) ? .thisApp : .sharedIdentifier)
@@ -342,6 +383,77 @@ enum UninstallerSupport {
             home.appendingPathComponent("Applications", isDirectory: true),
         ].map { $0.resolvingSymlinksInPath().standardizedFileURL.path }
         return roots.contains { path.hasPrefix($0 + "/") }
+    }
+
+    // MARK: - Trash
+
+    /// The user's Trash on the startup disk, where Finder moves an app
+    /// deleted from /Applications or ~/Applications.
+    static func trashURL(home: URL) -> URL {
+        home.appendingPathComponent(".Trash", isDirectory: true)
+    }
+
+    /// Only direct children of the local Trash participate in a cleanup offer.
+    static func isInTrash(_ url: URL, home: URL) -> Bool {
+        let parent = url.resolvingSymlinksInPath().standardizedFileURL.deletingLastPathComponent().path
+        let trash = trashURL(home: home).resolvingSymlinksInPath().standardizedFileURL.path
+        return parent == trash
+    }
+
+    /// A witnessed rename from a real installation. A Trash path alone also
+    /// describes discarded downloads and old versions left by an updater.
+    struct TrashMove: Equatable {
+        let originalURL: URL
+        let selection: Selection
+
+        init?(from original: URL, to trashed: URL, inode: UInt64, home: URL) {
+            guard original.pathExtension.lowercased() == "app",
+                  trashed.pathExtension.lowercased() == "app",
+                  !original.pathComponents.dropLast().contains(where: { $0.lowercased().hasSuffix(".app") }),
+                  !original.pathComponents.contains(where: { $0.hasPrefix(".") }),
+                  applicationIsInTrustedInstallRoot(original, home: home),
+                  isInTrash(trashed, home: home),
+                  isConfirmedAbsent(at: original),
+                  let selected = UninstallerSupport.selection(for: trashed),
+                  selected.identity.inode == inode,
+                  fileIdentity(at: original.deletingLastPathComponent())?.device == selected.identity.device
+            else { return nil }
+            originalURL = original.standardizedFileURL
+            selection = selected
+        }
+
+        var isCurrent: Bool {
+            isConfirmedAbsent(at: originalURL) && selection.isCurrent
+        }
+
+        func isLastCopy(registered: [URL], running: Bool, home: URL) -> Bool {
+            guard !running, isCurrent else { return false }
+            return registered.allSatisfy { url in
+                if isInTrash(url, home: home) || isConfirmedAbsent(at: url) { return true }
+                // Launch Services can still associate a reused path with its old ID.
+                guard let actual = bundleIdentifier(of: url) else { return false }
+                return actual.caseInsensitiveCompare(selection.bundleID) != .orderedSame
+            }
+        }
+    }
+
+    /// FSEvents reports both sides of a rename with the same file ID. Only
+    /// pair consecutive records. Two separate moves via Downloads, a lost
+    /// event or an update replacing the original path grant no ownership.
+    struct TrashRenames {
+        private var source: (id: UInt64, inode: UInt64, url: URL)?
+
+        mutating func accept(_ url: URL, inode: UInt64, eventID: UInt64, home: URL) -> TrashMove? {
+            let previous = source
+            source = nil
+            guard inode != 0, url.pathExtension.lowercased() == "app" else { return nil }
+            if applicationIsInTrustedInstallRoot(url, home: home) {
+                source = (eventID, inode, url)
+                return nil
+            }
+            guard let previous, previous.id &+ 1 == eventID, previous.inode == inode else { return nil }
+            return TrashMove(from: previous.url, to: url, inode: inode, home: home)
+        }
     }
 
     static func strippedAppName(_ raw: String) -> String {

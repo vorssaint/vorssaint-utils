@@ -24,6 +24,9 @@ struct NotchLevelSlider: NSViewRepresentable {
     /// A level moved from outside, by a key, eases to its new place; the
     /// playback position and a drag follow at once.
     var easesChanges = false
+    /// A scroll over the bar moves the level; the playback position is not
+    /// scrolled, since each step would seek.
+    var scrollable = true
     var onEditingChanged: ((Bool) -> Void)?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -34,8 +37,11 @@ struct NotchLevelSlider: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSSlider {
-        let slider = NSSlider()
+        let slider = NotchLevelControl()
         let cell = NotchLevelCell()
+        slider.trackingChanged = { [weak coordinator = context.coordinator] editing in
+            coordinator?.trackingChanged(editing)
+        }
         cell.trackingChanged = { [weak coordinator = context.coordinator] editing in
             coordinator?.trackingChanged(editing)
         }
@@ -53,6 +59,7 @@ struct NotchLevelSlider: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ slider: NSSlider, coordinator: Coordinator) {
+        (slider as? NotchLevelControl)?.cancelScroll()
         coordinator.stopEasing()
     }
 
@@ -63,6 +70,7 @@ struct NotchLevelSlider: NSViewRepresentable {
         if slider.minValue != lower { slider.minValue = lower }
         if slider.maxValue != upper { slider.maxValue = upper }
         if slider.isVertical != vertical { slider.isVertical = vertical }
+        (slider as? NotchLevelControl)?.scrollable = scrollable
         (slider.cell as? NotchLevelCell)?.fill = NSColor(tint)
         (slider.cell as? NotchLevelCell)?.marker = marker
         (slider.cell as? NotchLevelCell)?.trackThickness = trackThickness
@@ -83,6 +91,7 @@ struct NotchLevelSlider: NSViewRepresentable {
             }
         }
         slider.isEnabled = context.environment.isEnabled
+        if !scrollable || !slider.isEnabled { (slider as? NotchLevelControl)?.cancelScroll() }
         let span = upper - lower
         slider.setAccessibilityValueDescription(
             valueLabel ?? "\(Int((span > 0 ? (bounded - lower) / span * 100 : 0).rounded()))%")
@@ -127,7 +136,81 @@ struct NotchLevelSlider: NSViewRepresentable {
             slider.needsDisplay = true
         }
         @objc func changed(_ sender: NSSlider) {
+            stopEasing()
             editing.valueChanged({ parent.value = sender.doubleValue }, onEditingChanged: parent.onEditingChanged)
+        }
+    }
+}
+
+private final class NotchLevelControl: NSSlider, SliderScrollTarget {
+    var scrollable = true
+    var acceptsSliderScroll: Bool { scrollable && isEnabled }
+    var trackingChanged: ((Bool) -> Void)?
+    private var scroll = SliderScroll()
+    private var scrolling = false
+    private var pendingScrollEvents: [NSEvent] = []
+
+    func cancelScroll() {
+        finishScrollEditing()
+        scroll = SliderScroll()
+        pendingScrollEvents.removeAll()
+    }
+
+    private func finishScrollEditing() {
+        guard scrolling else { return }
+        scrolling = false
+        trackingChanged?(false)
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil { cancelScroll() }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        cancelScroll()
+        super.mouseDown(with: event)
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        guard acceptsSliderScroll, maxValue >= minValue else {
+            cancelScroll()
+            return SliderScroll.pass(event, from: self)
+        }
+        if scroll.verticalOnly != isVertical {
+            cancelScroll()
+            scroll.verticalOnly = isVertical
+        }
+        if event.phase.contains(.began) {
+            finishScrollEditing()
+            pendingScrollEvents.removeAll(keepingCapacity: true)
+            scrolling = true
+            trackingChanged?(true)
+        }
+        defer {
+            if !event.phase.intersection([.ended, .cancelled]).isEmpty
+                || !event.momentumPhase.isEmpty || event.phase.isEmpty {
+                finishScrollEditing()
+            }
+        }
+        let outcome = scroll.handle(event, current: doubleValue, range: minValue...maxValue)
+        if scroll.isChoosingAxis {
+            if event.phase.contains(.began) || event.scrollingDeltaX != 0 || event.scrollingDeltaY != 0 {
+                pendingScrollEvents.append(event)
+            }
+            return
+        }
+        // The strip gets the original begin and small deltas in order, even
+        // when the deciding event only moves up.
+        let pending = pendingScrollEvents
+        pendingScrollEvents.removeAll()
+        switch outcome {
+        case .pass: SliderScroll.pass(event, from: self, after: pending)
+        case .hold: break
+        case .move(let value):
+            guard value != doubleValue else { return }
+            doubleValue = value
+            sendAction(action, to: target)
         }
     }
 }
@@ -204,4 +287,14 @@ private final class NotchLevelCell: NSSliderCell {
     }
 
     override func drawKnob(_ knobRect: NSRect) {}
+
+    /// The knob is never drawn, so it has no length either. AppKit then maps
+    /// the pointer across the whole track, as the fill is drawn, rather than
+    /// along a run shortened by half a hidden knob at each end, which left the
+    /// fill behind the pointer near the start and ahead of it near the end.
+    override func knobRect(flipped: Bool) -> NSRect {
+        let knob = super.knobRect(flipped: flipped)
+        return isFader ? NSRect(x: knob.minX, y: knob.midY, width: knob.width, height: 0)
+            : NSRect(x: knob.midX, y: knob.minY, width: 0, height: knob.height)
+    }
 }

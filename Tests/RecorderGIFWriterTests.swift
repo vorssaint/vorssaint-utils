@@ -17,6 +17,7 @@ enum RecorderGIFWriterTests {
             try animation(suite, folder: folder)
             try chunkBoundaries(suite, folder: folder)
             try compactness(suite, folder: folder)
+            try largeFramesFlush(suite, folder: folder)
             try workspaces(suite, root: folder.appendingPathComponent("scratch", isDirectory: true))
         } catch {
             suite.expect(false, "streaming GIF fixture failed: \(error)")
@@ -24,6 +25,25 @@ enum RecorderGIFWriterTests {
         let owner = Bundle.main.bundleIdentifier ?? ProcessInfo.processInfo.processName
         suite.expect(RecorderGIFWorkspace.root.deletingLastPathComponent().lastPathComponent == owner,
                      "GIF scratch belongs to the running app or test process, never another's folder")
+    }
+
+    private static func largeFramesFlush(_ suite: TestSuite, folder: URL) throws {
+        let url = folder.appendingPathComponent("large-frames.gif")
+        let writer = try RecorderGIFWriter(url: url, fps: 12)
+        let image = picture(red: 1, green: 0, transparent: false, width: 2048, height: 2048)
+        // A 2048² RGBA frame takes 16 MiB: 31 fit (496 MiB), 32 do not.
+        for _ in 0..<31 { try writer.append(image) }
+        let beforeBoundary = (try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.intValue ?? 0
+        suite.expect(beforeBoundary == 0,
+                     "large GIF frames stay in one palette while they fit within 500 MiB")
+        try writer.append(image)
+        let written = (try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.intValue ?? 0
+        suite.expect(written > 0,
+                     "large GIF frames flush to disk before exceeding a 500 MiB decoded-frame budget")
+        try writer.finish()
+        let source = CGImageSourceCreateWithURL(url as CFURL, nil)
+        suite.expect(source.map { CGImageSourceGetCount($0) } == 32,
+                     "memory-bounded GIF chunks preserve every full-resolution frame")
     }
 
     private static func animation(_ suite: TestSuite, folder: URL) throws {
@@ -203,13 +223,14 @@ enum RecorderGIFWriterTests {
                      "export completion removes its scratch immediately and idempotently")
     }
 
-    private static func picture(red: CGFloat, green: CGFloat, transparent: Bool, width: Int = 32) -> CGImage {
-        let context = CGContext(data: nil, width: width, height: 32, bitsPerComponent: 8,
+    private static func picture(red: CGFloat, green: CGFloat, transparent: Bool,
+                                width: Int = 32, height: Int = 32) -> CGImage {
+        let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
                                 bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
                                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
         context.setFillColor(CGColor(red: red, green: green, blue: 0, alpha: 1))
         let x = transparent ? width / 2 : 0
-        context.fill(CGRect(x: x, y: 0, width: width - x, height: 32))
+        context.fill(CGRect(x: x, y: 0, width: width - x, height: height))
         return context.makeImage()!
     }
 

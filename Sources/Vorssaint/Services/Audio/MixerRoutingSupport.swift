@@ -60,6 +60,8 @@ struct MixerEngineBuilds {
         tokens.removeValue(forKey: id)
     }
 
+    mutating func invalidate(_ id: String) { tokens.removeValue(forKey: id) }
+
     /// Marks everything in flight as stale. Tokens are never reused, so builds
     /// already queued can no longer be installed, while a fresh build for the
     /// same row can start right away.
@@ -179,6 +181,11 @@ enum MixerRoutingSupport {
         guard volume.isFinite else { return 0 }
         // Bound the value so an absurdly large finite level cannot overflow Int.
         return Int((min(max(volume, -1000), 1000) * 100).rounded())
+    }
+
+    static func inputPercentText(forVolume volume: Double) -> String {
+        let percent = displayPercent(forVolume: volume)
+        return percent == 0 && volume.isFinite && volume > 0 ? "<1%" : "\(percent)%"
     }
 
     static func isUnity(_ volume: Double) -> Bool {
@@ -498,7 +505,16 @@ enum MixerRoutingSupport {
 
     static func outputLooksLikeHeadphones(name: String,
                                           uid: String,
-                                          dataSourceName: String?) -> Bool {
+                                          dataSourceName: String?,
+                                          terminalTypes: [UInt32] = []) -> Bool {
+        // Stream terminals describe the hardware independently of its model
+        // or user-assigned name. Generic or unavailable terminals still need
+        // the existing name/data-source recognition.
+        if terminalTypes.contains(kAudioStreamTerminalTypeHeadphones) { return true }
+        if terminalTypes.contains(where: {
+            $0 == kAudioStreamTerminalTypeSpeaker || $0 == kAudioStreamTerminalTypeLFESpeaker
+                || $0 == kAudioStreamTerminalTypeReceiverSpeaker
+        }) { return false }
         let haystack = [name, uid, dataSourceName ?? ""]
             .joined(separator: " ")
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
@@ -764,11 +780,52 @@ enum MixerRoutingSupport {
         return nil
     }
 
+    /// The pid of the regular app an audio process is billed to: the process
+    /// itself when it is a regular app, otherwise the app responsible for it,
+    /// then the app that spawned it. Always the real pid that was checked,
+    /// never the running-application entry's own pid, which the workspace
+    /// reports as -1 for some apps (Steam, Device Hub) and which merged them
+    /// into one "pid -1" row (issue #3929). A game Steam launches is a regular
+    /// app with its own bundle even though Steam stays responsible for it, so
+    /// it gets its own row instead of being folded into Steam's.
+    static func regularAppOwnerPid(of pid: pid_t,
+                                   responsiblePid: pid_t,
+                                   preferProcessItself: Bool = true,
+                                   isRegularApp: (pid_t) -> Bool,
+                                   parentPid: (pid_t) -> pid_t) -> pid_t? {
+        guard pid > 0 else { return nil }
+        if preferProcessItself && isRegularApp(pid) { return pid }
+        return owningRegularAppPid(responsiblePid: responsiblePid,
+                                   isRegularApp: isRegularApp,
+                                   parentPid: parentPid)
+            ?? (responsiblePid != pid ? owningRegularAppPid(responsiblePid: pid,
+                                                            isRegularApp: isRegularApp,
+                                                            parentPid: parentPid) : nil)
+    }
+
     static func needsPersistentFinderRow(showFinder: Bool, hasFinderRow: Bool) -> Bool {
         showFinder && !hasFinderRow
     }
 
-    static func bypassesProcessTap(bundleIdentifier: String?, name: String) -> Bool {
+    /// Replaying a call app's audio under our process defeats its screen-share
+    /// self-exclusion. Keep it untouched unless the user explicitly opts in.
+    /// Match bundle components, not arbitrary prefixes or localized app names.
+    static func needsScreenSharingProtection(bundleIdentifier: String?) -> Bool {
+        guard let bundle = bundleIdentifier?.lowercased() else { return false }
+        return ["com.hnc.discord", "com.hnc.discordptb", "com.hnc.discordcanary",
+                "com.hnc.discorddevelopment", "com.microsoft.teams", "com.microsoft.teams2"]
+            .contains { bundle == $0 || bundle.hasPrefix($0 + ".") }
+    }
+
+    static func sanitizedCallAppVolumeIDs(_ ids: [String]) -> Set<String> {
+        Set(ids.map { $0.lowercased() }.filter { needsScreenSharingProtection(bundleIdentifier: $0) })
+    }
+
+    static func bypassesProcessTap(bundleIdentifier: String?, name: String,
+                                  allowCallAppVolume: Bool = false) -> Bool {
+        if !allowCallAppVolume, needsScreenSharingProtection(bundleIdentifier: bundleIdentifier) {
+            return true
+        }
         let bundle = (bundleIdentifier ?? "")
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             .lowercased()
@@ -881,6 +938,44 @@ enum MixerRoutingSupport {
         var placed = list
         placed.insert(uid, at: firstVirtual)
         return placed
+    }
+
+    /// The reported AirPlay session UIDs have the form <receiver UUID>-<session number>-Audio.
+    /// Unknown UID formats stay separate and can be removed manually.
+    private static func airPlayReceiverID(in uid: String) -> UUID? {
+        guard uid.hasSuffix("-Audio") else { return nil }
+        let session = uid.dropLast("-Audio".count)
+        guard let separator = session.lastIndex(of: "-") else { return nil }
+        let receiver = session[..<separator]
+        let number = session[session.index(after: separator)...]
+        guard receiver.utf8.count == 36, !number.isEmpty,
+              number.utf8.allSatisfy({ (48...57).contains($0) }) else { return nil }
+        return UUID(uuidString: String(receiver))
+    }
+
+    /// Only a currently connected AirPlay output can reclaim a saved slot. Require
+    /// the same receiver UUID and name, and leave ambiguous live sessions untouched.
+    static func rebindingAirPlayOutputs(_ list: [String],
+                                        connected: [(uid: String, name: String, isAirPlay: Bool)],
+                                        storedNames: [String: String]) -> [String] {
+        var live: [UUID: (uid: String, name: String)] = [:]
+        var ambiguous = Set<UUID>()
+        for device in connected {
+            guard let receiver = airPlayReceiverID(in: device.uid) else { continue }
+            if !device.isAirPlay || device.name.isEmpty || live[receiver] != nil {
+                ambiguous.insert(receiver)
+            } else {
+                live[receiver] = (device.uid, device.name)
+            }
+        }
+        guard !live.isEmpty else { return list }
+        var placed = Set<UUID>()
+        return list.compactMap { uid in
+            guard let receiver = airPlayReceiverID(in: uid), !ambiguous.contains(receiver),
+                  let device = live[receiver], device.uid == uid || storedNames[uid] == device.name
+            else { return uid }
+            return placed.insert(receiver).inserted ? device.uid : nil
+        }
     }
 
     /// Whether a CoreAudio write should be requested: only when the target

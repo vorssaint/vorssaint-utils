@@ -44,7 +44,6 @@ struct CommandBarView: View {
     @ObservedObject private var homebrew = HomebrewManager.shared
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var searchFocused: Bool
-    @State private var showHomebrewDetails = false
 
     /// The mark, made a handle. Dragging rides on AppKit's own window
     /// dragging — the same machinery a title bar uses — rather than a
@@ -168,6 +167,7 @@ struct CommandBarView: View {
             case .uninstallReview:
                 Divider()
                 uninstallReviewCard
+                UninstallerHomebrewLastLog(compact: true)
             case .uninstallHomebrewConfirm:
                 Divider()
                 uninstallHomebrewConfirmCard
@@ -339,6 +339,17 @@ struct CommandBarView: View {
                                          ? Color.red.opacity(0.12)
                                          : Color.accentColor.opacity(0.14))
                                       : .clear)
+                        )
+                        // The results list's selected-row outline, in the
+                        // row's own colour.
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(index == service.actionIndex
+                                              ? (action.isDestructive
+                                                 ? Color.red
+                                                 : Color.accentColor).opacity(0.45)
+                                              : .clear,
+                                              lineWidth: 1)
                         )
                     }
                     .buttonStyle(.plain)
@@ -610,6 +621,13 @@ struct CommandBarView: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(isSelected ? Color.accentColor.opacity(0.14) : .clear)
             )
+            // The fill alone drowns on the island's solid black, so the
+            // selected row also carries the outline the active category
+            // chip wears.
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(isSelected ? 0.45 : 0), lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
         .onHover { hovering in
@@ -632,6 +650,7 @@ struct CommandBarView: View {
         switch entry.trouble {
         case .needsSetup(let feature, _): parts.append(String(format: text.needsSetupFormat, feature))
         case .needsPermission: parts.append(text.needsPermissionHint)
+        case .warning(let message): parts.append(message)
         case nil: break
         }
         return parts.filter { !$0.isEmpty }.joined(separator: ", ")
@@ -696,6 +715,11 @@ struct CommandBarView: View {
                 .font(.system(size: 10.5))
                 .foregroundStyle(.orange)
                 .lineLimit(1)
+        case .warning(let message):
+            Text(message)
+                .font(.system(size: 10.5))
+                .foregroundStyle(.orange)
+                .lineLimit(2)
         case nil:
             // A row under a heading that already names its area carries no
             // caption at all, which makes the browse list read as one column
@@ -724,8 +748,9 @@ struct CommandBarView: View {
                     .frame(width: 30, height: 30)
             }
             if entry.isActive {
+                let statusColor: Color = if case .warning = entry.trouble { .orange } else { .green }
                 Circle()
-                    .fill(.green)
+                    .fill(statusColor)
                     .frame(width: 7, height: 7)
                     // A ring keeps the dot legible on top of a colorful icon.
                     .overlay(Circle().strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 1.2))
@@ -850,7 +875,7 @@ struct CommandBarView: View {
     /// shows in Settings, just inline in the bar. Homebrew-managed apps are
     /// handled here too, not handed off to Settings: `.uninstallHomebrewConfirm`
     /// guards the extra confirmation `brew uninstall` needs, and
-    /// `HomebrewOperationStatusView` renders its live progress inline.
+    /// the Homebrew card renders its live progress inline.
     @ViewBuilder
     private var uninstallReviewCard: some View {
         switch uninstaller.phase {
@@ -921,18 +946,14 @@ struct CommandBarView: View {
     /// small floating window, so nothing here is rebuilt from scratch.
     @ViewBuilder
     private var uninstallHomebrewStatus: some View {
-        if let package = uninstaller.selectedHomebrewPackage {
+        if uninstaller.homebrewCheckFailed {
+            UninstallerHomebrewFailureNote(onRetry: uninstaller.retryHomebrewCheck)
+                .padding(.horizontal, 17)
+        } else if let package = uninstaller.selectedHomebrewPackage {
             if let status = homebrew.operationStatus,
                status.action == .uninstall,
                status.package?.id == package.id {
-                HomebrewOperationStatusView(status: status,
-                                            log: homebrew.log,
-                                            terminalFallbackCommand: homebrew.terminalFallbackCommand,
-                                            compact: true,
-                                            showDetails: $showHomebrewDetails,
-                                            onCancel: homebrew.cancelOperation,
-                                            onClear: homebrew.clearLog,
-                                            onOpenTerminal: homebrew.openTerminalFallback)
+                HomebrewOperationOutputView(homebrew: homebrew, output: .status(status), compact: true)
                     .padding(.horizontal, 17)
                 if let tap = homebrew.untrustedTap {
                     HomebrewTrustCard(tap: tap, compact: true)
@@ -1074,7 +1095,7 @@ struct CommandBarView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
             .tint(.red)
-            .disabled(!uninstaller.items.contains(where: \.include)
+            .disabled(!uninstaller.canRemoveSelected
                       || (uninstaller.selectedHomebrewPackage != nil && homebrew.isBusy))
         }
         .padding(.horizontal, 17)
@@ -1188,7 +1209,7 @@ struct CommandBarView: View {
             Text(service.isShowingSuggestions && !service.categoryChips.isEmpty ? "⌃P ⌃N ↑↓ ←→" : "⌃P ⌃N ↑↓")
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .foregroundStyle(.tertiary)
-            if service.selectedEntry?.id == "math.result" {
+            if service.selectedEntry?.reusableExpression != nil {
                 Text("⇥")
                     .font(.system(size: 9, weight: .semibold, design: .rounded))
                     .foregroundStyle(.tertiary)

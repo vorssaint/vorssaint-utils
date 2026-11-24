@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import AVFoundation
 import SwiftUI
 
 /// Production rail, editor, and focus bodies with inert services. Windows stay
@@ -14,6 +15,7 @@ enum NotchCompactTests {
         var stops = 0
         /// Whether the island's preview offers its own camera picker over the image.
         var previewMenu: Bool?
+        var previewSize: CGSize?
         func showEmbedded() { isEmbeddedPresented = true }
         func hideEmbedded() {
             guard isEmbeddedPresented else { return }
@@ -27,6 +29,7 @@ enum NotchCompactTests {
         var body: some View {
             Color.black.frame(width: size.width, height: size.height)
                 .onAppear { CameraPreviewService.shared.previewMenu = showsCameraMenu }
+                .onGeometryChange(for: CGSize.self) { $0.size } action: { CameraPreviewService.shared.previewSize = $0 }
         }
     }
     final class NotchService: ObservableObject {
@@ -36,6 +39,7 @@ enum NotchCompactTests {
         var scratchpadFindAction = NSTextFinder.Action.showFindInterface
         var contentSize = CGSize(width: 304, height: 122)
         var selected = NotchModule.controls
+        var musicShowsVolume = false
         var notice: NotchNotice?
         var showingSections = false
         var modules: [NotchModule] = [.controls, .music]
@@ -228,6 +232,7 @@ enum NotchCompactTests {
         readingLevels(suite)
         focus(suite)
         sizing(suite)
+        musicVolumeSizing(suite)
     }
     private static func calendarRows(_ suite: TestSuite) {
         // Local noon, so the one-hour event never crosses midnight in any time zone.
@@ -260,19 +265,32 @@ enum NotchCompactTests {
         }
     }
     private static func camera(_ suite: TestSuite) {
+        let layerHost = CameraLayerView.LayerHostView(session: AVCaptureSession())
+        suite.expect(layerHost.previewLayer.videoGravity == .resizeAspect,
+                     "the mirror fits the whole camera frame when the feed and surface have different proportions")
         let service = CameraPreviewService.shared
         service.isEmbeddedPresented = false
         service.stops = 0
         service.previewMenu = nil
-        let host = NSHostingView(rootView: AnyView(VStack {
-            NotchCameraView(size: CGSize(width: 424, height: 180))
+        service.previewSize = nil
+        let page = Page()
+        page.service.selected = .camera
+        let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
+                                     safeAreaTop: 38, cameraWidth: 208, layout: .custom,
+                                     customWidth: 360, customHeight: 260,
+                                     cameraFit: NotchCameraFit(width: 0, height: 6), outline: true)
+        let short = geometry.contentSize(for: geometry.expandedSize(module: .camera))
+        page.service.contentSize = short
+        suite.expect(short.height < 144 && page.pageSize == short,
+                     "a short camera page uses its visible height below the header")
+        let host = NSHostingView(rootView: AnyView(GeometryReader { area in
+            NotchCameraView(size: area.size)
         }))
-        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 424, height: 180),
+        let window = NSWindow(contentRect: NSRect(origin: CGPoint(x: -10000, y: -10000), size: short),
                               styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = host
         defer { window.contentView = nil; service.isEmbeddedPresented = false }
-        host.frame = NSRect(x: 0, y: 0, width: 424, height: 180)
         settle(host)
         service.showEmbedded()
         settle(host)
@@ -280,6 +298,12 @@ enum NotchCompactTests {
                      "starting the embedded camera does not dismiss it when the start card disappears")
         suite.expect(service.previewMenu == false,
                      "the island's preview leaves its camera picker and stop button to the top row, clear of the image")
+        for size in [short, CGSize(width: 304, height: 534), CGSize(width: 424, height: 180), short] {
+            window.setContentSize(size)
+            settle(host)
+            suite.expect(service.previewSize == size && service.isEmbeddedPresented && service.stops == 0,
+                         "resizing the island keeps capture running and fits the preview to the visible page at \(size)")
+        }
         // The top row's stop button, as a pill in a full row and a glyph
         // beside the camera.
         var band = NotchBand()
@@ -728,6 +752,32 @@ enum NotchCompactTests {
         suite.expect(floating.panel?.responderChanges == 1,
                      "a queued floating focus request is discarded after the user changes hosts")
     }
+    private static func musicVolumeSizing(_ suite: TestSuite) {
+        var page = Page()
+        page.service.selected = .music
+        let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        for notched in [false, true] {
+            for layout: NotchSize in [.compact, .spacious, .custom] {
+                page.service.geometry = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
+                                                      cameraWidth: notched ? 210 : 0, layout: layout,
+                                                      customWidth: 480, customHeight: 260)
+                for playing in [false, true] {
+                    page.music.playback = playing ? true : nil
+                    for showVolume in [false, true] {
+                        page.service.musicShowsVolume = showVolume
+                        let minimum = NotchLayout.musicPlayerHeight(band: page.service.expandedGeometry.musicBandHeight,
+                                                                    playing: playing, showVolume: showVolume)
+                        for available: CGFloat in [100, minimum, 300] {
+                            page.service.contentSize = CGSize(width: 304, height: available)
+                            suite.expect(page.pageSize == CGSize(width: 304, height: max(available, minimum)),
+                                         "the music page keeps all controls reachable in short islands and adds no scrolling when they fit: \(layout), notched \(notched), playing \(playing), volume \(showVolume)")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private static func sizing(_ suite: TestSuite) {
         var page = Page()
         let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
@@ -775,13 +825,15 @@ enum NotchCompactTests {
                 } else if module == .clipboard {
                     suite.expect(layout.height >= NotchLayout.clipboardCardHeight,
                                  "a short clipboard page keeps a complete card reachable")
-                } else if module == .camera || module == .mixer {
+                } else if module == .camera {
+                    suite.expect(layout == page.service.contentSize, "the camera page fits the visible area without scrolling")
+                } else if module == .mixer {
                     // The mixer's controls sit in the top row, so its faders take the whole page.
-                    let minimum = module == .camera ? 144 : NotchLayout.mixerMinimumHeight
-                    suite.expect(layout.height >= minimum, "camera and mixer controls keep a usable height in a short island")
+                    let minimum = NotchLayout.mixerMinimumHeight
+                    suite.expect(layout.height >= minimum, "mixer controls keep a usable height in a short island")
                     if page.service.contentSize.height >= minimum {
                         suite.expect(layout.height == page.service.contentSize.height,
-                                     "camera and mixer actions fit without outer scrolling in a short island")
+                                     "mixer actions fit without outer scrolling in a short island")
                     }
                 }
             }

@@ -13,9 +13,34 @@ import VMStatisticsCompat
 
 enum WindowLayoutFeatureTests {
     static func run(_ suite: TestSuite) {
+        WindowStageManagerTests.run(suite)
+        WindowStageManagerMaximizerTests.run(suite)
         WindowDirectionalModifierRuntimeTests.run(suite)
         WindowEdgeSnapRuntimeTests.run(suite)
+        WindowEdgeSnapRestoreTests.run(suite)
         WindowGestureApplyRuntimeTests.run(suite)
+        WindowGestureTargetRuntimeTests.run(suite)
+        let leftButton: [CGEventType] = [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
+        let rightButton: [CGEventType] = [.rightMouseDown, .rightMouseDragged, .rightMouseUp]
+        let pointerCases: [(demand: WindowLayoutPointerDemand, events: [CGEventType])] = [
+            ([], []),
+            (.gesture, leftButton + rightButton),
+            (.edgeSnap, leftButton + [.flagsChanged]),
+            ([.gesture, .edgeSnap], leftButton + rightButton + [.flagsChanged]),
+        ]
+        let inputTypes = leftButton + rightButton
+            + [.flagsChanged, .mouseMoved, .keyDown, .scrollWheel, .otherMouseDown]
+        for (demand, events) in pointerCases {
+            let expectedMask = events.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
+            suite.expect(demand.eventMask == expectedMask,
+                "pointer demand \(demand.rawValue) subscribes only to the events its features use")
+            suite.expect(inputTypes.allSatisfy { demand.observes($0) == events.contains($0) },
+                "pointer demand \(demand.rawValue) handles exactly the subscribed input types")
+            for disabled in [CGEventType.tapDisabledByTimeout, .tapDisabledByUserInput] {
+                suite.expect(demand.observes(disabled) == !demand.isEmpty,
+                    "pointer demand \(demand.rawValue) receives disable notice \(disabled.rawValue) only while active")
+            }
+        }
         let modifierTrigger = WindowDirectionalTrigger(storageValue: "modifiers:control+command")
         suite.expect(modifierTrigger?.displayString == "⌃⌘"
                 && modifierTrigger?.storageValue == "modifiers:control+command",
@@ -713,6 +738,24 @@ enum WindowLayoutFeatureTests {
                    $0 == "EnableTilingByEdgeDrag" ? true : false
                },
                "one enabled system edge gesture is enough to prevent competing previews")
+        suite.expect(!WindowEdgeSnapSupport.systemTilingEnabled {
+                   $0 == "EnableTilingOptionAccelerator" ? nil : false
+               },
+               "an option-key switch macOS never wrote stops being a conflict once both drags are off")
+        suite.expect(!WindowEdgeSnapSupport.systemTilingEnabled {
+                   $0 == "EnableTilingOptionAccelerator"
+               },
+               "the option-key accelerator on its own, without a drag across an edge, is not a conflict")
+        suite.expect(WindowEdgeSnapSupport.systemTilingEnabled {
+                   $0 == "EnableTilingOptionAccelerator" ? nil : $0 == "EnableTopTilingByEdgeDrag"
+               },
+               "an enabled top tiling drag is a conflict even with an unwritten accelerator")
+        suite.expect(WindowEdgeSnapSupport.systemTilingEnabled(
+                   valueFor: { $0 == "EnableTilingOptionAccelerator" ? nil : false }, optionHeld: true)
+                && !WindowEdgeSnapSupport.systemTilingEnabled(valueFor: { _ in false }, optionHeld: true)
+                && !WindowEdgeSnapSupport.systemTilingEnabled(valueFor: { _ in true }, displaysSpan: true,
+                                                              optionHeld: true),
+               "Option defaults to system tiling only when enabled on separate Spaces")
         suite.expect(!WindowEdgeSnapSupport.systemTilingEnabled(
                    valueFor: { _ in nil }, displaysSpan: true)
                 && !WindowEdgeSnapSupport.systemTilingEnabled(
@@ -1553,10 +1596,9 @@ enum WindowLayoutFeatureTests {
         suite.expect(sideRepeatPlacement.contains("WindowLayoutGeometry.sideCycleResumes(")
                 && sideRepeatPlacement.contains("WindowLayoutGeometry.sideCyclePress("),
                "window layout service continues the side cycle only after the same side key")
-        suite.expect(sideRepeatSetFrame.components(separatedBy: "if let cyclePress").count == 2
-                && sideRepeatSetFrame.components(separatedBy: "if let cyclePress")[0].contains("self.frame(of: window) ?? frame") == false
-                && sideRepeatConclude.contains("if let cyclePress = context.cyclePress"),
-               "window layout service reads back the settled frame and schedules its refresh only while the cycle is on")
+        suite.expect(sideRepeatSetFrame.contains("cyclePress != nil || UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag)")
+                && sideRepeatConclude.contains("context.cyclePress != nil || UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag)"),
+               "window layout reads back settled frames only for the side cycle or opt-in drag restoration")
         let leftHalfRect = WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame)
         suite.expect(WindowLayoutGeometry.accepts(actualRect: leftHalfRect.offsetBy(dx: 200, dy: 0),
                                             targetRect: leftHalfRect,

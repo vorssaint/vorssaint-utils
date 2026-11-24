@@ -17,6 +17,7 @@ enum NotchCapsuleTests {
         placementContracts(suite)
         outlineContracts(suite)
         stripContracts(suite)
+        calendarLeadContracts(suite)
         measureContracts(suite)
         openContracts(suite)
         targetContracts(suite)
@@ -239,7 +240,7 @@ enum NotchCapsuleTests {
                      "the cover is a circle concentric with the capsule's round end, an even gap inside it")
         let eventAndMusic = Layout.calendarPairSurface(companion: .music, workingAgents: 0, downloadPercent: false,
                                                        geometry: geometry, language: .enUS)
-        let eventAndMusicContent = Layout.artworkInset(geometry) + cover + Layout.groupSpacing + Layout.calendarClockWidth
+        let eventAndMusicContent = Layout.artworkInset(geometry) + cover + Layout.groupSpacing + Layout.calendarClockWidth()
             + Layout.endPadding
         suite.expect(abs(visible(eventAndMusic) - max(visible(geometry.restingSize(showsContent: false)),
                                                       eventAndMusicContent)) < 1,
@@ -257,6 +258,52 @@ enum NotchCapsuleTests {
         for (name, size) in strips(crowded) {
             suite.expect(size.width <= max(crowded.restingSize(showsContent: false).width, crowded.cameraWidth + 20),
                          "crowded menus keep a capsule within their free room: \(name)")
+        }
+    }
+
+    private static func calendarLeadContracts(_ suite: TestSuite) {
+        let geometry = capsule(bar: 24)
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let short = Layout.calendarSurface(title: "Call", time: "· 12:30", geometry: geometry)
+        let shortPair = Layout.calendarPairSurface(companion: .agents, workingAgents: 3, downloadPercent: false,
+                                                   geometry: geometry, language: .enUS)
+        let shortTimer = Layout.timerSurface(reading: "25:00", companion: .calendar, workingAgents: 0,
+                                             downloadPercent: false, geometry: geometry, language: .enUS)
+        for minutes in [15, 60, 99, 120, 240] {
+            let lead = TimeInterval(minutes * 60)
+            let shape = NotchCalendarSupport.countdownShape(leadTime: lead)
+            let text = NotchCalendarSupport.countdownText(until: now.addingTimeInterval(lead), now: now)
+            for font in [Layout.readingFont, NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)] {
+                let drawn = NSHostingView(rootView: Text(text).font(Font(font as CTFont)).lineLimit(1).fixedSize())
+                    .fittingSize.width
+                let reserved = (shape as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
+                suite.expect(drawn <= reserved + 0.5,
+                             "notch and capsule reserve every digit of a \(minutes)-minute countdown")
+            }
+            let single = Layout.calendarSurface(title: "Call", time: "· 12:30", geometry: geometry,
+                                                 calendarLeadTime: lead)
+            let pair = Layout.calendarPairSurface(companion: .agents, workingAgents: 3, downloadPercent: false,
+                                                   geometry: geometry, language: .enUS, calendarLeadTime: lead)
+            let timer = Layout.timerSurface(reading: "25:00", companion: .calendar, workingAgents: 0,
+                                             downloadPercent: false, geometry: geometry, language: .enUS,
+                                             calendarLeadTime: lead)
+            if minutes < 100 {
+                suite.expect(single == short && pair == shortPair && timer == shortTimer,
+                             "shorter leads preserve the default capsule widths")
+            }
+            func drawnWidth(_ value: String, font: NSFont) -> CGFloat {
+                NSHostingView(rootView: Text(value).font(Font(font as CTFont)).lineLimit(1).fixedSize()).fittingSize.width
+            }
+            let clock = drawnWidth(text, font: Layout.readingFont)
+            let calendarMark = Layout.calendarDotSide + Layout.markSpacing + clock
+            let ends = 2 * (Layout.side(geometry) + Layout.endPadding)
+            let singleContent = Layout.calendarDotSide + Layout.spacing + drawnWidth("Call", font: Layout.titleFont)
+                + Layout.groupSpacing + clock + Layout.markSpacing + drawnWidth("· 12:30", font: Layout.smallFont)
+            let pairContent = Layout.agentMarksWidth(working: 3) + Layout.groupSpacing + calendarMark
+            let timerContent = calendarMark + Layout.groupSpacing + drawnWidth("25:00", font: Layout.readingFont)
+            suite.expect(single.width + 0.5 >= ends + singleContent && pair.width + 0.5 >= ends + pairContent
+                         && timer.width + 0.5 >= ends + timerContent,
+                         "single and paired capsules fit the rendered \(minutes)-minute clock and its neighbors")
         }
     }
 

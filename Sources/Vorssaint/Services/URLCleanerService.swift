@@ -161,11 +161,12 @@ final class URLCleanerService: ObservableObject {
         // carried, and a link the cleaner did not need to touch is the one
         // most likely to come back spelled differently.
         let types = (pasteboard.types ?? []).map(\.rawValue)
+        let cleaningRules = rules
         guard URLCleaning.canRewritePasteboard(types: types),
               // The rewrite writes one item, so a copy of several is left alone.
               pasteboard.pasteboardItems?.count == 1,
               let text = pasteboard.string(forType: .string) ?? pasteboard.string(forType: urlType),
-              let cleaned = URLCleaning.clean(text, rules: rules),
+              let cleaned = URLCleaning.clean(text, rules: cleaningRules),
               !cleaned.removed.isEmpty,
               !token.isCancelled else {
             return PollResult(changeCount: changeCount, cleaned: nil)
@@ -187,18 +188,8 @@ final class URLCleanerService: ObservableObject {
             // with a slash for an empty path, so links compare as addresses.
             // Only the scheme and host ignore case. Paths and query values
             // can identify different resources when their case differs.
-            func address(_ string: String) -> String {
-                guard let url = URL(string: string),
-                      var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-                    return string
-                }
-                components.scheme = components.scheme?.lowercased()
-                components.host = components.host?.lowercased()
-                if components.path.isEmpty { components.path = "/" }
-                return components.string ?? string
-            }
             let link = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            let linkAddress = address(link)
+            let linkAddress = URLCleanerLinkMetadata.address(link)
             // Head, style, script and title are never shown, and a head links
             // the document's own files, not the copy. One left open ends at
             // the body or the end, and a tag never spans a '<', so markup that
@@ -217,7 +208,7 @@ final class URLCleanerService: ObservableObject {
             let targets = href.matches(in: shown, range: NSRange(shown.startIndex..., in: shown))
                 .compactMap { match -> String? in
                     (1...3).compactMap { Range(match.range(at: $0), in: shown) }.first.map {
-                        address(String(shown[$0]).replacingOccurrences(of: "&amp;", with: "&"))
+                        URLCleanerLinkMetadata.address(String(shown[$0]).replacingOccurrences(of: "&amp;", with: "&"))
                     }
                 }
             let html = rawHTML.lowercased()
@@ -228,6 +219,18 @@ final class URLCleanerService: ObservableObject {
             guard !media.contains(where: html.contains), targets.allSatisfy({ $0 == linkAddress }),
                   !targets.isEmpty || visible.isEmpty || visible == link else {
                 return PollResult(changeCount: changeCount, cleaned: nil)
+            }
+        }
+        var linkMetadata: Data?
+        if types.contains(URLCleanerLinkMetadata.pasteboardType.rawValue) {
+            let data = pasteboard.data(forType: URLCleanerLinkMetadata.pasteboardType)
+            guard !token.isCancelled, pasteboard.changeCount == changeCount else {
+                return PollResult(changeCount: changeCount, cleaned: nil)
+            }
+            switch URLCleanerLinkMetadata.rewrite(data, matching: text, rules: cleaningRules) {
+            case .preserved(let data): linkMetadata = data
+            case .discard: break
+            case .incompatible: return PollResult(changeCount: changeCount, cleaned: nil)
             }
         }
         // A promised source can block too. Read it before the last check,
@@ -243,7 +246,8 @@ final class URLCleanerService: ObservableObject {
         // another device stays marked as one, so the clipboard history does
         // not credit the cleaned link to the app in front.
         let rewrittenChangeCount = writeToPasteboard(cleaned.url, source: source,
-                                                     remote: types.contains("com.apple.is-remote-clipboard"))
+                                                     remote: types.contains("com.apple.is-remote-clipboard"),
+                                                     linkMetadata: linkMetadata)
         return PollResult(changeCount: rewrittenChangeCount, cleaned: cleaned)
     }
 
@@ -256,11 +260,13 @@ final class URLCleanerService: ObservableObject {
     }
 
     @discardableResult
-    private static func writeToPasteboard(_ urlString: String, source: String? = nil, remote: Bool = false) -> Int {
+    private static func writeToPasteboard(_ urlString: String, source: String? = nil, remote: Bool = false,
+                                         linkMetadata: Data? = nil) -> Int {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(urlString, forType: .string)
         pasteboard.setString(urlString, forType: urlType)
+        if let linkMetadata { pasteboard.setData(linkMetadata, forType: URLCleanerLinkMetadata.pasteboardType) }
         if let source { pasteboard.setString(source, forType: .source) }
         if remote { pasteboard.setData(Data(), forType: .remoteClipboard) }
         return pasteboard.changeCount

@@ -9,12 +9,16 @@ struct QuickToolsSettings: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var micMute = MicMuteService.shared
+    @ObservedObject private var quickToggles = QuickTogglesService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var cameraPreview = CameraPreviewService.shared
     @ObservedObject private var scratchpad = ScratchpadService.shared
     @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.quickLauncherShortcutEnabled) private var launcherShortcutEnabled = true
     @AppStorage(DefaultsKey.micMuteShortcutEnabled) private var micShortcutEnabled = false
+    @AppStorage(DefaultsKey.micMuteFollowCallApps) private var micFollowCallApps = false
+    @AppStorage(DefaultsKey.quitAppsShortcutEnabled) private var quitAllShortcutEnabled = false
+    @AppStorage(DefaultsKey.quitAppsExceptFrontShortcutEnabled) private var quitOthersShortcutEnabled = false
     @AppStorage(DefaultsKey.cameraPreviewShortcutEnabled) private var cameraShortcutEnabled = false
     @AppStorage(DefaultsKey.scratchpadShortcutEnabled) private var scratchpadShortcutEnabled = false
     @AppStorage(DefaultsKey.scratchpadRetention) private var scratchpadRetention = ScratchpadRetention.never.rawValue
@@ -100,20 +104,69 @@ struct QuickToolsSettings: View {
                 .onAppear { brightness.refreshKeyboardLight() }
             }
 
+            if AppFeature.quitApps.isAvailable {
+                Section {
+                    Button {
+                        QuickTogglesService.shared.showQuitApps()
+                    } label: {
+                        Label(FeatureStrings.quickToggles(l10n.language).quitAllTitle,
+                              systemImage: "xmark.app")
+                    }
+                    QuitAllExceptionsList()
+                    Toggle("\(l10n.s.quickToolShortcutToggle): \(FeatureStrings.quickToggles(l10n.language).quitAllTitle)",
+                           isOn: $quitAllShortcutEnabled)
+                        .onChange(of: quitAllShortcutEnabled) { _, _ in
+                            QuickTogglesService.shared.syncWithPreferences()
+                        }
+                    ShortcutPreferenceRow(role: .quitAll,
+                                          isEnabled: quitAllShortcutEnabled) {
+                        QuickTogglesService.shared.syncWithPreferences()
+                    }
+                    if quitAllShortcutEnabled, quickToggles.shortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    Toggle("\(l10n.s.quickToolShortcutToggle): \(FeatureStrings.quickToggles(l10n.language).quitOthersTitle)",
+                           isOn: $quitOthersShortcutEnabled)
+                        .onChange(of: quitOthersShortcutEnabled) { _, _ in
+                            QuickTogglesService.shared.syncWithPreferences()
+                        }
+                    ShortcutPreferenceRow(role: .quitAllExceptFront,
+                                          isEnabled: quitOthersShortcutEnabled) {
+                        QuickTogglesService.shared.syncWithPreferences()
+                    }
+                    if quitOthersShortcutEnabled, quickToggles.othersShortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    Text(l10n.s.quitAppsCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text(l10n.s.quitAppsName)
+                }
+                .settingsFormSectionAnchor(.quitApps)
+            }
+
             if AppFeature.micMute.isAvailable {
                 Section {
                     Button {
                         MicMuteService.shared.toggle()
                     } label: {
                         Label(micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName,
-                              systemImage: micMute.isMuted ? "mic.slash.fill" : "mic")
+                              systemImage: micMute.controlSymbol)
                     }
-                    if micMute.isMuted {
-                        Label(l10n.s.micMutedHUD, systemImage: "mic.slash.fill")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
+                    microphoneStatus
                     Text(l10n.s.micMuteCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(l10n.s.micMuteFollowCallAppsToggle, isOn: $micFollowCallApps)
+                        .onChange(of: micFollowCallApps) { _, _ in
+                            micMute.syncWithPreferences()
+                        }
+                    Text(l10n.s.micMuteFollowCallAppsCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Toggle(l10n.s.micMuteMenuBarToggle, isOn: $micMenuBarIndicator)
@@ -137,6 +190,9 @@ struct QuickToolsSettings: View {
                     Text(l10n.s.micMuteName)
                 }
                 .settingsFormSectionAnchor(.micMute)
+            } else if micMute.warning != nil {
+                Section(l10n.s.micMuteName) { microphoneStatus }
+                    .settingsFormSectionAnchor(.micMute)
             }
 
             if AppFeature.cameraPreview.isAvailable {
@@ -286,6 +342,18 @@ struct QuickToolsSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    @ViewBuilder private var microphoneStatus: some View {
+        if micMute.isMuted || micMute.warning != nil {
+            Label(micMute.warning?.message ?? l10n.s.micMutedHUD,
+                  systemImage: micMute.controlSymbol)
+                .font(.caption)
+                .foregroundStyle(.orange)
+        }
+        if micMute.warning == .manualRestore {
+            Button(l10n.s.micManualRestoreChecked) { micMute.acknowledgeManualRestore() }
+        }
     }
 
     private var scratchpadBackgroundOpacityBinding: Binding<Double> {

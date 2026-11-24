@@ -72,6 +72,8 @@ final class ScrollInverter: ObservableObject {
     /// Tap callback only, like the timestamp above.
     private var linearCarryVertical: Double = 0
     private var linearCarryHorizontal: Double = 0
+    private let pinchZoomLock = NSLock()
+    private var zoomState = ScrollZoomGestureState()
     private var tapCreationRetryUsed = false
     private var tapCreationRetryWork: DispatchWorkItem?
 
@@ -86,10 +88,22 @@ final class ScrollInverter: ObservableObject {
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
         let direction = ScrollDirectionPreferences()
-        if SessionActivitySupport.tapShouldRun(featureWanted: direction.isEnabled || Self.linearScrollWanted,
-                                               accessibilityGranted: Permissions.shared.accessibility,
-                                               sessionIsActive: SessionActivity.shared.isActive) {
-            ScrollWheelTarget.shared.setEnabled(direction.horizontalModifier != nil)
+        pinchZoomLock.withLock {
+            let pinchLocation = zoomState.pinchLocation
+            if zoomState.update(direction.zoom) {
+                postPinch(phase: 4, magnification: 0, at: pinchLocation)
+            }
+        }
+        let speedWanted = Self.scrollSpeedWanted
+        if SessionActivitySupport.tapShouldRun(
+            featureWanted: direction.isEnabled || Self.linearScrollWanted || speedWanted,
+            accessibilityGranted: Permissions.shared.accessibility,
+            sessionIsActive: SessionActivity.shared.isActive
+        ) {
+            ScrollWheelTarget.shared.setEnabled(
+                direction.horizontalModifier != nil
+                    || direction.zoom.isEnabled
+                    || speedWanted)
             start()
         } else {
             stop()
@@ -108,12 +122,20 @@ final class ScrollInverter: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.linearScrollEnabled)
     }
 
+    /// Modifier-held speed likewise keeps the tap alive when direction and
+    /// linear scrolling are both off or uninstalled.
+    private static var scrollSpeedWanted: Bool {
+        AppFeature.scrollSpeed.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.scrollSpeedEnabled)
+    }
+
     /// Each list's source apps are tracked only while its feature is one the
     /// tap is up for, so a list left behind by the other feature costs nothing.
     private func setSourceTracking(_ running: Bool) {
         let exceptions = MouseAppExceptions.shared
         exceptions.setSourceTracking(running && ScrollDirectionPreferences().isEnabled, for: .scrollDirection)
         exceptions.setSourceTracking(running && Self.linearScrollWanted, for: .linearScroll)
+        exceptions.setSourceTracking(running && Self.scrollSpeedWanted, for: .scrollSpeed)
     }
 
     private func start() {
@@ -121,6 +143,7 @@ final class ScrollInverter: ObservableObject {
         if let port = tapStateLock.withLock({ tap }) {
             CGEvent.tapEnable(tap: port, enable: true)
             setSourceTracking(true)
+            pinchZoomLock.withLock { zoomState.start() }
             isRunning = true
             return
         }
@@ -129,7 +152,8 @@ final class ScrollInverter: ObservableObject {
             tap: ScrollWheelSupport.tapLocation,
             place: .tailAppendEventTap,
             options: .defaultTap,
-            eventsOfInterest: CGEventMask(1 << CGEventType.scrollWheel.rawValue),
+            eventsOfInterest: (CGEventMask(1 << CGEventType.scrollWheel.rawValue)
+                | CGEventMask(1 << CGEventType.flagsChanged.rawValue)),
             callback: { _, type, event, userInfo in
                 guard let userInfo else { return Unmanaged.passUnretained(event) }
                 let inverter = Unmanaged<ScrollInverter>.fromOpaque(userInfo).takeUnretainedValue()
@@ -166,10 +190,15 @@ final class ScrollInverter: ObservableObject {
             PointerTapRunLoop.add(source)
         }
         CGEvent.tapEnable(tap: tap, enable: true)
+        pinchZoomLock.withLock { zoomState.start() }
         isRunning = true
     }
 
     private func stop() {
+        pinchZoomLock.withLock {
+            let pinchLocation = zoomState.pinchLocation
+            if zoomState.stop() { postPinch(phase: 4, magnification: 0, at: pinchLocation) }
+        }
         ScrollWheelTarget.shared.setEnabled(false)
         tapCreationRetryWork?.cancel()
         tapCreationRetryWork = nil
@@ -203,6 +232,18 @@ final class ScrollInverter: ObservableObject {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if SessionActivity.shared.isActive, let port = tapStateLock.withLock({ tap }) {
                 CGEvent.tapEnable(tap: port, enable: true)
+            }
+            return Unmanaged.passUnretained(event)
+        }
+        if type == .flagsChanged {
+            guard event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag else {
+                return Unmanaged.passUnretained(event)
+            }
+            pinchZoomLock.withLock {
+                if let modifier = zoomState.pinchModifier,
+                   event.flags.intersection([.maskShift, .maskAlternate, .maskControl, .maskCommand]) != modifier.flag {
+                    endPinchZoomLocked()
+                }
             }
             return Unmanaged.passUnretained(event)
         }
@@ -247,16 +288,28 @@ final class ScrollInverter: ObservableObject {
         let directionApplies = direction.isEnabled
             && !MouseAppExceptions.shared.excludesPointerTarget(
                 .scrollDirection, at: event.location, sourceProcessID: sourceProcessID)
-        // Control-wheel is native zoom. Only the explicit Control-to-horizontal
-        // shortcut turns it into scrolling; a direction exception or one of
-        // our own windows leaves it as zoom too.
-        let controlRedirects = directionApplies
-            && direction.horizontalModifier == .control
-            && event.flags.intersection([.maskShift, .maskAlternate, .maskControl, .maskCommand]) == .maskControl
+        if directionApplies, !AppSwitcher.shared.scrollNavigationActive,
+           direction.zoom.action(for: event) != nil {
+            if consumeZoom(event, direction: direction) { return nil }
+            // Our panels decline zoom but still use their ordinary wheel path.
+            if !ScrollWheelTarget.shared.contains(event.location) { return Unmanaged.passUnretained(event) }
+        }
+        let horizontalModifier = directionApplies ? direction.horizontalModifier : nil
+        let speed = ScrollSpeedPreferences(defaults: defaults)
+        let speedKey = speed.matchingModifier(for: event, horizontalModifier: horizontalModifier,
+            isExcepted: MouseAppExceptions.shared.excludesPointerTarget(
+                .scrollSpeed, at: event.location, sourceProcessID: sourceProcessID),
+            targetsOwnWindow: ScrollWheelTarget.shared.contains(event.location))
+        let speedMultiplier = speedKey == nil ? 1 : speed.multiplier
+        if let speedKey { event.flags.remove(speedKey.flag) }
+        // A Control speed claim already consumed its flag. Otherwise only a
+        // real Control-to-horizontal tick can take priority over native zoom.
+        let controlRedirects = horizontalModifier == .control
+            && ScrollHorizontalModifier.control.isHeldAlone(in: event.flags)
             && ScrollWheelSupport.isVerticalOnly(event)
             && !ScrollWheelTarget.shared.contains(event.location)
         let nativeZoom = event.flags.contains(.maskControl) && !controlRedirects
-        if let linesPerNotch = nativeZoom ? nil : ScrollWheelSupport.linearLinesPerNotch(
+        let linesPerNotch = nativeZoom ? nil : ScrollWheelSupport.linearLinesPerNotch(
             defaults: defaults,
             isAvailable: AppFeature.linearScroll.isAvailable,
             isExcepted: {
@@ -264,23 +317,18 @@ final class ScrollInverter: ObservableObject {
                     .linearScroll,
                     at: event.location,
                     sourceProcessID: sourceProcessID)
-            }) {
+            })
+        if let linesPerNotch {
             // Capture both axes before any set: writing a line delta makes the
             // system rederive its point and fixed-point fields.
-            let rawVertical = ScrollWheelAxisDelta(
-                line: event.getIntegerValueField(.scrollWheelEventDeltaAxis1),
-                point: event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1),
-                fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1))
-            let rawHorizontal = ScrollWheelAxisDelta(
-                line: event.getIntegerValueField(.scrollWheelEventDeltaAxis2),
-                point: event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2),
-                fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2))
+            let rawVertical = ScrollWheelAxisDelta(event, axis: .vertical)
+            let rawHorizontal = ScrollWheelAxisDelta(event, axis: .horizontal)
             let linearVertical = ScrollWheelSupport.linearDelta(
                 rawVertical, isContinuous: traits.isContinuous,
-                linesPerNotch: linesPerNotch, carry: linearCarryVertical)
+                linesPerNotch: linesPerNotch, speedMultiplier: speedMultiplier, carry: linearCarryVertical)
             let linearHorizontal = ScrollWheelSupport.linearDelta(
                 rawHorizontal, isContinuous: traits.isContinuous,
-                linesPerNotch: linesPerNotch, carry: linearCarryHorizontal)
+                linesPerNotch: linesPerNotch, speedMultiplier: speedMultiplier, carry: linearCarryHorizontal)
             linearCarryVertical = linearVertical.carry
             linearCarryHorizontal = linearHorizontal.carry
             // A fraction of a notch is carried into the next event rather
@@ -304,18 +352,63 @@ final class ScrollInverter: ObservableObject {
             linearCarryHorizontal = 0
         }
 
-        // The direction features read their own availability here: linear
-        // scrolling may be what keeps this tap alive, so the tap running says
-        // nothing about whether the wheel should be turned or redirected.
-        if directionApplies {
+        // Linear scrolling already scaled the distance before rounding. A
+        // plain wheel is scaled together with its direction, preserving both
+        // precise fields through the line writes.
+        let rawMultiplier = linesPerNotch == nil ? speedMultiplier : 1
+        if directionApplies || rawMultiplier != 1 {
             ScrollWheelSupport.applyDirection(
                 to: event, isContinuous: traits.isContinuous,
-                invertVertical: direction.invertVertical,
-                invertHorizontal: direction.invertHorizontal,
-                horizontalModifier: direction.horizontalModifier,
+                invertVertical: directionApplies && direction.invertVertical,
+                invertHorizontal: directionApplies && direction.invertHorizontal,
+                horizontalModifier: horizontalModifier, speedMultiplier: rawMultiplier,
                 targetsOwnWindow: ScrollWheelTarget.shared.contains(event.location)
             )
         }
         return Unmanaged.passUnretained(event)
+    }
+
+    /// Consumes a configured zoom wheel action. Called by both scroll taps so
+    /// Smooth Scrolling cannot turn a zoom command into a synthetic glide.
+    func consumeZoom(_ event: CGEvent, direction: ScrollDirectionPreferences) -> Bool {
+        guard !AppSwitcher.shared.scrollNavigationActive else { return false }
+        guard let action = direction.zoom.action(for: event) else { return false }
+        guard !ScrollWheelTarget.shared.contains(event.location) else {
+            pinchZoomLock.withLock {
+                endPinchZoomLocked()
+            }
+            return false
+        }
+        let delta = ScrollWheelSupport.zoomDelta(action.delta, axis: action.axis,
+                                                  invertVertical: direction.invertVertical,
+                                                  invertHorizontal: direction.invertHorizontal)
+        return pinchZoomLock.withLock {
+            guard zoomState.accepts(direction.zoom) else { return false }
+            postPinchZoomLocked(delta, modifier: action.modifier, at: event.location)
+            return true
+        }
+    }
+
+    private func postPinchZoomLocked(_ delta: Double, modifier: ScrollHorizontalModifier, at point: CGPoint) {
+        let previous = zoomState.pinchLocation
+        let transition = zoomState.beginPinch(modifier, at: point)
+        if transition.endPrevious { postPinch(phase: 4, magnification: 0, at: previous) }
+        if transition.begin { postPinch(phase: 1, magnification: 0, at: point) }
+        postPinch(phase: 2, magnification: delta * 0.005, at: point)
+    }
+
+    private func endPinchZoomLocked() {
+        let point = zoomState.pinchLocation
+        if zoomState.endPinch() { postPinch(phase: 4, magnification: 0, at: point) }
+    }
+
+    private func postPinch(phase: Int64, magnification: Double, at point: CGPoint?) {
+        guard let gesture = CGEvent(source: nil) else { return }
+        if let point { gesture.location = point }
+        gesture.type = CGEventType(rawValue: UInt32(NSEvent.EventType.gesture.rawValue))!
+        gesture.setIntegerValueField(CGEventField(rawValue: 110)!, value: 8)
+        gesture.setIntegerValueField(CGEventField(rawValue: 132)!, value: phase)
+        gesture.setDoubleValueField(CGEventField(rawValue: 113)!, value: magnification)
+        gesture.post(tap: .cgSessionEventTap)
     }
 }

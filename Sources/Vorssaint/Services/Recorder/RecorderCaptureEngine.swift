@@ -280,6 +280,16 @@ final class RecorderMicrophoneCapture: NSObject,
         else { return false }
 
         let output = AVCaptureAudioDataOutput()
+        // USB microphones can expose integer PCM while the audio system runs
+        // in Float32. Request one representation before handing samples off,
+        // leaving the device's sample rate and channel layout intact.
+        output.audioSettings = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVLinearPCMBitDepthKey: 32,
+            AVLinearPCMIsFloatKey: true,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false,
+        ]
         session.beginConfiguration()
         defer { session.commitConfiguration() }
         guard session.canAddInput(input), session.canAddOutput(output) else { return false }

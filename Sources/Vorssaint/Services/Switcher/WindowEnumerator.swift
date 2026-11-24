@@ -5,6 +5,78 @@ import AppKit
 import ApplicationServices
 import CoreGraphics
 
+/// One session's window list. Capture IDs before asking Accessibility, then
+/// fetch their metadata beside the AX batch. Both answers can be read again.
+final class WindowServerWindowList {
+    private let lock = NSLock()
+    private var windowInfo: [[String: Any]] = []
+    private let identifiersCaptured = DispatchGroup()
+    private let captured = DispatchGroup()
+    /// Focus-history revision sampled before this capture's window-server query.
+    /// Nil when the caller did not pair one; the walk then reads its own.
+    let historyRevision: UUID?
+
+    // Two in-flight calls allow a fresh session past one cancelled system
+    // call. Queued cancelled sessions do no work; threads cannot grow unbounded.
+    private static let captureQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "com.vorssaint.switcher.window-server-metadata"
+        queue.qualityOfService = .userInitiated
+        queue.maxConcurrentOperationCount = 2
+        return queue
+    }()
+
+    private init(historyRevision: UUID?) {
+        self.historyRevision = historyRevision
+        identifiersCaptured.enter()
+        captured.enter()
+    }
+
+    static func begin(isCancelled: @escaping () -> Bool = { false },
+                      historyRevision: UUID? = nil) -> WindowServerWindowList {
+        let list = WindowServerWindowList(historyRevision: historyRevision)
+        captureQueue.addOperation {
+            defer { list.captured.leave() }
+            guard !isCancelled() else {
+                list.identifiersCaptured.leave()
+                return
+            }
+            let identifiers = SpaceWindowBridge.windowIDList()
+            let info: [[String: Any]]
+            if let identifiers {
+                // No AX list can precede the set of CG candidates it verifies.
+                list.identifiersCaptured.leave()
+                guard !isCancelled() else { return }
+                info = CGWindowListCreateDescriptionFromArray(identifiers) as? [[String: Any]] ?? []
+            } else {
+                // Older systems keep the original CG-before-AX ordering.
+                info = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
+                list.identifiersCaptured.leave()
+            }
+            list.lock.withLock { list.windowInfo = info }
+        }
+        return list
+    }
+
+    func waitForWindowIDs(isCancelled: () -> Bool) -> Bool {
+        wait(for: identifiersCaptured, isCancelled: isCancelled)
+    }
+
+    func take(isCancelled: () -> Bool = { false }) -> [[String: Any]]? {
+        guard wait(for: captured, isCancelled: isCancelled) else { return nil }
+        return lock.withLock { windowInfo }
+    }
+
+    private func wait(for group: DispatchGroup, isCancelled: () -> Bool) -> Bool {
+        while !isCancelled() {
+            if group.wait(timeout: .now() + .milliseconds(10)) == .success {
+                return !isCancelled()
+            }
+        }
+        return false
+    }
+}
+
 /// Builds the list of switchable windows from the window server and
 /// Accessibility.
 ///
@@ -24,10 +96,18 @@ enum WindowEnumerator {
     }
 
     struct WindowList {
-        let items: [SwitcherItem]
+        var items: [SwitcherItem]
         /// Unfiltered source context keeps activation and panel placement tied
         /// to the foreground window even when it belongs to another display.
         let sourceItems: [SwitcherItem]
+        var activationSnapshot: SwitcherWindowServerSnapshot? = nil
+        var capturedVisibleSpaces: Set<UInt64>? = nil
+        var bundleIdentifiers: [pid_t: String] = [:]
+        var nativeFullscreenWindowIDs: Set<CGWindowID> = []
+        var observedWindowIDs: Set<CGWindowID> = []
+        var rejectedWindowIDs: Set<CGWindowID> = []
+        var focusedWindowIDsByOwner: [pid_t: CGWindowID] = [:]
+        var accessibilityElements: [CGWindowID: AXUIElement] = [:]
     }
 
     struct AppSnapshot: Sendable {
@@ -42,7 +122,7 @@ enum WindowEnumerator {
 
     struct Snapshot: Sendable {
         let accessibilityGranted: Bool
-        let runningApps: [AppSnapshot]
+        var runningApps: [AppSnapshot]
         let ownWindowTitles: [CGWindowID: String]
         let screenFrames: [CGRect]
         let displayIDsByUUID: [String: CGDirectDisplayID]
@@ -57,7 +137,7 @@ enum WindowEnumerator {
     private static let maximumCount = 48
     /// AX calls normally return in a few milliseconds. A process that cannot
     /// answer within this ceiling must not hold the switcher behind it.
-    private static let messagingTimeout: Float = 0.2
+    private static let messagingTimeout: Float = 0.1
     /// Aggregate worker cap across every concurrent Dock, preview, Command Bar,
     /// and Switcher Accessibility batch.
     private static let maximumConcurrentQueries = 24
@@ -74,11 +154,128 @@ enum WindowEnumerator {
     /// (issues #971 and #189).
     private static let accessibilityBatchBudget: TimeInterval = 5.0
 
-    /// Copies all AppKit-owned enumeration inputs into values that can safely
-    /// cross to the serial enumeration queue.
-    static func snapshot() -> Snapshot {
-        dispatchPrecondition(condition: .onQueue(.main))
-        let runningApps = NSWorkspace.shared.runningApplications.compactMap { app -> AppSnapshot? in
+    /// The apps one walk works with, after window-server owners have been
+    /// merged into the running-apps snapshot. Accessibility is asked once,
+    /// for this set, and a source prefetch never adds a process to it.
+    private struct WalkApps {
+        let runningApps: [AppSnapshot]
+        let regularApps: [pid_t: String]
+        let compatibilityLayerPids: Set<pid_t>
+        let bundleIdentifiers: [pid_t: String]
+        let embeddedHostPIDs: [pid_t: pid_t]
+        let accessibilityPIDs: Set<pid_t>
+    }
+
+    private static func regularBundlePaths(in apps: [AppSnapshot]) -> [pid_t: String] {
+        var paths: [pid_t: String] = [:]
+        for app in apps where app.isRegular && app.pid > 0 {
+            if let path = app.bundlePath { paths[app.pid] = path }
+        }
+        return paths
+    }
+
+    /// The first window of an embedded process has no remembered item identifying its host yet.
+    static func appPID(forWindowOwner owner: pid_t, runningApps: [AppSnapshot]) -> pid_t? {
+        let known = runningApps.first { $0.pid == owner }
+        let live = known == nil ? NSRunningApplication(processIdentifier: owner) : nil
+        guard live?.isTerminated != true else { return nil }
+        if known?.isRegular == true || live?.activationPolicy == .regular { return owner }
+        guard let path = known?.bundlePath ?? live?.bundleURL?.path else { return nil }
+        return SwitcherSupport.embeddedHostPID(helperBundlePath: path,
+                                              regularBundlePaths: regularBundlePaths(in: runningApps))
+    }
+
+    /// The apps of one walk, and the ones it asks through Accessibility.
+    ///
+    /// The regular process owns the app identity, but an embedded accessory
+    /// process can own its real windows. Query both sides of that mapping.
+    private static func walkApps(runningApps: [AppSnapshot],
+                                 ownPID: pid_t,
+                                 filterPID: pid_t?) -> WalkApps {
+        var regularApps: [pid_t: String] = [:]
+        for app in runningApps where app.isRegular {
+            regularApps[app.pid] = app.localizedName ?? ""
+        }
+        regularApps[pid_t(ownPID)] = AppInfo.name
+        // Programs hosted by a compatibility layer (bottles) run in bare
+        // loader processes: no bundle, sometimes not even a regular
+        // activation policy, and Accessibility describes their windows with no
+        // standard subrole. Track those pids so the guards below treat their
+        // real windows as switchable instead of hiding the app (issue #274).
+        var compatibilityLayerPids: Set<pid_t> = []
+        for app in runningApps where SwitcherSupport.isCompatibilityLayerApp(
+            bundleIdentifier: app.bundleIdentifier,
+            executablePath: app.executablePath,
+            localizedName: app.localizedName) {
+            compatibilityLayerPids.insert(app.pid)
+            if regularApps[app.pid] == nil {
+                regularApps[app.pid] = app.localizedName ?? ""
+            }
+        }
+        let hostPaths = regularBundlePaths(in: runningApps)
+        let embeddedHostPairs: [(pid_t, pid_t)] = runningApps.compactMap { app in
+            guard !app.isRegular,
+                  let helperPath = app.bundlePath,
+                  let hostPID = SwitcherSupport.embeddedHostPID(helperBundlePath: helperPath,
+                                                               regularBundlePaths: hostPaths)
+            else { return nil }
+            return (app.pid, hostPID)
+        }
+        let embeddedHostPIDs = SwitcherSupport.firstValuesByPID(embeddedHostPairs)
+        let bundleIdentifiers = SwitcherSupport.firstValuesByPID(runningApps.compactMap { app in
+            app.bundleIdentifier.map { (app.pid, $0) }
+        })
+        return WalkApps(runningApps: runningApps,
+                        regularApps: regularApps,
+                        compatibilityLayerPids: compatibilityLayerPids,
+                        bundleIdentifiers: bundleIdentifiers,
+                        embeddedHostPIDs: embeddedHostPIDs,
+                        accessibilityPIDs: SwitcherSupport.accessibilityPIDs(
+                            regularAppPIDs: Set(regularApps.keys),
+                            embeddedHostPIDs: embeddedHostPIDs,
+                            ownPID: pid_t(ownPID),
+                            filterPID: filterPID))
+    }
+
+    /// Starts the window server's own window list on a queue of its own.
+    ///
+    /// The list is the longest wait of a session, and the Accessibility batch
+    /// does not need it, so a session starts the capture before it takes the
+    /// AppKit snapshot and the walk takes the capture when it arrives.
+    static func beginWindowServerCapture(isCancelled: @escaping () -> Bool) -> WindowServerWindowList {
+        // Sample before the query is queued. A window focused while the query
+        // runs then changes this revision, and reconcile keeps that focus.
+        let historyRevision = WindowUseTracker.shared.historyRevision
+        return WindowServerWindowList.begin(isCancelled: isCancelled,
+                                            historyRevision: historyRevision)
+    }
+
+    /// Queues the source app's Accessibility window list on the shared worker
+    /// cap. The worker waits for this capture's window ids before the read, so
+    /// the caller does not block and the list cannot precede the CG candidates
+    /// it will be checked against. Nil when this source would not have been
+    /// asked: no permission, not a regular app, this process, or a walk that
+    /// is already gone.
+    static func beginSourcePrefetch(for pid: pid_t,
+                                    isRegular: Bool,
+                                    accessibilityGranted: Bool,
+                                    windowServerCapture: WindowServerWindowList,
+                                    isCancelled: @escaping () -> Bool) -> WindowEnumeratorAccessibilityPrefetch<AXUIElement>? {
+        guard accessibilityGranted,
+              isRegular,
+              pid > 0,
+              pid != ProcessInfo.processInfo.processIdentifier,
+              !isCancelled() else { return nil }
+        return WindowEnumeratorAccessibilityPrefetch.start(
+            for: pid,
+            timeout: messagingTimeout,
+            queue: accessibilityQueryQueue,
+            isCancelled: isCancelled,
+            beforeRead: { windowServerCapture.waitForWindowIDs(isCancelled: isCancelled) })
+    }
+
+    static func runningApplications() -> [AppSnapshot] {
+        NSWorkspace.shared.runningApplications.compactMap { app -> AppSnapshot? in
             guard !app.isTerminated else { return nil }
             return AppSnapshot(pid: app.processIdentifier,
                                bundleIdentifier: app.bundleIdentifier,
@@ -88,19 +285,26 @@ enum WindowEnumerator {
                                bundlePath: app.bundleURL?.path,
                                executablePath: app.executableURL?.path)
         }
+    }
+
+    static func ownWindowID(for window: NSWindow) -> CGWindowID? {
+        guard window.styleMask.contains(.titled), window.canBecomeKey,
+              window.isVisible || window.isMiniaturized else { return nil }
+        let number = window.windowNumber
+        return number > 0 ? CGWindowID(exactly: number) : nil
+    }
+
+    /// Copies all AppKit-owned enumeration inputs into values that can safely
+    /// cross to the serial enumeration queue.
+    static func snapshot(includingRunningApps: Bool = true) -> Snapshot {
+        dispatchPrecondition(condition: .onQueue(.main))
         var ownWindowTitles: [CGWindowID: String] = [:]
         for window in NSApp.windows {
-            guard window.windowNumber > 0,
-                  let windowID = CGWindowID(exactly: window.windowNumber),
-                  window.styleMask.contains(.titled),
-                  window.canBecomeKey,
-                  window.isVisible || window.isMiniaturized
-            else { continue }
-            guard ownWindowTitles[windowID] == nil else { continue }
+            guard let windowID = ownWindowID(for: window), ownWindowTitles[windowID] == nil else { continue }
             ownWindowTitles[windowID] = window.title.isEmpty ? AppInfo.name : window.title
         }
         return Snapshot(accessibilityGranted: Permissions.shared.accessibility,
-                        runningApps: runningApps,
+                        runningApps: includingRunningApps ? runningApplications() : [],
                         ownWindowTitles: ownWindowTitles,
                         screenFrames: NSScreen.screens.map(\.frame),
                         displayIDsByUUID: SpaceWindowBridge.displayIDsByUUID())
@@ -108,26 +312,234 @@ enum WindowEnumerator {
 
     /// `scopedToFrontmostPID` is set for a session that shows only the front
     /// app's windows; the cap then spends its slots on that app alone.
+    ///
+    /// `sourcePID` names the session source. `sourcePrefetch` is that app's
+    /// window list when the caller already queued it; otherwise a qualifying
+    /// source is read after the window-server metadata, on the same worker
+    /// cap. The read never adds an app to the candidate set.
+    ///
+    /// `windowServerCapture` is a window server list the caller already
+    /// started. The source read may overlap its metadata fetch. A walk without
+    /// one starts its own.
     static func enumerateSwitcherWindows(groupByApp: Bool,
                                          preservingGroupedWindows: Bool,
                                          snapshot: Snapshot,
+                                         windowsOnly: Bool = false,
                                          displayScope: DisplayScope? = nil,
                                          scopedToFrontmostPID: pid_t? = nil,
+                                         sourcePID: pid_t? = nil,
+                                         sourcePrefetch: WindowEnumeratorAccessibilityPrefetch<AXUIElement>? = nil,
+                                         windowServerCapture: WindowServerWindowList? = nil,
                                          resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                          isCancelled: @escaping () -> Bool = { false }) -> WindowList {
-        listWindows(
-            appRules: SwitcherAppRule.rules(
-                storedValue: UserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules)),
+        let appRules = SwitcherAppRule.rules(
+            storedValue: UserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules))
+        let result = listWindows(
+            appRules: appRules,
             groupByApp: groupByApp,
             preservingGroupedWindows: preservingGroupedWindows,
             marksHiddenSpaces: true,
             includesFullscreenAcrossSpaces: true,
             snapshot: snapshot,
+            windowsOnly: windowsOnly,
             displayScope: displayScope,
             scopedToFrontmostPID: scopedToFrontmostPID,
+            sourcePID: sourcePID,
+            sourcePrefetch: sourcePrefetch,
+            windowServerCapture: windowServerCapture,
             resolveSource: resolveSource,
             isCancelled: isCancelled
         )
+        return result
+    }
+
+    static func rememberSwitcherWindows(
+        snapshot: Snapshot,
+        filterPID: pid_t? = nil,
+        forFrontAppSession: Bool = false,
+        isCancelled: @escaping () -> Bool
+    ) -> WindowList {
+        listWindows(filterPID: filterPID,
+                    maximumCount: .max,
+                    windowlessApps: .all,
+                    appRules: [:],
+                    groupByApp: false,
+                    minimizedPlacement: .normal,
+                    treatHiddenAppsLikeMinimized: false,
+                    showFullscreenWindows: true,
+                    preservingGroupedWindows: false,
+                    currentSpaceOnly: false,
+                    includesFullscreenAcrossSpaces: true,
+                    marksHiddenSpaces: true,
+                    snapshot: snapshot,
+                    remembersWindows: true,
+                    forFrontAppSession: forFrontAppSession,
+                    isCancelled: isCancelled)
+    }
+
+    /// A front-app shortcut reads its own candidates and z-order. Background discovery can
+    /// still be catching up with windows the user just opened.
+    static func readFrontAppSelection(
+        snapshot: Snapshot, frontmostPID: pid_t, displayScope: DisplayScope?, knownWindowIDs: Set<CGWindowID>,
+        isRetry: Bool = false, isCancelled: @escaping () -> Bool
+    ) -> (list: WindowList, focusedWindowID: CGWindowID?, focusStillCurrent: () -> Bool) {
+        let empty = (WindowList(items: [], sourceItems: []), nil as CGWindowID?, { false })
+        guard !isCancelled() else { return empty }
+        let appPID = Self.appPID(forWindowOwner: frontmostPID, runningApps: snapshot.runningApps) ?? frontmostPID
+        let tracker = WindowUseTracker.shared
+        let observed = tracker.frontAppFocus(for: frontmostPID, appPID: appPID)
+        let captured = rememberSwitcherWindows(snapshot: snapshot, filterPID: appPID, forFrontAppSession: true,
+                                               isCancelled: isCancelled)
+        guard !isCancelled() else { return empty }
+        let windows = captured.items.filter { $0.pid == appPID && $0.windowID != nil }
+        let capturedIDs = Set(windows.compactMap(\.windowID))
+        let rejectedIDs = captured.rejectedWindowIDs.subtracting(capturedIDs)
+        func nonRejectedID(_ id: CGWindowID?) -> CGWindowID? {
+            id.flatMap { rejectedIDs.contains($0) ? nil : $0 }
+        }
+        let visible = windows.filter { $0.isOnScreen && !$0.isMinimized }
+        let visibleIDs = Set(visible.compactMap(\.windowID))
+        let stack = frontAppWindowStack(appPID: appPID, snapshot: snapshot, captured: captured)
+        let top = stack.first
+        // The candidate capture can predate the new window while AX still names its predecessor.
+        if let top, !visibleIDs.contains(top) { return empty }
+        let axFocus = snapshot.accessibilityGranted ? WindowActivator.focusedWindowID(for: frontmostPID) : nil
+        let ax = nonRejectedID(axFocus)
+        let inspectorFocused = axFocus != nil && ax == nil
+        let hint = nonRejectedID(observed.windowID)
+        let observedDocument = nonRejectedID(observed.latest?.windowID)
+        // On an immediate repeat, AX and z-order can be at different stages of our own switch.
+        let laggingSwitch = observed.recentSwitch.flatMap { last in
+            let reports = [ax, top].compactMap { $0 }
+            let matches = visibleIDs.contains(last.windowID) && visibleIDs.contains(last.previousWindowID)
+                && reports.contains(last.previousWindowID)
+                && reports.allSatisfy { $0 == last.windowID || $0 == last.previousWindowID }
+            return matches ? last : nil
+        }
+        if laggingSwitch == nil, let top, let ax, ax != top { return empty }
+        // Even matching old history and z-order can describe an inventory that missed a new AX window.
+        if let reported = ax ?? observedDocument, !capturedIDs.contains(reported) { return empty }
+        if let hint, !visibleIDs.contains(hint), stack.contains(hint) { return empty }
+        // A window can be ordered to the front without taking keyboard focus.
+        if laggingSwitch == nil, axFocus == nil, let hint, visibleIDs.contains(hint), let top, top != hint {
+            return empty
+        }
+        // An inspector can hold keyboard focus above the document the user is looking at.
+        let reportedSource = laggingSwitch?.windowID ?? ax ?? top ?? (inspectorFocused ? visible.first?.windowID : hint)
+        let source = reportedSource.flatMap { id in visible.first { $0.windowID == id } }
+        // A background scan can prune the latest observation before this shortcut starts.
+        // Wait for that source to be accounted for instead of trusting an older visible window.
+        if observed.windowID == nil, let last = observedDocument, last != reportedSource,
+           !((inspectorFocused || visible.isEmpty) && capturedIDs.contains(last)) { return empty }
+        guard !isCancelled(), source != nil || visible.isEmpty else { return empty }
+        let sourceID = source?.windowID
+        var list = SwitcherWindowSelection.select(remembered: captured, scope: .frontmostApp, frontmostPID: appPID,
+                                                  focusedWindowID: sourceID, displayScope: displayScope)
+        if source == nil || !list.sourceItems.contains(where: { $0.windowID == sourceID }) {
+            // A parked or minimized window can remain a destination without becoming an invented source.
+            list = WindowList(items: list.items, sourceItems: source.map { [$0] + list.sourceItems } ?? [],
+                              activationSnapshot: captured.activationSnapshot)
+        }
+        let previousCandidates: Set<CGWindowID>
+        let predecessor: CGWindowID?
+        if let source, let sourceID, !list.items.isEmpty {
+            let onDisplay = displayScope.map {
+                SwitcherSupport.itemsOnDisplay(list.sourceItems, displayBounds: $0.bounds, targetIndex: $0.targetIndex)
+            } ?? list.sourceItems
+            let destinations = onDisplay.filter { $0.windowID != nil && $0.windowID != sourceID }
+            let defaults = UserDefaults.standard
+            let defersMinimized = defaults.string(forKey: DefaultsKey.switcherMinimizedPlacement)
+                == WindowSwitchMinimizedPlacement.end.rawValue
+            let hiddenAsMinimized = defaults.bool(forKey: DefaultsKey.switcherTreatHiddenAppsLikeMinimized)
+            let primary = defersMinimized ? destinations.filter {
+                !$0.isMinimizedForPlacement(treatHiddenAppsLikeMinimized: hiddenAsMinimized)
+            } : []
+            let eligible = primary.isEmpty ? destinations : primary
+            previousCandidates = Set(eligible.compactMap(\.windowID))
+            predecessor = observed.latest.flatMap { last in
+                last.windowID == sourceID || (inspectorFocused && last.windowID == axFocus)
+                    ? nonRejectedID(last.previousWindowID) : nil
+            }
+            // A missing predecessor may appear on the second read. A listed but ineligible one is already ruled out.
+            var previousID = predecessor.flatMap { id in
+                previousCandidates.contains(id) || !capturedIDs.contains(id) ? id : nil
+            } ?? observed.observedWindows.first(where: previousCandidates.contains)
+            if previousID == nil, top == sourceID,
+               let next = stack.dropFirst().first(where: { !visibleIDs.contains($0) || previousCandidates.contains($0) }) {
+                previousID = next
+                if knownWindowIDs.contains(sourceID), !knownWindowIDs.contains(next) {
+                    // A new background window need not displace the already known previous window.
+                    previousID = tracker.windows.first {
+                        knownWindowIDs.contains($0) && previousCandidates.contains($0)
+                    } ?? next
+                }
+            }
+            if let previousID, let previous = eligible.first(where: { $0.windowID == previousID }) {
+                // The ordinary MRU cap may have omitted this previously unknown window.
+                if !list.items.contains(where: { $0.id == previous.id }) {
+                    list.items.removeLast()
+                    list.items.append(previous)
+                }
+                list.items = SwitcherSupport.orderedForSession(list.items, currentID: previous.id)
+                list.items = SwitcherSupport.orderedForSession(list.items, currentID: source.id)
+            } else if previousID != nil {
+                // With the source confirmed, keep the ordinary session order among surviving destinations.
+                guard isRetry, !eligible.isEmpty else { return empty }
+            }
+        } else {
+            previousCandidates = []
+            predecessor = nil
+        }
+        let expectedPrevious = list.items.first { $0.windowID != sourceID }?.windowID
+        list.capturedVisibleSpaces = captured.capturedVisibleSpaces
+        let focusStillCurrent = {
+            // A different app taking focus clears this app's hint (#4393).
+            let latest = tracker.frontAppFocus(for: frontmostPID, appPID: appPID)
+            guard let change = latest.latest, change.confirmation != observed.latest?.confirmation else { return true }
+            let focus = nonRejectedID(change.windowID)
+            if let focus, focus != sourceID { return false }
+            if let previous = nonRejectedID(change.previousWindowID) {
+                if !capturedIDs.contains(previous) {
+                    return isRetry && previous == predecessor && change.windowID == observed.latest?.windowID
+                }
+                if focus == nil {
+                    // A different document can take focus before the inspector.
+                    guard previous == sourceID else { return false }
+                } else if previousCandidates.contains(previous) { return previous == expectedPrevious }
+            }
+            let latestPrevious = latest.observedWindows.first(where: previousCandidates.contains)
+            return latestPrevious == nil || latestPrevious == expectedPrevious
+        }
+        return (list, sourceID, focusStillCurrent)
+    }
+
+    /// Keep the real app's on-screen stack, including a plausible new surface absent from the
+    /// candidate capture. A foreign owner's window or an overlay cannot invalidate this request.
+    private static func frontAppWindowStack(appPID: pid_t, snapshot: Snapshot, captured: WindowList) -> [CGWindowID] {
+        let rows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] ?? []
+        let appItems = captured.items.filter { $0.pid == appPID }
+        let candidateIDs = Set(appItems.compactMap(\.windowID))
+        var owners = [appPID: true]
+        for item in appItems { owners[item.windowOwnerPID] = true }
+        return rows.compactMap { row in
+            guard (row[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                  (row[kCGWindowAlpha as String] as? NSNumber)?.doubleValue != 0,
+                  let owner = (row[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+                  let id = (row[kCGWindowNumber as String] as? NSNumber)?.uint32Value else { return nil }
+            let isCandidate = candidateIDs.contains(id)
+            // AX can omit a new CG window while still describing its siblings.
+            if !isCandidate, captured.rejectedWindowIDs.contains(id) { return nil }
+            if owners[owner] == nil {
+                owners[owner] = Self.appPID(forWindowOwner: owner, runningApps: snapshot.runningApps) == appPID
+            }
+            guard owners[owner] == true else { return nil }
+            if isCandidate { return id }
+            guard let bounds = row[kCGWindowBounds as String] as? [String: Any],
+                  let frame = CGRect(dictionaryRepresentation: bounds as CFDictionary), frameIsSwitchable(frame),
+                  !SpaceWindowBridge.isExcludedFromWindowCycle(id) else { return nil }
+            return id
+        }
     }
 
     /// The Command Bar shares the window walk, not the Switcher's visibility
@@ -144,8 +556,12 @@ enum WindowEnumerator {
                                     marksHiddenSpaces: Bool,
                                     includesFullscreenAcrossSpaces: Bool = false,
                                     snapshot: Snapshot,
+                                    windowsOnly: Bool = false,
                                     displayScope: DisplayScope? = nil,
                                     scopedToFrontmostPID: pid_t? = nil,
+                                    sourcePID: pid_t? = nil,
+                                    sourcePrefetch: WindowEnumeratorAccessibilityPrefetch<AXUIElement>? = nil,
+                                    windowServerCapture: WindowServerWindowList? = nil,
                                     resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         let windowlessApps = SwitcherWindowlessApps.mode(
@@ -159,23 +575,28 @@ enum WindowEnumerator {
         let treatHiddenAppsLikeMinimized = UserDefaults.standard.bool(
             forKey: DefaultsKey.switcherTreatHiddenAppsLikeMinimized)
         let showFullscreenWindows = UserDefaults.standard.object(forKey: DefaultsKey.switcherShowFullscreenWindows) as? Bool ?? true
-        return listWindows(filterPID: nil,
-                           maximumCount: maximumCount,
-                           windowlessApps: windowlessApps,
-                           appRules: appRules,
-                           groupByApp: groupByApp,
-                           minimizedPlacement: minimizedPlacement,
-                           treatHiddenAppsLikeMinimized: treatHiddenAppsLikeMinimized,
-                           showFullscreenWindows: showFullscreenWindows,
-                           preservingGroupedWindows: preservingGroupedWindows,
-                           currentSpaceOnly: currentSpaceOnly,
-                           includesFullscreenAcrossSpaces: includesFullscreenAcrossSpaces && showFullscreenWindows,
-                           marksHiddenSpaces: marksHiddenSpaces,
-                           snapshot: snapshot,
-                           scopedToFrontmostPID: scopedToFrontmostPID,
-                           displayScope: displayScope,
-                           resolveSource: resolveSource,
-                           isCancelled: isCancelled)
+        let result = listWindows(filterPID: nil,
+                                 maximumCount: maximumCount,
+                                 windowlessApps: windowlessApps,
+                                 appRules: appRules,
+                                 groupByApp: groupByApp,
+                                 minimizedPlacement: minimizedPlacement,
+                                 treatHiddenAppsLikeMinimized: treatHiddenAppsLikeMinimized,
+                                 showFullscreenWindows: showFullscreenWindows,
+                                 preservingGroupedWindows: preservingGroupedWindows,
+                                 currentSpaceOnly: currentSpaceOnly,
+                                 includesFullscreenAcrossSpaces: includesFullscreenAcrossSpaces && showFullscreenWindows,
+                                 marksHiddenSpaces: marksHiddenSpaces,
+                                 snapshot: snapshot,
+                                 windowsOnly: windowsOnly,
+                                 scopedToFrontmostPID: scopedToFrontmostPID,
+                                 displayScope: displayScope,
+                                 sourcePID: sourcePID,
+                                 sourcePrefetch: sourcePrefetch,
+                                 windowServerCapture: windowServerCapture,
+                                 resolveSource: resolveSource,
+                                 isCancelled: isCancelled)
+        return result
     }
 
     /// Dock Preview has its own scope; Dock click actions keep the default
@@ -238,37 +659,59 @@ enum WindowEnumerator {
                                     includesFullscreenAcrossSpaces: Bool = false,
                                     marksHiddenSpaces: Bool,
                                     snapshot: Snapshot,
+                                    windowsOnly: Bool = false,
                                     scopedToFrontmostPID: pid_t? = nil,
                                     displayScope: DisplayScope? = nil,
+                                    sourcePID: pid_t? = nil,
+                                    sourcePrefetch: WindowEnumeratorAccessibilityPrefetch<AXUIElement>? = nil,
+                                    windowServerCapture: WindowServerWindowList? = nil,
                                     resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
+                                    remembersWindows: Bool = false,
+                                    forFrontAppSession: Bool = false,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
-        guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
-        let historyRevision = WindowUseTracker.shared.historyRevision
-        let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
-
-        let ownPid = ProcessInfo.processInfo.processIdentifier
-        // Terminating processes linger in the workspace list while they shut
-        // down, and the window server can keep their surfaces for a moment
-        // after that. Mapping those pids to a regular app used to admit their
-        // leftover surfaces as switchable windows, which is how an app's
-        // preview outlived its quit (issue #807).
-        // The window server's own layering: an ordinary window sits at level 0
-        // while HUDs, panels and overlays float above. It is the signal that
-        // keeps undescribed overlays out of the switcher once undescribed
-        // windows count as switch targets.
-        let normalLevelWindowIDs = Set(raw.compactMap { info -> CGWindowID? in
-            guard (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0 else { return nil }
-            return (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value
-        })
-        let windowOwnerPIDs = raw.compactMap { info -> pid_t? in
-            guard (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0 else { return nil }
-            return (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value
+        guard !isCancelled() else {
+            return WindowList(items: [], sourceItems: [])
         }
-        let runningApps = SwitcherSupport.usableApps(
+        // A capture started before this walk already fixed its window ids.
+        // Use the revision sampled then, so reconcile does not treat that
+        // older set as the world at walk time. A walk that starts its own
+        // capture still samples immediately before the query.
+        let capture: WindowServerWindowList
+        let historyRevision: UUID
+        if let windowServerCapture {
+            capture = windowServerCapture
+            historyRevision = windowServerCapture.historyRevision
+                ?? WindowUseTracker.shared.historyRevision
+        } else {
+            historyRevision = WindowUseTracker.shared.historyRevision
+            capture = WindowServerWindowList.begin(
+                isCancelled: isCancelled,
+                historyRevision: historyRevision)
+        }
+        let ownPid = ProcessInfo.processInfo.processIdentifier
+        // The source read, when one was queued, waits for window ids inside
+        // its own worker and overlaps this metadata fetch. The batch below
+        // still starts only after the metadata and the full candidate set.
+        var prefetch = sourcePrefetch
+        defer { prefetch?.abandon() }
+        guard let raw = capture.take(isCancelled: isCancelled) else {
+            return WindowList(items: [], sourceItems: [])
+        }
+        let windowServerSnapshot = SwitcherWindowServerSnapshot(
+            windowInfo: raw, capturesActivationBaseline: sourcePID != nil || remembersWindows)
+        let normalLevelWindowIDs = windowServerSnapshot.normalLevelWindowIDs
+        let windowOwnerPIDs = windowServerSnapshot.normalLevelOwnerPIDs
+        // A front-app confirmation can precede workspace registration of that app's new helper.
+        lazy var hostPaths = regularBundlePaths(in: snapshot.runningApps)
+        let mergedApps = SwitcherSupport.usableApps(
             snapshot.runningApps,
             windowOwnerPIDs: windowOwnerPIDs,
             pid: \.pid,
             isRegular: \.isRegular,
+            isEmbeddedHelper: { app in
+                guard forFrontAppSession, let filterPID, let path = app.bundlePath else { return false }
+                return SwitcherSupport.embeddedHostPID(helperBundlePath: path, regularBundlePaths: hostPaths) == filterPID
+            },
             // Runs off main; NSRunningApplication(processIdentifier:) is thread-safe.
             resolve: { pid in
                 guard let app = NSRunningApplication(processIdentifier: pid),
@@ -281,67 +724,55 @@ enum WindowEnumerator {
                                    bundlePath: app.bundleURL?.path,
                                    executablePath: app.executableURL?.path)
             })
+        let apps = walkApps(runningApps: mergedApps,
+                             ownPID: ownPid,
+                             filterPID: filterPID)
+        let runningApps = apps.runningApps
+        let regularApps = apps.regularApps
+        let embeddedHostPIDs = apps.embeddedHostPIDs
+        let compatibilityLayerPids = apps.compatibilityLayerPids
         let hiddenAppPIDs = Set(runningApps.lazy
             .filter { $0.isHidden }
             .map(\.pid))
-        let bundleIdentifiers = SwitcherSupport.firstValuesByPID(runningApps.compactMap { app in
-            app.bundleIdentifier.map { (app.pid, $0) }
-        })
+        let bundleIdentifiers = apps.bundleIdentifiers
+        if let earlyRead = prefetch, !apps.accessibilityPIDs.contains(earlyRead.pid) {
+            earlyRead.abandon()
+            prefetch = nil
+        }
+        if prefetch == nil,
+           let sourcePID,
+           apps.accessibilityPIDs.contains(sourcePID),
+           snapshot.runningApps.contains(where: { $0.pid == sourcePID && $0.isRegular }) {
+            prefetch = beginSourcePrefetch(for: sourcePID,
+                                           isRegular: true,
+                                           accessibilityGranted: snapshot.accessibilityGranted,
+                                           windowServerCapture: capture,
+                                           isCancelled: isCancelled)
+        }
         // Bring the use history up to date before ordering by it: windows that
         // are gone leave, and any window that appeared without ever taking
         // focus is filed by the window server's front-to-back order.
-        let frontToBack = WindowUseTracker.frontToBack()
-        WindowUseTracker.shared.reconcile(
-            existingWindows: Set(raw.compactMap { $0[kCGWindowNumber as String] as? CGWindowID }),
-            frontToBack: frontToBack,
-            running: Set(runningApps.map(\.pid)), revision: historyRevision)
-        var regularApps: [pid_t: String] = [:]
-        var regularBundlePaths: [pid_t: String] = [:]
-        for app in runningApps where app.isRegular {
-            regularApps[app.pid] = app.localizedName ?? ""
-            if let path = app.bundlePath {
-                regularBundlePaths[app.pid] = path
-            }
+        let frontToBack: WindowUseTracker.FrontToBack
+        if forFrontAppSession {
+            // This request samples its live z-order after all the candidates are available.
+            frontToBack = .init(windows: [], apps: [])
+        } else {
+            frontToBack = WindowUseTracker.frontToBack()
+            WindowUseTracker.shared.reconcile(
+                existingWindows: windowServerSnapshot.windowIDs,
+                frontToBack: frontToBack,
+                running: Set(runningApps.map(\.pid)), revision: historyRevision)
         }
-        regularApps[pid_t(ownPid)] = AppInfo.name
-        // Programs hosted by a compatibility layer (bottles) run in bare
-        // loader processes: no bundle, sometimes not even a regular
-        // activation policy, and Accessibility describes their windows with no
-        // standard subrole. Track those pids so the guards below treat their
-        // real windows as switchable instead of hiding the app (issue #274).
-        var compatibilityLayerPids: Set<pid_t> = []
-        for app in runningApps where SwitcherSupport.isCompatibilityLayerApp(
-            bundleIdentifier: app.bundleIdentifier,
-            executablePath: app.executablePath,
-            localizedName: app.localizedName) {
-            compatibilityLayerPids.insert(app.pid)
-            if regularApps[app.pid] == nil {
-                regularApps[app.pid] = app.localizedName ?? ""
-            }
-        }
-        let embeddedHostPairs: [(pid_t, pid_t)] = runningApps.compactMap { app in
-            guard !app.isRegular,
-                  let helperPath = app.bundlePath,
-                  let hostPID = SwitcherSupport.embeddedHostPID(helperBundlePath: helperPath,
-                                                               regularBundlePaths: regularBundlePaths)
-            else { return nil }
-            return (app.pid, hostPID)
-        }
-        let embeddedHostPIDs = SwitcherSupport.firstValuesByPID(embeddedHostPairs)
-        // The regular process owns the app identity, but an embedded accessory
-        // process can own its real windows. Query both sides of that mapping.
-        let accessibilityPids = SwitcherSupport.accessibilityPIDs(
-            regularAppPIDs: Set(regularApps.keys),
-            embeddedHostPIDs: embeddedHostPIDs,
-            ownPID: pid_t(ownPid),
-            filterPID: filterPID)
-        let accessibilityWindows = accessibilityWindows(for: accessibilityPids,
-                                                        bundleIdentifiers: bundleIdentifiers,
-                                                        undescribedSubrolePids: compatibilityLayerPids,
-                                                        accessibilityGranted: snapshot.accessibilityGranted,
-                                                        normalLevelWindowIDs: normalLevelWindowIDs,
-                                                        screenFrames: snapshot.screenFrames,
-                                                        isCancelled: isCancelled)
+        guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
+        let accessibilityWindows = accessibilityWindows(
+            for: apps.accessibilityPIDs,
+            bundleIdentifiers: bundleIdentifiers,
+            undescribedSubrolePids: compatibilityLayerPids,
+            accessibilityGranted: snapshot.accessibilityGranted,
+            normalLevelWindowIDs: normalLevelWindowIDs,
+            screenFrames: snapshot.screenFrames,
+            isCancelled: isCancelled,
+            prefetch: prefetch)
         guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
 
         var seen = Set<CGWindowID>()
@@ -377,6 +808,16 @@ enum WindowEnumerator {
             windowSpaces[windowID] = resolved
             return resolved
         }
+        // The window cycle questions the window server is asked per surface.
+        // They are wrapped here so each one can be counted on its own.
+        func isExcludedFromWindowCycle(_ windowID: CGWindowID) -> Bool {
+            let excluded = SpaceWindowBridge.isExcludedFromWindowCycle(windowID)
+            return excluded
+        }
+        func isWindowOrderedIn(_ windowID: CGWindowID) -> Bool? {
+            let orderedIn = SpaceWindowBridge.isWindowOrderedIn(windowID)
+            return orderedIn
+        }
         func isOnHiddenSpace(_ windowID: CGWindowID) -> Bool {
             if let verdict = hiddenSpaceVerdicts[windowID] { return verdict }
             guard let visible = resolvedTopology()?.visibleSpaces, !visible.isEmpty else { return false }
@@ -408,6 +849,38 @@ enum WindowEnumerator {
                 hiddenWithAppResolved = true
             }
             return hiddenWithAppWindowIDs.map { $0.contains(windowID) }
+        }
+        // Accessibility leaves windows on a hidden Space out of the app's list,
+        // so without Screen Recording they have no title and show only the
+        // app's name. Their elements are still reachable by remote token,
+        // looked up once per app on first need. Token lookups and title reads
+        // share one deadline across all apps.
+        var hiddenSpaceTitles: [pid_t: [CGWindowID: String]] = [:]
+        let hiddenSpaceTitleDeadline = ProcessInfo.processInfo.systemUptime + AXWindowResolver.remoteLookupBudget
+        func hiddenSpaceTitle(of windowID: CGWindowID, ownerPID: pid_t) -> String {
+            if hiddenSpaceTitles[ownerPID] == nil {
+                hiddenSpaceTitles[ownerPID] = [:]
+                guard !isCancelled(), ProcessInfo.processInfo.systemUptime < hiddenSpaceTitleDeadline else { return "" }
+                let parked = Set(raw.compactMap { info -> CGWindowID? in
+                    guard (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownerPID,
+                          (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                          let id = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                          isOnHiddenSpace(CGWindowID(id)) else { return nil }
+                    return CGWindowID(id)
+                })
+                let elements = AXWindowResolver
+                    .elementsOnHiddenSpace(windowIDs: parked, pid: ownerPID,
+                                           budget: hiddenSpaceTitleDeadline - ProcessInfo.processInfo.systemUptime,
+                                           isCancelled: isCancelled)
+                var titles: [CGWindowID: String] = [:]
+                for (id, element) in elements {
+                    guard !isCancelled(), ProcessInfo.processInfo.systemUptime < hiddenSpaceTitleDeadline else { break }
+                    guard AXWindowResolver.prepareForRequest(element, deadline: hiddenSpaceTitleDeadline) else { continue }
+                    titles[id] = accessibilityTitle(for: element)
+                }
+                hiddenSpaceTitles[ownerPID] = titles
+            }
+            return hiddenSpaceTitles[ownerPID]?[windowID] ?? ""
         }
         func excludeForSpaceScope(_ windowID: CGWindowID, appPID: pid_t,
                                   isNativeFullscreen: Bool) -> Bool {
@@ -474,14 +947,14 @@ enum WindowEnumerator {
                     SwitcherSupport.keepsUnmatchedWindow(
                         isOnHiddenSpace: hiddenSpaceSurfaceIsWitnessed,
                         isConfirmedHiddenAppWindow: isConfirmedHiddenAppWindow,
-                        isExcludedFromWindowCycle: SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID)),
+                        isExcludedFromWindowCycle: isExcludedFromWindowCycle(CGWindowID(windowID)),
                         isOrderedIn: hiddenSpaceSurfaceIsWitnessed && !isConfirmedHiddenAppWindow
-                            ? SpaceWindowBridge.isWindowOrderedIn(CGWindowID(windowID)) : nil,
+                            ? isWindowOrderedIn(CGWindowID(windowID)) : nil,
                         allowsUnverifiedHiddenSpace: axSnapshot?.ordered.isEmpty == true
                             || isOnFullscreenSpace(CGWindowID(windowID)))
                 },
                 isExcludedFromWindowCycle: {
-                    SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID))
+                    isExcludedFromWindowCycle(CGWindowID(windowID))
                 },
                 isLeftover: {
                     SwitcherSupport.unwitnessedSurfaceIsLeftover(
@@ -517,7 +990,14 @@ enum WindowEnumerator {
             } else {
                 guard let name = regularApps[appPID] else { continue }
                 appName = name
-                displayTitle = title.isEmpty ? (axWindow?.title ?? "") : title
+                if SwitcherSupport.looksUpHiddenSpaceTitle(windowServerTitle: title,
+                                                           isDescribedByAccessibility: axWindow != nil,
+                                                           accessibilityGranted: snapshot.accessibilityGranted,
+                                                           isOnHiddenSpace: hiddenSpaceSurfaceIsWitnessed) {
+                    displayTitle = hiddenSpaceTitle(of: CGWindowID(windowID), ownerPID: windowOwnerPID)
+                } else {
+                    displayTitle = title.isEmpty ? (axWindow?.title ?? "") : title
+                }
             }
 
             // Off-screen *and* untitled windows are usually invisible helpers
@@ -564,10 +1044,83 @@ enum WindowEnumerator {
                              ownPID: pid_t(ownPid),
                              withheldPIDs: withheldPIDs,
                              appRules: appRules)
+        var list = selectWindows(
+            windows,
+            maximumCount: maximumCount,
+            windowlessApps: windowlessApps,
+            groupByApp: groupByApp,
+            minimizedPlacement: minimizedPlacement,
+            treatHiddenAppsLikeMinimized: treatHiddenAppsLikeMinimized,
+            showFullscreenWindows: showFullscreenWindows,
+            preservingGroupedWindows: preservingGroupedWindows,
+            currentSpaceOnly: currentSpaceOnly,
+            windowsOnly: windowsOnly,
+            scopedToFrontmostPID: scopedToFrontmostPID,
+            displayScope: displayScope,
+            frontToBack: frontToBack,
+            isOnHiddenSpace: isOnHiddenSpace,
+            resolveSource: resolveSource,
+            isCancelled: isCancelled)
+        // Space lookups are comparatively expensive. Resolve badges only for
+        // the entries whose apps survived grouping and the visible cap.
+        if marksHiddenSpaces {
+            list.items = list.items.map { window in
+                guard let windowID = window.windowID else { return window }
+                return window.withHiddenSpaceState(isOnHiddenSpace(windowID))
+            }
+        }
+        list.activationSnapshot = sourcePID != nil || remembersWindows ? windowServerSnapshot : nil
+        if forFrontAppSession {
+            for answer in accessibilityWindows.values { list.rejectedWindowIDs.formUnion(answer.rejectedWindowIDs) }
+        }
+        if remembersWindows {
+            list.bundleIdentifiers = bundleIdentifiers
+            list.observedWindowIDs = normalLevelWindowIDs
+            for item in list.items {
+                guard let id = item.windowID, let answer = accessibilityWindows[item.windowOwnerPID] else { continue }
+                if id == answer.focusedWindowID {
+                    list.focusedWindowIDsByOwner[item.windowOwnerPID] = id
+                }
+                if let element = answer.byID[id]?.element {
+                    list.accessibilityElements[id] = element
+                }
+            }
+            list.nativeFullscreenWindowIDs = Set(list.items.compactMap { item in
+                guard let id = item.windowID,
+                      accessibilityWindows[item.windowOwnerPID]?.byID[id]?.isNativeFullscreen == true
+                        || isOnFullscreenSpace(id) else { return nil }
+                return id
+            })
+        }
+        if forFrontAppSession { list.capturedVisibleSpaces = topology?.visibleSpaces }
+        return list
+    }
+
+    static func selectWindows(
+        _ windows: [SwitcherItem],
+        maximumCount: Int,
+        windowlessApps: SwitcherWindowlessApps,
+        groupByApp: Bool,
+        minimizedPlacement: WindowSwitchMinimizedPlacement,
+        treatHiddenAppsLikeMinimized: Bool,
+        showFullscreenWindows: Bool,
+        preservingGroupedWindows: Bool,
+        currentSpaceOnly: Bool,
+        windowsOnly: Bool,
+        scopedToFrontmostPID: pid_t?,
+        displayScope: DisplayScope?,
+        frontToBack: WindowUseTracker.FrontToBack,
+        isOnHiddenSpace: (CGWindowID) -> Bool,
+        resolveSource: (([SwitcherItem]) -> SwitcherItem?)?,
+        isCancelled: () -> Bool = { false }
+    ) -> WindowList {
         let affectedByMinimizedPlacement = { (item: SwitcherItem) in
             item.isMinimizedForPlacement(treatHiddenAppsLikeMinimized: treatHiddenAppsLikeMinimized)
         }
         let filtered = windows.filter { item in
+            // Remove app-only entries before the visible cap: otherwise they
+            // reserve slots that an all-windows session can never display.
+            if windowsOnly, item.isAppEntry { return false }
             if !showFullscreenWindows, item.isFullscreen { return false }
             if minimizedPlacement == .hidden, affectedByMinimizedPlacement(item) { return false }
             return true
@@ -645,14 +1198,6 @@ enum WindowEnumerator {
                 orderedWindows: backingOrdered,
                 representatives: result)
         }
-        // Space lookups are comparatively expensive. Resolve badges only for
-        // the entries whose apps survived grouping and the visible cap.
-        if marksHiddenSpaces {
-            result = result.map { window in
-                guard let windowID = window.windowID else { return window }
-                return window.withHiddenSpaceState(isOnHiddenSpace(windowID))
-            }
-        }
         return WindowList(items: result, sourceItems: sourceCandidates)
     }
 
@@ -669,17 +1214,101 @@ enum WindowEnumerator {
         let isFullscreen: Bool
         /// Desktop scope needs native fullscreen state, not the frame heuristic.
         let isNativeFullscreen: Bool
+        var element: AXUIElement? = nil
     }
 
     private struct AccessibilityWindowSnapshotList {
         let ordered: [(id: CGWindowID, snapshot: AccessibilityWindowSnapshot)]
         let byID: [CGWindowID: AccessibilityWindowSnapshot]
+        var focusedWindowID: CGWindowID? = nil
+        /// Nonstandard windows whose AX role, subrole and WindowServer ID
+        /// were available when they were classified as ineligible.
+        var rejectedWindowIDs: Set<CGWindowID> = []
         /// Windows the app listed but never described because their reads
         /// timed out. The app's answer cannot vouch for these either way.
         var unansweredIDs: Set<CGWindowID> = []
         /// Set when a timed-out window has no window server id, so every
         /// surface of the app counts as timed out.
         var everyWindowUnanswered = false
+    }
+
+    /// One remote read supplies both the visibility decision and the snapshot.
+    /// Reading these separately cost ten attribute round trips per ordinary
+    /// window, and repeated timeouts kept the panel behind busy apps (#2348).
+    private struct AccessibilityWindowAttributes {
+        enum Attribute: Int, CaseIterable {
+            case role, subrole, fullscreen, minimized, position, size, title
+
+            var name: String {
+                switch self {
+                case .role: return kAXRoleAttribute as String
+                case .subrole: return kAXSubroleAttribute as String
+                case .fullscreen: return "AXFullScreen"
+                case .minimized: return kAXMinimizedAttribute as String
+                case .position: return kAXPositionAttribute as String
+                case .size: return kAXSizeAttribute as String
+                case .title: return kAXTitleAttribute as String
+                }
+            }
+        }
+
+        let values: [Any]
+        let result: AXError
+
+        init(_ window: AXUIElement) {
+            var values: CFArray?
+            // Keep supported values even when an optional attribute (commonly
+            // AXFullScreen) is absent. StopOnError would discard those values.
+            result = AXUIElementCopyMultipleAttributeValues(
+                window, Attribute.allCases.map(\.name) as CFArray, [], &values)
+            self.values = values as? [Any] ?? []
+        }
+
+        func error(for attribute: Attribute) -> AXError {
+            guard result == .success else { return result }
+            guard values.indices.contains(attribute.rawValue) else { return .noValue }
+            let value = values[attribute.rawValue] as CFTypeRef
+            if CFGetTypeID(value) == CFNullGetTypeID() { return .noValue }
+            if CFGetTypeID(value) == AXValueGetTypeID() {
+                let axValue = value as! AXValue
+                if AXValueGetType(axValue) == .axError {
+                    var error = AXError.failure
+                    AXValueGetValue(axValue, .axError, &error)
+                    return error
+                }
+            }
+            return .success
+        }
+
+        func value(_ attribute: Attribute) -> Any? {
+            guard error(for: attribute) == .success else { return nil }
+            return values[attribute.rawValue]
+        }
+
+        func string(_ attribute: Attribute) -> String? {
+            value(attribute) as? String
+        }
+
+        func bool(_ attribute: Attribute) -> Bool {
+            value(attribute) as? Bool ?? false
+        }
+
+        var frame: CGRect? {
+            guard let positionValue = value(.position), let sizeValue = value(.size),
+                  CFGetTypeID(positionValue as CFTypeRef) == AXValueGetTypeID(),
+                  CFGetTypeID(sizeValue as CFTypeRef) == AXValueGetTypeID()
+            else { return nil }
+            var position = CGPoint.zero
+            var size = CGSize.zero
+            guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
+                  AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+            else { return nil }
+            return CGRect(origin: position, size: size)
+        }
+
+        var isNativeFullscreen: Bool {
+            bool(.fullscreen) || string(.subrole) == "AXFullScreenWindow"
+        }
     }
 
     /// How Accessibility judged one window of an app.
@@ -695,11 +1324,23 @@ enum WindowEnumerator {
                                              accessibilityGranted: Bool,
                                              normalLevelWindowIDs: Set<CGWindowID>,
                                              screenFrames: [CGRect],
-                                             isCancelled: @escaping () -> Bool = { false }) -> [pid_t: AccessibilityWindowSnapshotList] {
-        guard accessibilityGranted, !isCancelled() else { return [:] }
+                                             isCancelled: @escaping () -> Bool = { false },
+                                             /// The early read one app brought to this batch. Only
+                                             /// the app it belongs to uses it; every other
+                                             /// app is asked as it always was.
+                                             prefetch: WindowEnumeratorAccessibilityPrefetch<AXUIElement>? = nil) -> [pid_t: AccessibilityWindowSnapshotList] {
+        defer { prefetch?.abandon() }
+        guard accessibilityGranted else {
+            return [:]
+        }
+        guard !isCancelled() else {
+            return [:]
+        }
 
         let orderedPIDs = pids.sorted()
-        guard !orderedPIDs.isEmpty else { return [:] }
+        guard !orderedPIDs.isEmpty else {
+            return [:]
+        }
         var result: [pid_t: AccessibilityWindowSnapshotList] = [:]
         var pendingQueries = orderedPIDs.count
         let resultLock = NSCondition()
@@ -716,13 +1357,24 @@ enum WindowEnumerator {
                     if pendingQueries == 0 { resultLock.broadcast() }
                     resultLock.unlock()
                 }
+                // The early read answers the application level question for
+                // the app it belongs to, so that app is not asked twice. The
+                // wait happens here, beside the other workers, so a read that
+                // is still in flight does not hold the whole batch.
+                let prefetchedQuery: WindowEnumeratorAccessibilityPrefetch<AXUIElement>.Query?
+                if let read = prefetch, read.pid == pid {
+                    prefetchedQuery = read.answer()
+                } else {
+                    prefetchedQuery = nil
+                }
                 let windows = accessibilityWindows(
                     for: pid,
                     bundleIdentifier: bundleIdentifiers[pid],
                     acceptsUndescribedSubroles: undescribedSubrolePids.contains(pid),
                     normalLevelWindowIDs: normalLevelWindowIDs,
                     screenFrames: screenFrames,
-                    isCancelled: { operation.isCancelled || isCancelled() }
+                    isCancelled: { operation.isCancelled || isCancelled() },
+                    prefetchedQuery: prefetchedQuery
                 )
                 resultLock.lock()
                 if let windows { result[pid] = windows }
@@ -731,11 +1383,20 @@ enum WindowEnumerator {
             operations.append(operation)
             accessibilityQueryQueue.addOperation(operation)
         }
+        // The early read is this walk's Accessibility work too: when the batch
+        // gives up, the read is cancelled with the rest of it. A read that is
+        // already in flight cannot be taken back, but it is never carried
+        // into the next walk.
+        if let prefetchOperation = prefetch?.operation {
+            operations.append(prefetchOperation)
+        }
         // On timeout or Switcher cancellation, cancel only this batch's
         // retained handles. A running PID query stops after its current
         // bounded AX call, while the answers already in hand are returned. An
         // app missing from that map reads downstream like an app that could
         // not answer Accessibility, which every caller already handles.
+        // The budget starts here, after metadata and the full candidate set,
+        // and covers this one batch.
         let deadline = Date(timeIntervalSinceNow: accessibilityBatchBudget)
         resultLock.lock()
         while pendingQueries > 0, !isCancelled() {
@@ -759,7 +1420,13 @@ enum WindowEnumerator {
                                              acceptsUndescribedSubroles: Bool = false,
                                              normalLevelWindowIDs: Set<CGWindowID>,
                                              screenFrames: [CGRect],
-                                             isCancelled: () -> Bool) -> AccessibilityWindowSnapshotList? {
+                                             isCancelled: () -> Bool,
+                                             /// The early read's answer for this app, when one
+                                             /// was made before the batch. The app is not asked
+                                             /// again then, and the per window reading below
+                                             /// runs exactly as it always did, with the window
+                                             /// server's own answers.
+                                             prefetchedQuery: WindowEnumeratorAccessibilityPrefetch<AXUIElement>.Query? = nil) -> AccessibilityWindowSnapshotList? {
         guard !isCancelled() else { return nil }
         let app = AXUIElementCreateApplication(pid)
         // An app that is not servicing its run loop would hold every AX call
@@ -769,24 +1436,58 @@ enum WindowEnumerator {
         // wait also stalls the event taps (issue #189).
         AXUIElementSetMessagingTimeout(app, messagingTimeout)
         var axWindows: [AXUIElement] = []
-        var value: CFTypeRef?
-        let windowsResult = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
+        let windowsResult: AXError
+        let axWindowList: [AXUIElement]?
+        if let prefetchedQuery {
+            // The early read already asked this app, and its answer is used
+            // as it came. The per window reading below still runs with the
+            // window server's own answers, so nothing about which windows
+            // count changes.
+            windowsResult = prefetchedQuery.error
+            axWindowList = prefetchedQuery.windows
+        } else {
+            var value: CFTypeRef?
+            windowsResult = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
+            axWindowList = windowsResult == .success ? value as? [AXUIElement] : nil
+        }
         guard !isCancelled() else { return nil }
         // Not responding: skip the remaining calls, each would block again.
         guard windowsResult != .cannotComplete else { return nil }
         var unansweredWindows: [AXUIElement] = []
+        var readWindows: [AXUIElement] = []
+        var byID: [CGWindowID: AccessibilityWindowSnapshot] = [:]
+        var ordered: [(id: CGWindowID, snapshot: AccessibilityWindowSnapshot)] = []
+        var rejectedWindowIDs = Set<CGWindowID>()
         func read(_ window: AXUIElement) -> WindowReading {
+            guard !contains(window, in: readWindows) else { return .notUserFacing }
+            readWindows.append(window)
             AXUIElementSetMessagingTimeout(window, 0.35)
+            let attributes = AccessibilityWindowAttributes(window)
             let reading = userFacingReading(of: window,
+                                            attributes: attributes,
                                             bundleIdentifier: bundleIdentifier,
                                             acceptsUndescribedSubroles: acceptsUndescribedSubroles,
                                             normalLevelWindowIDs: normalLevelWindowIDs,
                                             screenFrames: screenFrames,
+                                            rejectedWindowIDs: &rejectedWindowIDs,
                                             isCancelled: isCancelled)
             if reading == .unanswered { appendUnique(window, to: &unansweredWindows) }
+            if reading == .userFacing, !isCancelled(), let id = AXWindowResolver.windowID(for: window) {
+                let frame = attributes.frame
+                let isNativeFullscreen = attributes.isNativeFullscreen
+                var snapshot = AccessibilityWindowSnapshot(
+                    title: attributes.string(.title) ?? "",
+                    frame: frame,
+                    isMinimized: attributes.bool(.minimized),
+                    isFullscreen: isNativeFullscreen || frameLooksFullscreen(frame, screenFrames: screenFrames),
+                    isNativeFullscreen: isNativeFullscreen)
+                snapshot.element = window
+                byID[id] = snapshot
+                ordered.append((id, snapshot))
+            }
             return reading
         }
-        if windowsResult == .success, let windows = value as? [AXUIElement] {
+        if windowsResult == .success, let windows = axWindowList {
             for window in windows {
                 guard !isCancelled() else { return nil }
                 if read(window) == .userFacing {
@@ -794,49 +1495,35 @@ enum WindowEnumerator {
                 }
             }
         }
+        var focusedWindowID: CGWindowID?
         for attribute in [kAXMainWindowAttribute, kAXFocusedWindowAttribute] {
             guard !isCancelled() else { return nil }
-            if let window = accessibilityWindowAttribute(app, attribute as String) {
+            let mainFocusedWindow = accessibilityWindowAttribute(app, attribute as String)
+            if let window = mainFocusedWindow {
                 guard !isCancelled() else { return nil }
                 // The main and focused window are almost always ones the
                 // window list already described, and usually the same window
                 // as each other. CFEqual answers that locally, while
-                // userFacingReading spends several Accessibility round trips
-                // in the other process to reach a window we would then drop.
-                // A window that already timed out would only time out again.
-                guard !contains(window, in: axWindows),
-                      !contains(window, in: unansweredWindows) else { continue }
+                // the attribute read contacts the other process to reach a
+                // window we would then drop. Rejected and timed-out windows
+                // must not be read again either.
                 if read(window) == .userFacing {
                     axWindows.append(window)
+                }
+                if attribute as String == kAXFocusedWindowAttribute as String {
+                    focusedWindowID = ordered.first { entry in
+                        entry.snapshot.element.map { CFEqual($0, window) } == true
+                    }?.id
                 }
             }
         }
 
-        var byID: [CGWindowID: AccessibilityWindowSnapshot] = [:]
-        var ordered: [(id: CGWindowID, snapshot: AccessibilityWindowSnapshot)] = []
-        for window in axWindows {
-            guard !isCancelled() else { return nil }
-            if let id = AXWindowResolver.windowID(for: window) {
-                guard !isCancelled() else { return nil }
-                let frame = accessibilityFrame(for: window, isCancelled: isCancelled)
-                guard !isCancelled() else { return nil }
-                let title = accessibilityTitle(for: window)
-                guard !isCancelled() else { return nil }
-                let isMinimized = boolAttribute(window, kAXMinimizedAttribute as String)
-                guard !isCancelled() else { return nil }
-                let isNativeFullscreen = isFullscreenWindow(window, isCancelled: isCancelled)
-                let isFullscreen = isNativeFullscreen || frameLooksFullscreen(frame, screenFrames: screenFrames)
-                let snapshot = AccessibilityWindowSnapshot(title: title,
-                                                           frame: frame,
-                                                           isMinimized: isMinimized,
-                                                           isFullscreen: isFullscreen,
-                                                           isNativeFullscreen: isNativeFullscreen)
-                byID[id] = snapshot
-                ordered.append((id, snapshot))
-            }
-        }
-
+        guard !isCancelled() else { return nil }
         let unansweredIDs = Set(unansweredWindows.compactMap(AXWindowResolver.windowID(for:)))
+        var answer = AccessibilityWindowSnapshotList(ordered: ordered, byID: byID,
+                                                     focusedWindowID: focusedWindowID,
+                                                     rejectedWindowIDs: rejectedWindowIDs,
+                                                     unansweredIDs: unansweredIDs)
         // An app that answers with zero user-facing windows normally vetoes
         // its CG surfaces as stale ghosts. Windows that timed out escape that
         // veto one by one, and the rest keep it.
@@ -846,11 +1533,10 @@ enum WindowEnumerator {
                 unansweredWindowCount: unansweredWindows.count,
                 resolvedUnansweredIDCount: unansweredIDs.count) {
             case .perWindow:
-                return AccessibilityWindowSnapshotList(ordered: ordered, byID: byID, unansweredIDs: unansweredIDs)
+                return answer
             case .everyWindowUnanswered:
-                return AccessibilityWindowSnapshotList(ordered: ordered, byID: byID,
-                                                       unansweredIDs: unansweredIDs,
-                                                       everyWindowUnanswered: true)
+                answer.everyWindowUnanswered = true
+                return answer
             case .noAnswer:
                 return nil
             }
@@ -860,8 +1546,8 @@ enum WindowEnumerator {
         if !ordered.isEmpty {
             // A described sibling cannot identify a different window whose
             // timed-out read also failed to resolve its WindowServer id.
-            return AccessibilityWindowSnapshotList(ordered: ordered, byID: byID, unansweredIDs: unansweredIDs,
-                everyWindowUnanswered: unansweredIDs.count != unansweredWindows.count)
+            answer.everyWindowUnanswered = unansweredIDs.count != unansweredWindows.count
+            return answer
         }
         return nil
     }
@@ -915,33 +1601,14 @@ enum WindowEnumerator {
         }
     }
 
+    /// Hidden-Space title recovery needs only this attribute. The regular
+    /// enumeration keeps its batched AccessibilityWindowAttributes snapshot.
     private static func accessibilityTitle(for window: AXUIElement) -> String {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &value) == .success else {
             return ""
         }
         return value as? String ?? ""
-    }
-
-    private static func accessibilityFrame(for window: AXUIElement,
-                                           isCancelled: () -> Bool) -> CGRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue) == .success,
-              !isCancelled(),
-              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue) == .success,
-              let positionValue,
-              let sizeValue,
-              CFGetTypeID(positionValue) == AXValueGetTypeID(),
-              CFGetTypeID(sizeValue) == AXValueGetTypeID()
-        else { return nil }
-
-        var position = CGPoint.zero
-        var size = CGSize.zero
-        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
-              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
-        else { return nil }
-        return CGRect(origin: position, size: size)
     }
 
     private static func frameIsSwitchable(_ frame: CGRect) -> Bool {
@@ -967,36 +1634,32 @@ enum WindowEnumerator {
     }
 
     private static func userFacingReading(of window: AXUIElement,
+                                          attributes: AccessibilityWindowAttributes,
                                           bundleIdentifier: String? = nil,
                                           acceptsUndescribedSubroles: Bool = false,
                                           normalLevelWindowIDs: Set<CGWindowID>,
                                           screenFrames: [CGRect],
+                                          rejectedWindowIDs: inout Set<CGWindowID>,
                                           isCancelled: () -> Bool) -> WindowReading {
         guard !isCancelled() else { return .notUserFacing }
-        if isFullscreenWindow(window, isCancelled: isCancelled) { return .userFacing }
-        guard !isCancelled() else { return .notUserFacing }
-        let isMinimized = boolAttribute(window, kAXMinimizedAttribute as String)
-        guard !isCancelled() else { return .notUserFacing }
-        if isMinimized,
-           stringAttribute(window, kAXRoleAttribute as String) == (kAXWindowRole as String) {
+        if attributes.isNativeFullscreen { return .userFacing }
+        if attributes.bool(.minimized), attributes.string(.role) == (kAXWindowRole as String) {
             return .userFacing
         }
-        guard !isCancelled() else { return .notUserFacing }
-        let subroleRead = readStringAttribute(window, kAXSubroleAttribute as String)
-        guard subroleRead.answered else { return .unanswered }
-        if let subrole = subroleRead.value {
-            guard !isCancelled() else { return .notUserFacing }
+        guard !SwitcherSupport.isUnansweredAccessibilityRead(attributes.error(for: .subrole)) else {
+            return .unanswered
+        }
+        if let subrole = attributes.string(.subrole) {
             if subrole == "AXStandardWindow" || subrole == "AXFullScreenWindow" { return .userFacing }
             if SwitcherSupport.isSupportedMediaFloatingWindow(bundleIdentifier: bundleIdentifier,
                                                               subrole: subrole) { return .userFacing }
-            let roleRead = readStringAttribute(window, kAXRoleAttribute as String)
-            guard roleRead.answered else { return .unanswered }
-            let role = roleRead.value
-            guard !isCancelled() else { return .notUserFacing }
+            guard !SwitcherSupport.isUnansweredAccessibilityRead(attributes.error(for: .role)) else {
+                return .unanswered
+            }
+            let role = attributes.string(.role)
             let canBePlaybackSurface = subrole == "AXUnknown" || subrole == "AXFloatingWindow"
             let fillsScreen = canBePlaybackSurface
-                && frameLooksFullscreen(accessibilityFrame(for: window, isCancelled: isCancelled),
-                                        screenFrames: screenFrames)
+                && frameLooksFullscreen(attributes.frame, screenFrames: screenFrames)
             // Apps that draw their own window chrome — game clients, DAWs,
             // compatibility layers — ship borderless windows, which
             // Accessibility reports as an undescribed AXWindow. Only the
@@ -1006,13 +1669,13 @@ enum WindowEnumerator {
                 ? AXWindowResolver.windowID(for: window)
                 : nil
             let hasNormalWindowLevel = (subrole == "AXUnknown" || subrole == "AXDialog")
-                && (windowID.map(normalLevelWindowIDs.contains) ?? false)
+                && (windowID.map { normalLevelWindowIDs.contains($0) } ?? false)
             // A hidden app's ordinary windows read as dialogs too (issue
             // #2279). Only a normal-level dialog pays for the button read.
             let canMinimize = subrole == "AXDialog" && hasNormalWindowLevel
                 && !isCancelled()
                 && hasWorkingMinimizeButton(window)
-            return SwitcherSupport.isSwitchableNonstandardWindow(
+            if SwitcherSupport.isSwitchableNonstandardWindow(
                 role: role,
                 subrole: subrole,
                 fillsScreen: fillsScreen,
@@ -1022,13 +1685,14 @@ enum WindowEnumerator {
                 // A borderless helper stays in the app's window list even when
                 // the app asks the window server to keep it out of cycling.
                 isExcludedFromWindowCycle: windowID
-                    .map(SpaceWindowBridge.isExcludedFromWindowCycle) ?? false)
-                ? .userFacing : .notUserFacing
+                    .map(SpaceWindowBridge.isExcludedFromWindowCycle) ?? false) { return .userFacing }
+            if let windowID { rejectedWindowIDs.insert(windowID) }
+            return .notUserFacing
         }
-        guard !isCancelled() else { return .notUserFacing }
-        let roleRead = readStringAttribute(window, kAXRoleAttribute as String)
-        guard roleRead.answered else { return .unanswered }
-        return roleRead.value == "AXWindow" ? .userFacing : .notUserFacing
+        guard !SwitcherSupport.isUnansweredAccessibilityRead(attributes.error(for: .role)) else {
+            return .unanswered
+        }
+        return attributes.string(.role) == "AXWindow" ? .userFacing : .notUserFacing
     }
 
     private static func hasWorkingMinimizeButton(_ window: AXUIElement) -> Bool {
@@ -1037,13 +1701,6 @@ enum WindowEnumerator {
         }
         AXUIElementSetMessagingTimeout(button, 0.35)
         return boolAttribute(button, kAXEnabledAttribute as String)
-    }
-
-    private static func isFullscreenWindow(_ window: AXUIElement,
-                                           isCancelled: () -> Bool) -> Bool {
-        if boolAttribute(window, "AXFullScreen") { return true }
-        guard !isCancelled() else { return false }
-        return stringAttribute(window, kAXSubroleAttribute as String) == "AXFullScreenWindow"
     }
 
     private static func appendUnique(_ window: AXUIElement, to windows: inout [AXUIElement]) {
@@ -1062,25 +1719,6 @@ enum WindowEnumerator {
               CFGetTypeID(value) == AXUIElementGetTypeID()
         else { return nil }
         return (value as! AXUIElement)
-    }
-
-    private static func stringAttribute(_ element: AXUIElement, _ attribute: String) -> String? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
-              let value else { return nil }
-        return value as? String
-    }
-
-    /// Reads a string attribute and reports whether the app answered at all,
-    /// so a timed-out read is not mistaken for a missing value.
-    private static func readStringAttribute(_ element: AXUIElement,
-                                            _ attribute: String) -> (value: String?, answered: Bool) {
-        var value: CFTypeRef?
-        let error = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
-        guard error == .success, let value else {
-            return (nil, !SwitcherSupport.isUnansweredAccessibilityRead(error))
-        }
-        return (value as? String, true)
     }
 
     private static func boolAttribute(_ element: AXUIElement, _ attribute: String) -> Bool {

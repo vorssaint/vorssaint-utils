@@ -560,9 +560,10 @@ private struct NotchMicButton: View {
     @ObservedObject private var service = MicMuteService.shared
     @ObservedObject private var l10n = L10n.shared
     var body: some View {
-        NotchActionTile(symbol: service.isMuted ? "mic.slash.fill" : "mic.fill",
+        NotchActionTile(symbol: service.controlSymbol,
                         title: service.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName,
                         active: service.isMuted, accent: .alert, action: service.toggle)
+            .accessibilityValue(service.warning?.message ?? "")
     }
 }
 
