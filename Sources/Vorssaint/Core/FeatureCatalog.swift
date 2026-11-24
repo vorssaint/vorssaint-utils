@@ -26,7 +26,7 @@ enum AppFeature: String, CaseIterable {
     // Energy and display
     case keepAwake, brightness, extraBrightness, bluetoothSleep, batteryCare
     // Tools
-    case quickLauncher, quickToggles, quitApps, colorPicker, screenOCR, cleaningMode, mediaTools,
+    case menuBarOrganizer, quickLauncher, quickToggles, quitApps, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
          commandBar, screenRecorder, wallpaper, killProcess, portManager
     // Dynamic Island, then its extensions
@@ -117,7 +117,7 @@ extension AppFeature {
             return .sound
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep, .batteryCare:
             return .energyDisplay
-        case .quickLauncher, .quickToggles, .quitApps, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
+        case .menuBarOrganizer, .quickLauncher, .quickToggles, .quitApps, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
              .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
             return .tools
@@ -227,7 +227,7 @@ extension AppFeature {
 
     var availabilityKey: String { DefaultsKey.featureAvailable(rawValue) }
 
-    var isBeta: Bool { self == .fanControl || self == .killProcess || self == .batteryCare }
+    var isBeta: Bool { self == .fanControl || self == .killProcess || self == .batteryCare || self == .menuBarOrganizer }
 
     /// Availability read straight from defaults. Existing features stay
     /// available on update; explicit beta opt-ins may start unavailable.
@@ -510,7 +510,7 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .scrollZoom, .linearScroll, .scrollSpeed, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps, .notchSpotify, .weather, .batteryCare:
+             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps, .notchSpotify, .weather, .batteryCare, .menuBarOrganizer:
             return false
         }
     }
