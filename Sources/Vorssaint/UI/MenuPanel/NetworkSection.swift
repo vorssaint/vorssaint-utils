@@ -12,12 +12,15 @@ struct NetworkSection: View {
     @StateObject private var addresses = NetworkAddressService()
     @Environment(\.colorScheme) private var colorScheme
     var collapsible = true
+    // NSPopover retains its SwiftUI host after closing.
+    var gatewayPollingVisible = false
     @AppStorage(DefaultsKey.monitorGraphNetwork) private var showGraph = true
     @AppStorage(DefaultsKey.monitorNetSpeed) private var netSpeed = true
     @AppStorage(DefaultsKey.monitorNetApps) private var netApps = true
     @AppStorage(DefaultsKey.monitorNetTotals) private var netTotals = true
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
     @AppStorage(DefaultsKey.monitorNetAddresses) private var netAddresses = true
+    @AppStorage(DefaultsKey.monitorNetTMobile) private var netTMobile = false
     @AppStorage(DefaultsKey.panelNetworkOrder) private var networkOrderRaw = ""
     @AppStorage(DefaultsKey.networkSpeedUnit) private var speedUnit = NetworkSpeedUnit.bytes
     @State private var draggingBlock: Block?
@@ -79,7 +82,7 @@ struct NetworkSection: View {
         }
     }
 
-    private enum Block: String, PanelOrderItem { case speed, apps, totals, addresses, test }
+    private enum Block: String, PanelOrderItem { case speed, apps, totals, addresses, test, tmobile }
 
     private var visibleBlocks: [Block] {
         orderedBlocks.filter(isVisible)
@@ -109,6 +112,7 @@ struct NetworkSection: View {
         case .totals: return netTotals
         case .addresses: return netAddresses
         case .test: return netTest
+        case .tmobile: return netTMobile
         }
     }
 
@@ -120,6 +124,7 @@ struct NetworkSection: View {
         netTotals = true
         netAddresses = true
         netTest = true
+        netTMobile = false
     }
 
     @ViewBuilder
@@ -130,6 +135,10 @@ struct NetworkSection: View {
         case .totals: totalsRow(editing: editing)
         case .addresses: NetworkAddressBlock(service: addresses, isVisible: $netAddresses, editing: editing)
         case .test: speedTestRow(editing: editing)
+        case .tmobile:
+            if gatewayPollingVisible {
+                TMobileGatewayBlock(isVisible: $netTMobile, editing: editing)
+            }
         }
     }
 
