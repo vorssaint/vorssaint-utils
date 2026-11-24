@@ -2640,10 +2640,7 @@ final class AppVolumeMixer: ObservableObject {
                 deviceID,
                 selector: kAudioDevicePropertyDeviceCanBeDefaultSystemDevice)
 
-            var uidRef: CFString = "" as CFString
-            guard read(deviceID, kAudioDevicePropertyDeviceUID, &uidRef) else { continue }
-            let uid = uidRef as String
-            guard !uid.isEmpty else { continue }
+            guard let uid = outputDeviceUID(for: deviceID), !uid.isEmpty else { continue }
 
             var nameRef: CFString = "" as CFString
             let name = read(deviceID, kAudioObjectPropertyName, &nameRef)
@@ -2782,8 +2779,12 @@ final class AppVolumeMixer: ObservableObject {
         guard read(AudioObjectID(kAudioObjectSystemObject),
                    selector, &defaultDevice),
               defaultDevice != 0 else { return nil }
+        return outputDeviceUID(for: defaultDevice)
+    }
+
+    static func outputDeviceUID(for device: AudioObjectID) -> String? {
         var uidRef: CFString = "" as CFString
-        guard read(defaultDevice, kAudioDevicePropertyDeviceUID, &uidRef) else { return nil }
+        guard read(device, kAudioDevicePropertyDeviceUID, &uidRef) else { return nil }
         return uidRef as String
     }
 

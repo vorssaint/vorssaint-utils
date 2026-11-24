@@ -26,6 +26,11 @@ enum DisplaySpeakerVolumeTests {
         static let shared = Self()
         func refreshMonitorOutput() { Service.shared.onDisplayChange?() }
         static func hasSettableOutputVolume(for device: AudioObjectID) -> Bool { Service.shared.settable }
+        static func defaultOutputDeviceID() -> AudioObjectID? {
+            Service.shared.defaultOutputReads += 1
+            return Service.shared.actualDevice
+        }
+        static func outputDeviceUID(for device: AudioObjectID) -> String? { Service.shared.outputUIDs[device] }
     }
     enum AppFeature {
         case brightness
@@ -33,9 +38,10 @@ enum DisplaySpeakerVolumeTests {
     }
     struct PreciseVolumeRollerService {
         typealias UserDefaults = DisplaySpeakerVolumeTests.UserDefaults
-        struct Sound {
+        final class Sound {
+            var playbackDeviceIdentifier: String?
             func stop() {}
-            func play() { Service.shared.clicks += 1 }
+            func play() { Service.shared.clickDeviceUIDs.append(playbackDeviceIdentifier) }
         }
         static let volumeFeedback: Sound? = Sound()
         static let shared = Self()
@@ -79,6 +85,7 @@ enum DisplaySpeakerVolumeTests {
     class Fixture {
         let stateLock = NSLock()
         let workQueue = Queue()
+        let audioOutputQueue = Queue()
         var running = true
         var brightnessControlsEnabled = true
         var rebuildGeneration = 0
@@ -105,8 +112,10 @@ enum DisplaySpeakerVolumeTests {
         var pendingAudio: [PendingAudio] = []
         var audioWriteInFlight = false
         var audioOutputGeneration = 0
-        var selectedAudioOutput: (id: AudioObjectID, name: String)? = (31, "Monitor A")
+        var selectedAudioOutput: (id: AudioObjectID, name: String, uid: String?)? = (31, "Monitor A", "monitor-a")
         var actualDevice: AudioObjectID = 31
+        var outputUIDs: [AudioObjectID: String] = [31: "monitor-a", 32: "monitor-b"]
+        var defaultOutputReads = 0
         var settable = false
         var raw: UInt16 = 40
         var maximum: UInt16 = 100
@@ -134,7 +143,8 @@ enum DisplaySpeakerVolumeTests {
         var singleAttemptWrites: [Write] = []
         var writtenIDs: [UInt32] = []
         var feedbackEnabled = true
-        var clicks = 0
+        var clickDeviceUIDs: [String?] = []
+        var clicks: Int { clickDeviceUIDs.count }
         var refreshes = 0
         var silentPaths: Set<String> = []
         var chips: [UInt32] = []
@@ -211,8 +221,9 @@ enum DisplaySpeakerVolumeTests {
             return whileCurrent() || acceptPartialWrite
         }
         func finish() {
-            while !workQueue.jobs.isEmpty || !DispatchQueue.main.jobs.isEmpty {
+            while !workQueue.jobs.isEmpty || !audioOutputQueue.jobs.isEmpty || !DispatchQueue.main.jobs.isEmpty {
                 if !workQueue.jobs.isEmpty { workQueue.runOne() }
+                if !audioOutputQueue.jobs.isEmpty { audioOutputQueue.runOne() }
                 if !DispatchQueue.main.jobs.isEmpty { DispatchQueue.main.runOne() }
             }
         }

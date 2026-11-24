@@ -387,7 +387,7 @@ enum MonitorVolumeKeySettingsTests {
             service.afterUnmute = { [weak service] in
                 guard let service else { return }
                 service.actualDevice = 32
-                service.selectedAudioOutput = (32, "Monitor B")
+                service.selectedAudioOutput = (32, "Monitor B", "monitor-b")
                 service.audioOutputGeneration += 1
                 Keys.AppVolumeMixer.shared.monitorOutput = service.monitorSpeakerOutput()
             }
