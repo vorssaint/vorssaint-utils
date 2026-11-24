@@ -20,27 +20,24 @@ struct WindowFocusHistory {
 
     private var recent: [Use] = []
     private(set) var current: Request?
-    // A new observation of the same window still confirms its focus at a later time.
-    // Late observations from other activations only change the history revision.
-    private var currentWindowID: CGWindowID? {
-        didSet { focusRevision = UUID() }
-    }
-    private(set) var focusRevision = UUID()
     private(set) var revision = UUID()
 
-    func focusedWindowID(for pid: pid_t) -> CGWindowID? {
-        current?.pid == pid ? currentWindowID : nil
+    func frontAppFocus(for pid: pid_t) -> (windowID: CGWindowID?, observedWindows: Set<CGWindowID>) {
+        let observed = Set(recent.compactMap { use -> CGWindowID? in
+            if case .window(let id, _) = use { return id }
+            return nil
+        })
+        guard let current, current.pid == pid,
+              case let .window(id, request)? = recent.first, request == current else { return (nil, observed) }
+        return (id, observed)
     }
 
     mutating func activate(_ pid: pid_t, recording: Bool = true) -> Request? {
         if !recording, let current { invalidate(current.pid, keepingActivation: true) }
         invalidate(pid)
         current = recording ? Request(pid: pid) : nil
-        currentWindowID = nil
         if let current {
             promote(.app(current))
-        } else {
-            revision = UUID()
         }
         return current
     }
@@ -48,7 +45,6 @@ struct WindowFocusHistory {
     @discardableResult
     mutating func focus(_ window: CGWindowID, for request: Request) -> Bool {
         if current == request {
-            currentWindowID = window
             recent.removeAll { use in
                 if case .app(let pending) = use { return pending.pid == request.pid }
                 return false
@@ -80,22 +76,12 @@ struct WindowFocusHistory {
         return true
     }
 
-    /// A WindowServer focus may need an asynchronous owner lookup. Only accept
-    /// it if the foreground app and the focus observed at notification time still match.
-    mutating func focus(_ window: CGWindowID, forPID pid: pid_t, ifRevision expected: UUID?) -> UUID? {
-        guard let current, current.pid == pid,
-              expected == nil || expected == focusRevision else { return nil }
-        focus(window, for: current)
-        return focusRevision
-    }
-
     mutating func switched(to window: CGWindowID?, pid: pid_t, previous: CGWindowID?) {
         // Invalidate an AX read already in flight before the explicit switch.
         if let current { invalidate(current.pid, keepingActivation: previous == nil) }
         invalidate(pid)
         let request = Request(pid: pid)
         current = request
-        currentWindowID = window
         if let previous { promote(.window(previous)) }
         if let window { promote(.window(window, request)) }
         else { promote(.app(request)) }
@@ -104,13 +90,9 @@ struct WindowFocusHistory {
     mutating func reconcile(windows: Set<CGWindowID>, revision capturedRevision: UUID) {
         // A WindowServer query must not erase focus recorded while it ran.
         guard revision == capturedRevision else { return }
-        let activation = current
         recent.removeAll {
             switch $0 {
-            // The first matching-revision scan can still omit newly focused windows.
-            // Keep this activation's focus order until destruction or another activation.
-            case .window(let id, let request):
-                return !windows.contains(id) && (request == nil || request != activation)
+            case .window(let id, _): return !windows.contains(id)
             // The running-app snapshot can predate a launch notification.
             // Only an actual termination removes activation evidence.
             case .app: return false
@@ -118,23 +100,9 @@ struct WindowFocusHistory {
         }
     }
 
-    mutating func removeWindow(_ window: CGWindowID) {
-        recent.removeAll { use in
-            if case .window(let id, _) = use { return id == window }
-            return false
-        }
-        if currentWindowID == window {
-            currentWindowID = nil
-            revision = UUID()
-        }
-    }
-
     mutating func terminated(_ pid: pid_t) {
         invalidate(pid)
-        if current?.pid == pid {
-            current = nil
-            currentWindowID = nil
-        }
+        if current?.pid == pid { current = nil }
         revision = UUID()
     }
 

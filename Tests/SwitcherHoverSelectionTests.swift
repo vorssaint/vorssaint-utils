@@ -6,7 +6,7 @@ import Combine
 
 /// Production hover, click callbacks, keyboard routing, commit, close and
 /// teardown bodies run with synthetic entries and an explicit clock. Only OS
-/// effects and layout are doubles. No input is posted to the user's desktop;
+/// effects and layout are doubles. No input is posted or real window touched;
 /// these checks do not exercise SwiftUI hit testing or Accessibility transport.
 enum SwitcherHoverSelectionTests {
     typealias NSEvent = Pointer
@@ -14,6 +14,8 @@ enum SwitcherHoverSelectionTests {
     typealias DispatchQueue = Queue
     typealias WindowActivator = Activator
     typealias WindowEnumerator = Enumerator
+    typealias FrontAppEnumerator = SwitcherRememberedSelectionTests.SessionOpening.WindowEnumerator
+    typealias SpaceWindowBridge = SwitcherRememberedSelectionTests.SessionOpening.SpaceWindowBridge
     typealias WindowPreviewProvider = WindowServerCaptureContract.Provider
     typealias SwitcherAppIconCache = IconCache
     typealias ScrollWheelHIDStage = HIDStage
@@ -164,6 +166,10 @@ enum SwitcherHoverSelectionTests {
     }
     final class Inventory {
         var observed: SwitcherRememberedSelectionTests.SessionOpening.SwitcherWindowInventory?
+        var currentSpaceRevision: Int { observed?.currentSpaceRevision ?? 0 }
+        var knownWindowIDs: Set<CGWindowID> {
+            observed?.knownWindowIDs ?? Set((items ?? []).compactMap(\.windowID))
+        }
         static let sampleWindows: [SwitcherItem] = (0..<6).map { index in
             SwitcherItem.window(id: CGWindowID(index + 1), title: "Window \(index)", appName: "App \(index)",
                                 pid: pid_t(index + 10), isOnScreen: true, frame: .zero)
@@ -171,9 +177,6 @@ enum SwitcherHoverSelectionTests {
         var items: [SwitcherItem]? = Inventory.sampleWindows
         var onReady: (([SwitcherItem]) -> Void)?
         var removedIDs: Set<String> = []
-        func sourceCheckExpired(for generation: UInt64) -> Bool {
-            observed?.sourceCheckExpired(for: generation) ?? false
-        }
         func readyForSession(currentSpaceOnly: Bool) -> Bool {
             observed?.readyForSession(currentSpaceOnly: currentSpaceOnly) ?? true
         }
@@ -203,6 +206,7 @@ enum SwitcherHoverSelectionTests {
 
     class Fixture {
         let windowInventory = Inventory()
+        let frontAppReadQueue = SwitcherActivationTests.DeferredQueue()
         var sessionActive = false
         let routeLock = NSLock()
         let lifecycleLock = NSLock()
@@ -275,7 +279,7 @@ enum SwitcherHoverSelectionTests {
         var totalWindowCount = 0
         var sessionSourceContext: SwitcherSourceContext?
         // Main's activation snapshot and Secure Input cleanup are inert here.
-        var sessionWindowServerSnapshot: Any?
+        var sessionWindowServerSnapshot: SwitcherWindowServerSnapshot?
         var sessionStartWindowID: CGWindowID?
         var sessionPlacementVisibleFrame: CGRect?
         var panel: Panel? = Panel()
@@ -321,8 +325,8 @@ enum SwitcherHoverSelectionTests {
         checkSessionPreviewCancellation(suite)
         checkTapRecovery(suite)
         checkPendingWindowSelection(suite)
-        withWindowInventory { checkOpeningOriginAndHiddenApp(suite, service: $0, inventory: $1) }
-        checkNewlyFocusedWindow(suite)
+        checkOpeningOriginAndHiddenApp(suite)
+        checkFreshFrontAppWindows(suite)
         checkPendingEscape(suite)
         let defaults = UserDefaults.standard
         let key = DefaultsKey.switcherIgnoreHoverSelection
@@ -792,6 +796,8 @@ enum SwitcherHoverSelectionTests {
     }
 
     private static func checkPendingWindowSelection(_ suite: TestSuite) {
+        let earlierItems = FrontAppEnumerator.items, earlierReads = FrontAppEnumerator.reads
+        defer { FrontAppEnumerator.items = earlierItems; FrontAppEnumerator.reads = earlierReads }
         func waitingService() -> Service {
             let service = Service()
             service.tap = Tap()
@@ -812,13 +818,17 @@ enum SwitcherHoverSelectionTests {
         let first = press(flick, shortcut: .switcherWindowDefault)
         suite.expect(flick.routePendingSessionStart?.generation == first && flick.startedGenerations.isEmpty
                      && !flick.sessionActive && flick.keyboardInputOwnership.isOwned,
-                     "the current-app shortcut stays pending while its inventory checks an empty selection")
+                     "the current-app shortcut stays pending until its private window read answers")
         _ = flick.route(type: .flagsChanged, event: release)
+        FrontAppEnumerator.items = [window]
         flick.windowInventory.publish([window])
-        flick.windowInventory.publish([window])
+        suite.expect(flick.startedGenerations.isEmpty && flick.frontAppReadQueue.pending.count == 1,
+                     "an inventory publication cannot consume or duplicate a private read")
+        flick.frontAppReadQueue.drain()
+        Queue.advance(to: Queue.time)
         suite.expect(flick.startedGenerations == [first] && Activator.activated == previousActivations + [window.id]
                      && !flick.keyboardInputOwnership.isOwned && flick.panel?.isVisible == false,
-                     "the original modifier release commits the newly published window exactly once")
+                     "the original modifier release commits the freshly read window exactly once")
 
         for fullscreen in [false, true] {
             let service = waitingService()
@@ -842,9 +852,11 @@ enum SwitcherHoverSelectionTests {
                      && replaced.startedGenerations.isEmpty,
                      "a late opening for the released chord leaves the newer shortcut pending")
         replaced.windowInventory.publish([window])
+        replaced.frontAppReadQueue.drain()
+        Queue.advance(to: Queue.time)
         suite.expect(replaced.startedGenerations == [current] && replaced.sessionScope == .frontmostApp
                      && replaced.windows.map(\.id) == [window.id] && replaced.sessionActive,
-                     "the fresh inventory opens only the replacement shortcut and preserves its scope")
+                     "the private read opens only the replacement shortcut and preserves its scope")
 
         let empty = waitingService()
         _ = press(empty)
@@ -857,17 +869,16 @@ enum SwitcherHoverSelectionTests {
                      "a new shortcut with a remembered window opens without another inventory notification")
     }
 
-    private typealias Desktop = SwitcherRememberedSelectionTests.SessionOpening
-
-    private static func withWindowInventory(_ check: (Service, Desktop.SwitcherWindowInventory) -> Void) {
+    private static func checkOpeningOriginAndHiddenApp(_ suite: TestSuite) {
+        typealias Desktop = SwitcherRememberedSelectionTests.SessionOpening
         typealias Windows = Desktop.WindowEnumerator
         typealias Work = Desktop.DispatchQueue
         let defaults = SwitcherRememberedSelectionTests.Preferences.standard
         let previousDefaults = defaults.values
+        let previousHint = Desktop.WindowUseTracker.confirmedFocus
         let previousApp = Workspace.shared.frontmostApplication
         let previousActivations = Activator.activated
         let previousHandoff = Activator.lastHandoffSourcePID
-        let previousSource = Activator.lastSourceWindowID
         let service = Service()
         let inventory = Desktop.SwitcherWindowInventory()
         service.tap = Tap()
@@ -877,27 +888,16 @@ enum SwitcherHoverSelectionTests {
             inventory.stop()
             Windows.items = []
             Windows.reads = []
-            Windows.helperSearches = []
             Work.discoveries.reset()
             Work.scans.reset()
             Work.main.deliveries.reset()
             Work.main.debounce.reset()
-            Work.main.timeouts.reset()
             defaults.values = previousDefaults
+            Desktop.WindowUseTracker.confirmedFocus = previousHint
             Workspace.shared.frontmostApplication = previousApp
             Activator.activated = previousActivations
             Activator.lastHandoffSourcePID = previousHandoff
-            Activator.lastSourceWindowID = previousSource
         }
-        check(service, inventory)
-    }
-
-    private static func checkOpeningOriginAndHiddenApp(_ suite: TestSuite, service: Service,
-                                                       inventory: Desktop.SwitcherWindowInventory) {
-        typealias Windows = Desktop.WindowEnumerator
-        typealias Work = Desktop.DispatchQueue
-        let defaults = SwitcherRememberedSelectionTests.Preferences.standard
-        let previousActivations = Activator.activated
         let displays = [CGRect(x: 0, y: 0, width: 900, height: 700),
                         CGRect(x: 900, y: 0, width: 900, height: 700)]
         let editor = Workspace.App(processIdentifier: 10, bundleIdentifier: "test.editor")
@@ -920,9 +920,10 @@ enum SwitcherHoverSelectionTests {
         service.currentDisplayScope = .init(bounds: displays, targetIndex: 1)
         let target = window(21, editor, on: 0)
         Windows.items = [target, window(22, editor, on: 1), window(23, browser, on: 0), window(24, browser, on: 1)]
-        Work.main.debounce.drain()
-        Work.scans.drain()
-        Work.main.deliveries.drain()
+        Desktop.WindowUseTracker.confirmedFocus = target.windowID
+        service.frontAppReadQueue.drain()
+        Desktop.WindowUseTracker.confirmedFocus = nil
+        Queue.advance(to: Queue.time)
         suite.expect(service.sessionActive && service.windows.map(\.id) == [target.id],
                      "a focus and pointer move during discovery preserves the original app and display for selection")
         let release = CGEvent(source: nil)!
@@ -944,235 +945,146 @@ enum SwitcherHoverSelectionTests {
         let routed = service.route(type: .keyDown, event: letter)?.takeUnretainedValue()
         suite.expect(routed === letter && Activator.activated == previousActivations + [target.id],
                      "the excluded app receives the first typed letter and the switcher activates no window")
+        inventory.invalidate()
+        Work.main.debounce.drain()
+        Work.scans.drain()
+        Work.main.deliveries.drain()
         _ = press(service)
         suite.expect(service.sessionActive && service.sessionScope == .allApps && service.windows.contains { $0.pid == browser.processIdentifier },
                      "the main shortcut can still switch away from an excluded app")
         service.cancelSession()
     }
 
-    private static func checkNewlyFocusedWindow(_ suite: TestSuite) {
+    private static func checkFreshFrontAppWindows(_ suite: TestSuite) {
+        typealias Desktop = SwitcherRememberedSelectionTests.SessionOpening
         typealias Work = Desktop.DispatchQueue
-        typealias Windows = Desktop.WindowEnumerator
-        typealias Apps = Desktop.NSRunningApplication
-        enum Scenario: CaseIterable {
-            case created, delayedCreation, backgroundCreation, newerAX, unrelatedTermination, observedAX, listedObserved
-            case focused, delayedFocus, consecutiveFocus, embeddedOwner, unrelatedOwner, unrelatedFocus, unresolvedOwner, ownerLaterListed
-            case allApps, allWindows, missingWindow, missingAX, timeout, cancelled
+        enum Case: CaseIterable {
+            case front, background, noNotice, retry, omittedFocus, conflictingFocus, escape, space, timeout, newerFocus, allApps, allWindows
         }
+
         _ = NSApplication.shared
-        let observed = Desktop.WindowUseTracker.shared
-        let tracker = SwitcherRememberedSelectionTests.Tracker.shared
-        let previousHistory = tracker.history
-        let previousObserved = observed.focusHistory
-        let previousAX = Desktop.WindowActivator.focus
-        let previousAXReads = Desktop.WindowActivator.reads
-        let previousApps = Apps.apps
-        let previousFront = Desktop.desktop.frontmostApplication
-        let editor = Workspace.App(processIdentifier: 10, bundleIdentifier: "test.editor")
-        let pid = editor.processIdentifier
-        let helperPID: pid_t = 11
-        let otherPID: pid_t = 12
-        Apps.apps[pid] = .init(bundleIdentifier: editor.bundleIdentifier, bundlePath: "/Applications/Editor.app")
-        Apps.apps[helperPID] = .init(isRegular: false, bundlePath: "/Applications/Editor.app/Contents/Helpers/Renderer.app")
-        Apps.apps[otherPID] = .init(bundleIdentifier: "test.other", bundlePath: "/Applications/Other.app")
-        Desktop.desktop.frontmostApplication = Apps(processIdentifier: pid)
-        defer {
-            Desktop.desktop.frontmostApplication = previousFront
-            Apps.apps = previousApps
-            tracker.history = previousHistory
-            observed.focusHistory = previousObserved
-            Desktop.WindowActivator.focus = previousAX
-            Desktop.WindowActivator.reads = previousAXReads
+        let frame = CGRect(x: 40, y: 40, width: 400, height: 300)
+        let natives = ["A", "B", "C"].map { title in
+            let window = NSWindow(contentRect: frame.offsetBy(dx: -10_000, dy: -10_000), styleMask: .titled,
+                                  backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.title = title
+            return window
         }
-        for scenario in Scenario.allCases {
-            withWindowInventory { service, inventory in
-                var nativeWindows: [NSWindow] = []
-                defer { nativeWindows.forEach { $0.close() } }
-                func makeWindow(_ title: String, app: pid_t, owner: pid_t? = nil) -> SwitcherItem? {
-                    let window = NSWindow(contentRect: CGRect(x: -10_000, y: -10_000, width: 400, height: 300),
-                                          styleMask: .titled, backing: .buffered, defer: false)
-                    window.isReleasedWhenClosed = false
-                    window.title = title
-                    nativeWindows.append(window)
-                    guard window.windowNumber > 0, let id = CGWindowID(exactly: window.windowNumber) else { return nil }
-                    return .window(id: id, title: window.title, appName: "App \(app)", pid: app, windowOwnerPID: owner,
-                                   isOnScreen: true, frame: CGRect(x: 40, y: 40, width: 400, height: 300))
-                }
-                func deliverDiscoveries() {
-                    Work.discoveries.drain()
-                    Work.main.deliveries.drain()
-                }
-                func deliverScan() {
-                    Work.scans.drain()
-                    Work.main.deliveries.drain()
-                }
-                guard let a = makeWindow("A", app: pid), let b = makeWindow("B", app: pid),
-                      let aID = a.windowID, let bID = b.windowID else {
-                    suite.expect(false, "both initial fixture windows have WindowServer IDs")
-                    return
-                }
-                Workspace.shared.frontmostApplication = editor
-                SwitcherRememberedSelectionTests.Preferences.standard.values = [DefaultsKey.switcherWindowlessApps: "off"]
-                let known = scenario == .consecutiveFocus ? [a] : [b, a]
-                tracker.history = known.compactMap(\.windowID)
-                observed.focusHistory = WindowFocusHistory()
-                _ = observed.focusHistory.activate(pid)
-                observed.recordObservedFocus(windowID: scenario == .consecutiveFocus ? aID : bID, pid: pid)
-                Desktop.WindowActivator.focus = [:]
-                Desktop.WindowActivator.reads = []
-                Windows.items = known
-                inventory.start()
-                deliverScan()
-                Windows.reads = []
-                let otherApp = scenario == .unrelatedOwner || scenario == .unrelatedFocus
-                guard let c = makeWindow("C", app: otherApp ? otherPID : pid, owner: scenario == .embeddedOwner ? helperPID : nil),
-                      let cID = c.windowID else {
-                    suite.expect(false, "the new fixture window has a WindowServer ID")
-                    return
-                }
-                // A is ahead of B in the raw list. Only observed recency can make B the correct previous window.
-                let current = [c, a, b]
-                Windows.items = current
-                switch scenario {
-                case .consecutiveFocus:
-                    Desktop.Events.shared.deliver?(.focused(bID))
-                    Desktop.Events.shared.deliver?(.focused(cID))
-                case .focused, .delayedFocus, .unrelatedFocus, .allApps, .allWindows, .cancelled:
-                    Desktop.Events.shared.deliver?(.focused(cID))
-                    Desktop.WindowActivator.focus[pid] = bID
-                case .observedAX, .listedObserved:
-                    observed.recordObservedFocus(windowID: cID, pid: pid)
-                    observed.focusHistory.reconcile(windows: [aID, bID], revision: observed.focusHistory.revision)
-                    tracker.history = WindowUseOrder.reconciled(tracker.history, existing: [aID, bID], frontToBack: [bID, aID])
-                    if scenario == .listedObserved {
-                        Desktop.Events.shared.deliver?(.membershipChanged)
-                        Work.main.debounce.drain()
-                        deliverScan()
-                        Windows.reads = []
-                    }
-                case .unresolvedOwner, .ownerLaterListed:
-                    Desktop.Events.shared.deliver?(.changed(cID))
-                    Windows.items = [b, a] // WindowServer cannot yet describe C or report its owner.
-                    Desktop.WindowActivator.focus[pid] = bID
-                default:
-                    Desktop.Events.shared.deliver?(.changed(cID))
-                    if !otherApp { deliverDiscoveries() } // The owner is known before the key, its refresh is still debouncing.
-                    Desktop.WindowActivator.focus[pid] = cID
-                }
-                let displays = [CGRect(x: 0, y: 0, width: 900, height: 700),
-                                CGRect(x: 900, y: 0, width: 900, height: 700)]
-                service.currentDisplayScope = .init(bounds: displays, targetIndex: 0)
-                service.routeAllWindowsShortcut = .switcherAllWindowsDefault
-                let shortcut: GlobalShortcut
-                switch scenario {
-                case .allApps: shortcut = .switcherDefault
-                case .allWindows: shortcut = .switcherAllWindowsDefault
-                default: shortcut = .switcherWindowDefault
-                }
-                let previous = Activator.activated
-                let generation = press(service, shortcut: shortcut)
-                service.currentDisplayScope = .init(bounds: displays, targetIndex: 1)
-                let release = CGEvent(source: nil)!
-                release.type = .flagsChanged
-                release.flags = []
-                if scenario == .cancelled {
-                    let escape = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(KeyCode.escape), keyDown: true)!
-                    escape.flags = shortcut.modifiers.cgFlags
-                    _ = service.route(type: .keyDown, event: escape)
-                }
-                _ = service.route(type: .flagsChanged, event: release)
-                if scenario == .listedObserved || scenario == .allApps || scenario == .allWindows {
-                    let target = scenario == .listedObserved ? b : a
-                    let source = scenario == .listedObserved ? cID : bID
-                    suite.expect(service.startedGenerations == [generation] && Activator.activated == previous + [target.id]
-                                 && Activator.lastSourceWindowID == source
-                                 && Windows.reads.isEmpty && Work.scans.pending.isEmpty && Desktop.WindowActivator.reads.isEmpty,
-                                 "\(scenario) commits from the correct warm source without a scan or AX read")
-                    return
-                }
-                suite.expect(Activator.activated == previous, "\(scenario) never commits the stale two-window list on modifier-up")
-                deliverDiscoveries()
-                if otherApp {
-                    suite.expect(service.startedGenerations == [generation] && Activator.activated == previous + [a.id]
-                                 && Windows.reads.isEmpty && Desktop.WindowActivator.reads.isEmpty && Work.scans.pending.isEmpty,
-                                 "the other owner's discovery alone resumes the shortcut without waiting for a scan, debounce or AX")
-                    return
-                }
-                switch scenario {
-                case .ownerLaterListed:
-                    Windows.items = current
-                    Desktop.WindowActivator.focus[pid] = cID
-                case .delayedCreation, .backgroundCreation, .delayedFocus, .missingWindow:
-                    Windows.items = [b, a]
-                    Desktop.WindowActivator.focus[pid] = scenario == .backgroundCreation ? nil : bID
-                case .newerAX: Desktop.WindowActivator.focus[pid] = bID
-                case .missingAX: Desktop.WindowActivator.focus[pid] = nil
-                default: break
-                }
-                if scenario == .timeout {
-                    let previousSpaces = Desktop.SpaceWindowBridge.visibleSpaces
-                    defer { Desktop.SpaceWindowBridge.visibleSpaces = previousSpaces }
-                    Desktop.SpaceWindowBridge.visibleSpaces = [2]
-                    Desktop.Events.shared.deliver?(.spacesChanged)
-                    Work.main.timeouts.drain()
-                    suite.expect(!inventory.isReady && !service.keyboardInputOwnership.isOwned && Activator.activated == previous,
-                                 "a timeout releases the shortcut while both its worker and the new Space's inventory are pending")
-                    deliverScan()
-                    deliverScan()
-                    suite.expect(service.startedGenerations.isEmpty && Activator.activated == previous,
-                                 "late window replies after the Space change cannot commit the expired shortcut")
-                    return
-                }
-                Work.scans.drain() // Keep the worker's answer separate from its main-queue delivery.
-                if scenario == .newerAX { observed.recordObservedFocus(windowID: cID, pid: pid) }
-                if scenario == .unrelatedTermination { observed.focusHistory.terminated(otherPID) }
-                Work.main.deliveries.drain()
-                switch scenario {
-                case .delayedCreation, .backgroundCreation, .delayedFocus, .missingWindow, .missingAX, .unresolvedOwner:
-                    suite.expect(service.routePendingSessionStart?.generation == generation && Activator.activated == previous,
-                                 "\(scenario) keeps the released shortcut pending after an inconclusive first read")
-                    if scenario != .missingWindow && scenario != .unresolvedOwner { Windows.items = current }
-                    if scenario == .delayedCreation { Desktop.WindowActivator.focus[pid] = cID }
-                    if scenario == .backgroundCreation { Desktop.WindowActivator.focus[pid] = bID }
-                default: break
-                }
-                deliverScan()
-                Queue.advance(to: Queue.time)
-                suite.expect(Windows.reads.count <= 2 && Windows.reads.allSatisfy { $0 == pid }
-                             && Desktop.WindowActivator.reads.count <= 2 && Desktop.WindowActivator.reads.allSatisfy { $0 == pid }
-                             && Work.scans.pending.isEmpty, "\(scenario) confines both window and AX reads to two editor-scoped attempts")
-                if scenario == .embeddedOwner {
-                    suite.expect(Windows.helperSearches == [pid], "the editor-scoped confirmation includes its new accessory helper")
-                }
-                switch scenario {
-                case .missingWindow, .missingAX, .unresolvedOwner, .cancelled:
-                    suite.expect(service.startedGenerations.isEmpty && Activator.activated == previous && !service.keyboardInputOwnership.isOwned,
-                                 "\(scenario) releases input without activating a window, including after late worker replies")
-                    if scenario == .cancelled {
-                        Work.main.debounce.drain()
-                        deliverScan()
-                        Desktop.Events.shared.deliver?(.focused(cID))
-                        Desktop.Events.shared.deliver?(.changed(cID))
-                        service.currentDisplayScope = .init(bounds: displays, targetIndex: 0)
-                        let warm = press(service, shortcut: .switcherWindowDefault)
-                        _ = service.route(type: .flagsChanged, event: release)
-                        suite.expect(service.startedGenerations == [warm] && Activator.activated == previous + [b.id]
-                                     && Activator.lastSourceWindowID == cID && Work.scans.pending.isEmpty,
-                                     "with C and its focus known, an ordinary update keeps the next shortcut immediate")
-                    }
-                default:
-                    let target = scenario == .backgroundCreation ? a : b
-                    let source = scenario == .backgroundCreation ? bID : cID
-                    suite.expect(service.startedGenerations == [generation] && Activator.activated == previous + [target.id]
-                                 && Activator.lastSourceWindowID == source && !service.keyboardInputOwnership.isOwned,
-                                 "\(scenario) commits exactly once from the verified source on the original display")
-                    if scenario == .observedAX {
-                        Desktop.Events.shared.deliver?(.destroyed(cID))
-                        suite.expect(observed.focusSnapshot(for: pid).windowID != cID && !inventory.contains(c),
-                                     "confirmed destruction removes C from both the observed focus and the inventory")
-                    }
-                }
+        defer { natives.forEach { $0.close() } }
+        let ids = natives.compactMap { CGWindowID(exactly: $0.windowNumber) }.filter { $0 != 0 }
+        guard Set(ids).count == 3 else { suite.expect(false, "the three fixture windows have distinct WindowServer IDs"); return }
+        let pid: pid_t = 10
+        let items = zip(natives, ids).map { window, id in
+            SwitcherItem.window(id: id, title: window.title, appName: "Editor", pid: pid, isOnScreen: true, frame: frame)
+        }
+        let (a, b, c) = (items[0], items[1], items[2])
+        let tracker = SwitcherRememberedSelectionTests.Tracker.shared
+        let previousHistory = tracker.history, previousActivations = Activator.activated
+        let previousSource = Activator.lastSourceWindowID, previousFocus = Desktop.WindowActivator.focusedWindow
+        let previousConfirmed = Desktop.WindowUseTracker.confirmedFocus
+        let previousApp = Workspace.shared.frontmostApplication, previousSpaces = Desktop.SpaceWindowBridge.visibleSpaces
+        defer {
+            tracker.history = previousHistory
+            Activator.activated = previousActivations
+            Activator.lastSourceWindowID = previousSource
+            Desktop.WindowActivator.focusedWindow = previousFocus
+            Desktop.WindowUseTracker.confirmedFocus = previousConfirmed
+            Workspace.shared.frontmostApplication = previousApp
+            Desktop.SpaceWindowBridge.visibleSpaces = previousSpaces
+        }
+        Workspace.shared.frontmostApplication = .init(processIdentifier: pid)
+        for scenario in Case.allCases {
+            let service = Service(), inventory = Desktop.SwitcherWindowInventory()
+            service.tap = Tap()
+            service.currentSpaceOnly = scenario == .space
+            service.routeAllWindowsShortcut = .switcherAllWindowsDefault
+            service.windowInventory.observed = inventory
+            inventory.onReady = service.windowInventory.onReady
+            defer {
+                inventory.stop()
+                FrontAppEnumerator.items = []
+                FrontAppEnumerator.firstFrontAppItems = nil
+                FrontAppEnumerator.reads = []
+                Work.scans.reset()
+                Work.discoveries.reset()
+                Work.main.debounce.reset()
+                Work.main.deliveries.reset()
             }
+            Desktop.SpaceWindowBridge.visibleSpaces = [1]
+            tracker.history = [ids[1], ids[0]]
+            Desktop.WindowUseTracker.confirmedFocus = scenario == .noNotice ? nil : ids[1]
+            FrontAppEnumerator.items = [b, a]
+            inventory.start()
+            Work.scans.drain()
+            Work.main.deliveries.drain()
+            FrontAppEnumerator.reads = []
+            FrontAppEnumerator.items = scenario == .background ? [b, c, a] : [c, b, a]
+            let source = scenario == .background ? ids[1] : ids[2]
+            Desktop.WindowActivator.focusedWindow = scenario == .noNotice ? nil : source
+            if scenario == .retry { FrontAppEnumerator.firstFrontAppItems = [b, a] }
+            if scenario == .omittedFocus { FrontAppEnumerator.items = [b, a] }
+            if scenario == .conflictingFocus { Desktop.WindowActivator.focusedWindow = ids[0] }
+            if scenario != .noNotice { Desktop.Events.shared.deliver?(.changed(ids[2])) }
+            let wide = scenario == .allApps || scenario == .allWindows
+            let shortcut: GlobalShortcut = scenario == .allApps ? .switcherDefault
+                : (scenario == .allWindows ? .switcherAllWindowsDefault : .switcherWindowDefault)
+            let before = Activator.activated
+            let generation = press(service, shortcut: shortcut)
+            if scenario == .escape {
+                let esc = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(KeyCode.escape), keyDown: true)!
+                esc.flags = shortcut.modifiers.cgFlags
+                _ = service.route(type: .keyDown, event: esc)
+            }
+            let release = CGEvent(source: nil)!
+            release.flags = []
+            _ = service.route(type: .flagsChanged, event: release)
+            if wide {
+                suite.expect(Activator.activated == before + [a.id] && service.frontAppReadQueue.pending.isEmpty,
+                             "\(scenario) still commits directly from the remembered list")
+                continue
+            }
+            suite.expect(Activator.activated == before && service.frontAppReadQueue.pending.count == 1,
+                         "\(scenario) queues one private read and leaves the key path free")
+            if scenario == .timeout { Queue.advance(to: Queue.time + 1) }
+            service.frontAppReadQueue.drain()
+            if scenario == .newerFocus { Desktop.WindowUseTracker.confirmedFocus = ids[0] }
+            if scenario == .space {
+                Desktop.SpaceWindowBridge.visibleSpaces = [2]
+                Desktop.Events.shared.deliver?(.spacesChanged)
+            }
+            Queue.advance(to: Queue.time)
+            if [.omittedFocus, .conflictingFocus, .escape, .space, .timeout, .newerFocus].contains(scenario) {
+                suite.expect(Activator.activated == before && !service.keyboardInputOwnership.isOwned && service.startedGenerations.isEmpty,
+                             "\(scenario) discards the late reply and gives back the keyboard")
+                if scenario == .omittedFocus || scenario == .conflictingFocus {
+                    suite.expect(FrontAppEnumerator.reads == [pid, pid], "inconsistent focus gets one scoped retry")
+                }
+            } else {
+                let target = scenario == .background ? a : b
+                suite.expect(service.startedGenerations == [generation] && Activator.activated == before + [target.id]
+                             && Activator.lastSourceWindowID == source
+                             && FrontAppEnumerator.reads == (scenario == .retry ? [pid, pid] : [pid]),
+                             "\(scenario) commits once from the fresh source to the editor's previous window")
+            }
+        }
+        // A held panel can outlive its opening snapshot. An AX-only card can disappear
+        // without ever having a WindowServer row, while a remembered target stays valid.
+        let previousItems = FrontAppEnumerator.items
+        defer { FrontAppEnumerator.items = previousItems; Desktop.SpaceWindowBridge.canReadWindowIDs = true }
+        FrontAppEnumerator.items = [b, a]
+        for (readable, selected) in [(false, b), (false, c), (true, c)] {
+            let service = Service(), before = Activator.activated
+            service.windows = [c, b, a]
+            service.sessionScope = .frontmostApp
+            service.sessionActive = true
+            service.selectedIndex = selected.id == b.id ? 1 : 0
+            service.windowInventory.removedIDs = [c.id]
+            Desktop.SpaceWindowBridge.canReadWindowIDs = readable
+            service.commitSession()
+            let expected = selected.id == b.id ? before + [b.id] : before
+            suite.expect(Activator.activated == expected && !service.sessionActive,
+                         "a held selection checks only its chosen target and cancels if its existence is uncertain")
         }
     }
 

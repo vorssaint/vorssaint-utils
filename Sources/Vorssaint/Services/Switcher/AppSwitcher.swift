@@ -89,7 +89,9 @@ final class AppSwitcher: ObservableObject {
         let pid: pid_t
         let regularBundleIdentifier: String?
         let displayScope: WindowEnumerator.DisplayScope?
+        var readingFrontApp = false
     }
+    private let frontAppReadQueue = DispatchQueue(label: "com.vorssaint.switcher.front-app", qos: .userInitiated)
     private var sessionOrigin: SessionOrigin?
 
     // The tap lives on a dedicated thread: an active keyDown tap makes the
@@ -1219,8 +1221,10 @@ final class AppSwitcher: ObservableObject {
             discardPendingSessionStart(generation: generation, reason: "secure_input_guard_unavailable")
             return
         }
-        if windowInventory.sourceCheckExpired(for: generation) {
-            discardPendingSessionStart(generation: generation, reason: "source_confirmation_timed_out")
+        if requested.scope == .frontmostApp {
+            guard !origin.readingFrontApp else { return }
+            sessionOrigin?.readingFrontApp = true
+            readFrontAppWindows(origin: origin)
             return
         }
         guard windowInventory.readyForSession(currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)) else { return }
@@ -1235,6 +1239,52 @@ final class AppSwitcher: ObservableObject {
                              windows: selection.list.items,
                              sourceItems: selection.list.sourceItems,
                              windowServerSnapshot: selection.list.activationSnapshot)
+    }
+
+    /// The app can focus a new window before either inventory observer catches up.
+    /// Keep this answer private to the key press that requested it.
+    private func readFrontAppWindows(origin: SessionOrigin) {
+        let generation = origin.generation
+        let deadline = ProcessInfo.processInfo.systemUptime + 1
+        let isCancelled = { [weak self] in
+            guard let self, ProcessInfo.processInfo.systemUptime < deadline else { return true }
+            return self.routeLock.withLock { self.routePendingSessionStart?.generation != generation }
+        }
+        let currentSpaceOnly = UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        let spaceRevision = windowInventory.currentSpaceRevision
+        let visibleSpaces = currentSpaceOnly ? SpaceWindowBridge.topology()?.visibleSpaces : nil
+        let knownIDs = windowInventory.knownWindowIDs
+        let appKitSnapshot = WindowEnumerator.snapshot(includingRunningApps: false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self, self.routeLock.withLock({ self.routePendingSessionStart?.generation == generation }) else { return }
+            self.discardPendingSessionStart(generation: generation, reason: "front_app_read_timeout")
+        }
+        frontAppReadQueue.async { [weak self] in
+            let read = {
+                var snapshot = appKitSnapshot
+                snapshot.runningApps = WindowEnumerator.runningApplications()
+                return WindowEnumerator.readFrontAppSelection(
+                    snapshot: snapshot, frontmostPID: origin.pid, displayScope: origin.displayScope,
+                    knownWindowIDs: knownIDs, isCancelled: isCancelled)
+            }
+            guard !isCancelled() else { return }
+            let first = read()
+            // AX and the WindowServer may straddle the creation or focus change.
+            let result = first.list.items.isEmpty && !isCancelled() ? read() : first
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !isCancelled() else { return }
+                guard result.focusStillCurrent(),
+                      !currentSpaceOnly || (spaceRevision == self.windowInventory.currentSpaceRevision
+                          && visibleSpaces == SpaceWindowBridge.topology()?.visibleSpaces) else {
+                    self.discardPendingSessionStart(generation: generation, reason: "front_app_source_changed")
+                    return
+                }
+                self.finishPendingSession(generation: generation, reportedFrontPID: result.list.items.first?.pid ?? origin.pid,
+                                          focusedSourceWindowID: result.focusedWindowID,
+                                          windows: result.list.items, sourceItems: result.list.sourceItems,
+                                          windowServerSnapshot: result.list.activationSnapshot)
+            }
+        }
     }
 
     private func finishPendingSession(generation: UInt64,
@@ -1339,7 +1389,7 @@ final class AppSwitcher: ObservableObject {
         }
         startObservingTermination(generation: generation)
         if pending.commitWhenReady {
-            commitSession()
+            commitSession(freshFrontAppRead: pending.scope == .frontmostApp)
             return
         }
         scheduleShowPanel { [weak self] in
@@ -1872,7 +1922,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     /// Activates the current selection. Also used by the panel on click.
-    func commitSession() {
+    func commitSession(freshFrontAppRead: Bool = false) {
         guard sessionActive else { return }
         guard closingItemIDs.isEmpty else {
             commitPendingForClose = true
@@ -1880,7 +1930,23 @@ final class AppSwitcher: ObservableObject {
         }
         // A window that was just closed is still listed for a moment; letting
         // go right after must land on what takes its place, never on it.
-        let unavailableIDs = Set(windows.filter { !windowInventory.contains($0) }.map(\.id))
+        let missing = freshFrontAppRead ? [] : windows.filter { !windowInventory.contains($0) }
+        var unavailableIDs = Set(missing.map(\.id))
+        if sessionScope == .frontmostApp, windows.indices.contains(selectedIndex),
+           unavailableIDs.contains(windows[selectedIndex].id), let id = windows[selectedIndex].windowID {
+            // The private list can lead the inventory. Recheck a held selection before
+            // substituting another target. CG absence alone cannot disprove an AX-only window.
+            guard let liveIDs = SpaceWindowBridge.allWindowIDs() else {
+                endSession()
+                return
+            }
+            if liveIDs.contains(id) {
+                unavailableIDs.remove(windows[selectedIndex].id)
+            } else if sessionWindowServerSnapshot?.windowIDs.contains(id) != true {
+                endSession()
+                return
+            }
+        }
         let selection = SwitcherSupport.commitTargetID(itemIDs: windows.map(\.id),
                                                        selectedIndex: selectedIndex,
                                                        closingItemIDs: closingItemIDs.union(unavailableIDs))

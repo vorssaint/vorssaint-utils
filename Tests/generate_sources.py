@@ -230,6 +230,8 @@ def main():
                         "    private func observeScreenChanges(").replace("private func", "func", 1)
           + "}\nextension SwitcherRememberedSelectionTests.SessionOpening.Events {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowEvents.swift", "    enum Event {")
+          + "}\nextension SwitcherRememberedSelectionTests.SessionOpening.WindowEnumerator {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift", "    static func readFrontAppSelection(")
           + "}\nextension SwitcherRememberedSelectionTests.SessionOpening {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowInventory.swift",
                         "final class SwitcherWindowInventory {")
@@ -2204,6 +2206,10 @@ def main():
           + declaration(switcher_service, "    private func beginPendingSession(").replace("private func", "func", 1)
               .replace("UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)", "currentSpaceOnly")
               .replace("AXIsProcessTrusted()", "true")
+          + declaration(switcher_service, "    private func readFrontAppWindows(")
+              .replace("WindowEnumerator.", "FrontAppEnumerator.")
+              .replace("UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)", "self.currentSpaceOnly")
+              .replace("ProcessInfo.processInfo.systemUptime", "Queue.time")
           + declaration(switcher_service, "    private func finishPendingSession(").replace("private func", "func", 1)
               .replace("CGEventSource.flagsState(.combinedSessionState)", "[]")
           + declaration(switcher_service, "    private func route(type:").replace("private func", "func", 1)

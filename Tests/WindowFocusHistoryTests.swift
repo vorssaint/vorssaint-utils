@@ -5,7 +5,6 @@ import Foundation
 
 enum WindowFocusHistoryTests {
     static func run(expect: (Bool, String) -> Void) {
-        checkUnlistedFocus(expect: expect)
         typealias Entry = WindowUseOrder.Entry
         let entries = [Entry(windowID: 20, pid: 2), Entry(windowID: 10, pid: 1),
                        Entry(windowID: 30, pid: 3), Entry(windowID: 11, pid: 1)]
@@ -28,12 +27,13 @@ enum WindowFocusHistoryTests {
                "rapid A then B activation selects A next even when both AX reads are missing")
         expect(history.focus(11, for: a) && windows(history) == [20, 11, 30, 10],
                "a late AX response resolves A in place without displacing B")
-        expect(history.focusedWindowID(for: 1) == nil && history.focusedWindowID(for: 2) == nil,
-               "late focus from the previous app cannot identify the current shortcut's source")
+        expect(history.frontAppFocus(for: 1).windowID == nil && history.frontAppFocus(for: 2).windowID == nil,
+               "a late result for a previous app supplies no focus hint for the front app")
         expect(history.focus(20, for: b) && windows(history) == [20, 11, 30, 10],
                "B resolving its window retains the unresolved activation of A")
-        expect(history.focusedWindowID(for: 2) == 20,
-               "the current activation reports its focused window before the inventory lists it")
+        let focus = history.frontAppFocus(for: 2)
+        expect(focus.windowID == 20 && focus.observedWindows == [11, 20],
+               "the request sees only observed windows as focus evidence, excluding the window-server seed")
         let againA = history.activate(1)!
         expect(!history.focus(10, for: a), "returning to the same PID does not accept its old request")
         expect(history.focus(11, for: againA) && windows(history) == [11, 20, 30, 10],
@@ -113,55 +113,5 @@ enum WindowFocusHistoryTests {
         expect(bounded.count == 300 && Set(bounded).count == 300 && bounded[255] == 44 && bounded[256] == 0,
                "bounded activation history preserves all remaining entries exactly once")
         expect(history.order([], baseline: []).isEmpty, "empty window lists remain empty")
-    }
-
-    private static func checkUnlistedFocus(expect: (Bool, String) -> Void) {
-        let entries = [10, 11, 12].map { WindowUseOrder.Entry(windowID: UInt32($0), pid: 1) }
-        var history = WindowFocusHistory()
-        let earlierApp = history.activate(2)!
-        let request = history.activate(1)!
-        history.focus(10, for: request)
-        let firstNotice = history.focusRevision
-        let beforeLateFocus = history.revision
-        expect(history.focus(20, for: earlierApp) && history.revision != beforeLateFocus
-               && history.focusRevision == firstNotice && history.focusedWindowID(for: 1) == 10,
-               "a late AX result for an earlier app does not confirm the current app's old focus")
-        let beforeTermination = history.revision
-        history.terminated(2)
-        expect(history.revision != beforeTermination && history.focusRevision == firstNotice,
-               "terminating a different app does not supersede a pending focus notification")
-        guard let afterB = history.focus(11, forPID: 1, ifRevision: firstNotice),
-              let afterC = history.focus(12, forPID: 1, ifRevision: afterB) else {
-            expect(false, "the owner-confirmed focus notifications for B and C are accepted in order")
-            return
-        }
-        history.reconcile(windows: [10], revision: history.revision)
-        expect(history.focusedWindowID(for: 1) == 12
-               && history.order(entries, baseline: [0, 1, 2]) == [2, 1, 0],
-               "a capture missing B and C preserves C as source and B as the previous window")
-        history.reconcile(windows: [10, 11], revision: history.revision)
-        expect(history.focusedWindowID(for: 1) == 12,
-               "seeing B before C cannot make the older window the current focus")
-        history.removeWindow(12)
-        expect(history.focusedWindowID(for: 1) == nil
-               && history.order(entries, baseline: [0, 1, 2]) == [1, 0, 2],
-               "explicit destruction forgets C without naming its predecessor as the current focus")
-        expect(history.focus(12, forPID: 1, ifRevision: afterC) == nil,
-               "a discovery started before the focused window closed cannot restore it")
-
-        let beforeAX = history.focusRevision
-        history.focus(10, for: request)
-        expect(history.focus(11, forPID: 1, ifRevision: beforeAX) == nil
-               && history.focusedWindowID(for: 1) == 10,
-               "a delayed owner lookup cannot overwrite a newer Accessibility focus")
-        let beforeRepeat = history.focusRevision
-        history.focus(10, for: request)
-        expect(history.focusRevision != beforeRepeat && history.focusedWindowID(for: 1) == 10,
-               "a fresh focus observation can reconfirm the same front window")
-        let beforeActivation = history.focusRevision
-        _ = history.activate(2)
-        expect(history.focus(11, forPID: 1, ifRevision: beforeActivation) == nil
-               && history.focusedWindowID(for: 1) == nil,
-               "leaving an app invalidates outstanding focus confirmations")
     }
 }

@@ -119,7 +119,7 @@ enum WindowEnumerator {
 
     struct Snapshot: Sendable {
         let accessibilityGranted: Bool
-        let runningApps: [AppSnapshot]
+        var runningApps: [AppSnapshot]
         let ownWindowTitles: [CGWindowID: String]
         let screenFrames: [CGRect]
         let displayIDsByUUID: [String: CGDirectDisplayID]
@@ -172,12 +172,14 @@ enum WindowEnumerator {
     }
 
     /// The first window of an embedded process has no remembered item identifying its host yet.
-    static func appPID(forWindowOwner owner: pid_t, runningApps: @autoclosure () -> [AppSnapshot]) -> pid_t? {
-        guard let app = NSRunningApplication(processIdentifier: owner), !app.isTerminated else { return nil }
-        if app.activationPolicy == .regular { return owner }
-        guard let path = app.bundleURL?.path else { return nil }
+    static func appPID(forWindowOwner owner: pid_t, runningApps: [AppSnapshot]) -> pid_t? {
+        let known = runningApps.first { $0.pid == owner }
+        let live = known == nil ? NSRunningApplication(processIdentifier: owner) : nil
+        guard live?.isTerminated != true else { return nil }
+        if known?.isRegular == true || live?.activationPolicy == .regular { return owner }
+        guard let path = known?.bundlePath ?? live?.bundleURL?.path else { return nil }
         return SwitcherSupport.embeddedHostPID(helperBundlePath: path,
-                                              regularBundlePaths: regularBundlePaths(in: runningApps()))
+                                              regularBundlePaths: regularBundlePaths(in: runningApps))
     }
 
     /// The apps of one walk, and the ones it asks through Accessibility.
@@ -351,7 +353,7 @@ enum WindowEnumerator {
     static func rememberSwitcherWindows(
         snapshot: Snapshot,
         filterPID: pid_t? = nil,
-        includingNewHelpers: Bool = false,
+        forFrontAppSession: Bool = false,
         isCancelled: @escaping () -> Bool
     ) -> WindowList {
         listWindows(filterPID: filterPID,
@@ -368,8 +370,72 @@ enum WindowEnumerator {
                     marksHiddenSpaces: true,
                     snapshot: snapshot,
                     remembersWindows: true,
-                    includingNewHelpers: includingNewHelpers,
+                    forFrontAppSession: forFrontAppSession,
                     isCancelled: isCancelled)
+    }
+
+    /// A front-app shortcut reads its own candidates and z-order. Background discovery can
+    /// still be catching up with windows the user just opened.
+    static func readFrontAppSelection(
+        snapshot: Snapshot, frontmostPID: pid_t, displayScope: DisplayScope?, knownWindowIDs: Set<CGWindowID>,
+        isCancelled: @escaping () -> Bool
+    ) -> (list: WindowList, focusedWindowID: CGWindowID?, focusStillCurrent: () -> Bool) {
+        let empty = (WindowList(items: [], sourceItems: []), nil as CGWindowID?, { false })
+        guard !isCancelled() else { return empty }
+        let appPID = Self.appPID(forWindowOwner: frontmostPID, runningApps: snapshot.runningApps) ?? frontmostPID
+        let tracker = WindowUseTracker.shared
+        let observed = tracker.frontAppFocus(for: frontmostPID)
+        let captured = rememberSwitcherWindows(snapshot: snapshot, filterPID: appPID, forFrontAppSession: true,
+                                               isCancelled: isCancelled)
+        guard !isCancelled() else { return empty }
+        let windows = captured.items.filter { $0.pid == appPID && $0.windowID != nil }
+        let visible = windows.filter { $0.isOnScreen && !$0.isMinimized }
+        let visibleIDs = Set(visible.compactMap(\.windowID))
+        let physicalOrder = WindowUseTracker.frontToBack().windows
+        let stack = physicalOrder.filter { visibleIDs.contains($0) }
+        let top = stack.first
+        let ax = snapshot.accessibilityGranted ? WindowActivator.focusedWindowID(for: frontmostPID) : nil
+        if let top, let ax, ax != top { return empty }
+        // Even matching old history and z-order can describe an inventory that missed a new AX window.
+        if let reported = ax ?? observed.windowID, !windows.contains(where: { $0.windowID == reported }) { return empty }
+        if let hint = observed.windowID, !visibleIDs.contains(hint), physicalOrder.contains(hint) { return empty }
+        // A window can be ordered to the front without taking keyboard focus.
+        if ax == nil, let hint = observed.windowID, visibleIDs.contains(hint), let top, top != hint { return empty }
+        let source = (ax ?? top ?? observed.windowID).flatMap { id in visible.first { $0.windowID == id } }
+        guard !isCancelled(), source != nil || visible.isEmpty else { return empty }
+        let sourceID = source?.windowID
+        var list = SwitcherWindowSelection.select(remembered: captured, scope: .frontmostApp, frontmostPID: appPID,
+                                                  focusedWindowID: sourceID, displayScope: displayScope)
+        if source == nil || !list.sourceItems.contains(where: { $0.windowID == sourceID }) {
+            // A parked or minimized window can remain a destination without becoming an invented source.
+            list = WindowList(items: list.items, sourceItems: source.map { [$0] + list.sourceItems } ?? [],
+                              activationSnapshot: captured.activationSnapshot)
+        }
+        // If the source is new, another previously unseen window may have been focused just
+        // before it. Its position behind the source is the only recorded evidence of that use.
+        if let source, let sourceID, !knownWindowIDs.contains(sourceID), top == sourceID, !list.items.isEmpty {
+            let eligible = displayScope.map {
+                SwitcherSupport.itemsOnDisplay(list.sourceItems, displayBounds: $0.bounds, targetIndex: $0.targetIndex)
+            } ?? list.sourceItems
+            let ids = Set(eligible.compactMap(\.windowID))
+            if let id = stack.dropFirst().first(where: { ids.contains($0) }),
+               !knownWindowIDs.contains(id), !observed.observedWindows.contains(id),
+               let previous = eligible.first(where: { $0.windowID == id }) {
+                // The ordinary MRU cap may have omitted this previously unknown window.
+                if !list.items.contains(where: { $0.id == previous.id }) {
+                    list.items.removeLast()
+                    list.items.append(previous)
+                }
+                list.items = SwitcherSupport.orderedForSession(list.items, currentID: previous.id)
+                list.items = SwitcherSupport.orderedForSession(list.items, currentID: source.id)
+            }
+        }
+        let focusStillCurrent = {
+            // A different app taking focus clears this app's hint (#4393).
+            guard let latest = tracker.frontAppFocus(for: frontmostPID).windowID else { return true }
+            return latest == observed.windowID || latest == sourceID
+        }
+        return (list, sourceID, focusStillCurrent)
     }
 
     /// The Command Bar shares the window walk, not the Switcher's visibility
@@ -497,7 +563,7 @@ enum WindowEnumerator {
                                     windowServerCapture: WindowServerWindowList? = nil,
                                     resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                     remembersWindows: Bool = false,
-                                    includingNewHelpers: Bool = false,
+                                    forFrontAppSession: Bool = false,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         guard !isCancelled() else {
             return WindowList(items: [], sourceItems: [])
@@ -539,7 +605,7 @@ enum WindowEnumerator {
             pid: \.pid,
             isRegular: \.isRegular,
             isEmbeddedHelper: { app in
-                guard includingNewHelpers, let filterPID, let path = app.bundlePath else { return false }
+                guard forFrontAppSession, let filterPID, let path = app.bundlePath else { return false }
                 return SwitcherSupport.embeddedHostPID(helperBundlePath: path, regularBundlePaths: hostPaths) == filterPID
             },
             // Runs off main; NSRunningApplication(processIdentifier:) is thread-safe.
@@ -582,11 +648,17 @@ enum WindowEnumerator {
         // Bring the use history up to date before ordering by it: windows that
         // are gone leave, and any window that appeared without ever taking
         // focus is filed by the window server's front-to-back order.
-        let frontToBack = WindowUseTracker.frontToBack()
-        WindowUseTracker.shared.reconcile(
-            existingWindows: windowServerSnapshot.windowIDs,
-            frontToBack: frontToBack,
-            running: Set(runningApps.map(\.pid)), revision: historyRevision)
+        let frontToBack: WindowUseTracker.FrontToBack
+        if forFrontAppSession {
+            // This request samples its live z-order after all the candidates are available.
+            frontToBack = .init(windows: [], apps: [])
+        } else {
+            frontToBack = WindowUseTracker.frontToBack()
+            WindowUseTracker.shared.reconcile(
+                existingWindows: windowServerSnapshot.windowIDs,
+                frontToBack: frontToBack,
+                running: Set(runningApps.map(\.pid)), revision: historyRevision)
+        }
         guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
         let accessibilityWindows = accessibilityWindows(
             for: apps.accessibilityPIDs,
