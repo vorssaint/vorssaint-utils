@@ -1408,7 +1408,9 @@ private struct QuickEntryView: View, Equatable {
             TextField(shelfText.clipName, text: $titleDraft)
             Button(text.cancel, role: .cancel) {}
             Button(text.save) {
-                if !history.renameEntry(entry.id, to: titleDraft) { NSSound.beep() }
+                history.renameEntry(entry.id, to: titleDraft) { saved in
+                    if !saved { NSSound.beep() }
+                }
             }
         }
         .onHover { hovering in

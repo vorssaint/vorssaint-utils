@@ -2678,15 +2678,29 @@ enum ClipboardPreviewContract {
         fromEditor.sourceBundleID = "com.example.editor"
         let other = ClipboardHistoryEntry(text: "Another copy")
         service.setEntries([other, fromEditor])
+        func rename(_ title: String, whileChecking: () -> Void = {}) -> Bool? {
+            var saved: Bool?
+            service.renameEntry(fromEditor.id, to: title) { saved = $0 }
+            whileChecking()
+            let deadline = Date().addingTimeInterval(5)
+            while saved == nil && Date() < deadline {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+            }
+            return saved
+        }
+
         let originalLimit = service.encodedHistoryByteLimit
         let originalEntries = service.entries
         service.encodedHistoryByteLimit = (try? JSONEncoder().encode(originalEntries).count) ?? 1
-        suite.expect(!service.renameEntry(fromEditor.id, to: String(repeating: "x", count: 100))
-                     && service.entries == originalEntries,
+        suite.expect(rename(String(repeating: "x", count: 100)) == false && service.entries == originalEntries,
                      "renaming near the encoded limit cannot evict another clipboard entry")
         service.encodedHistoryByteLimit = originalLimit
-        suite.expect(service.renameEntry(fromEditor.id, to: "  Release snippet  "),
-                     "rename accepts a trimmed title")
+        let newer = ClipboardHistoryEntry(text: "Copied while renaming")
+        suite.expect(rename("Stale title", whileChecking: { service.setEntries([newer, fromEditor]) }) == false
+                     && service.entries == [newer, fromEditor],
+                     "a finished rename cannot overwrite newer history")
+        service.setEntries(originalEntries)
+        suite.expect(rename("  Release snippet  ") == true, "rename accepts a trimmed title")
         service.promote("Copied in an editor", source: nil, keepsSource: true)
         let encoded = try? JSONEncoder().encode(service.entries)
         let restored = encoded.flatMap { try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: $0) }

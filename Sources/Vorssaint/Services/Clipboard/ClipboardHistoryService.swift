@@ -124,7 +124,7 @@ final class ClipboardHistoryService: ObservableObject {
     private var captureState = ClipboardHistoryCaptureState()
     /// Keep at most one history write queued or executing, even after its
     /// caller timed out. A blocked provider cannot accumulate user actions.
-    private var copyInFlight = false
+    @Published private var copyInFlight = false
     private static let pasteboardTimeout: TimeInterval = 5
     private var panel: NSPanel?
     // Visible card bounds are measured from the shelf's top-left corner.
@@ -486,16 +486,35 @@ final class ClipboardHistoryService: ObservableObject {
         return true
     }
 
-    func renameEntry(_ id: UUID, to draft: String) -> Bool {
-        guard let index = entries.firstIndex(where: { $0.id == id }) else { return false }
+    func renameEntry(_ id: UUID, to draft: String, completion: @escaping (Bool) -> Void) {
+        guard let index = entries.firstIndex(where: { $0.id == id }) else {
+            completion(false)
+            return
+        }
         let title = ClipboardHistoryEditing.clipTitle(draft)
-        guard entries[index].customTitle != title else { return true }
-        var updated = entries
-        updated[index].customTitle = title
-        guard ClipboardHistoryEditing.entriesFit(updated, byteLimit: encodedHistoryByteLimit) else { return false }
-        entries = updated
-        save()
-        return true
+        guard entries[index].customTitle != title else {
+            completion(true)
+            return
+        }
+
+        let snapshot = entries
+        let stamp = entriesStamp
+        let byteLimit = encodedHistoryByteLimit
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            var updated = snapshot
+            updated[index].customTitle = title
+            let candidate = updated
+            let fits = ClipboardHistoryEditing.entriesFit(candidate, byteLimit: byteLimit)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.entriesStamp == stamp, fits else {
+                    completion(false)
+                    return
+                }
+                self.entries = candidate
+                self.save()
+                completion(true)
+            }
+        }
     }
 
     /// Deletes only the unpinned entries the confirmation counted, as they
@@ -886,7 +905,7 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     var canPasteNextFromStack: Bool {
-        guard isRunning, quickLayout == .cards, panel?.isVisible == true, !shelfIsClosing,
+        guard isRunning, !copyInFlight, quickLayout == .cards, panel?.isVisible == true, !shelfIsClosing,
               !UserDefaults.standard.bool(forKey: DefaultsKey.clipboardShelfPrivacyMode),
               let target = pasteTargetApp, !target.isTerminated else { return false }
         return ClipboardHistoryPasteTarget.acceptsSyntheticPaste(bundleID: target.bundleIdentifier)
