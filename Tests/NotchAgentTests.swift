@@ -3288,10 +3288,10 @@ enum NotchAgentTests {
                         .map(\.card) == [.spend, .live, .trend, .models, .projects, .activity, .kilo],
                      "recorded Cursor tokens enable history without offering plan limits or resets, and Kilo keeps its own card")
         let allProviders = AgentProvider.allCases
-        let active = AgentLiveSession(id: "active", provider: .cursor, started: .now, lastActivity: .now,
-                                      model: "", project: "demo", tokens: AgentTokens(), cost: 0)
         for count in 4...5 {
             let providers = Array(allProviders.suffix(count))
+            let active = AgentLiveSession(id: "active", provider: providers[0], started: .now, lastActivity: .now,
+                                          model: "", project: "demo", tokens: AgentTokens(), cost: 0)
             let idle = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers)
             let live = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers, snapshot: AgentUsageSnapshot(live: [active]))
             suite.expect(NotchAgentSupport.contentHeight([idle]) >= 44 + 15 * CGFloat(count) + 5 * CGFloat(count - 1)

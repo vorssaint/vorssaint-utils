@@ -702,9 +702,9 @@ enum FeatureCatalogTests {
                 == Array(AppFeature.features(in: .dynamicIsland).dropFirst()),
                "the Dynamic Island's extensions are every other feature of its section")
         suite.expect(AppFeature.notch.initialInstallGroup
-                        == AppFeature.features(in: .dynamicIsland).filter { $0 != .notchMascot && $0 != .notchAgents && $0 != .notchSpotify }
+                        == AppFeature.features(in: .dynamicIsland).filter { $0 != .notchMascot && $0 != .notchAgents && $0 != .notchSpotify && $0 != .notchHomeAssistant }
                      && AppFeature.mixer.initialInstallGroup == [.mixer],
-                     "choosing the island keeps Agents, Spotify, and the companion as separate installs")
+                     "choosing the island keeps Agents, Spotify, Home Assistant, and the companion as separate installs")
         suite.expect(AppFeature.dynamicIslandExtensions.contains(.notchMascot)
                         && !AppFeature.notch.initialInstallGroup.contains(.notchMascot)
                         && AppFeature.notchMascot.permissions.isEmpty
