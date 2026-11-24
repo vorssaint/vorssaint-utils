@@ -753,7 +753,7 @@ final class ClipboardHistoryService: ObservableObject {
         // that closes it may already have taken them away.
         let historyPanelIsKey = historyPanelClosing || panel?.isKeyWindow == true
         GeneralPasteboardAccess.shared.async(timeout: Self.pasteboardTimeout, { isExpired
-            -> (changeCount: Int, content: CapturedContent?, declaredSource: String?, remote: Bool)? in
+            -> (changeCount: Int, content: CapturedContent?, declaredSource: String?, remote: Bool, announce: Bool)? in
             let changeCount = NSPasteboard.general.changeCount
             guard !isExpired() else { return nil }
             // Read during a baseline too, not only on a detected change: a
@@ -765,9 +765,11 @@ final class ClipboardHistoryService: ObservableObject {
             let content: CapturedContent? = (baseline || changeCount != sinceChangeCount)
                 ? Self.readPasteboard(includeImagesFiles: includeImagesFiles)
                 : nil
+            let types = (NSPasteboard.general.types ?? []).map(\.rawValue)
             return (changeCount, content,
                     content == nil ? nil : NSPasteboard.general.string(forType: .source),
-                    content != nil && NSPasteboard.general.types?.contains(.remoteClipboard) == true)
+                    content != nil && NSPasteboard.general.types?.contains(.remoteClipboard) == true,
+                    ClipboardHistoryCapturePolicy.shouldAnnounce(types: types))
         }, then: { [weak self] result in
             guard let self else { return }
             guard let result else {
@@ -848,7 +850,7 @@ final class ClipboardHistoryService: ObservableObject {
             case .transient: break
             case .files(let paths): self.promoteFiles(paths, source: source.bundleID, keepsSource: keepsSource)
             case .image(let image, _): self.promoteImage(image, source: source.bundleID, keepsSource: keepsSource)
-            case .text(let text, _): self.promote(text, source: source.bundleID, keepsSource: keepsSource)
+            case .text(let text, _): self.promote(text, source: source.bundleID, keepsSource: keepsSource, announce: result.announce)
             }
         }, didFinish: { [weak self] _ in
             self?.captureState.finish()
@@ -1024,7 +1026,7 @@ final class ClipboardHistoryService: ObservableObject {
         return (scheme == "http" || scheme == "https") && url.host != nil
     }
 
-    private func promote(_ text: String, source: String?, keepsSource: Bool) {
+    private func promote(_ text: String, source: String?, keepsSource: Bool, announce: Bool = true) {
         guard text.count <= ClipboardHistoryEditing.maxCharacters else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -1040,9 +1042,9 @@ final class ClipboardHistoryService: ObservableObject {
                                                  text: text,
                                                  copiedAt: Date(),
                                                  pinnedAt: existing.pinnedAt),
-                           source: keepsSource ? existing.sourceBundleID : source)
+                           source: keepsSource ? existing.sourceBundleID : source, announce: announce)
         } else {
-            insertPromoted(ClipboardHistoryEntry(text: text), source: source)
+            insertPromoted(ClipboardHistoryEntry(text: text), source: source, announce: announce)
         }
         normalizeEntryOrder()
         trimToLimit()
@@ -1075,7 +1077,7 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     /// A copy taken again takes the app it came from this time.
-    private func insertPromoted(_ entry: ClipboardHistoryEntry, source: String?) {
+    private func insertPromoted(_ entry: ClipboardHistoryEntry, source: String?, announce: Bool = true) {
         var entry = entry
         entry.sourceBundleID = source
         if entry.isPinned {
@@ -1084,7 +1086,7 @@ final class ClipboardHistoryService: ObservableObject {
             entries.insert(entry, at: firstRecentIndex)
         }
         latestPasteboardEntry = entry
-        capturedEntry.send(entry)
+        if announce { capturedEntry.send(entry) }
     }
 
     private func normalizeEntryOrder() {

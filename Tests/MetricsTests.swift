@@ -130,6 +130,7 @@ struct MetricsTests {
                 CommandBarSelectionTests.run(suite)
             }),
             ("home-assistant", { HomeAssistantTests.run(suite) }),
+            ("dictation", { DictationTests.run { passed, message in suite.expect(passed, message) } }),
             ("transient-paste", { TransientPasteTests.run(suite) }),
             ("notch-music", { NotchMusicExtrasTests.run(suite) }),
             ("notch", {
