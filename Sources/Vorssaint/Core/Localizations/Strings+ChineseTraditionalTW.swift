@@ -207,7 +207,7 @@ extension Strings {
         micMutePartialHUD: "無法確認所有麥克風都已靜音",
         micUnmutePartialHUD: "無法確認所有麥克風的設定都已回復",
         micRestoreExhaustedHUD: "無法確認是否已自動還原。請檢查麥克風的靜音開關，並在混音器中調整輸入音量。",
-        micManualRestore: "無法確認麥克風先前的設定。請檢查其靜音開關，並在混音器或「聲音」設定中確認輸入音量。",
+        micManualRestore: "無法確認部分麥克風設定。請檢查靜音開關和各聲道的輸入音量，必要時可使用混音器或「聲音」設定。",
         micManualRestoreChecked: "我已檢查麥克風",
         micMuteMenuBarToggle: "功能開啟時在選單列顯示",
         micMuteMenuBarCaption: "選單列中的紅色麥克風表示此功能已開啟，並不保證所有 App 都已停止擷取音訊。",

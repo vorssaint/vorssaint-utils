@@ -207,7 +207,7 @@ extension Strings {
         micMutePartialHUD: "Impossibile confermare il silenziamento di tutti i microfoni",
         micUnmutePartialHUD: "Impossibile confermare il ripristino di tutti i microfoni",
         micRestoreExhaustedHUD: "Impossibile confermare il ripristino automatico. Controlla il tasto muto del microfono e regola il volume di ingresso nel mixer.",
-        micManualRestore: "Impossibile verificare le impostazioni precedenti del microfono. Controlla il tasto muto e il livello di ingresso nel mixer o nelle impostazioni Suono.",
+        micManualRestore: "Impossibile verificare tutte le impostazioni del microfono. Controlla il tasto muto e il livello di ingresso di ogni canale. Se necessario, usa il mixer o le impostazioni Suono.",
         micManualRestoreChecked: "Ho controllato il microfono",
         micMuteMenuBarToggle: "Mostra nella barra dei menu quando attivo",
         micMuteMenuBarCaption: "Il microfono rosso nella barra dei menu indica che la funzione è attiva. Non garantisce che tutte le app smettano di acquisire audio.",

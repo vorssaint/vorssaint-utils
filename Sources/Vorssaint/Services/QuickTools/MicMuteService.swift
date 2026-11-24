@@ -74,12 +74,13 @@ final class MicMuteService: ObservableObject {
     /// Only the serial audio queue updates retry state or runs the timer.
     private typealias ControlRetries = [InputDevice: [String: MicMuteSupport.Retry]]
     private var retries: ControlRetries = [:]
-    /// A writable control gets up to three timed restore opportunities.
+    /// A pending control gets a first check and up to two timed retries.
     private struct RestoreAttempt {
         let target: Double
         let count: Int
         let deadline: TimeInterval?
         let hasSubmitted: Bool
+        var unknownAccessElements: Set<UInt32> = []
 
         init(target: Double, previous: Self?, submitted: Bool, now: TimeInterval) {
             self.target = target
@@ -92,7 +93,7 @@ final class MicMuteService: ObservableObject {
             guard let deadline else { return true }
             // A control that first becomes readable can take its first Set
             // on that notification, without waiting for an outstanding timer.
-            return hasSubmitted && now < deadline
+            return (hasSubmitted || !unknownAccessElements.isEmpty) && now < deadline
         }
     }
     private var attemptedRestores: [InputDevice: [String: RestoreAttempt]] = [:]
@@ -308,31 +309,10 @@ final class MicMuteService: ObservableObject {
         }
     }
 
-    // The original Boolean reminder requires a human check. When only the
-    // result of a mixer Set is uncertain, the same reminder can name the
-    // values to verify. Neither form is a restore target.
-    private static var mixerChecks: [String: [String: Double]] {
-        UserDefaults.standard.dictionary(forKey: DefaultsKey.micMuteManualCheckNeeded) as? [String: [String: Double]] ?? [:]
-    }
-
     private static var needsManualCheck: Bool {
         let reminder = UserDefaults.standard.object(forKey: DefaultsKey.micMuteManualCheckNeeded)
+        // An earlier build stored outstanding mixer readbacks under this key.
         return reminder as? Bool == true || (reminder as? [String: [String: Double]])?.isEmpty == false
-    }
-
-    static func hasMixerRecovery(for uid: String) -> Bool {
-        if mixerChecks[uid] != nil { return true }
-        return releasePending && UserDefaults.standard.stringArray(forKey: DefaultsKey.micMuteMutedDevices)?.contains(uid) == true
-    }
-
-    private static func saveMixerChecks(_ checks: [String: [String: Double]]) {
-        let defaults = UserDefaults.standard
-        let key = DefaultsKey.micMuteManualCheckNeeded
-        if checks.isEmpty {
-            if defaults.object(forKey: key) != nil { defaults.removeObject(forKey: key) }
-        } else if checks != mixerChecks {
-            defaults.set(checks, forKey: key)
-        }
     }
 
     private func refreshManualWarning() {
@@ -359,110 +339,24 @@ final class MicMuteService: ObservableObject {
         }
     }
 
-    private static func mixerReadings(_ keys: Set<String>, uid: String, device: AudioDeviceID) -> [String: Double] {
-        guard inputUID(of: device) == uid else { return [:] }
-        var result: [String: Double] = [:]
-        for key in keys {
-            if let address = controlAddress(key) { result[key] = controlValue(of: device, at: address) }
-        }
-        return inputUID(of: device) == uid ? result : [:]
-    }
-
-    /// Runs inside withUnmutedInput. A successful setter retires its old
-    /// target before another HAL read, even if the driver publishes later.
-    func adjustInputVolume(uid: String, device: AudioDeviceID, at address: AudioObjectPropertyAddress, to gain: Float,
-                           recovering: Bool, write: () -> OSStatus?) -> OSStatus? {
+    /// Called on the mute queue after a mixer setter succeeds. The user now
+    /// owns the whole input, including channels that the driver may update later.
+    func didAcceptMixerEdit(for uid: String) {
         let defaults = UserDefaults.standard
-        let direct = Self.controlKey(address)
-        var reminders = Self.mixerChecks
-        var checks = reminders[uid] ?? [:]
-        guard recovering || Self.releasePending || !checks.isEmpty else { return write() }
-        let recordKey = DefaultsKey.micMuteSavedControls
-        var saved = defaults.dictionary(forKey: recordKey) as? [String: [String: Double]] ?? [:]
-        let pending = saved[uid] ?? [:]
-        // A UID gain without resolved controls cannot identify an independent
-        // channel. Leave it to manual review if the user adjusts this input.
-        let unresolvedGain = saved[uid] == nil && Self.releasePending
-            && defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices)?.contains(uid) == true
-            && (defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes)?[uid] != nil
-                || defaults.dictionary(forKey: DefaultsKey.micMuteSavedChannelVolumes)?[uid] != nil)
-        let affected = Set(pending.keys).union(checks.keys).filter { key in
-            guard let control = Self.controlAddress(key) else {
-                // A bare element is an unresolved historical gain.
-                return Self.isMasterGain(address) || key == String(address.mElement)
-            }
-            return key == direct || (Self.isMasterGain(address) && control.mSelector != kAudioDevicePropertyMute)
-        }
-        guard recovering || unresolvedGain || !affected.isEmpty else { return write() }
-        let keys = affected.union([direct])
-        let before = Self.mixerReadings(keys, uid: uid, device: device)
-        guard let status = write() else { return nil }
-        let accepted = status == noErr
-        let awaitingEarlierEdit = checks[direct] != nil
-        let reminderKey = DefaultsKey.micMuteManualCheckNeeded
-        let alreadyManual = defaults.object(forKey: reminderKey) as? Bool == true
-        func storeReminder(manual: Bool) {
-            guard !alreadyManual else { return }
-            if manual { defaults.set(true, forKey: reminderKey) }
-            else {
-                reminders[uid] = checks.isEmpty ? nil : checks
-                Self.saveMixerChecks(reminders)
-            }
-        }
-        func storeTargets(_ targets: [String: Double]) {
-            guard (saved[uid] != nil || unresolvedGain), saved[uid] != targets else { return }
-            saved[uid] = targets
-            defaults.set(saved, forKey: recordKey)
-        }
-        if accepted {
-            storeTargets(pending.filter { !affected.contains($0.key) })
-            checks[direct] = Double(gain)
-            // If interrupted during readback, a possibly linked channel still
-            // needs a human check even if the master later matches the edit.
-            storeReminder(manual: unresolvedGain || affected.contains { $0 != direct })
-        }
-        let after = Self.mixerReadings(keys, uid: uid, device: device)
-        func moved(_ key: String) -> Bool {
-            guard let previous = before[key], let current = after[key] else { return false }
-            return previous != current
-        }
-        let directMoved = moved(direct) && !awaitingEarlierEdit
-        let confirmed = after[direct].map { Self.controlValuesMatch($0, Double(gain)) } == true
-        if (accepted && confirmed) || directMoved { checks[direct] = nil }
-        var remaining = pending
-        var ambiguous = unresolvedGain && (accepted || directMoved)
-        for key in affected {
-            if moved(key) || (accepted && key == direct) {
-                remaining[key] = nil
-                if key != direct { checks[key] = nil }
-            } else if key != direct && (accepted || directMoved) && !(directMoved && before[key] != nil && after[key] != nil) {
-                // A silent or unreadable alias may still follow the master later.
-                remaining[key] = nil
-                ambiguous = true
-            }
-        }
-        if accepted || directMoved || remaining != pending { storeTargets(remaining) }
-        storeReminder(manual: ambiguous)
-        refreshManualWarning()
-        return status
-    }
+        let recorded = defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices)
+        let legacy = Self.pendingLegacyRestore?.uid == uid
+        guard recorded?.contains(uid) == true || legacy else { return }
 
-    /// The mixer's later HAL refresh verifies individual addresses. A channel
-    /// average or an older drag sample cannot confirm the latest edit.
-    func verifyMixerEdits(uid: String, device: AudioDeviceID) {
-        guard Self.mixerChecks[uid] != nil else { return }
-        halQueue.sync {
-            var reminders = Self.mixerChecks
-            guard inputVolumeAdjustmentLifetime != nil, let checks = reminders[uid] else { return }
-            let values = Self.mixerReadings(Set(checks.keys), uid: uid, device: device)
-            let remaining = checks.filter { key, target in
-                values[key].map { Self.controlValuesMatch($0, target) } != true
+        if legacy { defaults.removeObject(forKey: DefaultsKey.micMutePendingLegacyControls) }
+        defaults.set((recorded ?? []).filter { $0 != uid }, forKey: DefaultsKey.micMuteMutedDevices)
+        for key in [DefaultsKey.micMuteSavedControls, DefaultsKey.micMuteSavedVolumes,
+                    DefaultsKey.micMuteSavedChannelVolumes, DefaultsKey.micMuteProtectedChannels] {
+            if var values = defaults.dictionary(forKey: key), values.removeValue(forKey: uid) != nil {
+                defaults.set(values, forKey: key)
             }
-            guard remaining.count != checks.count else { return }
-            reminders[uid] = remaining.isEmpty ? nil : remaining
-            Self.saveMixerChecks(reminders)
-            refreshManualWarning()
         }
+        defaults.set(true, forKey: DefaultsKey.micMuteManualCheckNeeded)
+        refreshManualWarning()
     }
 
     /// Unmute for a caller that is about to tear the app down. The queue that
@@ -1383,7 +1277,7 @@ final class MicMuteService: ObservableObject {
                     changed = changed || possiblyChanged
                     submitted[controlKey(address)] = (address, correctedSmallGain)
                     quietBeforeWrite = nil
-                case .unchanged, .unavailable: break
+                case .unchanged, .unavailable, .unclassifiedChannels: break
                 case .interrupted:
                     // Earlier writes may already have changed this input or
                     // its aliases. Keep their original snapshot, along with
@@ -1966,9 +1860,11 @@ final class MicMuteService: ObservableObject {
 
     /// Keep confirmed writable elements across attempts. A failed access
     /// query needs another check while that property is still present.
-    private static func observeWritableChannels(on device: AudioDeviceID, into channels: inout Set<UInt32>) -> Set<UInt32> {
+    private static func observeWritableChannels(on device: AudioDeviceID, into channels: inout Set<UInt32>,
+                                                excluding known: Set<UInt32> = []) -> Set<UInt32> {
         var unclassified: Set<UInt32> = []
-        for var address in volumeAddresses(of: device) where address.mElement != 0 && AudioObjectHasProperty(device, &address) {
+        for var address in volumeAddresses(of: device) where address.mElement != 0
+            && !known.contains(address.mElement) && AudioObjectHasProperty(device, &address) {
             var settable = DarwinBoolean(false)
             if AudioObjectIsPropertySettable(device, &address, &settable) != noErr {
                 unclassified.insert(address.mElement)
@@ -1989,29 +1885,31 @@ final class MicMuteService: ObservableObject {
         func restore(_ target: Double, at address: AudioObjectPropertyAddress, prepare: () -> ControlWrite? = { nil }) -> Bool {
             let key = controlKey(address)
             let previous = attempts[key].flatMap { $0.target == target ? $0 : nil }
+            var property = address
+            guard AudioObjectHasProperty(device.id, &property) else {
+                attempts[key] = nil
+                return false
+            }
+            if let previous, !previous.unknownAccessElements.isEmpty && previous.defersWrite(at: now) { return false }
             var submitted = false
+            var unknownAccessElements: Set<UInt32> = []
             var checkDue = previous?.deadline.map { $0 <= now } ?? false
             switch writeControl(target, of: device, at: address, isCurrent: isCurrent, prepare: prepare,
                                 deferRestore: previous?.defersWrite(at: now) == true) {
             case .submitted:
                 openings.insert(key)
                 submitted = true
-            case .unavailable:
-                // A failed read alone cannot prove a new control appeared.
-                var address = address
-                var settable = DarwinBoolean(false)
-                guard AudioObjectHasProperty(device.id, &address) else {
+            case .unavailable(let checkedAccess):
+                let access = checkedAccess ?? controlAccess(device.id, at: address)
+                if access == .readOnly {
                     attempts[key] = nil
                     return false
                 }
-                let status = AudioObjectIsPropertySettable(device.id, &address, &settable)
-                if status == noErr {
-                    guard settable.boolValue else {
-                        attempts[key] = nil
-                        return false
-                    }
-                    if previous == nil { checkDue = isCurrent(device) }
-                }
+                if access == .unknown { unknownAccessElements.insert(address.mElement) }
+                if previous == nil { checkDue = isCurrent(device) }
+            case .unclassifiedChannels(let elements):
+                unknownAccessElements = elements
+                if previous == nil { checkDue = isCurrent(device) }
             case .unchanged: break
             case .interrupted: return false
             }
@@ -2020,6 +1918,7 @@ final class MicMuteService: ObservableObject {
             if submitted || checkDue {
                 attempts[key] = RestoreAttempt(target: target, previous: previous, submitted: submitted, now: now)
             }
+            if !unknownAccessElements.isEmpty { attempts[key]?.unknownAccessElements = unknownAccessElements }
             return submitted
         }
         var targets = saved
@@ -2033,10 +1932,21 @@ final class MicMuteService: ObservableObject {
             for address in savedAddresses where address.mElement != 0 && address.mSelector == kAudioDevicePropertyVolumeScalar {
                 channels.insert(address.mElement)
             }
-            let unclassified = observeWritableChannels(on: device.id, into: &channels)
+            // Keep discovering new writable siblings while a master waits.
+            // Recheck previously indeterminate access only when a master can run.
+            let deferred = masters.reduce(into: Set<UInt32>()) { result, master in
+                let key = controlKey(master)
+                if let retry = attempts[key], retry.target == saved[key], retry.defersWrite(at: now) {
+                    result.formUnion(retry.unknownAccessElements)
+                }
+            }
+            let known = channels.union(deferred)
+            var unclassified = observeWritableChannels(on: device.id, into: &channels, excluding: known)
             // Earlier records included read-only meters among their levels.
             // Only an independently writable channel needs compensation.
-            let candidates = channels.union(unclassified).union(recordedLevels?.keys.compactMap { UInt32($0) } ?? [])
+            let newlyWritable = channels.subtracting(known)
+            let candidates = channels.union(unclassified).union(deferred)
+                .union(recordedLevels?.keys.compactMap { UInt32($0) } ?? [])
             func captureLiveChannels(into live: inout [String: Double], beforeWrite: inout [String: Double?]) -> ControlWrite? {
                 for element in candidates where element != 0 {
                     var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
@@ -2048,18 +1958,22 @@ final class MicMuteService: ObservableObject {
                         }
                         continue
                     }
-                    var settable = DarwinBoolean(false)
                     guard AudioObjectHasProperty(device.id, &address) else {
                         if channels.contains(element) { return .interrupted }
                         continue
                     }
-                    guard AudioObjectIsPropertySettable(device.id, &address, &settable) == noErr else { return .unavailable }
-                    guard settable.boolValue else {
+                    if unclassified.contains(element) { return .unclassifiedChannels(unclassified) }
+                    let access = !wroteMaster && newlyWritable.contains(element) ? .writable : controlAccess(device.id, at: address)
+                    if access == .unknown {
+                        unclassified.insert(element)
+                        return .unclassifiedChannels(unclassified)
+                    }
+                    if access == .readOnly {
                         if channels.contains(element) { return .interrupted }
                         continue
                     }
                     channels.insert(element)
-                    guard let current = controlValue(of: device.id, at: address) else { return .unavailable }
+                    guard let current = controlValue(of: device.id, at: address) else { return .unavailable(.writable) }
                     live[key] = current
                 }
                 return nil
@@ -2135,8 +2049,18 @@ final class MicMuteService: ObservableObject {
         return Double(value)
     }
 
+    private enum ControlAccess { case writable, readOnly, unknown }
+
+    private static func controlAccess(_ device: AudioDeviceID, at address: AudioObjectPropertyAddress) -> ControlAccess {
+        var address = address
+        var settable = DarwinBoolean(false)
+        guard AudioObjectIsPropertySettable(device, &address, &settable) == noErr else { return .unknown }
+        return settable.boolValue ? .writable : .readOnly
+    }
+
     private enum ControlWrite {
-        case unavailable, unchanged, interrupted
+        case unavailable(ControlAccess?), unchanged, interrupted
+        case unclassifiedChannels(Set<UInt32>)
         case submitted(possiblyChanged: Bool, correctedSmallGain: Bool)
     }
 
@@ -2154,12 +2078,11 @@ final class MicMuteService: ObservableObject {
         let device = input.id
         guard value.isFinite, value >= 0, value <= 1,
               address.mSelector != kAudioDevicePropertyMute || value == 0 || value == 1,
-              let current = read(device, address) else { return .unavailable }
+              let current = read(device, address) else { return .unavailable(nil) }
         if current == Double(Float(value)) { return .unchanged }
         var address = address
-        var settable = DarwinBoolean(false)
-        guard AudioObjectIsPropertySettable(device, &address, &settable) == noErr,
-              settable.boolValue else { return .unavailable }
+        let access = controlAccess(device, at: address)
+        guard access == .writable else { return .unavailable(access) }
         // A ControlList echo wakes verification. The same writable address
         // still owes the same target, even if its driver varies the readback.
         if deferRestore { return .unchanged }

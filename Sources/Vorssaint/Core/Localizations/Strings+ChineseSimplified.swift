@@ -207,7 +207,7 @@ extension Strings {
         micMutePartialHUD: "无法确认所有麦克风均已静音",
         micUnmutePartialHUD: "无法确认所有麦克风的设置均已恢复",
         micRestoreExhaustedHUD: "无法确认是否已自动恢复。请检查麦克风的静音开关，并在混音器中调整输入音量。",
-        micManualRestore: "无法确认麦克风之前的设置。请检查其静音开关，并在混音器或“声音”设置中确认输入音量。",
+        micManualRestore: "部分麦克风设置无法确认。请检查静音开关和各声道的输入电平，必要时可使用混音器或“声音”设置。",
         micManualRestoreChecked: "我已检查麦克风",
         micMuteMenuBarToggle: "功能开启时在菜单栏显示",
         micMuteMenuBarCaption: "菜单栏中的红色麦克风表示此功能已开启，并不保证所有 App 都已停止采集音频。",

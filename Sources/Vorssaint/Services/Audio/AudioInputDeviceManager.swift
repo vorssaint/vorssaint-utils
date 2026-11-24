@@ -187,7 +187,6 @@ final class AudioInputDeviceManager: ObservableObject {
               volumeDeviceID == device.audioObjectID, inputVolume != nil else { return }
         let clamped = min(max(volume, 0), 1)
         let lifetime = volumeWriteLock.withLock { volumeWriteLifetime }
-        let recovering = MicMuteService.hasMixerRecovery(for: uid)
         volumeRefreshGeneration &+= 1
         if inputVolume != clamped { inputVolume = clamped }
         halQueue.async { [weak self] in
@@ -199,14 +198,14 @@ final class AudioInputDeviceManager: ObservableObject {
             let deviceID = device.audioObjectID
             mute.withUnmutedInput(lifetime: muteLifetime) {
                 Self.writeInputVolume(on: deviceID) { address in
-                    mute.adjustInputVolume(uid: uid, device: deviceID, at: address, to: gain, recovering: recovering) {
-                        guard Self.defaultInputDeviceID() == deviceID, Self.inputDeviceUID(for: deviceID) == uid,
-                              mute.inputVolumeAdjustmentLifetime == muteLifetime,
-                              self.volumeWriteLock.withLock({ self.volumeWriteLifetime == lifetime }) else { return nil }
-                        var address = address
-                        var value = gain
-                        return AudioObjectSetPropertyData(deviceID, &address, 0, nil, UInt32(MemoryLayout<Float32>.size), &value)
-                    }
+                    guard Self.defaultInputDeviceID() == deviceID, Self.inputDeviceUID(for: deviceID) == uid,
+                          mute.inputVolumeAdjustmentLifetime == muteLifetime,
+                          self.volumeWriteLock.withLock({ self.volumeWriteLifetime == lifetime }) else { return nil }
+                    var address = address
+                    var value = gain
+                    let status = AudioObjectSetPropertyData(deviceID, &address, 0, nil, UInt32(MemoryLayout<Float32>.size), &value)
+                    if status == noErr { mute.didAcceptMixerEdit(for: uid) }
+                    return status
                 }
             }
             DispatchQueue.main.async {
@@ -611,7 +610,6 @@ final class AudioInputDeviceManager: ObservableObject {
         guard inputDeviceUID(for: deviceID) == uid else { return nil }
         let gain = inputVolume(for: deviceID).map(Double.init)
         guard inputDeviceUID(for: deviceID) == uid else { return nil }
-        MicMuteService.shared.verifyMixerEdits(uid: uid, device: deviceID)
         return (uid, gain)
     }
 

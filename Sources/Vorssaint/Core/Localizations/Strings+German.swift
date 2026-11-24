@@ -207,7 +207,7 @@ extension Strings {
         micMutePartialHUD: "Stummschaltung nicht für alle Mikrofone bestätigt",
         micUnmutePartialHUD: "Wiederherstellung nicht für alle Mikrofone bestätigt",
         micRestoreExhaustedHUD: "Die automatische Wiederherstellung konnte nicht bestätigt werden. Prüfe den Stummschalter des Mikrofons und passe den Eingangspegel im Mixer an.",
-        micManualRestore: "Die vorherigen Mikrofoneinstellungen konnten nicht überprüft werden. Prüfe seinen Stummschalter und den Eingangspegel im Mixer oder in den Toneinstellungen.",
+        micManualRestore: "Nicht alle Mikrofoneinstellungen ließen sich überprüfen. Prüfe den Stummschalter und den Eingangspegel jedes Kanals. Nutze bei Bedarf den Mixer oder die Toneinstellungen.",
         micManualRestoreChecked: "Mikrofon überprüft",
         micMuteMenuBarToggle: "Bei aktiver Funktion in der Menüleiste anzeigen",
         micMuteMenuBarCaption: "Das rote Mikrofon in der Menüleiste zeigt an, dass die Funktion aktiv ist. Es garantiert nicht, dass alle Apps die Audioaufnahme beenden.",
