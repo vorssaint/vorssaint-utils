@@ -1447,6 +1447,20 @@ enum CommandBarFeatureTests {
             ("10kg + 500g to lb", 23.148_537_52),
             ("5 feet 3 inches to ft", 5.25),
             ("5 feet 3 inches to cm", 160.02),
+            ("5ft3in to cm", 160.02), ("5ft 3in to cm", 160.02),
+            ("5ft3 to cm", 160.02), ("5ft3 in cm", 160.02),
+            ("5ft3 inches to cm", 160.02), ("5ft3″ to cm", 160.02),
+            ("5ft3.5in to cm", 161.29), ("-5ft3in to cm", -160.02),
+            ("5ft2in to cm", 157.48), ("5ft4in to cm", 162.56),
+            ("5ft3 to liters", 141.584_232_96), ("5ft3 in in3", 8640),
+            ("5ft³ to liters", 141.584_232_96), ("5 cubic feet to liters", 141.584_232_96),
+            ("5ft² to m2", 0.464_515_2), ("5 square feet to m²", 0.464_515_2),
+            ("5ft3/h to L/min", 2.359_737_216),
+            ("1ft3 / 5ft3in to ft²", 1 / 5.25),
+            ("5ft3in * 1 sqft to ft3", 5.25),
+            ("1ft + 5ft3 to cm", 190.5), ("1ft + 5ft 3 to cm", 190.5),
+            ("1ft3 / 2 in * 5ft3in to ft3", 31.5), ("1ft3 / 2in * 5ft3in to ft3", 31.5),
+            ("5ft3in / 1ft3 to ft/ft3", 5.25), ("5ft3 / 4 in to cm", 154.305),
             ("1hr 30min", 90),
             (#"5/16" in mm"#, 7.9375),
             (#"5 / 16 " in mm"#, 7.9375),
@@ -1611,6 +1625,9 @@ enum CommandBarFeatureTests {
             suite.expect(unitValue(query).map { abs($0 - expected) < 0.001 } == true,
                          "\(query) converts to \(expected)")
         }
+        suite.expect(unitValue("5ft3,5in para cm", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR")) == 161.29,
+                     "compact feet and fractional inches use the localized decimal separator")
         suite.expect(unitValue("5 pés 11,5 polegadas em cm", decimal: ",", grouping: ".",
                                locale: Locale(identifier: "pt_BR"))
                 .map { abs($0 - 181.61) < 0.001 } == true,
@@ -1618,7 +1635,8 @@ enum CommandBarFeatureTests {
         for query in ["5ft 11in", "5ft 11in cm", "5ft 11in in kg", "5in 11ft in cm", "5m 11 in cm",
                       "5ft 11cm in cm", "5ft 11in 1in in cm", "5ft 11in in cm today",
                       "5.5ft 1in to cm", "5ft -1in to cm", "5ft 12in to cm", "1'003 in cm",
-                      "5 ft 12 in in cm", "5 ft 11 in in kg"] {
+                      "5 ft 12 in in cm", "5 ft 11 in in kg", "5ft3in cm", "5ft3cm to cm",
+                      "5.5ft3in to cm", "5ft³ to cm", "5ft3in to liters"] {
             suite.expect(units(query) == nil, "\(query) stays a search")
         }
 
