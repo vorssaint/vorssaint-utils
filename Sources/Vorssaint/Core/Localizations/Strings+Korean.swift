@@ -989,7 +989,7 @@ extension Strings {
         cleanerCatDeveloper: "개발 정크",
         cleanerCatTrash: "휴지통",
         cleanerLeftoversNote: "분석으로 감지하므로 처음에는 선택 해제됩니다. 선택하기 전에 경로를 검토하세요.",
-        cleanerLoginItemsNote: "로그인 항목 표시는 Mac을 재시작하면 사라집니다.",
+        cleanerLoginItemsNote: "관리자 승인이 필요한 항목은 그대로 유지됩니다. 항목을 제거한 후 목록을 갱신하려면 Mac을 재시동해야 할 수 있습니다.",
         cleanerTrashNote: "휴지통을 비우면 되돌릴 수 없습니다.",
         cleanerCatDeviceBackups: "iPhone 백업",
         cleanerDeviceBackupsCaption: "오래된 iPhone 및 iPad 백업은 macOS가 ‘기타’라고 부르는 공간의 큰 부분을 차지할 수 있습니다. 필요 없는 항목만 삭제하세요. 다음에 기기를 연결하면 새 백업을 만들 수 있습니다.",

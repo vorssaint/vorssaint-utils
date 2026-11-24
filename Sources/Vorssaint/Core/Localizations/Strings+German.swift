@@ -988,7 +988,7 @@ extension Strings {
         cleanerCatDeveloper: "Entwicklerdaten",
         cleanerCatTrash: "Papierkorb",
         cleanerLeftoversNote: "Per Analyse gefunden und nicht angehakt. Prüfe den Pfad vor dem Anhaken.",
-        cleanerLoginItemsNote: "Der Eintrag unter Anmeldeobjekte verschwindet nach einem Neustart.",
+        cleanerLoginItemsNote: "Einträge, für die Administratorrechte erforderlich sind, bleiben erhalten. Nach dem Entfernen eines Eintrags musst du deinen Mac möglicherweise neu starten, damit die Liste aktualisiert wird.",
         cleanerTrashNote: "Das Leeren des Papierkorbs ist endgültig.",
         cleanerCatDeviceBackups: "iPhone-Backups",
         cleanerDeviceBackupsCaption: "Alte iPhone- und iPad-Backups belegen einen großen Teil des Speichers, den macOS Andere nennt. Entferne nur die, die du nicht mehr brauchst; beim nächsten Anschließen entsteht ein neues.",

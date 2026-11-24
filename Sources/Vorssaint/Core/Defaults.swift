@@ -468,6 +468,7 @@ enum DefaultsKey {
     // Machine-only recovery state. A true value means the helper must confirm
     // automatic fan control before this marker can be cleared.
     static let fanControlRecoveryNeeded = "fanControlRecoveryNeeded"
+    static let fanControlInterruptedStop = "fanControlInterruptedStop"
     static let fanControlHelperVersion = "fanControlHelperVersion"
     // System monitor — per-metric history graphs (each independently toggleable).
     static let monitorGraphCPU = "monitorGraphCPU"

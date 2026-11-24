@@ -988,7 +988,7 @@ extension Strings {
         cleanerCatDeveloper: "Basura de desarrollo",
         cleanerCatTrash: "Papelera",
         cleanerLeftoversNote: "Encontrados por análisis y sin marcar. Revisa la ruta antes de marcar.",
-        cleanerLoginItemsNote: "La entrada en Ítems de inicio desaparece tras reiniciar el Mac.",
+        cleanerLoginItemsNote: "Los ítems que requieren autorización de un administrador se conservan. Tras eliminar un ítem, puede que tengas que reiniciar el Mac para actualizar la lista.",
         cleanerTrashNote: "Vaciar la Papelera es permanente.",
         cleanerCatDeviceBackups: "Copias de iPhone",
         cleanerDeviceBackupsCaption: "Las copias antiguas de iPhone y iPad ocupan gran parte de lo que macOS llama Otros. Elimina solo las que ya no necesites; al conectar el aparato se crea una nueva.",

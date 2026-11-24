@@ -988,7 +988,7 @@ extension Strings {
         cleanerCatDeveloper: "Dati di sviluppo",
         cleanerCatTrash: "Cestino",
         cleanerLeftoversNote: "Trovati per analisi e non selezionati. Controlla il percorso prima di selezionare.",
-        cleanerLoginItemsNote: "La voce in Elementi di login sparisce dopo un riavvio del Mac.",
+        cleanerLoginItemsNote: "Gli elementi che richiedono l’autorizzazione di un amministratore restano al loro posto. Dopo aver rimosso un elemento, potrebbe essere necessario riavviare il Mac per aggiornare l’elenco.",
         cleanerTrashNote: "Svuotare il Cestino è definitivo.",
         cleanerCatDeviceBackups: "Backup di iPhone",
         cleanerDeviceBackupsCaption: "I vecchi backup di iPhone e iPad occupano gran parte dello spazio che macOS chiama Altro. Rimuovi solo quelli che non servono più; al prossimo collegamento ne viene creato uno nuovo.",
