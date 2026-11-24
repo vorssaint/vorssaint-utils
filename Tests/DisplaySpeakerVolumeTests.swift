@@ -92,6 +92,7 @@ enum DisplaySpeakerVolumeTests {
         }
         var audioRoutes: [UInt32: AudioRoute] = [:]
         var pendingSpeakerUnmutes: [String: UInt64] = [:]
+        var confirmedZeroUnmutes: [String: (entryID: UInt64, chip: UInt32)] = [:]
         var audioLifetime: UInt64 = 0
         var disabledSpeakerLifetime: UInt64?
         var scannedAudio = false
@@ -125,6 +126,7 @@ enum DisplaySpeakerVolumeTests {
         var onEndpointLookup: (() -> Void)?
         var volumeOnUnmute: UInt16?
         var writes: [Write] = []
+        var singleAttemptWrites: [Write] = []
         var writtenIDs: [UInt32] = []
         var feedbackEnabled = true
         var clicks = 0
@@ -173,12 +175,13 @@ enum DisplaySpeakerVolumeTests {
             return .replied(current: UInt16(muteImageByte) << 8 | audio, maximum: muteMaximum)
         }
         func ddcSend(to id: UInt32, service: CFTypeRef, chip: UInt32, packet: [UInt8],
-                     acceptPartialWrite: Bool = false, whileCurrent: () -> Bool) -> Bool {
+                     acceptPartialWrite: Bool = false, once: Bool = false, whileCurrent: () -> Bool) -> Bool {
             onSend?()
             guard whileCurrent() else { return false }
             chips.append(chip)
             let code = packet[2], value = UInt16(packet[3]) << 8 | UInt16(packet[4])
             writes.append(Write(code, value))
+            if once { singleAttemptWrites.append(Write(code, value)) }
             writtenIDs.append(id)
             if code == BrightnessSupport.audioVolumeCode {
                 guard !rejectVolume else { return false }
@@ -219,18 +222,23 @@ enum DisplaySpeakerVolumeTests {
         service.unmutedReads = unmutedReads
         service.muteImageByte = muteImageByte
         service.muteMaximum = muteMaximum
+        discover(service, chip: chip, registryEntryID: registryEntryID)
+        service.onDisplayChange = { [weak service, weak mixer] in mixer?.monitorOutput = service?.monitorSpeakerOutput() }
+        mixer.monitorOutput = service.monitorSpeakerOutput()
+        return service
+    }
+
+    private static func discover(_ service: Service, chip: UInt32, registryEntryID: UInt64?, path: String = "port-a") {
         let endpoint = NSObject()
-        if let probed = service.probeAudio(for: 7, service: endpoint, chip: chip, path: "port-a") {
-            service.audioRoutes[7] = AudioRoute(path: "port-a", fingerprint: service.displayFingerprint,
+        if let probed = service.probeAudio(for: 7, service: endpoint, chip: chip, path: path,
+                                          registryEntryID: registryEntryID) {
+            service.audioRoutes[7] = AudioRoute(path: path, fingerprint: service.displayFingerprint,
                                                 service: endpoint, registryEntryID: registryEntryID,
                                                 chipAddress: chip, hasNativeMute: probed.hasNativeMute,
                                                 unmutesLeavingZero: probed.unmutesLeavingZero)
             service.scannedAudio = true
             service.displays = [BrightnessDisplay(id: 7, name: "Monitor A", audio: probed.state)]
         }
-        service.onDisplayChange = { [weak service, weak mixer] in mixer?.monitorOutput = service?.monitorSpeakerOutput() }
-        mixer.monitorOutput = service.monitorSpeakerOutput()
-        return service
     }
 
     private static func checkInterruptedDDCWrites(_ suite: TestSuite) {
@@ -255,6 +263,14 @@ enum DisplaySpeakerVolumeTests {
                                       acceptPartialWrite: true, whileCurrent: currentUntilFirstSend)
         suite.expect(!rejected && writer.writes == 1,
                      "a rejected unmute never counts as an accepted write when its repeat is cancelled")
+        let level = BrightnessSupport.writePacket(code: BrightnessSupport.audioVolumeCode, value: 5)
+        for result in [KERN_SUCCESS, KERN_FAILURE] {
+            writer.writeResult = result
+            writer.writes = 0
+            let accepted = writer.ddcSend(to: 7, service: writer, chip: chip, packet: level, once: true)
+            suite.expect(accepted == (result == KERN_SUCCESS) && writer.writes == 1,
+                         "a recovery level makes exactly one physical write even on transport failure")
+        }
     }
 
     private static func checkSliderFeedback(_ suite: TestSuite) {
@@ -512,7 +528,74 @@ enum DisplaySpeakerVolumeTests {
         }
     }
 
+    private static func checkMuteDiscovery(_ suite: TestSuite) {
+        let mixer = MixerOutputAdjustmentContract.Mixer()
+        let volume = BrightnessSupport.audioVolumeCode
+        let mute = BrightnessSupport.audioMuteCode
+        let chip = BrightnessSupport.chipAddress
+        let scalar = connect(mixer, muted: true, muteMaximum: 100)
+        suite.expect(mixer.systemOutputMuted == true, "a scalar 1/100 reply exposes the legacy mute control")
+        mixer.requestOutputMuteToggle()
+        scalar.finish()
+        mixer.requestOutputMuteToggle()
+        scalar.finish()
+        suite.expect(scalar.writes == [Write(mute, 2), Write(mute, 1)]
+                     && mixer.systemOutputMuted == true && scalar.raw == 40,
+                     "the legacy scalar control accepts and confirms both mute commands")
+
+        // A monitor first encountered muted may report zero after a verified
+        // native unmute. Only that endpoint can interpret a subsequent zero.
+        for (id, address, path): (UInt64?, UInt32, String) in [
+            (1, chip, "port-a"), (2, chip, "port-a"), (nil, chip, "port-a"),
+            (1, BrightnessSupport.hdmiConverterChipAddress, "port-a"), (1, chip, "port-b")
+        ] {
+            let speakers = connect(mixer, muted: true, unmutedReads: 0)
+            mixer.requestOutputMuteToggle()
+            speakers.finish()
+            suite.expect(speakers.writes == [Write(mute, 2)] && mixer.systemOutputMuted == false,
+                         "an accepted native unmute verifies the monitor's scalar zero encoding")
+            speakers.invalidateSpeakerRoutes()
+            speakers.connectedSpeakerEndpointID = id ?? 0
+            discover(speakers, chip: address, registryEntryID: id, path: path)
+            let same = id == 1 && address == chip && path == "port-a"
+            suite.expect(mixer.systemOutputMuted == (same ? false : nil),
+                         "rediscovery binds the proven zero encoding to the physical endpoint")
+            mixer.requestOutputMuteToggle()
+            speakers.finish()
+            suite.expect(speakers.writes == (same ? [Write(mute, 2), Write(mute, 1)] : [Write(mute, 2)])
+                         && mixer.systemOutputMuted == (same ? true : nil),
+                         "only the original endpoint retains native mute after the rescan")
+            if id == 2 {
+                speakers.connectedSpeakerEndpointID = 1
+                discover(speakers, chip: chip, registryEntryID: 1)
+                suite.expect(mixer.systemOutputMuted == nil,
+                             "a replacement on the same path invalidates the previous endpoint's proof")
+            }
+        }
+
+        let stale = connect(mixer, muted: true, unmutedReads: 0)
+        mixer.requestOutputMuteToggle()
+        stale.finish()
+        stale.connectedSpeakerEndpointID = 2
+        let reads = stale.chips.count
+        mixer.requestOutputMuteToggle()
+        stale.finish()
+        suite.expect(stale.writes == [Write(mute, 2)] && stale.chips.count == reads,
+                     "an unplugged endpoint's proven zero cannot authorize I/O before the next scan")
+
+        let unverified = connect(mixer, muted: true, unmutedReads: 0)
+        unverified.volumeOnUnmute = 90
+        mixer.requestOutputAdjustment(volume: 0.45)
+        unverified.finish()
+        unverified.nativeMuted = false
+        discover(unverified, chip: chip, registryEntryID: 1)
+        suite.expect(unverified.writes == [Write(volume, 45), Write(mute, 2), Write(mute, 1)]
+                     && mixer.systemOutputMuted == nil,
+                     "a zero read during a failed unmute cannot establish native mute at the next scan")
+    }
+
     static func run(_ suite: TestSuite) {
+        checkMuteDiscovery(suite)
         checkInterruptedDDCWrites(suite)
         checkSliderFeedback(suite)
         checkSliderEndpointChanges(suite)
@@ -532,7 +615,8 @@ enum DisplaySpeakerVolumeTests {
                          "the mute button changes only audio and confirms it independently of the picture")
         }
         for (audio, image, maximum): (UInt16, UInt8, UInt16) in [(2, 1, 0x0200), (1, 1, 0x0201),
-                                                                 (2, 1, 0x0203), (3, 1, 0x0202), (2, 0, 0xff)] {
+                                                                 (2, 1, 0x0203), (3, 1, 0x0202), (2, 0, 0xff),
+                                                                 (1, 1, 100), (2, 0, 0x0264), (0, 0, 100)] {
             let speakers = connect(mixer, unmutedReads: audio, muteImageByte: image, muteMaximum: maximum)
             mixer.requestOutputAdjustment(muted: true)
             speakers.finish()

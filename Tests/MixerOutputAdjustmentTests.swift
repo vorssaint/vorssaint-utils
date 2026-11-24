@@ -1141,17 +1141,42 @@ enum MixerOutputAdjustmentContract {
                          "a rejected or acknowledged-but-ignored level never unmutes the old high volume")
         }
 
-        for rejectsMute in [false, true] {
+        for (rejectsMute, rejectsLevel, ignoresLevel) in [
+            (false, false, false), (true, false, false), (true, true, false), (true, false, true)
+        ] {
             speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: true)
             speakers.volumeOnUnmute = 80
             speakers.rejectMute = rejectsMute
+            var checkedLevel = false
+            speakers.afterUnmute = { [weak speakers] in
+                speakers?.rejectVolume = rejectsLevel
+                speakers?.ignoreVolume = ignoresLevel
+            }
+            speakers.onRead = { [weak speakers] code in
+                if code == volumeCode, speakers?.writes.count == 4 { checkedLevel = true }
+            }
             sliderDone = nil
             mixer.requestOutputAdjustment(volume: 0.05) { sliderDone = $0 }
             speakers.finish()
-            suite.expect(sliderDone == false && speakers.writes == [
-                SpeakerWrite(volumeCode, 5), SpeakerWrite(muteCode, 2), SpeakerWrite(muteCode, 1)]
-                         && speakers.nativeMuted == !rejectsMute && speakers.raw == 80,
-                         "a loud unmute fails even if the same monitor rejects the recovery mute")
+            let level = SpeakerWrite(volumeCode, 5)
+            let fallback = rejectsMute ? [level] : []
+            suite.expect(sliderDone == false && speakers.writes == [level, SpeakerWrite(muteCode, 2), SpeakerWrite(muteCode, 1)] + fallback
+                         && speakers.singleAttemptWrites == fallback && checkedLevel == (rejectsMute && !rejectsLevel)
+                         && speakers.nativeMuted == !rejectsMute && speakers.raw == (rejectsMute && !rejectsLevel && !ignoresLevel ? 5 : 80),
+                         "a loud unmute fails even if the single recovery write is accepted, ignored or rejected")
+        }
+
+        for (restored, maximum): (UInt16, UInt16) in [(2, 100), (0, 100), (80, 200)] {
+            speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: true)
+            speakers.volumeOnUnmute = restored
+            speakers.rejectMute = true
+            speakers.afterUnmute = { [weak speakers] in speakers?.maximum = maximum }
+            sliderDone = nil
+            mixer.requestOutputAdjustment(volume: 0.05) { sliderDone = $0 }
+            speakers.finish()
+            suite.expect(sliderDone == false && speakers.raw == restored && speakers.writes == [
+                SpeakerWrite(volumeCode, 5), SpeakerWrite(muteCode, 2), SpeakerWrite(muteCode, 1)],
+                         "recovery never raises a lower level or guesses a volume from a default or changed range")
         }
 
         speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: true)

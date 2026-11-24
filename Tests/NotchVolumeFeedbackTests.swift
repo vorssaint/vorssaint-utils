@@ -123,6 +123,14 @@ enum NotchVolumeFeedbackTests {
             suite.expect(service.notice?.level == 0 && service.notice?.detail == "0%"
                          && service.notice?.symbol == (muted == true ? "speaker.slash.fill" : "speaker.wave.2.fill"),
                          "a monitor's HUD shows a muted speaker only for a confirmed audio mute")
+            let spoken = service.notice?.accessibilityText
+            let levelOnly = "\(FeatureStrings.notch(L10n.shared.language).volume), 0%"
+            if muted == true {
+                suite.expect(spoken?.hasSuffix(", 0%") == true && spoken != levelOnly,
+                             "the accessible volume HUD announces confirmed mute alongside the level")
+            } else {
+                suite.expect(spoken == levelOnly, "an unmuted or unknown monitor announces only its reported level")
+            }
         }
         let connection = NotchNotice(event: .accessory, title: "Wireless Headphones",
                                      detail: "Connected", symbol: "headphones")

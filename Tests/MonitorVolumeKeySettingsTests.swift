@@ -229,9 +229,10 @@ enum MonitorVolumeKeySettingsTests {
                 service.finish()
                 var expected = [Write(volume, target), Write(mute, 2)]
                 if restored > target { expected.append(Write(mute, 1)) }
+                if ignoresMute { expected.append(Write(volume, target)) }
                 suite.expect(checkedVolume && service.writes == expected && service.writtenIDs.allSatisfy { $0 == 7 }
                              && service.nativeMuted == (restored > target && !ignoresMute)
-                             && service.raw == restored
+                             && service.raw == (ignoresMute ? target : restored)
                              && service.audioRoutes.isEmpty && service.displays.first?.audio == nil
                              && Keys.AppVolumeMixer.shared.monitorOutput == nil
                              && Hardware.writes.isEmpty && Keys.NotchService.shared.shownLevels.isEmpty,
@@ -298,10 +299,11 @@ enum MonitorVolumeKeySettingsTests {
             }
             press(nativeMute ? .mute : .volumeUp)
             service.finish()
-            suite.expect(!service.running && service.audioRoutes.isEmpty && service.raw == 80
-                         && service.writes == [Write(volume, nativeMute ? 5 : 1), Write(mute, 2), Write(mute, 1)]
-                         && service.writtenIDs == [7, 7, 7] && Keys.NotchService.shared.shownLevels.isEmpty,
-                         "a rejected re-mute on the original monitor never writes an unproven zero (native: \(nativeMute))")
+            let target: UInt16 = nativeMute ? 5 : 1
+            suite.expect(!service.running && service.audioRoutes.isEmpty && service.raw == target
+                         && service.writes == [Write(volume, target), Write(mute, 2), Write(mute, 1), Write(volume, target)]
+                         && service.writtenIDs == [7, 7, 7, 7] && Keys.NotchService.shared.shownLevels.isEmpty,
+                         "disabled controls finish the rejected re-mute at the last verified positive level (native: \(nativeMute))")
         }
 
         service = connect(raw: 40, muted: true)
@@ -313,6 +315,34 @@ enum MonitorVolumeKeySettingsTests {
         suite.expect(service.writes == [Write(volume, 5), Write(mute, 2), Write(mute, 1)] && service.nativeMuted == true
                      && Keys.NotchService.shared.shownLevels.isEmpty,
                      "lowering the ceiling to three percent just after unmute silences a monitor still at five")
+
+        for maximum: UInt16 in [20, 100] {
+            service = connect(raw: maximum, maximum: maximum, muted: true)
+            service.volumeOnUnmute = maximum
+            service.rejectMute = true
+            service.afterUnmute = { [weak service] in
+                service?.monitorVolumeKeySettings = .init(maximumPercent: 3)
+            }
+            press(.mute)
+            service.finish()
+            let writes = [Write(volume, maximum / 20), Write(mute, 2), Write(mute, 1)]
+            suite.expect(service.writes == writes + (maximum == 100 ? [Write(volume, 3)] : [])
+                         && service.raw == (maximum == 100 ? 3 : maximum) && Keys.NotchService.shared.shownLevels.isEmpty,
+                         "the latest ceiling bounds the recovery level and a ceiling below one unit prevents the write")
+        }
+        service = connect(raw: 40, muted: true)
+        service.volumeOnUnmute = 80
+        service.rejectMute = true
+        service.onRead = { [weak service] code in
+            guard let service, code == volume, service.writes.last == Write(mute, 1) else { return }
+            service.onSend = { [weak service] in service?.monitorVolumeKeySettings = .init(maximumPercent: 3) }
+        }
+        press(.mute)
+        service.finish()
+        suite.expect(service.monitorVolumeKeySettings.maximumPercent == 3 && service.raw == 80
+                     && service.writes == [Write(volume, 5), Write(mute, 2), Write(mute, 1)]
+                     && Keys.NotchService.shared.shownLevels.isEmpty,
+                     "a ceiling lowered during fallback pacing cancels the outdated write")
 
         for chip in [BrightnessSupport.chipAddress, BrightnessSupport.hdmiConverterChipAddress] {
             service = connect(raw: 0, unmutedReads: 0, chip: chip)
@@ -336,8 +366,10 @@ enum MonitorVolumeKeySettingsTests {
             service.volumeOnUnmute = 80
             service.ignoreMute = true
             var checkedMute = false
+            var checkedLevel = false
             service.onRead = { [weak service] code in
                 if code == mute, service?.writes.last == Write(mute, 1) { checkedMute = true }
+                if code == volume, service?.writes.count == 4 { checkedLevel = true }
             }
             service.afterUnmute = { [weak service] in
                 guard let service else { return }
@@ -348,13 +380,14 @@ enum MonitorVolumeKeySettingsTests {
             }
             press(nativeMute ? .mute : .volumeUp)
             service.finish()
-            let expected = [Write(volume, nativeMute ? 5 : 1), Write(mute, 2), Write(mute, 1)]
-            suite.expect(checkedMute && service.nativeMuted == false && service.raw == 80 && service.writes == expected
-                         && service.writtenIDs == [7, 7, 7] && service.chips.allSatisfy { $0 == converter }
+            let target: UInt16 = nativeMute ? 5 : 1
+            let expected = [Write(volume, target), Write(mute, 2), Write(mute, 1), Write(volume, target)]
+            suite.expect(checkedMute && checkedLevel && service.nativeMuted == false && service.raw == target && service.writes == expected
+                         && service.writtenIDs == [7, 7, 7, 7] && service.chips.allSatisfy { $0 == converter }
                          && Keys.AppVolumeMixer.shared.monitorOutput?.target.displayID == 8
                          && Keys.AppVolumeMixer.shared.systemOutputVolume == 0.5
                          && Hardware.writes.isEmpty && Keys.NotchService.shared.shownLevels.isEmpty,
-                         "after switching outputs, an ignored re-mute cannot claim silence or write zero (native mute: \(nativeMute))")
+                         "after switching outputs only the original monitor receives and verifies the recovery level (native: \(nativeMute))")
         }
 
         service = connect(raw: 40, muted: true)
@@ -368,12 +401,32 @@ enum MonitorVolumeKeySettingsTests {
                      && Keys.NotchService.shared.shownLevels.isEmpty,
                      "a monitor that replaces the original during re-mute pacing never receives its safety write")
 
+        for (reason, disconnect) in disconnects {
+            service = connect(raw: 40, muted: true)
+            service.volumeOnUnmute = 80
+            service.ignoreMute = true
+            var interrupted = false
+            service.onRead = { [weak service] code in
+                guard let service, code == mute, service.writes.last == Write(mute, 1) else { return }
+                service.onSend = { [weak service] in
+                    guard let service else { return }
+                    disconnect(service)
+                    interrupted = true
+                }
+            }
+            press(.mute)
+            service.finish()
+            suite.expect(interrupted && service.writes == [Write(volume, 5), Write(mute, 2), Write(mute, 1)]
+                         && Keys.NotchService.shared.shownLevels.isEmpty,
+                         "\(reason) during recovery pacing cancels the fallback volume write")
+        }
+
         service = connect(raw: 40, muted: true)
         service.volumeOnUnmute = 80
         var readsAfterReplacement = 0
         service.afterUnmute = { [weak service] in
             guard let service, let old = service.audioRoutes[7] else { return }
-            service.audioRoutes[7] = .init(path: old.path, fingerprint: old.fingerprint, service: NSObject(),
+            service.audioRoutes[7] = .init(path: old.path, fingerprint: old.fingerprint, service: old.service,
                                            registryEntryID: 2, chipAddress: old.chipAddress,
                                            hasNativeMute: true, unmutesLeavingZero: false)
             service.onRead = { _ in readsAfterReplacement += 1 }
@@ -382,7 +435,7 @@ enum MonitorVolumeKeySettingsTests {
         service.finish()
         suite.expect(readsAfterReplacement == 0 && service.writes == [Write(volume, 5), Write(mute, 2)]
                      && Keys.NotchService.shared.shownLevels.isEmpty,
-                     "a new DDC endpoint on the same port cannot inherit the original monitor's verification or re-mute")
+                     "even a reused service handle cannot transfer verification or re-mute to a new registry entry")
 
         service = connect(raw: 40, muted: nil, settings: .init(stepPercent: 1, minimumPercent: 3, maximumPercent: 5))
         let claimedMute = press(.mute)

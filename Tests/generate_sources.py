@@ -485,7 +485,7 @@ def main():
               "    func requestSpeakers(", "    private func acceptsSpeakerTarget(", "    private func drainPendingAudio(",
               "    private func isCurrentSpeakerChange(", "    private func confirmSliderWrite(",
               "    private func writeSpeakers(",
-              "    func monitorSpeakerOutput(", "    private func probeAudio("])
+              "    func monitorSpeakerOutput(", "    private func confirmsZeroUnmute(", "    private func probeAudio("])
           + "}\n}\n"
           + "extension DisplaySpeakerVolumeTests.DDCWriter {\n"
           + declaration(brightness, "    private func ddcSend(").replace("private func", "func", 1)
