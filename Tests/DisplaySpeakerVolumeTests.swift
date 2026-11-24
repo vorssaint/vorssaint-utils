@@ -60,17 +60,20 @@ enum DisplaySpeakerVolumeTests {
     final class DDCWriter {
         enum BrightnessBridge {
             static let writeI2C: ((CFTypeRef, UInt32, UInt32, UnsafeMutableRawPointer, UInt32) -> Int32)? = {
-                service, _, _, _, _ in
+                service, _, _, bytes, count in
                 guard let writer = service as? DDCWriter else { return KERN_FAILURE }
                 writer.writes += 1
+                writer.lastPacket = Array(UnsafeRawBufferPointer(start: bytes, count: Int(count)))
                 return writer.writeResult
             }
         }
         var writes = 0
+        var lastPacket: [UInt8] = []
         var writeResult = KERN_SUCCESS
+        var onPause: (() -> Void)?
         func paceDDCCommand(for id: UInt32) {}
         func recordDDCCommandEnd(for id: UInt32) {}
-        func usleep(_ microseconds: UInt32) {}
+        func usleep(_ microseconds: UInt32) { onPause?() }
     }
 
     class Fixture {
@@ -111,6 +114,8 @@ enum DisplaySpeakerVolumeTests {
         var unmutedReads: UInt16 = 2
         var muteImageByte: UInt8 = 0
         var muteMaximum: UInt16 = 2
+        var mccsVersion: UInt16?
+        var versionReadAttempts: [Int] = []
         var rejectUnmute = false
         var rejectMute = false
         var rejectVolume = false
@@ -163,21 +168,26 @@ enum DisplaySpeakerVolumeTests {
         func rememberedPaths(_ key: String) -> Set<String> { silentPaths }
         func rememberPath(_ path: String, key: String, remembered: Bool) { silentPaths.insert(path) }
         func ddcProbe(_ code: UInt8, for id: UInt32, service: CFTypeRef, chip: UInt32,
-                      whileCurrent: () -> Bool = { true }) -> DDCProbe {
+                      attempts: Int = BrightnessSupport.ddcProbeAttempts(), whileCurrent: () -> Bool = { true }) -> DDCProbe {
             guard whileCurrent() else { return .dead }
             chips.append(chip)
             onRead?(code)
             if code == BrightnessSupport.audioVolumeCode {
                 return rejectVolumeRead ? .dead : .replied(current: raw, maximum: maximum)
             }
+            if code == 0xDF {
+                versionReadAttempts.append(attempts)
+                guard let mccsVersion else { return .dead }
+                return .replied(current: mccsVersion, maximum: 0)
+            }
             guard code == BrightnessSupport.audioMuteCode, let nativeMuted else { return .dead }
             let audio: UInt16 = nativeMuted ? 1 : unmutedReads
             return .replied(current: UInt16(muteImageByte) << 8 | audio, maximum: muteMaximum)
         }
-        func ddcSend(to id: UInt32, service: CFTypeRef, chip: UInt32, packet: [UInt8],
+        func ddcSend(to id: UInt32, service: CFTypeRef, chip: UInt32, packet: @autoclosure () -> [UInt8]?,
                      acceptPartialWrite: Bool = false, once: Bool = false, whileCurrent: () -> Bool) -> Bool {
             onSend?()
-            guard whileCurrent() else { return false }
+            guard whileCurrent(), let packet = packet() else { return false }
             chips.append(chip)
             let code = packet[2], value = UInt16(packet[3]) << 8 | UInt16(packet[4])
             writes.append(Write(code, value))
@@ -212,6 +222,7 @@ enum DisplaySpeakerVolumeTests {
     static func connect(_ mixer: MixerOutputAdjustmentContract.Mixer,
                         raw: UInt16 = 40, maximum: UInt16 = 100, muted: Bool? = false,
                         unmutedReads: UInt16 = 2, muteImageByte: UInt8 = 0, muteMaximum: UInt16 = 2,
+                        mccsVersion: UInt16? = nil,
                         chip: UInt32 = BrightnessSupport.chipAddress,
                         registryEntryID: UInt64? = 1) -> Service {
         let service = Service()
@@ -222,6 +233,7 @@ enum DisplaySpeakerVolumeTests {
         service.unmutedReads = unmutedReads
         service.muteImageByte = muteImageByte
         service.muteMaximum = muteMaximum
+        service.mccsVersion = mccsVersion
         discover(service, chip: chip, registryEntryID: registryEntryID)
         service.onDisplayChange = { [weak service, weak mixer] in mixer?.monitorOutput = service?.monitorSpeakerOutput() }
         mixer.monitorOutput = service.monitorSpeakerOutput()
@@ -235,7 +247,7 @@ enum DisplaySpeakerVolumeTests {
             service.audioRoutes[7] = AudioRoute(path: path, fingerprint: service.displayFingerprint,
                                                 service: endpoint, registryEntryID: registryEntryID,
                                                 chipAddress: chip, hasNativeMute: probed.hasNativeMute,
-                                                unmutesLeavingZero: probed.unmutesLeavingZero)
+                                                unmutesLeavingZero: probed.unmutesLeavingZero, muteVersion: probed.muteVersion)
             service.scannedAudio = true
             service.displays = [BrightnessDisplay(id: 7, name: "Monitor A", audio: probed.state)]
         }
@@ -263,13 +275,16 @@ enum DisplaySpeakerVolumeTests {
                                       acceptPartialWrite: true, whileCurrent: currentUntilFirstSend)
         suite.expect(!rejected && writer.writes == 1,
                      "a rejected unmute never counts as an accepted write when its repeat is cancelled")
-        let level = BrightnessSupport.writePacket(code: BrightnessSupport.audioVolumeCode, value: 5)
         for result in [KERN_SUCCESS, KERN_FAILURE] {
             writer.writeResult = result
             writer.writes = 0
-            let accepted = writer.ddcSend(to: 7, service: writer, chip: chip, packet: level, once: true)
-            suite.expect(accepted == (result == KERN_SUCCESS) && writer.writes == 1,
-                         "a recovery level makes exactly one physical write even on transport failure")
+            var ceiling: UInt16 = 5
+            writer.onPause = { ceiling = 3 }
+            let accepted = writer.ddcSend(to: 7, service: writer, chip: chip,
+                packet: BrightnessSupport.writePacket(code: BrightnessSupport.audioVolumeCode, value: ceiling), once: true)
+            suite.expect(accepted == (result == KERN_SUCCESS) && writer.writes == 1
+                         && writer.lastPacket == [0x84, 0x03, 0x62, 0, 3, 0xd9],
+                         "the single physical write uses the final ceiling and its checksum after the write pause")
         }
     }
 
@@ -533,15 +548,90 @@ enum DisplaySpeakerVolumeTests {
         let volume = BrightnessSupport.audioVolumeCode
         let mute = BrightnessSupport.audioMuteCode
         let chip = BrightnessSupport.chipAddress
-        let scalar = connect(mixer, muted: true, muteMaximum: 100)
-        suite.expect(mixer.systemOutputMuted == true, "a scalar 1/100 reply exposes the legacy mute control")
+        for maximum: UInt16 in [100, 65535, 0] {
+            let scalar = connect(mixer, muted: true, muteMaximum: maximum, mccsVersion: 0x0201)
+            suite.expect(mixer.systemOutputMuted == true && scalar.versionReadAttempts == [1],
+                         "one version read identifies a scalar 2.1 mute regardless of its reported maximum")
+            mixer.requestOutputMuteToggle()
+            scalar.finish()
+            mixer.requestOutputMuteToggle()
+            scalar.finish()
+            suite.expect(scalar.writes == [Write(mute, 2), Write(mute, 1)] && scalar.versionReadAttempts == [1]
+                         && mixer.systemOutputMuted == true && scalar.raw == 40,
+                         "both mute commands use scalar readback without querying the version on each key")
+        }
+        for (version, maximum): (UInt16?, UInt16) in [
+            (nil, 100), (nil, 65535), (0x0202, 0), (0x0202, 100), (0x0202, 65535), (0x0202, 0x0200), (0x0400, 65535)
+        ] {
+            let speakers = connect(mixer, muted: true, muteMaximum: maximum, mccsVersion: version)
+            mixer.requestOutputMuteToggle()
+            mixer.requestOutputAdjustment(volume: 0.55)
+            speakers.finish()
+            suite.expect(speakers.writes == [Write(volume, 55)] && mixer.systemOutputMuted == nil
+                         && speakers.versionReadAttempts == [1],
+                         "an ambiguous reply requires a recognized scalar version and leaves ordinary volume available")
+        }
+
+        let endpoint = connect(mixer, muted: false, muteMaximum: 65535, mccsVersion: 0x0201)
+        discover(endpoint, chip: chip, registryEntryID: 1)
+        suite.expect(endpoint.versionReadAttempts == [1] && mixer.systemOutputMuted == false,
+                     "a new wrapper for the same registry endpoint reuses its reported MCCS version")
+        endpoint.connectedSpeakerEndpointID = 2
         mixer.requestOutputMuteToggle()
-        scalar.finish()
-        mixer.requestOutputMuteToggle()
-        scalar.finish()
-        suite.expect(scalar.writes == [Write(mute, 2), Write(mute, 1)]
-                     && mixer.systemOutputMuted == true && scalar.raw == 40,
-                     "the legacy scalar control accepts and confirms both mute commands")
+        endpoint.finish()
+        suite.expect(endpoint.writes.isEmpty, "a removed endpoint's version cannot authorize native mute")
+        endpoint.mccsVersion = 0x0202
+        discover(endpoint, chip: chip, registryEntryID: 2)
+        suite.expect(endpoint.versionReadAttempts == [1, 1] && mixer.systemOutputMuted == nil,
+                     "a replacement at the same port must supply its own version")
+
+        let unplugged = connect(mixer)
+        unplugged.muteMaximum = 65535
+        unplugged.mccsVersion = 0x0201
+        unplugged.onRead = { [weak unplugged] code in
+            if code == 0xDF { unplugged?.connectedSpeakerEndpointID = 2 }
+        }
+        let missing = unplugged.probeAudio(for: 7, service: NSObject(), chip: chip, path: "port-a", registryEntryID: 1)
+        suite.expect(missing == nil, "unplugging during the optional version read cannot publish a stale mute route")
+
+        for (image, readback, maximum): (UInt8, UInt16, UInt16) in [(1, 2, 0x0202), (0, 0, 2), (0, 0, 65535)] {
+            let scalar = connect(mixer, muted: true, muteMaximum: 65535, mccsVersion: 0x0201)
+            scalar.afterUnmute = { [weak scalar] in
+                scalar?.muteImageByte = image
+                scalar?.unmutedReads = readback
+                scalar?.muteMaximum = maximum
+            }
+            var accepted: Bool?
+            mixer.requestOutputAdjustment(muted: false) { accepted = $0 }
+            scalar.finish()
+            suite.expect(accepted == false && scalar.writes == [Write(mute, 2), Write(mute, 1)]
+                         && scalar.versionReadAttempts == [1],
+                         "a scalar transaction rejects reserved or combined unmute readback and attempts to re-mute")
+        }
+        let compound = connect(mixer, muted: true, muteMaximum: 65535, mccsVersion: 0x0202)
+        compound.muteImageByte = 1
+        compound.muteMaximum = 0x0202
+        discover(compound, chip: chip, registryEntryID: 1)
+        compound.afterUnmute = { [weak compound] in
+            compound?.muteImageByte = 0
+            compound?.muteMaximum = 100
+        }
+        var accepted: Bool?
+        mixer.requestOutputAdjustment(muted: false) { accepted = $0 }
+        compound.finish()
+        suite.expect(accepted == false && compound.writes == [Write(mute, 2), Write(mute, 1)]
+                     && compound.versionReadAttempts == [1],
+                     "a combined control requires audio support at readback and never falls back to guessing a scalar")
+
+        let latched = connect(mixer, raw: 0, muteMaximum: 65535, mccsVersion: 0x0202)
+        latched.unmutedReads = 0
+        latched.muteMaximum = 2
+        discover(latched, chip: chip, registryEntryID: 1)
+        mixer.requestOutputAdjustment(volume: 0.05)
+        latched.finish()
+        suite.expect(latched.writes == [Write(volume, 5), Write(mute, 2)] && mixer.systemOutputVolume == 0.05
+                     && mixer.systemOutputMuted == nil && latched.versionReadAttempts == [1],
+                     "a cached 2.2 version preserves the zero-latch release without claiming native mute")
 
         // A monitor first encountered muted may report zero after a verified
         // native unmute. Only that endpoint can interpret a subsequent zero.
@@ -604,7 +694,7 @@ enum DisplaySpeakerVolumeTests {
         for startsMuted in [false, true] {
             let speakers = connect(mixer, muted: startsMuted, muteImageByte: startsMuted ? 0xff : 1,
                                    muteMaximum: startsMuted ? 0xff02 : 0x0202)
-            suite.expect(mixer.monitorOutput?.muted == startsMuted,
+            suite.expect(mixer.monitorOutput?.muted == startsMuted && speakers.versionReadAttempts.isEmpty,
                          "discovery reads the audio state from a combined mute and blanking reply")
             speakers.afterSend = { [weak speakers] in speakers?.muteImageByte = 2 }
             mixer.requestOutputMuteToggle()
@@ -629,7 +719,7 @@ enum DisplaySpeakerVolumeTests {
             mixer.requestOutputAdjustment(volume: 0.02)
             speakers.finish()
             suite.expect(speakers.writes == [Write(BrightnessSupport.audioVolumeCode, 2)]
-                         && mixer.systemOutputVolume == 0.02 && mixer.systemOutputMuted == nil,
+                         && mixer.systemOutputVolume == 0.02 && mixer.systemOutputMuted == nil && speakers.versionReadAttempts.isEmpty,
                          "an unrelated zero reply cannot opt a monitor into unmute when leaving zero")
         }
         suite.expect(BrightnessSupport.audioReply(current: 50, maximum: 100) == 0.5

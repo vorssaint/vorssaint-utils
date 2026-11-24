@@ -330,19 +330,32 @@ enum MonitorVolumeKeySettingsTests {
                          && service.raw == (maximum == 100 ? 3 : maximum) && Keys.NotchService.shared.shownLevels.isEmpty,
                          "the latest ceiling bounds the recovery level and a ceiling below one unit prevents the write")
         }
-        service = connect(raw: 40, muted: true)
-        service.volumeOnUnmute = 80
-        service.rejectMute = true
-        service.onRead = { [weak service] code in
-            guard let service, code == volume, service.writes.last == Write(mute, 1) else { return }
-            service.onSend = { [weak service] in service?.monitorVolumeKeySettings = .init(maximumPercent: 3) }
+        for (maximum, ignoresWrite): (UInt16, Bool) in [(100, false), (100, true), (20, false)] {
+            let restored = min(80, maximum)
+            service = connect(raw: min(40, maximum), maximum: maximum, muted: true)
+            service.volumeOnUnmute = restored
+            service.rejectMute = true
+            var readbacks: [UInt16] = []
+            service.onRead = { [weak service] code in
+                guard let service, code == volume else { return }
+                if service.writes.count == 4 { readbacks.append(service.raw) }
+                if service.writes.last == Write(mute, 1) {
+                    service.onSend = { [weak service] in
+                        service?.monitorVolumeKeySettings = .init(maximumPercent: 3)
+                        service?.ignoreVolume = ignoresWrite
+                    }
+                }
+            }
+            press(.mute)
+            service.finish()
+            let recovery = maximum == 100 ? [Write(volume, 3)] : []
+            let finalLevel: UInt16 = maximum == 100 && !ignoresWrite ? 3 : restored
+            suite.expect(service.monitorVolumeKeySettings.maximumPercent == 3 && service.raw == finalLevel
+                         && service.writes == [Write(volume, maximum / 20), Write(mute, 2), Write(mute, 1)] + recovery
+                         && service.singleAttemptWrites == recovery && readbacks == (recovery.isEmpty ? [] : [finalLevel])
+                         && Keys.NotchService.shared.shownLevels.isEmpty,
+                         "a ceiling lowered during recovery pacing sets a representable live level once and reads it back")
         }
-        press(.mute)
-        service.finish()
-        suite.expect(service.monitorVolumeKeySettings.maximumPercent == 3 && service.raw == 80
-                     && service.writes == [Write(volume, 5), Write(mute, 2), Write(mute, 1)]
-                     && Keys.NotchService.shared.shownLevels.isEmpty,
-                     "a ceiling lowered during fallback pacing cancels the outdated write")
 
         for chip in [BrightnessSupport.chipAddress, BrightnessSupport.hdmiConverterChipAddress] {
             service = connect(raw: 0, unmutedReads: 0, chip: chip)
