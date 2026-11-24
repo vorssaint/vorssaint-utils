@@ -525,7 +525,7 @@ private struct NotchAgentLimitsCard: View {
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .monospacedDigit()
             }
-            .help(todayUsage.unpriced > 0 ? text.unpriced : text.valueNote)
+            .help(todayUsage.unpriced > 0 ? text.partialCostNote : text.valueNote)
             HStack(spacing: 4) {
                 Text(AgentFormat.tokens(todayUsage.tokens.total))
                     .font(.system(size: 9.5))
