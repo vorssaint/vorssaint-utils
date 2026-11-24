@@ -139,14 +139,16 @@ struct FanControlResponse: Codable, Equatable, Sendable {
     let succeeded: Bool
     let snapshot: FanControlSnapshot
     let error: FanControlErrorCode?
+    /// Helpers with owner-scoped release also provide a separate restore for full removal.
+    let supportsSessionRelease: Bool?
 
     static func success(_ snapshot: FanControlSnapshot) -> FanControlResponse {
-        FanControlResponse(succeeded: true, snapshot: snapshot, error: nil)
+        FanControlResponse(succeeded: true, snapshot: snapshot, error: nil, supportsSessionRelease: true)
     }
 
     static func failure(_ error: FanControlErrorCode,
                         snapshot: FanControlSnapshot = .empty) -> FanControlResponse {
-        FanControlResponse(succeeded: false, snapshot: snapshot, error: error)
+        FanControlResponse(succeeded: false, snapshot: snapshot, error: error, supportsSessionRelease: true)
     }
 }
 

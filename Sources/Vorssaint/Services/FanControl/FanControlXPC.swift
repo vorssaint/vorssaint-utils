@@ -78,7 +78,9 @@ enum FanControlIdentifiers {
     func startMaximumCooling(withReply reply: @escaping (Data) -> Void)
     func applyConfiguration(_ configuration: Data, withReply reply: @escaping (Data) -> Void)
     func heartbeat(withReply reply: @escaping (Data) -> Void)
+    func releaseControl(withReply reply: @escaping (Data) -> Void)
     func restoreAutomatic(withReply reply: @escaping (Data) -> Void)
+    func restoreForRemoval(withReply reply: @escaping (Data) -> Void)
 }
 
 enum FanControlIPC {
@@ -86,7 +88,7 @@ enum FanControlIPC {
         // Every value in this closed response model is JSON encodable. Keeping
         // one deterministic fallback avoids ever violating the XPC reply shape.
         (try? JSONEncoder().encode(response))
-            ?? Data(#"{"succeeded":false,"snapshot":{"fans":[],"isCooling":false},"error":"controlFailed"}"#.utf8)
+            ?? Data(#"{"succeeded":false,"snapshot":{"fans":[],"isCooling":false},"error":"controlFailed","supportsSessionRelease":true}"#.utf8)
     }
 
     static func decode(_ data: Data) -> FanControlResponse? {

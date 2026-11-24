@@ -637,19 +637,34 @@ def main():
                     .replace("private func", "func", 1) for prefix in [
                         "    private func choose(applications:", "    private func applyChosen("])
           + "}\n}\n")
+    # Run the fan-control part of applicationDidFinishLaunching in its actual
+    # order, including the catalog's launch loop and its Fan Control binding.
+    launch = declaration("Sources/Vorssaint/App/AppDelegate.swift", "    func applicationDidFinishLaunching(")
+    fan_launch = [line for line in launch.splitlines() if line.strip() in (
+        "FanControlService.recoverIfNeeded()", "FeatureRuntime.shared.syncAtLaunch()")]
+    if len(set(fan_launch)) != 2 or len(fan_launch) != 2:
+        raise ValueError("Expected fan recovery and feature synchronization at launch")
+    feature_runtime = "Sources/Vorssaint/App/FeatureRuntime.swift"
+    fan_binding = declaration(feature_runtime, "        .fanControl: {", closing="},")
     fan_control = "Sources/Vorssaint/Services/FanControl/FanControlService.swift"
     write("FanControlResume.swift", "import Foundation\n"
           + "extension FanControlResumeContract {\n"
+          + "typealias FanControlService = Service\nstatic func launch() {\n" + "\n".join(fan_launch) + "\n}\n"
+          + "final class FeatureRuntime {\nstatic let shared = FeatureRuntime()\n"
+          + "static let bindings: [AppFeature: () -> Void] = [\n"
+          + "\n".join(line for line in fan_binding.splitlines() if not line.startswith("#sourceLocation")) + "\n]\n"
+          + declaration(feature_runtime, "    func syncAtLaunch()") + "}\n"
           + declaration("Sources/Vorssaint/Services/FanControl/FanControlXPC.swift", "enum FanControlIPC {")
           + declaration(fan_control, "    private enum StopConfirmation").replace("private enum", "enum", 1)
           + declaration(fan_control, "    private enum PendingApply").replace("private enum", "enum", 1)
-          + declaration(fan_control, "    private enum SleepState").replace("private enum", "enum", 1)
           + "final class Service: Fixture {\n"
           + declaration(fan_control, "    private var ownsSession:").replace("private var", "var", 1)
           + declaration(fan_control, "    private var needsTimer:").replace("private var", "var", 1)
           + declaration(fan_control, "    private func applyConfiguration(_ configuration:")
           .replace("private func applyConfiguration", "func sendConfiguration", 1)
-          + declaration(fan_control, "    private func releaseInterruptedApply(").replace("NSXPCConnection", "Invalidating", 1)
+          + declaration(fan_control, "    private func disconnectSession(").replace("NSXPCConnection", "Invalidating", 1)
+          + declaration(fan_control, "    private static func requestRemovalRestore(")
+          .replace("private static func", "static func", 1).replace("FanControlXPCProtocol", "RemovalProxy", 1)
           + "".join(declaration(fan_control, prefix)
                     .replace("@objc private func", "func", 1)
                     .replace("private static var", "static var", 1)
@@ -672,19 +687,26 @@ def main():
                         "    private func poll(", "    private func heartbeat(", "    private func requestStatus(",
                         "    private func beginRequest(", "    private func finishRequest("])
           + "}\n}\n")
+    fan_helper = "Sources/FanControlHelper/main.swift"
     write("FanControlRecovery.swift", "import Foundation\n"
+          + declaration("Sources/Vorssaint/Services/FanControl/FanControlXPC.swift", "@objc protocol FanControlXPCProtocol {")
           + "extension FanControlRecoveryContract {\nfinal class Controller: Fixture {\n"
-          + "".join(declaration("Sources/FanControlHelper/main.swift", prefix)
+          + "".join(declaration(fan_helper, prefix)
                     .replace("FanControlHardware()", "openHardware()")
                     .replace("private func", "func", 1) for prefix in [
                         "    func connectionOpened()", "    func connectionClosed(", "    func apply(session",
-                        "    func restore(reply:", "    private func currentSnapshot()",
+                        "    func status(reply:", "    func startLegacySession(", "    func heartbeat(session",
+                        "    func restore(session", "    func restoreForRemoval(reply:", "    func releaseControl(session",
+                        "    private func releaseResponse(for",
+                        "    private func restoreResponse()", "    private func currentSnapshot()", "    private func statusResponse(",
                         "    private func applyConfiguration(session", "    private func updateActiveConfiguration(",
                         "    private func finishFailedStart(",
                         "    private func requestedLevel(", "    private func performRestore(",
                         "    private func watchdogStopReason()",
                         "    private func watchdogTick()", "    private func stopWatchdogIfIdle()"])
-          + "}\n}\n")
+          + "}\ntypealias FanControlController = Controller\n"
+          + declaration(fan_helper, "private final class FanControlSession:").replace("private final class", "final class", 1)
+          + "}\n")
     fan_hardware = "Sources/Vorssaint/Services/FanControl/FanControlHardware.swift"
     write("FanControlHardwareContract.swift", "import Foundation\nextension FanControlHardwareContract {\n"
           + declaration(fan_hardware, "enum FanControlHardwareError:")

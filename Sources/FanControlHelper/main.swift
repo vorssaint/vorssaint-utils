@@ -94,6 +94,7 @@ private final class FanControlController {
     private var verificationFailures = 0
     private var temperatureFailures = 0
     private var lastStopReason: FanControlStopReason?
+    private var lastStoppedOwner: UUID?
     private var coolingLevel: Int?
     private var activeConfiguration: FanControlConfiguration?
     private var connectionCount = 0
@@ -167,13 +168,26 @@ private final class FanControlController {
         }
     }
 
-    func restore(reply: @escaping (Data) -> Void) {
+    func restore(session id: UUID, reply: @escaping (Data) -> Void) {
         queue.async {
-            let succeeded = self.performRestore(reason: nil)
-            let response = succeeded
-                ? FanControlResponse.success(self.currentSnapshot())
-                : FanControlResponse.failure(.controlFailed, snapshot: self.currentSnapshot())
+            // Older clients also use this selector for idle recovery.
+            let response = self.isCooling ? self.releaseResponse(for: id) : self.restoreResponse()
             reply(FanControlIPC.encode(response))
+            self.scheduleExitIfIdle()
+        }
+    }
+
+    /// Full removal must restore any live session before unregistering this daemon.
+    func restoreForRemoval(reply: @escaping (Data) -> Void) {
+        queue.async {
+            reply(FanControlIPC.encode(self.restoreResponse()))
+            self.scheduleExitIfIdle()
+        }
+    }
+
+    func releaseControl(session id: UUID, reply: @escaping (Data) -> Void) {
+        queue.async {
+            reply(FanControlIPC.encode(self.releaseResponse(for: id)))
             self.scheduleExitIfIdle()
         }
     }
@@ -198,9 +212,7 @@ private final class FanControlController {
             return .failure(.controlFailed)
         }
         if configuration.mode == .system {
-            return performRestore(reason: nil)
-                ? .success(currentSnapshot())
-                : .failure(.controlFailed, snapshot: currentSnapshot())
+            return releaseResponse(for: id)
         }
         if isCooling {
             guard owner == id else {
@@ -255,6 +267,7 @@ private final class FanControlController {
             verificationFailures = 0
             temperatureFailures = 0
             lastStopReason = nil
+            lastStoppedOwner = nil
             startWatchdog()
             log.notice("Cooling session started")
             return .success(currentSnapshot())
@@ -320,6 +333,7 @@ private final class FanControlController {
     private func finishFailedStart(mayHaveChangedHardware: Bool) {
         if mayHaveChangedHardware, hardware?.restoreAutomatic() != true {
             lastStopReason = .recovery
+            lastStoppedOwner = nil
             isRecovering = true
             startWatchdog()
             return
@@ -329,6 +343,25 @@ private final class FanControlController {
         hardware = nil
         isRecovering = false
         stopWatchdogIfIdle()
+    }
+
+    private func releaseResponse(for id: UUID) -> FanControlResponse {
+        if isCooling {
+            guard owner == id else { return .failure(.alreadyControlled, snapshot: currentSnapshot()) }
+            return restoreResponse()
+        }
+        // Only the stopped session may claim its watchdog reason. An idle
+        // helper, including one restarted since the request, proves no release.
+        guard let lastStoppedOwner else { return .failure(.controlFailed, snapshot: currentSnapshot()) }
+        guard lastStoppedOwner == id else { return .failure(.alreadyControlled, snapshot: currentSnapshot()) }
+        guard lastStopReason != nil else { return .failure(.controlFailed, snapshot: currentSnapshot()) }
+        return statusResponse(recoverAbandonedControl: false)
+    }
+
+    private func restoreResponse() -> FanControlResponse {
+        let restored = performRestore(reason: nil)
+        let snapshot = currentSnapshot()
+        return restored ? .success(snapshot) : .failure(.controlFailed, snapshot: snapshot)
     }
 
     @discardableResult
@@ -341,7 +374,10 @@ private final class FanControlController {
             return true
         }
         // Retrying the restore must preserve the reason the session ended.
-        if !isRecovering { lastStopReason = reason }
+        if !isRecovering {
+            lastStopReason = reason
+            lastStoppedOwner = owner
+        }
         if hardware == nil { hardware = FanControlHardware() }
         let restored = hardware?.restoreAutomatic() == true && ownership.removeMarker()
         isRecovering = !restored
@@ -483,12 +519,16 @@ private final class FanControlController {
 
     // MARK: - Status and lifecycle
 
-    private func statusResponse() -> FanControlResponse {
+    private func statusResponse(recoverAbandonedControl: Bool = true) -> FanControlResponse {
         if isRecovering { return .failure(.controlFailed, snapshot: currentSnapshot()) }
         if isCooling { return .success(currentSnapshot()) }
 
         guard ownership.acquire() else { return .failure(.alreadyControlled) }
         if ownership.markerExists() {
+            guard recoverAbandonedControl else {
+                ownership.release()
+                return .failure(.alreadyControlled, snapshot: currentSnapshot())
+            }
             _ = performRestore(reason: .recovery)
             return isRecovering ? .failure(.controlFailed, snapshot: currentSnapshot())
                                 : .success(currentSnapshot())
@@ -563,8 +603,16 @@ private final class FanControlSession: NSObject, FanControlXPCProtocol {
         controller.heartbeat(session: id, reply: reply)
     }
 
+    func releaseControl(withReply reply: @escaping (Data) -> Void) {
+        controller.releaseControl(session: id, reply: reply)
+    }
+
     func restoreAutomatic(withReply reply: @escaping (Data) -> Void) {
-        controller.restore(reply: reply)
+        controller.restore(session: id, reply: reply)
+    }
+
+    func restoreForRemoval(withReply reply: @escaping (Data) -> Void) {
+        controller.restoreForRemoval(reply: reply)
     }
 }
 
