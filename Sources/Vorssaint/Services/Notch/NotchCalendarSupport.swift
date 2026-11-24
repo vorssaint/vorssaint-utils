@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
 import EventKit
 
@@ -20,6 +21,8 @@ struct NotchCalendarEvent: Equatable, Identifiable, Sendable {
     let end: Date
     let allDay: Bool
     let location: String
+    /// Teams, Zoom or Google Meet join link from the event URL, location or notes.
+    var meetingURL: URL? = nil
     var color: NotchCalendarColor = .fallback
     var calendarItemIdentifier = ""
     var recurring = false
@@ -36,11 +39,18 @@ struct NotchCalendarCountdown: Equatable, Sendable {
 
     var target: Date { ongoing ? event.end : event.start }
 
-    /// A start shows within `leadTime` before it; an end, during the hour
-    /// before it and only once its event has begun.
-    func isShown(at now: Date, leadTime: TimeInterval) -> Bool {
-        target > now && target.timeIntervalSince(now) <= (ongoing ? NotchCalendarSupport.timeLeftLeadTime : leadTime)
-            && (!ongoing || event.start <= now)
+    /// A start shows within `leadTime` before it. An end shows during the hour
+    /// before it once the event has begun, or for a joinable meeting's whole
+    /// duration when Join is on, so the island keeps Join while you are late
+    /// or need to rejoin.
+    func isShown(at now: Date, leadTime: TimeInterval, joinsThroughEnd: Bool = false) -> Bool {
+        guard target > now else { return false }
+        if ongoing {
+            guard event.start <= now else { return false }
+            if joinsThroughEnd, event.meetingURL != nil { return true }
+            return target.timeIntervalSince(now) <= NotchCalendarSupport.timeLeftLeadTime
+        }
+        return target.timeIntervalSince(now) <= leadTime
     }
 }
 
@@ -141,6 +151,26 @@ enum NotchCalendarSupport {
 
     static func showsTimeLeft(in defaults: UserDefaults = .standard) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchCalendarTimeLeft)
+    }
+
+    /// A Join control on the closed island when the countdown event has a meeting link.
+    static func showsJoinButton(in defaults: UserDefaults = .standard) -> Bool {
+        isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchCalendarJoinButton)
+    }
+
+    /// Whether the closed island should offer Join for this countdown.
+    static func showsJoinButton(for countdown: NotchCalendarCountdown?,
+                                in defaults: UserDefaults = .standard) -> Bool {
+        showsJoinButton(in: defaults) && countdown?.event.meetingURL != nil
+    }
+
+    /// Whether the closed island still follows this countdown under current options.
+    static func follows(_ countdown: NotchCalendarCountdown, chosen: Bool,
+                        in defaults: UserDefaults = .standard) -> Bool {
+        if countdown.ongoing {
+            return showsTimeLeft(in: defaults) || showsJoinButton(for: countdown, in: defaults)
+        }
+        return showsCountdown(chosen: chosen, in: defaults)
     }
 
     /// The number beside a row of the month grid. Rows start on the calendar's
@@ -255,24 +285,33 @@ enum NotchCalendarSupport {
 
     /// The compact island counts down to the nearer of the moments it follows:
     /// a timed event's start, with the countdown on or for an event chosen
-    /// from its menu, and, with time left on, the end of one in progress. A
-    /// start that coincides with an end leaves the event under way. Starts
-    /// show within `leadTime`; see `NotchCalendarCountdown.isShown`.
+    /// from its menu; with time left on, the end of one in progress; and with
+    /// Join on, a meeting under way that still has a call link, for its whole
+    /// duration ahead of a later start. A start that coincides with an end
+    /// leaves the event under way. Starts show within `leadTime`; see
+    /// `NotchCalendarCountdown.isShown`.
     static func countdown(_ events: [NotchCalendarEvent], now: Date, starts: Bool, ends: Bool,
-                          chosen: Set<String> = [], leadTime: TimeInterval) -> NotchCalendarCountdown? {
+                          joins: Bool = false, chosen: Set<String> = [],
+                          leadTime: TimeInterval) -> NotchCalendarCountdown? {
         ordered(events).filter { !$0.allDay }
             .flatMap { event in
-                followedMoments(event, starts: starts, ends: ends, chosen: chosen)
+                followedMoments(event, starts: starts, ends: ends, joins: joins, chosen: chosen)
                     .map { NotchCalendarCountdown(event: event, ongoing: $0) }
             }
-            .filter { $0.isShown(at: now, leadTime: leadTime) }
-            .min { $0.target != $1.target ? $0.target < $1.target : $0.ongoing && !$1.ongoing }
+            .filter { $0.isShown(at: now, leadTime: leadTime, joinsThroughEnd: joins) }
+            .min { a, b in
+                let aJoin = joins && a.ongoing && a.event.meetingURL != nil
+                let bJoin = joins && b.ongoing && b.event.meetingURL != nil
+                if aJoin != bJoin { return aJoin }
+                return a.target != b.target ? a.target < b.target : a.ongoing && !b.ongoing
+            }
     }
 
     /// Whether the island follows the event's start (false) and its end (true).
     private static func followedMoments(_ event: NotchCalendarEvent, starts: Bool, ends: Bool,
-                                        chosen: Set<String>) -> [Bool] {
-        (starts || isChosen(event, in: chosen) ? [false] : []) + (ends ? [true] : [])
+                                        joins: Bool, chosen: Set<String>) -> [Bool] {
+        let followEnd = ends || (joins && event.meetingURL != nil)
+        return (starts || isChosen(event, in: chosen) ? [false] : []) + (followEnd ? [true] : [])
     }
 
     /// The Controls tile names the next start at any distance within the
@@ -298,15 +337,19 @@ enum NotchCalendarSupport {
     }
 
     /// When the window before each moment followed opens and closes: the lead
-    /// time before a start, the hour before an end, which opens no earlier
-    /// than its event's start.
+    /// time before a start, the hour before an end (or the whole meeting when
+    /// Join keeps it), which opens no earlier than its event's start.
     static func countdownTransition(_ events: [NotchCalendarEvent], now: Date, starts: Bool, ends: Bool,
-                                    chosen: Set<String> = [], leadTime: TimeInterval) -> Date? {
+                                    joins: Bool = false, chosen: Set<String> = [],
+                                    leadTime: TimeInterval) -> Date? {
         ordered(events).filter { !$0.allDay }
             .flatMap { event in
-                followedMoments(event, starts: starts, ends: ends, chosen: chosen).flatMap { ongoing in
-                    ongoing ? [max(event.start, event.end.addingTimeInterval(-timeLeftLeadTime)), event.end]
-                        : [event.start.addingTimeInterval(-leadTime), event.start]
+                followedMoments(event, starts: starts, ends: ends, joins: joins, chosen: chosen).flatMap { ongoing in
+                    guard ongoing else {
+                        return [event.start.addingTimeInterval(-leadTime), event.start]
+                    }
+                    if joins, event.meetingURL != nil { return [event.start, event.end] }
+                    return [max(event.start, event.end.addingTimeInterval(-timeLeftLeadTime)), event.end]
                 }
             }
             .filter { $0 > now }.min()
@@ -315,6 +358,93 @@ enum NotchCalendarSupport {
     static let stripDotWidth: CGFloat = 6
     static let stripTitleSpacing: CGFloat = 5
     static let stripClockSpacing: CGFloat = 4
+    static let stripJoinSpacing: CGFloat = 6
+
+    /// Hosts and schemes that open a Teams, Zoom or Google Meet call.
+    private static let meetingHostSuffixes = [
+        "zoom.us", "zoom.com", "zoomgov.com",
+        "teams.microsoft.com", "teams.live.com", "teams.office.com",
+        "meet.google.com",
+    ]
+    private static let meetingSchemes: Set<String> = [
+        "zoommtg", "zoomus", "msteams", "ms-teams", "googlemeet",
+    ]
+    /// Outlook often wraps Teams in aka.ms short links with these paths.
+    private static let meetingPathHosts: [(host: String, pathPrefix: String)] = [
+        ("aka.ms", "/jointeamsmeeting"),
+        ("aka.ms", "/teams"),
+    ]
+    private static let linkDetector = try? NSDataDetector(
+        types: NSTextCheckingResult.CheckingType.link.rawValue)
+    private static let hrefDetector = try? NSRegularExpression(
+        pattern: #"href\s*=\s*["']([^"']+)["']"#, options: [.caseInsensitive])
+
+    /// The first Teams, Zoom or Google Meet link on the event: its URL field,
+    /// then its location, then its notes. Other http links stay out so a map
+    /// or agenda page never becomes Join. Notes are only scanned in memory.
+    static func meetingURL(url: URL?, location: String, notes: String?) -> URL? {
+        if let url, isMeetingURL(url) { return url }
+        for text in [location, notes ?? ""] {
+            if let found = firstMeetingURL(in: text) { return found }
+        }
+        return nil
+    }
+
+    static func isMeetingURL(_ url: URL) -> Bool {
+        if let scheme = url.scheme?.lowercased(), meetingSchemes.contains(scheme) { return true }
+        guard let host = url.host?.lowercased(), !host.isEmpty else { return false }
+        if meetingHostSuffixes.contains(where: { host == $0 || host.hasSuffix("." + $0) }) { return true }
+        let path = url.path.lowercased()
+        return meetingPathHosts.contains { host == $0.host && path.hasPrefix($0.pathPrefix) }
+    }
+
+    static func firstMeetingURL(in text: String) -> URL? {
+        let trimmed = decodeHTMLEntities(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard !trimmed.isEmpty else { return nil }
+        if let direct = URL(string: trimmed), isMeetingURL(direct) { return direct }
+        if !trimmed.contains("://"),
+           let https = URL(string: "https://" + trimmed), isMeetingURL(https) {
+            return https
+        }
+        for candidate in urls(in: trimmed) where isMeetingURL(candidate) { return candidate }
+        return nil
+    }
+
+    /// Links found by the system detector, plus `href="…"` values Outlook
+    /// HTML notes leave when the detector skips the markup.
+    static func urls(in text: String) -> [URL] {
+        var found: [URL] = []
+        var seen = Set<String>()
+        func append(_ url: URL) {
+            let key = url.absoluteString.lowercased()
+            if seen.insert(key).inserted { found.append(url) }
+        }
+        if let detector = linkDetector {
+            let range = NSRange(text.startIndex..<text.endIndex, in: text)
+            for match in detector.matches(in: text, options: [], range: range) {
+                if let url = match.url { append(url) }
+            }
+        }
+        if let hrefDetector {
+            let range = NSRange(text.startIndex..<text.endIndex, in: text)
+            hrefDetector.enumerateMatches(in: text, options: [], range: range) { match, _, _ in
+                guard let match, match.numberOfRanges > 1,
+                      let hrefRange = Range(match.range(at: 1), in: text),
+                      let url = URL(string: String(text[hrefRange])) else { return }
+                append(url)
+            }
+        }
+        return found
+    }
+
+    private static func decodeHTMLEntities(_ text: String) -> String {
+        text.replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+    }
+
+    /// Width reserved for the icon-only Join control beside the countdown clock.
+    static let stripJoinWidth: CGFloat = 22
 
     /// Reserve one clock shape for the selected lead, including restored
     /// values, so counting through 100 minutes does not resize the island.

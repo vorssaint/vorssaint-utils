@@ -9,7 +9,6 @@ struct NotchView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
-    @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -326,7 +325,7 @@ struct NotchView: View {
             .padding(.bottom, NotchLayout.bottomInset)
             .frame(width: service.expandedSize.width, height: service.expandedSize.height, alignment: .top)
             .contentShape(Rectangle())
-            .contextMenu { islandMenu }
+            .contextMenu { NotchIslandContextMenu() }
             // Opening the island makes its panel key, so Keyboard navigation would ring
             // the first control. Show the ring once keyboard input begins.
             .focusEffectDisabled(!service.showsKeyboardFocus)
@@ -426,11 +425,6 @@ struct NotchView: View {
         }
     }
 
-    private var updateOffered: Bool {
-        if case .available = updates.state { return true }
-        return false
-    }
-
     @ViewBuilder private func bandLeading(_ band: NotchBand) -> some View {
         if service.showingSections {
             NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.toggleSections)
@@ -443,34 +437,6 @@ struct NotchView: View {
             // Without the floating button, the sections stay one click away;
             // the row keeps it room before the page's own controls.
             NotchSectionsButton(action: service.toggleSections)
-        }
-    }
-
-    /// The island's own actions, on a secondary click anywhere a page has no
-    /// menu of its own. The floating buttons and the keys reach them too.
-    @ViewBuilder private var islandMenu: some View {
-        if !service.modules.isEmpty {
-            Button(action: service.toggleSections) {
-                Label(service.showingSections ? l10n.s.obBack : text.sectionsTitle, systemImage: "square.grid.2x2")
-            }
-        }
-        Button {
-            service.pinned.toggle()
-        } label: {
-            Label(service.pinned ? text.unpin : text.pin, systemImage: service.pinned ? "pin.slash" : "pin")
-        }
-        Button(action: service.openSettings) {
-            Label(l10n.s.menuSettings, systemImage: "gearshape")
-        }
-        // An offer the row has no room for still reaches the island.
-        if updateOffered {
-            Button(action: service.showUpdate) {
-                Label(l10n.s.updateBannerAction, systemImage: "arrow.down.circle")
-            }
-        }
-        Divider()
-        Button(action: service.collapse) {
-            Label(text.collapse, systemImage: "chevron.up")
         }
     }
 

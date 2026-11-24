@@ -107,7 +107,8 @@ final class NotchLockScreenService {
             music: NotchLockScreenSupport.showsMusic(), timer: NotchTimerSupport.isEnabled(),
             agents: NotchAgentSupport.showsLiveActivity(),
             downloads: NotchSupport.routes(.download), countdown: NotchCalendarSupport.showsCountdown(),
-            timeLeft: NotchCalendarSupport.showsTimeLeft())
+            timeLeft: NotchCalendarSupport.showsTimeLeft(),
+            joins: NotchCalendarSupport.showsJoinButton())
         if model.gates != gates { model.gates = gates }
         var scene: [NotchLockScreenPanel] = []
         // Without the Music section there is no player to show or to click.
@@ -170,7 +171,7 @@ final class NotchLockScreenService {
         if gates.music { NotchMusicService.shared.start() }
         if gates.downloads { NotchDownloadService.shared.syncWithPreferences() }
         // An event chosen from its menu counts down with the countdown for every event off.
-        if gates.countdown || gates.timeLeft || !NotchCalendarSupport.chosenCountdowns().isEmpty {
+        if gates.countdown || gates.timeLeft || gates.joins || !NotchCalendarSupport.chosenCountdowns().isEmpty {
             NotchCalendarService.shared.syncWithPreferences()
         }
         if gates.agents { AgentUsageService.shared.syncWithPreferences() }

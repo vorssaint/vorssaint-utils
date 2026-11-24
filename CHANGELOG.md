@@ -43,6 +43,7 @@ All notable changes to this project are documented here. The format follows
 This update reduces the work Vorssaint does at startup and improves window switching, microphone and display controls, clipboard history and screenshots. Cleaner also protects data it can match to installed audio plugins. Keep Awake can wait through brief power interruptions, and the Command Bar can calculate with units.
 
 ### Added
+- Dynamic Island Calendar can join Zoom, Teams or Google Meet from an event's context menu, with an optional Join button on the closed island. Thanks to @samueljim.
 - The Command Bar calculator can use quantities in arithmetic, convert rates and reuse a conversion in the next calculation. It also accepts expressions such as `2 to the power sqrt(9)` and `5 ft 11 in in cm`. Thanks to @iva-zhu and @andy-kelly.
 - Keep Awake can keep an automatic session active through a brief charger interruption. Choose a delay of up to 60 seconds in the Power rule. The default is zero. Thanks to @ywu73 and @Backware.
 - Save current preferences to the XDG settings file from Settings > Advanced > Backup. The confirmation shows where the file will be saved. Saved settings and exported backups are readable only by their owner. Use a destination that supports private files. Thanks to @whizzzkid.

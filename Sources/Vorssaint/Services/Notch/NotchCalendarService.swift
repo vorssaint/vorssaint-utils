@@ -26,7 +26,10 @@ private actor NotchCalendarReader {
             return NotchCalendarEvent(id: identifier + ":" + String(start.timeIntervalSinceReferenceDate),
                                       title: event.title ?? "", calendar: event.calendar.title,
                                       start: start, end: end, allDay: event.isAllDay,
-                                      location: event.location ?? "", color: Self.tint(event.calendar),
+                                      location: event.location ?? "",
+                                      meetingURL: NotchCalendarSupport.meetingURL(
+                                        url: event.url, location: event.location ?? "", notes: event.notes),
+                                      color: Self.tint(event.calendar),
                                       calendarItemIdentifier: event.calendarItemIdentifier,
                                       recurring: recurring, countdownKey: countdownKey)
         }
@@ -68,6 +71,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
     private var visibleMonth: Date?
     private var countdownEnabled = false
     private var timeLeftEnabled = false
+    private var joinEnabled = false
     /// How long before a start the island counts down, from Settings.
     private(set) var countdownLeadTime = NotchCalendarSupport.countdownLeadTime()
     private var excludedCalendars = Set<String>()
@@ -95,7 +99,10 @@ final class NotchCalendarService: NSObject, ObservableObject {
     }
 
     private func follows(_ countdown: NotchCalendarCountdown) -> Bool {
-        countdown.ongoing ? timeLeftEnabled : countdownEnabled || isChosen(countdown.event)
+        if countdown.ongoing {
+            return timeLeftEnabled || (joinEnabled && countdown.event.meetingURL != nil)
+        }
+        return countdownEnabled || isChosen(countdown.event)
     }
 
     func showMonth(_ month: Date?) {
@@ -108,11 +115,13 @@ final class NotchCalendarService: NSObject, ObservableObject {
         guard NotchCalendarSupport.isEnabled() else { stop(); return }
         let countdownEnabled = NotchCalendarSupport.showsCountdown()
         let timeLeftEnabled = NotchCalendarSupport.showsTimeLeft()
+        let joinEnabled = NotchCalendarSupport.showsJoinButton()
         let countdownLeadTime = NotchCalendarSupport.countdownLeadTime()
         let excludedCalendars = NotchCalendarSupport.excludedCalendars()
         let chosenCountdowns = Set(NotchCalendarSupport.chosenCountdowns().keys)
         guard reader == nil else {
             if self.countdownEnabled != countdownEnabled || self.timeLeftEnabled != timeLeftEnabled
+                || self.joinEnabled != joinEnabled
                 || self.countdownLeadTime != countdownLeadTime || self.excludedCalendars != excludedCalendars
                 || self.chosenCountdowns != chosenCountdowns {
                 if !excludedCalendars.isSubset(of: self.excludedCalendars) {
@@ -121,6 +130,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
                 }
                 self.countdownEnabled = countdownEnabled
                 self.timeLeftEnabled = timeLeftEnabled
+                self.joinEnabled = joinEnabled
                 self.countdownLeadTime = countdownLeadTime
                 self.excludedCalendars = excludedCalendars
                 if self.chosenCountdowns != chosenCountdowns { self.chosenCountdowns = chosenCountdowns }
@@ -131,6 +141,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
         }
         self.countdownEnabled = countdownEnabled
         self.timeLeftEnabled = timeLeftEnabled
+        self.joinEnabled = joinEnabled
         self.countdownLeadTime = countdownLeadTime
         self.excludedCalendars = excludedCalendars
         if self.chosenCountdowns != chosenCountdowns { self.chosenCountdowns = chosenCountdowns }
@@ -161,7 +172,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
         let currentInterval = NotchCalendarSupport.readInterval(month: nil, now: now)
         let needsCurrentRead = NotchCalendarSupport.needsCurrentRead(
             visible: interval, current: currentInterval,
-            countdownEnabled: countdownEnabled || timeLeftEnabled || !chosenCountdowns.isEmpty)
+            countdownEnabled: countdownEnabled || timeLeftEnabled || joinEnabled || !chosenCountdowns.isEmpty)
         let excluded = excludedCalendars
         loading = events.isEmpty
         task = Task { @MainActor [weak self] in
@@ -179,14 +190,15 @@ final class NotchCalendarService: NSObject, ObservableObject {
             let currentEvents = needsCurrentRead ? NotchCalendarSupport.ordered(currentResult) : self.events
             self.updateChosenCountdowns(currentEvents, now: now)
             self.countdown = NotchCalendarSupport.countdown(currentEvents, now: now, starts: self.countdownEnabled,
-                                                            ends: self.timeLeftEnabled, chosen: self.chosenCountdowns,
+                                                            ends: self.timeLeftEnabled, joins: self.joinEnabled,
+                                                            chosen: self.chosenCountdowns,
                                                             leadTime: self.countdownLeadTime)
             self.loading = false
             self.task = nil
             let agendaRefresh = NotchCalendarSupport.nextRefresh(self.events, now: now)
             let countdownRefresh = NotchCalendarSupport.countdownTransition(
                 currentEvents, now: now, starts: self.countdownEnabled, ends: self.timeLeftEnabled,
-                chosen: self.chosenCountdowns, leadTime: self.countdownLeadTime)
+                joins: self.joinEnabled, chosen: self.chosenCountdowns, leadTime: self.countdownLeadTime)
             let nextRefresh = min(agendaRefresh, countdownRefresh ?? agendaRefresh)
             let timer = Timer(fireAt: nextRefresh,
                               interval: 0, target: self, selector: #selector(self.timedRefresh),
@@ -222,6 +234,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
         visibleMonth = nil
         countdownEnabled = false
         timeLeftEnabled = false
+        joinEnabled = false
         excludedCalendars = []
         if !chosenCountdowns.isEmpty { chosenCountdowns = [] }
         events = []; countdown = nil; loading = false

@@ -178,6 +178,47 @@ struct NotchSectionsButton: View {
     }
 }
 
+/// The island's own secondary-click actions: Explore, Keep Open, Settings,
+/// and Collapse. Pages with their own menus append this after a Divider so
+/// those actions stay reachable on every row.
+struct NotchIslandContextMenu: View {
+    @ObservedObject private var service = NotchService.shared
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var updates = UpdateService.shared
+
+    private var text: NotchStrings { FeatureStrings.notch(l10n.language) }
+    private var updateOffered: Bool {
+        if case .available = updates.state { return true }
+        return false
+    }
+
+    var body: some View {
+        if !service.modules.isEmpty {
+            Button(action: service.toggleSections) {
+                Label(service.showingSections ? l10n.s.obBack : text.sectionsTitle, systemImage: "square.grid.2x2")
+            }
+        }
+        Button {
+            service.pinned.toggle()
+        } label: {
+            Label(service.pinned ? text.unpin : text.pin, systemImage: service.pinned ? "pin.slash" : "pin")
+        }
+        Button(action: service.openSettings) {
+            Label(l10n.s.menuSettings, systemImage: "gearshape")
+        }
+        // An offer the row has no room for still reaches the island.
+        if updateOffered {
+            Button(action: service.showUpdate) {
+                Label(l10n.s.updateBannerAction, systemImage: "arrow.down.circle")
+            }
+        }
+        Divider()
+        Button(action: service.collapse) {
+            Label(text.collapse, systemImage: "chevron.up")
+        }
+    }
+}
+
 /// A short island puts the glyph beside its message; taller ones stack them.
 /// Actions, when a page has a next step to offer, follow the message.
 struct NotchEmptyView<Actions: View>: View {
