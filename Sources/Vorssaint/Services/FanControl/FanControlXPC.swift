@@ -91,6 +91,8 @@ enum FanControlIdentifiers {
 }
 
 @objc protocol FanControlXPCProtocol {
+    func batteryStatus(withReply reply: @escaping (Data) -> Void)
+    func batteryRequest(_ request: Data, withReply reply: @escaping (Data) -> Void)
     func status(withReply reply: @escaping (Data) -> Void)
     func startMaximumCooling(withReply reply: @escaping (Data) -> Void)
     func applyConfiguration(_ configuration: Data, withReply reply: @escaping (Data) -> Void)

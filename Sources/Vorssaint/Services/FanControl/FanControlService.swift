@@ -124,7 +124,7 @@ final class FanControlService: ObservableObject {
         case .requiresApproval:
             SMAppService.openSystemSettingsLoginItems()
         case .enabled:
-            requestStatus()
+            if !replaceRegistrationIfNeeded() { requestStatus() }
         case .unavailable:
             error = .helperUnavailable
         case .notRegistered:
@@ -254,7 +254,7 @@ final class FanControlService: ObservableObject {
     private func finishSystemHandoff() {
         awaitingSystemControl = false
         UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
-        if !AppFeature.fanControl.isAvailable {
+        if !AppFeature.fanControl.isAvailable && !AppFeature.batteryCare.isAvailable {
             do {
                 try Self.appService.unregister()
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlHelperVersion)
@@ -328,6 +328,7 @@ final class FanControlService: ObservableObject {
     /// outlives the bundle, so a silent failure here reads as success forever.
     @discardableResult
     static func restoreAndUnregisterForRemoval() -> Bool {
+        guard BatteryControlService.restoreForRemoval() else { return false }
         let service = appService
         guard service.status == .enabled else {
             guard service.status != .notRegistered else { return true }
@@ -747,6 +748,8 @@ final class FanControlService: ObservableObject {
     }
 
     private func restoreThenUnregister() {
+        if AppFeature.batteryCare.isAvailable { restoreAutomatic(); return }
+        if AppFeature.batteryCare.isAvailable { restoreAutomatic(); return }
         refreshAccessState()
         guard accessState != .notRegistered else { return }
         if accessState != .enabled {

@@ -649,6 +649,15 @@ def main():
                     .replace("private func", "func", 1) for prefix in [
                         "    private func choose(applications:", "    private func applyChosen("])
           + "}\n}\n")
+    write("BatterySettingsApply.swift", "import Foundation\nextension BatterySettingsApplyTests {\n"
+          + "final class Controller: ControllerState {\n"
+          + declaration("Sources/FanControlHelper/BatteryController.swift", "    func request(")
+          + "}\nfinal class Service: ServiceState {\n"
+          + declaration("Sources/Vorssaint/Services/BatteryControl/BatteryControlService.swift", "    func save(")
+          + "}\nfinal class Settings: SettingsState {\n"
+          + "".join(declaration("Sources/Vorssaint/UI/Settings/BatteryCareSettings.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in ["    private func apply()", "    private func receive("])
+          + "}\n}\n")
     fan_control = "Sources/Vorssaint/Services/FanControl/FanControlService.swift"
     write("FanControlResume.swift", "import Foundation\n"
           + "extension FanControlResumeContract {\n"

@@ -24,6 +24,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case brightness
     case extraBrightness
     case bluetoothSleep
+    case batteryCare
     case scrollDirection
     case scrollZoom
     case focusFollowsMouse
@@ -67,7 +68,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .panelConfiguration, .mixer, .audioPriority, .musicBlocking,
              .soundOutputSwitcher:
             return .general
-        case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep: return .energy
+        case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep, .batteryCare: return .energy
         case .scrollDirection, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .scrollSpeed, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
              .middleClick, .mouseClickDebounce:
             return .mouse
@@ -390,6 +391,8 @@ extension AppFeature {
             return FeatureSettingsDestination(.energy, sectionAnchor: .brightness)
         case .extraBrightness:
             return FeatureSettingsDestination(.energy, sectionAnchor: .extraBrightness)
+        case .batteryCare:
+            return FeatureSettingsDestination(.energy, sectionAnchor: .batteryCare)
         case .bluetoothSleep:
             return FeatureSettingsDestination(.energy, sectionAnchor: .bluetoothSleep)
 
@@ -457,7 +460,7 @@ enum FeatureVisibilitySupport {
     /// always shows (General, Shortcuts, About and friends).
     static func features(for page: SettingsPage) -> [AppFeature] {
         switch page {
-        case .energy: return [.keepAwake, .brightness, .extraBrightness, .bluetoothSleep]
+        case .energy: return [.keepAwake, .brightness, .extraBrightness, .bluetoothSleep, .batteryCare]
         case .monitor: return monitorFeatures
         case .weather: return [.weather]
         case .mouse: return [.scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .scrollSpeed, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,

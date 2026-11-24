@@ -396,7 +396,7 @@ enum FeatureCatalogTests {
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
-            "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
+            "keepAwake", "brightness", "extraBrightness", "bluetoothSleep", "batteryCare",
             "quickLauncher", "quickToggles", "quitApps", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchSpotify", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
@@ -526,13 +526,16 @@ enum FeatureCatalogTests {
                 installDefaults.persistentDomain(forName: installSuiteName) ?? [:]
             }
             for feature in AppFeature.allCases
-            where !feature.enabledKeys.isEmpty && feature != .notchLiveEqualizer {
+            where !feature.enabledKeys.isEmpty && feature != .notchLiveEqualizer && feature != .batteryCare {
                 feature.enableOnFirstInstall(in: installDefaults, savedValues: savedValues())
                 suite.expect(feature.enabledKeys.contains {
                     savedValues()[$0] as? Bool == true
                 }, "a new \(feature.rawValue) install saves an enabled main control")
                 for key in feature.enabledKeys { installDefaults.removeObject(forKey: key) }
             }
+            AppFeature.batteryCare.enableOnFirstInstall(in: installDefaults, savedValues: savedValues())
+            suite.expect(savedValues()[DefaultsKey.batteryCareEnabled] == nil,
+                         "installing Battery Care does not authorize hardware writes")
             AppFeature.notchLiveEqualizer.enableOnFirstInstall(in: installDefaults,
                                                                 savedValues: savedValues())
             suite.expect(savedValues()[DefaultsKey.notchLiveEqualizer] == nil,
@@ -2331,8 +2334,9 @@ enum FeatureCatalogTests {
                "the mouse page hides only with all eight mouse features off")
         suite.expect(!pageVisible(.energy, available: allFeatures.subtracting([.keepAwake, .brightness,
                                                                          .extraBrightness,
-                                                                         .bluetoothSleep])),
-               "energy hides when all four of its features are off")
+                                                                         .bluetoothSleep, .batteryCare])),
+               "energy hides when all five of its features are off")
+        suite.expect(pageVisible(.energy, available: [.batteryCare]), "Battery Care alone keeps Energy reachable")
         suite.expect(pageVisible(.energy, available: [.extraBrightness]), "XDR alone keeps the energy page")
         suite.expect(pageVisible(.energy, available: [.brightness]),
                "brightness control alone keeps the energy page")
