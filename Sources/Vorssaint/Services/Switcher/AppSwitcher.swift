@@ -1192,10 +1192,11 @@ final class AppSwitcher: ObservableObject {
         }
         let reportedFrontPID = sourceApplication.processIdentifier
         guard windowInventory.readyForSession(currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)) else { return }
-        let selection = windowInventory.selection(
+        guard let selection = windowInventory.selection(
+            for: generation,
             scope: requested.scope,
             frontmostPID: reportedFrontPID,
-            displayScope: currentDisplayScope)
+            displayScope: currentDisplayScope) else { return }
         finishPendingSession(generation: generation,
                              reportedFrontPID: reportedFrontPID,
                              focusedSourceWindowID: selection.focusedWindowID,

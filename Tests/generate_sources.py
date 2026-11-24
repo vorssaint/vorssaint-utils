@@ -224,6 +224,16 @@ def main():
           + "}\nextension SwitcherRememberedSelectionTests.Inventory {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowInventory.swift",
                         "    private func observeScreenChanges(").replace("private func", "func", 1)
+          + "}\nextension SwitcherRememberedSelectionTests.SessionOpening.Events {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowEvents.swift", "    enum Event {")
+          + "}\nextension SwitcherRememberedSelectionTests.SessionOpening {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowInventory.swift",
+                        "final class SwitcherWindowInventory {")
+              .replace("NSWorkspace.shared", "desktop").replace("NSApp.windows", "desktop.windows")
+              .replace("CGWindowListCopyWindowInfo(", "SessionOpening.windowInfo(")
+              .replace("screenObservers = observeScreenChanges()",
+                       "screenObservers = observeScreenChanges(in: desktop.notificationCenter)")
+              .replace("NotificationCenter.default.removeObserver", "desktop.notificationCenter.removeObserver")
           + "}\n")
     write("RecorderSystemAudioTapLifecycle.swift", "import CoreAudio\nimport Foundation\n"
           + "extension RecorderSystemAudioTapLifecycleTests {\nfinal class Tap: Fixture, @unchecked Sendable {\n"
@@ -2144,7 +2154,15 @@ def main():
           + declaration(switcher_service, "private struct SwitcherSourceContext").replace("private struct", "struct", 1)
           + declaration(switcher_service, "    private enum KeyCode {").replace("private enum", "enum", 1)
           + "final class Service: Fixture, ObservableObject {\n"
+          + "override init() {\nsuper.init()\n"
+          + declaration(switcher_service, "        windowInventory.onReady = {")
+          + "}\n"
           + declaration(switcher_service, "    @Published private(set) var selectedIndex").replace("private(set) ", "", 1)
+          + declaration(switcher_service, "    private func beginPendingSession(").replace("private func", "func", 1)
+              .replace("UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)", "currentSpaceOnly")
+              .replace("AXIsProcessTrusted()", "true")
+          + declaration(switcher_service, "    private func finishPendingSession(").replace("private func", "func", 1)
+              .replace("CGEventSource.flagsState(.combinedSessionState)", "[]")
           + declaration(switcher_service, "    private func route(type:").replace("private func", "func", 1)
               .replace("CGEvent.tapEnable(", "Tap.enable(")
               .replace("CFMachPortIsValid(", "Tap.isValid(")
@@ -2160,6 +2178,7 @@ def main():
                     for prefix in ["    private func handle(type:", "    private func handleKeyDown(",
                                    "    private func installTap(", "    private func finishEventTapThread(", "    func suspend(",
                                    "    private func claimPendingKey(", "    private func setYieldsToExclusiveFullscreen(",
+                                   "    private func initialSelectionIndex(", "    private func discardPendingSessionStart(",
                                    "    private func invalidateSecureInputReplays(", "    private func releaseSecureInputActionsIfIdle(",
                                    "    private func applyNativeHotkeySuppressionIfTapLive(",
                                    "    var keyboardInputOwnership:", "    var scrollNavigationActive:",
