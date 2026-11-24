@@ -135,33 +135,18 @@ enum FanControlErrorCode: String, Codable, Equatable, Error, Sendable {
     case controlFailed
 }
 
-struct FanControlSessionStop: Codable, Equatable, Sendable {
-    /// A nil reason denotes a voluntary release requested by this session.
-    let reason: FanControlStopReason?
-    var restored: Bool
-}
-
 struct FanControlResponse: Codable, Equatable, Sendable {
     let succeeded: Bool
     let snapshot: FanControlSnapshot
     let error: FanControlErrorCode?
-    /// Helpers with owner-scoped release also provide a separate restore for full removal.
-    let supportsSessionRelease: Bool?
-    var sessionStop: FanControlSessionStop? = nil
-    /// Present on helpers that report stop receipts for the requesting connection.
-    var isRecovering: Bool? = nil
-    /// A conditional resume must present this ticket on the connection that received it.
-    var resumeAuthorization: UUID? = nil
-    /// Binds a saved configuration to the last session eligible for relaunch.
-    var resumeSessionID: UUID? = nil
 
     static func success(_ snapshot: FanControlSnapshot) -> FanControlResponse {
-        FanControlResponse(succeeded: true, snapshot: snapshot, error: nil, supportsSessionRelease: true)
+        FanControlResponse(succeeded: true, snapshot: snapshot, error: nil)
     }
 
     static func failure(_ error: FanControlErrorCode,
                         snapshot: FanControlSnapshot = .empty) -> FanControlResponse {
-        FanControlResponse(succeeded: false, snapshot: snapshot, error: error, supportsSessionRelease: true)
+        FanControlResponse(succeeded: false, snapshot: snapshot, error: error)
     }
 }
 
@@ -456,12 +441,12 @@ enum FanControlPolicy {
                               temperatureFailures: Int = 0,
                               thermalState: ProcessInfo.ThermalState) -> FanControlStopReason? {
         if let endsAt, now >= endsAt { return .timeLimit }
+        if heartbeatAge > heartbeatLimit { return .heartbeatLost }
         if verificationFailures >= verificationFailureLimit { return .hardwareChanged }
         if temperatureFailures >= temperatureFailureLimit { return .temperatureUnavailable }
         if thermalState == .serious || thermalState == .critical {
             return .thermalPressure
         }
-        if heartbeatAge > heartbeatLimit { return .heartbeatLost }
         return nil
     }
 }

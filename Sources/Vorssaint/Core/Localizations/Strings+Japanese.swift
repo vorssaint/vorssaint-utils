@@ -988,7 +988,7 @@ extension Strings {
         cleanerCatDeveloper: "開発ジャンク",
         cleanerCatTrash: "ゴミ箱",
         cleanerLeftoversNote: "解析による検出のため最初はオフです。チェックする前にパスを確認してください。",
-        cleanerLoginItemsNote: "ログイン項目の表示は Mac の再起動後に消えます。",
+        cleanerLoginItemsNote: "管理者の承認が必要な項目はそのまま残ります。項目を削除した後、一覧を更新するために Mac の再起動が必要な場合があります。",
         cleanerTrashNote: "ゴミ箱を空にすると元に戻せません。",
         cleanerCatDeviceBackups: "iPhoneのバックアップ",
         cleanerDeviceBackupsCaption: "古いiPhoneやiPadのバックアップは、macOSが「その他」と呼ぶ領域の大部分を占めます。不要なものだけを削除してください。次に接続すると新しいバックアップが作られます。",

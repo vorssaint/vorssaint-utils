@@ -157,10 +157,9 @@ struct MixerSection: View {
             }
 
             if let volume = mixer.systemOutputVolume {
+                let showsMute = mixer.systemOutputMuted == true || (!mixer.outputIsMonitorSpeakers && volume <= 0.001)
                 HStack(spacing: 8) {
-                    Image(systemName: mixer.systemOutputMuted == true || volume <= 0.001
-                          ? "speaker.slash.fill"
-                          : "speaker.wave.2.fill")
+                    Image(systemName: showsMute ? "speaker.slash.fill" : "speaker.wave.2.fill")
                         .font(.system(size: 10.5, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .frame(width: 16)

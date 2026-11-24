@@ -7,29 +7,10 @@ import os
 
 private let log = Logger(subsystem: FanControlIdentifiers.helperID, category: "FanControl")
 
-private struct FanControlResumeEpoch: Equatable {
-    let id: UUID
-    let permitsLaunch: Bool
-    let removalID: UUID
-    // Older helpers create and remove the same marker without updating the
-    // lock file. An unrelated directory change can conservatively expire a ticket.
-    let directorySeconds: Int
-    let directoryNanoseconds: Int
-}
-
-private enum FanControlResumeGrant {
-    case issued(UUID, FanControlResumeEpoch)
-    case revoked
-}
-
 private final class FanControlOwnership {
     private let lockPath = "/var/run/vorssaint-fan-control.lock"
     private let markerPath = "/var/run/vorssaint-fan-control.active"
     private var lockFile: Int32 = -1
-    // Separate regions allow removal to signal the holder of the hardware
-    // lock. Neither write truncates the other's record.
-    private let removalOffset: off_t = 96
-    private let initialRemovalID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
 
     var isHeld: Bool { lockFile >= 0 }
 
@@ -47,64 +28,6 @@ private final class FanControlOwnership {
         }
         lockFile = descriptor
         return true
-    }
-
-    /// The generation lives on the inode both the Developer and stable helpers
-    /// already flock. A legacy empty file or malformed record grants no ticket.
-    func resumeEpoch() -> FanControlResumeEpoch? {
-        guard isHeld else { return nil }
-        var bytes = [UInt8](repeating: 0, count: 89)
-        let count = bytes.withUnsafeMutableBytes { pread(lockFile, $0.baseAddress, $0.count, 0) }
-        guard count == bytes.count, bytes[0] == 0 || bytes[0] == 1,
-              let uuid = UUID(uuidString: String(decoding: bytes[1..<37], as: UTF8.self)),
-              let recordedRemoval = UUID(uuidString: String(decoding: bytes[37..<73], as: UTF8.self)),
-              readRemovalID() == recordedRemoval else { return nil }
-        guard let stamp = directoryStamp() else { return nil }
-        let mayLaunch = bytes[0] == 1 && bytes[73..<89].elementsEqual(stamp.bytes)
-        return FanControlResumeEpoch(id: uuid, permitsLaunch: mayLaunch, removalID: recordedRemoval,
-                                     directorySeconds: stamp.seconds, directoryNanoseconds: stamp.nanoseconds)
-    }
-
-    private func directoryStamp() -> (seconds: Int, nanoseconds: Int, bytes: [UInt8])? {
-        var directory = stat()
-        guard stat("/var/run", &directory) == 0 else { return nil }
-        let seconds = directory.st_mtimespec.tv_sec
-        let nanoseconds = directory.st_mtimespec.tv_nsec
-        let bytes = withUnsafeBytes(of: Int64(seconds).bigEndian) { Array($0) }
-                  + withUnsafeBytes(of: Int64(nanoseconds).bigEndian) { Array($0) }
-        return (seconds, nanoseconds, bytes)
-    }
-
-    func rotateResumeEpoch(permitsLaunch: Bool, expectedRemovalID: UUID? = nil,
-                           sessionID: UUID = UUID()) -> FanControlResumeEpoch? {
-        guard isHeld, let removalID = readRemovalID(), let stamp = directoryStamp() else { return nil }
-        let mayLaunch = permitsLaunch && expectedRemovalID == removalID
-        let bytes = [UInt8(mayLaunch ? 1 : 0)] + Array((sessionID.uuidString + removalID.uuidString).utf8) + stamp.bytes
-        let count = bytes.withUnsafeBytes { pwrite(lockFile, $0.baseAddress, $0.count, 0) }
-        guard count == bytes.count, fsync(lockFile) == 0 else {
-            var invalid = UInt8.max
-            _ = pwrite(lockFile, &invalid, 1, 0)
-            return nil
-        }
-        return resumeEpoch()
-    }
-
-    private func readRemovalID() -> UUID? {
-        var bytes = [UInt8](repeating: 0, count: 36)
-        let count = bytes.withUnsafeMutableBytes { pread(lockFile, $0.baseAddress, $0.count, removalOffset) }
-        if count == 0 { return initialRemovalID }
-        guard count == bytes.count else { return nil }
-        return UUID(uuidString: String(decoding: bytes, as: UTF8.self))
-    }
-
-    func markRemoval() -> Bool {
-        let descriptor = Darwin.open(lockPath, O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, mode_t(0o600))
-        guard descriptor >= 0 else { return false }
-        defer { Darwin.close(descriptor) }
-        guard secureRegularFile(descriptor) else { return false }
-        let bytes = Array(UUID().uuidString.utf8)
-        let count = bytes.withUnsafeBytes { pwrite(descriptor, $0.baseAddress, $0.count, removalOffset) }
-        return count == bytes.count && fsync(descriptor) == 0
     }
 
     func release() {
@@ -171,13 +94,6 @@ private final class FanControlController {
     private var verificationFailures = 0
     private var temperatureFailures = 0
     private var lastStopReason: FanControlStopReason?
-    private var lastStoppedOwner: UUID?
-    private var sessionStops: [UUID: FanControlSessionStop] = [:]
-    private var resumeGrants: [UUID: FanControlResumeGrant] = [:]
-    private var resumableStopEpoch: FanControlResumeEpoch?
-    private var controllingEpoch: FanControlResumeEpoch?
-    private var pendingRelaunchEpoch: FanControlResumeEpoch?
-    private var externalControlEpochID: UUID?
     private var coolingLevel: Int?
     private var activeConfiguration: FanControlConfiguration?
     private var connectionCount = 0
@@ -201,14 +117,12 @@ private final class FanControlController {
             if self.owner == id, self.isCooling {
                 _ = self.performRestore(reason: .appDisconnected)
             }
-            self.sessionStops.removeValue(forKey: id)
-            self.resumeGrants.removeValue(forKey: id)
             self.scheduleExitIfIdle()
         }
     }
 
-    func status(session id: UUID, reply: @escaping (Data) -> Void) {
-        queue.async { reply(self.encodedResponse(self.statusResponse(), for: id, allowBootstrap: true)) }
+    func status(reply: @escaping (Data) -> Void) {
+        queue.async { reply(FanControlIPC.encode(self.statusResponse())) }
     }
 
     func startLegacySession(_ id: UUID, reply: @escaping (Data) -> Void) {
@@ -218,65 +132,48 @@ private final class FanControlController {
                 configuration: .manual(level: FanControlPolicy.maximumCoolingLevel),
                 duration: FanControlPolicy.coolingDuration
             )
-            reply(self.encodedResponse(response, for: id))
+            reply(FanControlIPC.encode(response))
         }
     }
 
-    func apply(session id: UUID, encodedConfiguration: Data, authorization: UUID? = nil,
+    func apply(session id: UUID, encodedConfiguration: Data,
                reply: @escaping (Data) -> Void) {
         queue.async {
             guard let configuration = FanControlIPC.decodeConfiguration(encodedConfiguration) else {
-                reply(self.encodedResponse(.failure(.controlFailed, snapshot: self.currentSnapshot()), for: id))
+                reply(FanControlIPC.encode(.failure(.controlFailed,
+                                                    snapshot: self.currentSnapshot())))
                 return
             }
             let response = self.applyConfiguration(session: id,
                                                    configuration: configuration,
-                                                   duration: nil, authorization: authorization)
-            reply(self.encodedResponse(response, for: id))
+                                                   duration: nil)
+            reply(FanControlIPC.encode(response))
         }
     }
 
     func heartbeat(session id: UUID, reply: @escaping (Data) -> Void) {
         queue.async {
             guard self.isCooling else {
-                reply(self.encodedResponse(self.statusResponse(), for: id, allowBootstrap: true))
+                reply(FanControlIPC.encode(self.statusResponse()))
                 return
             }
             guard self.owner == id else {
-                reply(self.encodedResponse(.failure(.alreadyControlled, snapshot: self.currentSnapshot()), for: id))
+                reply(FanControlIPC.encode(.failure(.alreadyControlled,
+                                                    snapshot: self.currentSnapshot())))
                 return
             }
             self.lastHeartbeatUptime = ProcessInfo.processInfo.systemUptime
-            reply(self.encodedResponse(.success(self.currentSnapshot()), for: id))
+            reply(FanControlIPC.encode(.success(self.currentSnapshot())))
         }
     }
 
-    func restore(session id: UUID, reply: @escaping (Data) -> Void) {
+    func restore(reply: @escaping (Data) -> Void) {
         queue.async {
-            // Older clients also use this selector for idle recovery.
-            let response = self.isCooling ? self.releaseResponse(for: id) : self.restoreResponse()
-            reply(self.encodedResponse(response, for: id))
-            self.scheduleExitIfIdle()
-        }
-    }
-
-    /// Full removal must restore any live session before unregistering this daemon.
-    func restoreForRemoval(reply: @escaping (Data) -> Void) {
-        queue.async {
-            // A removal can finish a pending sleep handoff. No client should
-            // use that completion to restart its curve during uninstall.
-            self.sessionStops = self.sessionStops.filter { $0.value.reason != nil }
-            self.revokeResumeGrants()
-            let marked = self.ownership.markRemoval()
-            let response = self.restoreResponse(forRemoval: true)
-            reply(self.encodedResponse(marked ? response : .failure(.controlFailed, snapshot: response.snapshot)))
-            self.scheduleExitIfIdle()
-        }
-    }
-
-    func releaseControl(session id: UUID, reply: @escaping (Data) -> Void) {
-        queue.async {
-            reply(self.encodedResponse(self.releaseResponse(for: id), for: id))
+            let succeeded = self.performRestore(reason: nil)
+            let response = succeeded
+                ? FanControlResponse.success(self.currentSnapshot())
+                : FanControlResponse.failure(.controlFailed, snapshot: self.currentSnapshot())
+            reply(FanControlIPC.encode(response))
             self.scheduleExitIfIdle()
         }
     }
@@ -296,36 +193,22 @@ private final class FanControlController {
 
     private func applyConfiguration(session id: UUID,
                                     configuration: FanControlConfiguration,
-                                    duration: TimeInterval?, authorization: UUID? = nil) -> FanControlResponse {
+                                    duration: TimeInterval?) -> FanControlResponse {
         guard FanControlPolicy.validConfiguration(configuration) else {
             return .failure(.controlFailed)
         }
         if configuration.mode == .system {
-            guard authorization == nil else { return .failure(.controlFailed) }
-            return releaseResponse(for: id)
+            return performRestore(reason: nil)
+                ? .success(currentSnapshot())
+                : .failure(.controlFailed, snapshot: currentSnapshot())
         }
         if isCooling {
-            guard owner == id, authorization == nil else {
+            guard owner == id else {
                 return .failure(.alreadyControlled, snapshot: currentSnapshot())
             }
             return updateActiveConfiguration(configuration, duration: duration)
         }
-        if authorization != nil && isRecovering { return .failure(.alreadyControlled, snapshot: currentSnapshot()) }
-        guard ownership.acquire() else {
-            revokeResumeGrants()
-            return .failure(.alreadyControlled)
-        }
-        // Ownership stays held through the actual configuration write. No
-        // other cooperating helper can acquire the fans between these checks.
-        var authorizedEpoch: FanControlResumeEpoch?
-        if let authorization {
-            guard case let .issued(ticket, epoch)? = resumeGrants[id], ticket == authorization,
-                  !ownership.markerExists(), ownership.resumeEpoch() == epoch else {
-                ownership.release()
-                return .failure(.alreadyControlled)
-            }
-            authorizedEpoch = epoch
-        }
+        guard ownership.acquire() else { return .failure(.alreadyControlled) }
         if ownership.markerExists() {
             _ = performRestore(reason: .recovery)
             return .failure(.controlFailed, snapshot: currentSnapshot())
@@ -343,21 +226,11 @@ private final class FanControlController {
             ownership.release()
             return .failure(.noFans)
         } catch FanControlHardwareError.alreadyControlled {
-            revokeForExternalControl()
             ownership.release()
             return .failure(.alreadyControlled)
         } catch {
             ownership.release()
             return .failure(.unsupportedHardware)
-        }
-        guard let level = requestedLevel(for: configuration, hardware: control) else {
-            ownership.release()
-            return .failure(.controlFailed)
-        }
-        let nextEpoch = changeResumeEpoch(permitsLaunch: false)
-        if let authorizedEpoch, nextEpoch?.removalID != authorizedEpoch.removalID {
-            ownership.release()
-            return .failure(.alreadyControlled)
         }
         guard ownership.createMarker() else {
             ownership.release()
@@ -365,9 +238,12 @@ private final class FanControlController {
         }
 
         do {
+            guard let level = requestedLevel(for: configuration, hardware: control) else {
+                finishFailedStart(mayHaveChangedHardware: false)
+                return .failure(.controlFailed)
+            }
             _ = try control.startCooling(level: level)
             owner = id
-            controllingEpoch = nextEpoch
             isCooling = true
             coolingLevel = level
             activeConfiguration = configuration
@@ -379,9 +255,6 @@ private final class FanControlController {
             verificationFailures = 0
             temperatureFailures = 0
             lastStopReason = nil
-            lastStoppedOwner = nil
-            sessionStops.removeValue(forKey: id)
-            resumeGrants.removeValue(forKey: id)
             startWatchdog()
             log.notice("Cooling session started")
             return .success(currentSnapshot())
@@ -409,11 +282,6 @@ private final class FanControlController {
         }
         do {
             _ = try hardware.updateCooling(level: level)
-            if activeConfiguration != configuration {
-                let previous = controllingEpoch
-                let next = changeResumeEpoch(permitsLaunch: false)
-                controllingEpoch = next?.removalID == previous?.removalID ? next : nil
-            }
             activeConfiguration = configuration
             coolingLevel = level
             let uptime = ProcessInfo.processInfo.systemUptime
@@ -452,7 +320,6 @@ private final class FanControlController {
     private func finishFailedStart(mayHaveChangedHardware: Bool) {
         if mayHaveChangedHardware, hardware?.restoreAutomatic() != true {
             lastStopReason = .recovery
-            lastStoppedOwner = nil
             isRecovering = true
             startWatchdog()
             return
@@ -464,54 +331,17 @@ private final class FanControlController {
         stopWatchdogIfIdle()
     }
 
-    private func releaseResponse(for id: UUID) -> FanControlResponse {
-        if isCooling {
-            guard owner == id else { return .failure(.alreadyControlled, snapshot: currentSnapshot()) }
-            return restoreResponse(requestedBy: id)
-        }
-        // Only the stopped session may claim its watchdog reason. An idle
-        // helper, including one restarted since the request, proves no release.
-        guard sessionStops[id] != nil else {
-            let foreign = lastStoppedOwner != nil && lastStoppedOwner != id
-            return .failure(foreign ? .alreadyControlled : .controlFailed, snapshot: currentSnapshot())
-        }
-        return statusResponse(recoverAbandonedControl: false)
-    }
-
-    private func restoreResponse(requestedBy id: UUID? = nil, forRemoval: Bool = false) -> FanControlResponse {
-        let restored = performRestore(reason: nil, requestedBy: id, forRemoval: forRemoval)
-        let snapshot = currentSnapshot()
-        return restored ? .success(snapshot) : .failure(.controlFailed, snapshot: snapshot)
-    }
-
     @discardableResult
-    private func performRestore(reason: FanControlStopReason?, requestedBy id: UUID? = nil,
-                                forRemoval: Bool = false) -> Bool {
+    private func performRestore(reason: FanControlStopReason?) -> Bool {
         if !ownership.isHeld {
             guard ownership.acquire() else { return false }
         }
-        if forRemoval { _ = changeResumeEpoch(permitsLaunch: false) }
         guard ownership.markerExists() || isCooling || isRecovering else {
             ownership.release()
             return true
         }
         // Retrying the restore must preserve the reason the session ended.
-        if !isRecovering {
-            lastStopReason = reason
-            lastStoppedOwner = owner
-            let heldEpoch = ownership.resumeEpoch()
-            let validSession = controllingEpoch != nil && heldEpoch?.id == controllingEpoch?.id
-            let relaunchID = validSession && reason == .appDisconnected ? heldEpoch?.id : nil
-            let epoch = forRemoval ? nil : changeResumeEpoch(permitsLaunch: false, sessionID: relaunchID ?? UUID())
-            if relaunchID != nil, epoch?.removalID == heldEpoch?.removalID { pendingRelaunchEpoch = epoch }
-            if let owner, reason != nil || owner == id {
-                sessionStops[owner] = FanControlSessionStop(reason: reason, restored: false)
-                if validSession, epoch?.removalID == heldEpoch?.removalID, reason == .heartbeatLost || reason == nil {
-                    resumableStopEpoch = epoch
-                }
-            }
-            controllingEpoch = nil
-        }
+        if !isRecovering { lastStopReason = reason }
         if hardware == nil { hardware = FanControlHardware() }
         let restored = hardware?.restoreAutomatic() == true && ownership.removeMarker()
         isRecovering = !restored
@@ -527,17 +357,6 @@ private final class FanControlController {
             startWatchdog()
             log.error("Automatic fan recovery will retry: \(self.lastStopReason?.rawValue ?? "requested", privacy: .public)")
             return false
-        }
-        if let lastStoppedOwner { sessionStops[lastStoppedOwner]?.restored = true }
-        if let pending = pendingRelaunchEpoch, ownership.resumeEpoch()?.id == pending.id {
-            _ = changeResumeEpoch(permitsLaunch: true, expectedRemovalID: pending.removalID, sessionID: pending.id)
-        }
-        pendingRelaunchEpoch = nil
-        if let recorded = resumableStopEpoch {
-            // Removing our own marker changed the directory timestamp. Retain
-            // the same generation only if removal did not revoke it in flight.
-            let current = ownership.resumeEpoch()
-            resumableStopEpoch = current?.id == recorded.id ? current : nil
         }
         ownership.release()
         stopWatchdogIfIdle()
@@ -664,96 +483,17 @@ private final class FanControlController {
 
     // MARK: - Status and lifecycle
 
-    private func revokeResumeGrants() {
-        resumeGrants = resumeGrants.mapValues { _ in .revoked }
-        resumableStopEpoch = nil
-        pendingRelaunchEpoch = nil
-        for (id, stop) in sessionStops where stop.reason == nil || stop.reason == .heartbeatLost {
-            resumeGrants[id] = .revoked
-            sessionStops.removeValue(forKey: id)
-        }
-    }
-
-    private func revokeForExternalControl() {
-        if let epoch = ownership.resumeEpoch(), epoch.id != externalControlEpochID {
-            externalControlEpochID = changeResumeEpoch(permitsLaunch: false)?.id
-        } else {
-            revokeResumeGrants()
-        }
-    }
-
-    private func changeResumeEpoch(permitsLaunch: Bool, expectedRemovalID: UUID? = nil,
-                                   sessionID: UUID = UUID()) -> FanControlResumeEpoch? {
-        revokeResumeGrants()
-        return ownership.rotateResumeEpoch(permitsLaunch: permitsLaunch, expectedRemovalID: expectedRemovalID, sessionID: sessionID)
-    }
-
-    /// The snapshot describes the whole device. Only the requesting connection
-    /// receives its own stop, even if another session has run since.
-    private func encodedResponse(_ result: FanControlResponse, for id: UUID? = nil, allowBootstrap: Bool = false) -> Data {
-        var response = result
-        response.isRecovering = isRecovering
-        if let id {
-            if isCooling && owner == id && result.succeeded { response.resumeSessionID = controllingEpoch?.id }
-            attachSessionStop(to: &response, for: id, allowBootstrap: allowBootstrap)
-        }
-        return FanControlIPC.encode(response)
-    }
-
-    private func attachSessionStop(to response: inout FanControlResponse, for id: UUID, allowBootstrap: Bool) {
-        let stop = sessionStops[id]
-        if let reason = stop?.reason, reason != .heartbeatLost {
-            response.sessionStop = stop
-            return
-        }
-        guard !isCooling, stop != nil || response.succeeded else { return }
-        let held = ownership.isHeld
-        guard ownership.acquire() else {
-            revokeResumeGrants()
-            return
-        }
-        defer { if !held { ownership.release() } }
-        guard let epoch = ownership.resumeEpoch() else { return }
-        let ownStop = lastStoppedOwner == id && resumableStopEpoch == epoch
-        if let stop, ownStop, stop.reason != nil || !stop.restored { response.sessionStop = stop }
-        guard response.succeeded, !response.snapshot.isCooling, !isRecovering, !ownership.markerExists() else { return }
-        let bootstrap = allowBootstrap && epoch.permitsLaunch && stop == nil
-        guard ownStop || bootstrap else { return }
-        switch resumeGrants[id] {
-        case let .issued(token, issuedEpoch) where issuedEpoch == epoch:
-            response.resumeAuthorization = token
-        case nil:
-            guard stop != nil || bootstrap else { return }
-            let token = UUID()
-            resumeGrants[id] = .issued(token, epoch)
-            response.resumeAuthorization = token
-        default:
-            return
-        }
-        if bootstrap { response.resumeSessionID = epoch.id }
-        if let stop, ownStop, stop.reason == nil, stop.restored {
-            response.sessionStop = sessionStops.removeValue(forKey: id)
-        }
-    }
-
-    private func statusResponse(recoverAbandonedControl: Bool = true) -> FanControlResponse {
+    private func statusResponse() -> FanControlResponse {
         if isRecovering { return .failure(.controlFailed, snapshot: currentSnapshot()) }
         if isCooling { return .success(currentSnapshot()) }
 
-        guard ownership.acquire() else {
-            revokeResumeGrants()
-            return .failure(.alreadyControlled)
-        }
+        guard ownership.acquire() else { return .failure(.alreadyControlled) }
         if ownership.markerExists() {
-            guard recoverAbandonedControl else {
-                ownership.release()
-                return .failure(.alreadyControlled, snapshot: currentSnapshot())
-            }
             _ = performRestore(reason: .recovery)
             return isRecovering ? .failure(.controlFailed, snapshot: currentSnapshot())
                                 : .success(currentSnapshot())
         }
-        defer { ownership.release() }
+        ownership.release()
 
         if hardware == nil { hardware = FanControlHardware() }
         guard let hardware else { return .failure(.unsupportedHardware) }
@@ -763,7 +503,6 @@ private final class FanControlController {
                                                  coolingLevel: nil,
                                                  configuration: nil)
             if snapshot.fans.contains(where: \.isManuallyControlled) {
-                revokeForExternalControl()
                 return .failure(.alreadyControlled, snapshot: snapshot)
             }
             return .success(snapshot)
@@ -809,7 +548,7 @@ private final class FanControlSession: NSObject, FanControlXPCProtocol {
     }
 
     func status(withReply reply: @escaping (Data) -> Void) {
-        controller.status(session: id, reply: reply)
+        controller.status(reply: reply)
     }
 
     func startMaximumCooling(withReply reply: @escaping (Data) -> Void) {
@@ -820,24 +559,12 @@ private final class FanControlSession: NSObject, FanControlXPCProtocol {
         controller.apply(session: id, encodedConfiguration: configuration, reply: reply)
     }
 
-    func resumeConfiguration(_ configuration: Data, authorization: NSUUID, withReply reply: @escaping (Data) -> Void) {
-        controller.apply(session: id, encodedConfiguration: configuration, authorization: authorization as UUID, reply: reply)
-    }
-
     func heartbeat(withReply reply: @escaping (Data) -> Void) {
         controller.heartbeat(session: id, reply: reply)
     }
 
-    func releaseControl(withReply reply: @escaping (Data) -> Void) {
-        controller.releaseControl(session: id, reply: reply)
-    }
-
     func restoreAutomatic(withReply reply: @escaping (Data) -> Void) {
-        controller.restore(session: id, reply: reply)
-    }
-
-    func restoreForRemoval(withReply reply: @escaping (Data) -> Void) {
-        controller.restoreForRemoval(reply: reply)
+        controller.restore(reply: reply)
     }
 }
 

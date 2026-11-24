@@ -83,6 +83,15 @@ final class AppSwitcher: ObservableObject {
     private var sessionItems: [SwitcherItem] = []
     private var sessionWindowServerSnapshot: SwitcherWindowServerSnapshot?
 
+    /// Keep the first main-thread sample through inventory callbacks and activation.
+    private struct SessionOrigin {
+        let generation: UInt64
+        let pid: pid_t
+        let regularBundleIdentifier: String?
+        let displayScope: WindowEnumerator.DisplayScope?
+    }
+    private var sessionOrigin: SessionOrigin?
+
     // The tap lives on a dedicated thread: an active keyDown tap makes the
     // window server hold every keystroke in the login session until this
     // process answers, so the callback must never queue behind main-thread
@@ -909,7 +918,8 @@ final class AppSwitcher: ObservableObject {
             guard match != nil || hasPendingStart else {
                 return Unmanaged.passUnretained(event)
             }
-            guard let claim = claimPendingKey(match: match, secureInputReplay: secureInputReplay) else {
+            let isEscape = hasPendingStart && event.getIntegerValueField(.keyboardEventKeycode) == KeyCode.escape
+            guard let claim = claimPendingKey(match: match, isEscape: isEscape, secureInputReplay: secureInputReplay) else {
                 return Unmanaged.passUnretained(event)
             }
             switch claim.decision {
@@ -941,12 +951,14 @@ final class AppSwitcher: ObservableObject {
     /// The window scan can hand the keyboard back while the tap is matching
     /// a shortcut. Check ownership under the same lock that claims the press.
     private func claimPendingKey(match: (shortcut: GlobalShortcut, scope: SwitcherSessionScope, reversed: Bool)?,
+                                 isEscape: Bool = false,
                                  secureInputReplay: Bool) -> (decision: SwitcherPendingKeyDecision, generation: UInt64?)? {
         routeLock.withLock {
             guard routeCanStartSession, !routeCapturing, !routeYieldsToExclusiveFullscreen else { return nil }
             let decision = SwitcherSupport.pendingKeyDecision(
                 sessionIsActive: routeSessionActive, hasPendingStart: routePendingSessionStart != nil,
-                commitWhenReady: routePendingSessionStart?.commitWhenReady ?? false, matchesShortcut: match != nil)
+                commitWhenReady: routePendingSessionStart?.commitWhenReady ?? false, matchesShortcut: match != nil,
+                isEscape: isEscape)
             if decision == .cancelAndSwallow {
                 routePendingSessionStart = nil
                 secureInputReplays.invalidate()
@@ -1182,22 +1194,39 @@ final class AppSwitcher: ObservableObject {
             ) else { return nil }
             return routePendingSessionStart
         }) else { return }
+        let origin: SessionOrigin
+        if let captured = sessionOrigin, captured.generation == generation {
+            origin = captured
+        } else {
+            guard let app = NSWorkspace.shared.frontmostApplication else {
+                discardPendingSessionStart(generation: generation, reason: "no_frontmost_app")
+                return
+            }
+            let pid = app.processIdentifier
+            let useAppBundle = requested.scope == .frontmostApp
+                && (app.activationPolicy == .regular || pid == ProcessInfo.processInfo.processIdentifier)
+            origin = SessionOrigin(generation: generation, pid: pid,
+                                   regularBundleIdentifier: useAppBundle ? app.bundleIdentifier : nil,
+                                   displayScope: currentDisplayScope)
+            sessionOrigin = origin
+        }
+        if requested.scope == .frontmostApp,
+           windowInventory.excludesFrontmostApp(pid: origin.pid, regularBundleIdentifier: origin.regularBundleIdentifier) {
+            discardPendingSessionStart(generation: generation, reason: "frontmost_app_hidden")
+            return
+        }
         guard guardSecureInputActions(for: requested.shortcut) else {
             discardPendingSessionStart(generation: generation, reason: "secure_input_guard_unavailable")
             return
         }
-        guard let sourceApplication = NSWorkspace.shared.frontmostApplication else {
-            discardPendingSessionStart(generation: generation, reason: "no_frontmost_app")
-            return
-        }
-        let reportedFrontPID = sourceApplication.processIdentifier
         guard windowInventory.readyForSession(currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)) else { return }
-        let selection = windowInventory.selection(
+        guard let selection = windowInventory.selection(
+            for: generation,
             scope: requested.scope,
-            frontmostPID: reportedFrontPID,
-            displayScope: currentDisplayScope)
+            frontmostPID: origin.pid,
+            displayScope: origin.displayScope) else { return }
         finishPendingSession(generation: generation,
-                             reportedFrontPID: reportedFrontPID,
+                             reportedFrontPID: origin.pid,
                              focusedSourceWindowID: selection.focusedWindowID,
                              windows: selection.list.items,
                              sourceItems: selection.list.sourceItems,
@@ -1323,6 +1352,7 @@ final class AppSwitcher: ObservableObject {
                 generation: generation,
                 pendingGeneration: routePendingSessionStart?.generation
             ) else { return }
+            sessionOrigin = nil
             routePendingSessionStart = nil
             secureInputReplays.invalidate()
         }
@@ -1853,9 +1883,8 @@ final class AppSwitcher: ObservableObject {
             .flatMap { id in windows.first { $0.id == id } }
         let source = sessionSourceContext
         let windowServerSnapshot = sessionWindowServerSnapshot
-        // A session can open without a source item (the app in front has no
-        // window left); the app in front still keeps the settling retry.
-        let handoffSourcePID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        // The app that held the keyboard can be the source even without a listed window.
+        let handoffSourcePID = sessionOrigin?.pid
         let previousWindowID = sessionStartWindowID
         endSession()
         if let selection {
@@ -1887,6 +1916,7 @@ final class AppSwitcher: ObservableObject {
         cancelLetterConfirmation()
         SwitcherAppIconCache.endSession()
         sessionActive = false
+        sessionOrigin = nil
         invalidateSecureInputReplays()
         pendingShow?.cancel()
         pendingShow = nil

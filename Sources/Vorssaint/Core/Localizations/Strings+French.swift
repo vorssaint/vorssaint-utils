@@ -988,7 +988,7 @@ extension Strings {
         cleanerCatDeveloper: "Données de développement",
         cleanerCatTrash: "Corbeille",
         cleanerLeftoversNote: "Trouvés par analyse et non cochés. Vérifiez le chemin avant de cocher.",
-        cleanerLoginItemsNote: "L’entrée dans Éléments de connexion disparaît après un redémarrage.",
+        cleanerLoginItemsNote: "Les éléments qui nécessitent une autorisation administrateur restent en place. Après la suppression d’un élément, il peut être nécessaire de redémarrer le Mac pour actualiser la liste.",
         cleanerTrashNote: "Vider la corbeille est définitif.",
         cleanerCatDeviceBackups: "Sauvegardes iPhone",
         cleanerDeviceBackupsCaption: "Les anciennes sauvegardes d’iPhone et d’iPad occupent une grande part du stockage que macOS appelle Autre. Ne supprimez que celles devenues inutiles\u{00A0}; une nouvelle est créée au prochain branchement.",
