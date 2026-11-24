@@ -22,6 +22,7 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = true
     @AppStorage(DefaultsKey.notchAgentsGemini) private var gemini = true
     @AppStorage(DefaultsKey.notchAgentsDeepSeek) private var deepseek = true
+    @AppStorage(DefaultsKey.notchAgentsKiro) private var kiro = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
@@ -36,7 +37,7 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        _ = (claude, codex, opencode, copilot, cursor, antigravity, gemini, deepseek)
+        _ = (claude, codex, opencode, copilot, cursor, antigravity, gemini, deepseek, kiro)
         return NotchAgentSupport.pageProviders(snapshot: usage.snapshot, hasCodexAccounts: !codexAccounts.isEmpty,
                                                hasClaudeAccount: !usage.claudeProfile.isDefault)
     }

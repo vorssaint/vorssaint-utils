@@ -107,6 +107,16 @@ struct NotchAgentStrings {
     let kiloEmpty: String
     let kiloSignedOut: String
     let kiloHelp: String
+    // Kiro's monthly credits; every language reads these until they are translated.
+    var monthly = "Month"
+    var creditsFormat = "%1$@ of %2$@ credits"
+    var overageFormat = "%1$@ credits over · %2$@ extra"
+    var creditsUnavailable = "Kiro CLI couldn’t check your credits"
+    var creditCountFormat = "%@ credits"
+    var listPriceFormat = "%@ a month, list price"
+    var kiroWithinPlanFormat = "Kiro: credits within your plan are covered by its price. Only credits past it are billed, at %@ each."
+    var kiroOverageFormat = "Kiro: %1$@ credits past your plan this month, billed at %2$@ each: %3$@. Credits within the plan are covered by its price."
+    var streakHelpFormat = "🔥 Streak: an agent worked %@ days in a row"
     // Antigravity's account check; every language reads these until it is translated.
     var antigravityLimitsTitle = "Antigravity plan limits"
     var antigravityLimitsPrivacy = "The agy CLI checks your account’s limits, including use on other machines, with your Antigravity sign-in, which Vorssaint never reads. No prompt is sent."
@@ -125,6 +135,15 @@ struct NotchAgentStrings {
     func planMultiple(_ multiple: String, plan: String) -> String { String(format: planMultipleFormat, multiple, plan) }
     func finished(_ agent: String) -> String { String(format: finishedFormat, agent) }
     func left(_ share: String) -> String { String(format: leftFormat, share) }
+    func credits(_ used: String, of limit: String) -> String { String(format: creditsFormat, used, limit) }
+    func creditCount(_ count: String) -> String { String(format: creditCountFormat, count) }
+    func listPrice(_ price: String) -> String { String(format: listPriceFormat, price) }
+    func streakHelp(_ days: String) -> String { String(format: streakHelpFormat, days) }
+    func kiroWithinPlan(_ rate: String) -> String { String(format: kiroWithinPlanFormat, rate) }
+    func kiroOverage(_ credits: String, rate: String, cost: String) -> String {
+        String(format: kiroOverageFormat, credits, rate, cost)
+    }
+    func overage(_ credits: String, cost: String) -> String { String(format: overageFormat, credits, cost) }
     func usedShare(_ share: String) -> String { String(format: usedFormat, share) }
     func updated(_ when: String) -> String { String(format: updatedFormat, when) }
     func claudeLimitsCurrent(_ when: String) -> String { String(format: claudeLimitsCurrentFormat, when) }

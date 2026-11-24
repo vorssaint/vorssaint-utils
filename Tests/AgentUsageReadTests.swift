@@ -88,6 +88,8 @@ enum AgentUsageReadTests {
         func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool) {}
         func readClaudePlan() {}
         func readClaudeApp(now: Date) {}
+        var kiroAccountLimits: AgentLimits?
+        func readKiroAccount(now: Date) {}
         func watch(_ roots: [AgentLogRoot]) { watchedRoots = roots }
         func startPolling() {}
         func syncPolling() {}
@@ -180,6 +182,7 @@ enum AgentUsageReadTests {
                 case .antigravity: entries += AgentLogParser.parseAntigravity(line, state: &cursor.state, now: now)
                 case .gemini: entries += GeminiReader().parse(line, state: &cursor.state, now: now)
                 case .deepseek: entries += AgentLogParser.parseDeepSeek(line, state: &cursor.state, now: now)
+                case .kiro: entries += KiroReader().parse(line, state: &cursor.state, now: now)
                 }
             }
             if provider == .copilot {

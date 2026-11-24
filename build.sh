@@ -320,6 +320,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/Harness/GeminiReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/DeepSeekReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/AgentDeepSeekLogReader.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/KiroReader.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentKiroLog.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentKiroServer.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageArchive.swift

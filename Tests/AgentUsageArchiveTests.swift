@@ -66,6 +66,14 @@ enum AgentUsageArchiveTests {
         }
         suite.expect(AgentUsageArchive.decode(AgentUsageArchive.encode(sourced, build: build), build: build) == sourced,
                      "limits keep their source and preserve the estimate separately from the expiry deadline")
+        var credited = contents
+        credited.store.limits = [AgentLimits(provider: .kiro, windows: [AgentLimitWindow(
+            id: "kiro.credits", kind: .other, minutes: nil, scope: nil, usedPercent: 100,
+            resetsAt: now.addingTimeInterval(86_400),
+            credits: AgentCredits(used: 1_250.5, limit: 1_000, overage: 250.5, overageRate: 0.04, overageCharges: 10.02))],
+            observedAt: now, source: .account)]
+        suite.expect(AgentUsageArchive.decode(AgentUsageArchive.encode(credited, build: build), build: build) == credited,
+                     "a month's credits keep their use, limit and overage through the archive")
         suite.expect(!first.saved.records.isEmpty && !first.saved.limits.isEmpty && first.saved.codexPlan != nil
                         && !first.saved.turns.isEmpty && cursor.state.fast && !cursor.state.model.isEmpty,
                      "the fixture saves records, limits, a plan, an open turn and parser context")
@@ -292,12 +300,14 @@ enum AgentUsageArchiveTests {
              ["records", "limits", "codexPlan", "codexPlanObserved", "turns", "waiting"]),
             ("AgentUsageStore.Saved.Record", labels(sampleRecord), ["key", "record", "billable", "sources"]),
             ("AgentUsageRecord", labels(sampleRecord.record),
-             ["provider", "date", "model", "project", "session", "requests", "tokens", "cost", "savings", "reportedCost"]),
+             ["provider", "date", "model", "project", "session", "requests", "tokens", "cost", "savings", "reportedCost",
+              "credits"]),
             ("AgentBillable", labels(sampleRecord.billable),
              ["tokens", "isAggregate", "longCacheWrite", "fast", "domestic", "webSearches"]),
             ("AgentTokens", labels(sampleRecord.record.tokens), ["input", "cacheWrite", "cacheRead", "output", "reasoning"]),
             ("AgentLimits", labels(sampleLimits), ["provider", "windows", "observedAt", "source"]),
-            ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt", "estimatedResetsAt"]),
+            ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt", "estimatedResetsAt",
+                                                            "credits"]),
             ("AgentLiveSession", labels(sampleTurn),
              ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost"]),
             ("AgentLogCursor", labels(cursor),

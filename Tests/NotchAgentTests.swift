@@ -29,6 +29,7 @@ enum NotchAgentTests {
         HarnessReaderContractTests.run(suite)
         DeepSeekAgentTests.run(suite)
         DeepSeekLogReaderTests.run(suite)
+        KiroAgentTests.run(suite)
         timestamps(suite)
         summary(suite)
         AgentUsageSummaryCacheTests.run(suite)
@@ -3240,7 +3241,7 @@ enum NotchAgentTests {
                      "alerts follow their switches and a budget must be positive")
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
-                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsCursor, DefaultsKey.notchAgentsAntigravity, DefaultsKey.notchAgentsGemini, DefaultsKey.notchAgentsDeepSeek,
+                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsCursor, DefaultsKey.notchAgentsAntigravity, DefaultsKey.notchAgentsGemini, DefaultsKey.notchAgentsDeepSeek, DefaultsKey.notchAgentsKiro,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,

@@ -35,6 +35,7 @@ extension AgentProvider {
         case .antigravity: AntigravityReader()
         case .gemini: GeminiReader()
         case .deepseek: DeepSeekReader()
+        case .kiro: KiroReader()
         }
     }
 }

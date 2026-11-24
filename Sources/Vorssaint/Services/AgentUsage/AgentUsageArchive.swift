@@ -314,6 +314,10 @@ enum AgentUsageArchive {
             tokens(value.tokens)
             optional(value.cost) { $0.double($1) }
             double(value.savings)
+            // Kiro's charges come as credits without tokens; repriced from
+            // the list after a resume, they would fall to nothing.
+            bool(value.reportedCost)
+            double(value.credits)
         }
 
         mutating func limits(_ value: AgentLimits) {
@@ -327,6 +331,10 @@ enum AgentUsageArchive {
                 double(window.usedPercent)
                 optional(window.resetsAt) { $0.date($1) }
                 optional(window.estimatedResetsAt) { $0.date($1) }
+                optional(window.credits) { writer, credits in
+                    for value in [credits.used, credits.limit, credits.overage, credits.overageRate,
+                                  credits.overageCharges] { writer.double(value) }
+                }
             }
             date(value.observedAt)
             switch value.source {
@@ -507,7 +515,8 @@ enum AgentUsageArchive {
             AgentUsageRecord(provider: try provider(), date: try date(), model: try string(), project: try string(),
                              session: try string(), requests: try amount(),
                              tokens: try tokens(), cost: try optional { try $0.double() },
-                             savings: try double())
+                             savings: try double(), reportedCost: try bool(),
+                             credits: try double())
         }
 
         mutating func limits() throws -> AgentLimits {
@@ -519,7 +528,12 @@ enum AgentUsageArchive {
                 windows.append(AgentLimitWindow(id: id, kind: kind, minutes: try optional { try $0.int() },
                                                 scope: try optional { try $0.string() }, usedPercent: try double(),
                                                 resetsAt: try optional { try $0.date() },
-                                                estimatedResetsAt: try optional { try $0.date() }))
+                                                estimatedResetsAt: try optional { try $0.date() },
+                                                credits: try optional {
+                                                    AgentCredits(used: try $0.double(), limit: try $0.double(),
+                                                                 overage: try $0.double(), overageRate: try $0.double(),
+                                                                 overageCharges: try $0.double())
+                                                }))
             }
             let observed = try date()
             let source: AgentLimits.Source
