@@ -416,6 +416,7 @@ final class FeatureRuntime: ObservableObject {
                 FanControlService.shared.syncWithPreferences()
             }
         },
+        .menuBarHider: { MenuBarHiderService.shared.syncWithPreferences() },
     ]
 
     private static func syncMonitor() {
