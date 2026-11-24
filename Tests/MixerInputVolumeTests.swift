@@ -59,6 +59,7 @@ enum MixerInputVolumeContract {
         static let micMuteSavedChannelVolumes = "savedChannelVolumes"
         static let micMuteSavedControls = "savedControls"
         static let micMuteMutedDevices = "owned"
+        static let micMuteSavedDefaultInput = "savedDefaultInput"
         static let micMuteSavedVolume = "legacyVolume"
         static let micMuteShortcutEnabled = "shortcutEnabled"
         static let micMuteShortcut = "shortcut"
@@ -182,6 +183,7 @@ enum MixerInputVolumeContract {
         static var uids: [UInt32: String] = [:]
         static var aggregates: Set<UInt32> = []
         static var virtual: Set<UInt32> = []
+        static var usb: Set<UInt32> = []
         static var running: Set<UInt32> = []
         static func key(_ d: UInt32, _ e: UInt32 = 0, _ s: UInt32 = kAudioDevicePropertyVolumeScalar,
                         scope: AudioObjectPropertyScope = kAudioDevicePropertyScopeInput)
@@ -219,6 +221,7 @@ enum MixerInputVolumeContract {
             uids = [:]
             aggregates = []
             virtual = []
+            usb = []
             running = []
             streamChannels = [:]
             streamReadFails = false
@@ -243,12 +246,16 @@ enum MixerInputVolumeContract {
             let key = Key(d, a.pointee)
             switch key.s {
             case kAudioHardwarePropertyDevices, kAudioHardwarePropertyDefaultInputDevice,
-                 kAudioHardwarePropertyServiceRestarted:
+                 kAudioHardwarePropertyServiceRestarted, kAudioHardwarePropertyProcessObjectList:
                 return d == AudioObjectID(kAudioObjectSystemObject) && key.e == 0
                     && key.scope == kAudioObjectPropertyScopeGlobal
             case kAudioObjectPropertyControlList, kAudioDevicePropertyDeviceHasChanged,
-                 kAudioDevicePropertyDeviceIsRunningSomewhere, kAudioDevicePropertyDeviceIsAlive:
+                 kAudioDevicePropertyDeviceIsRunningSomewhere, kAudioDevicePropertyDeviceIsAlive,
+                 kAudioDevicePropertyTransportType:
                 return devices.contains(d) && key.e == 0 && key.scope == kAudioObjectPropertyScopeGlobal
+            case kAudioProcessPropertyIsRunningInput, kAudioProcessPropertyPID:
+                return processes.contains(where: { $0.object == d }) && key.e == 0
+                    && key.scope == kAudioObjectPropertyScopeGlobal
             case kAudioDevicePropertyStreamConfiguration, kAudioDevicePropertyStreams:
                 return devices.contains(d) && key.e == 0 && key.scope == kAudioDevicePropertyScopeInput
             case kAudioDevicePropertyMute:
@@ -357,8 +364,10 @@ enum MixerInputVolumeContract {
                     p.storeBytes(of: kAudioDeviceTransportTypeVirtual, as: UInt32.self)
                 } else if aggregates.contains(d) {
                     p.storeBytes(of: kAudioDeviceTransportTypeAggregate, as: UInt32.self)
+                } else if usb.contains(d) {
+                    p.storeBytes(of: kAudioDeviceTransportTypeUSB, as: UInt32.self)
                 } else {
-                    return -1
+                    p.storeBytes(of: kAudioDeviceTransportTypeBuiltIn, as: UInt32.self)
                 }
             case kAudioDevicePropertyDeviceIsRunningSomewhere:
                 p.storeBytes(of: UInt32(running.contains(d) ? 1 : 0), as: UInt32.self)
@@ -1496,8 +1505,11 @@ enum MixerInputVolumeContract {
         }
         check(MicMuteService.shared.retryDeadline == nil,
               "starting capture bypasses a previously idle virtual input's backoff")
-        check(HAL.listenerAdds.isEmpty && HAL.listenerRemovals == [runningKey],
-              "leaving idle-only backoff removes only the recording-start listener")
+        // Running-somewhere stays watched for every muted input now, so leaving
+        // idle-only backoff must not tear that listener down.
+        check(HAL.listenerAdds.isEmpty && !HAL.listenerRemovals.contains(runningKey)
+                && HAL.listeners.contains(runningKey),
+              "a recording virtual input keeps its running-somewhere listener while muted")
 
         HAL.reset()
         now = 40
@@ -1691,10 +1703,40 @@ enum MixerInputVolumeContract {
                   "the requested mute or unmute reaches a device that arrives before publication")
         }
 
+        runTrustedDefaultInputTests(suite)
         runCoalescedReconnectTests(suite)
         runMuteListenerTests(suite)
         runMuteRecoveryTests(suite)
         runCallAppUnmuteTests(suite)
+    }
+
+    private static func runTrustedDefaultInputTests(_ suite: TestSuite) {
+        HAL.reset()
+        HAL.devices = [10, 20]
+        HAL.usb = [20]
+        HAL.current = 20
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.levels[HAL.key(20)] = 0.8
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        suite.expect(MicMuteService.shared.isMuted && HAL.current == 10
+                     && UserDefaults.standard.string(forKey: DefaultsKey.micMuteSavedDefaultInput) == "device-20"
+                     && HAL.levels[HAL.key(10)] == 0 && HAL.levels[HAL.key(20)] == 0,
+                     "mute moves the system default off a USB mic that ignores device mute")
+        HAL.current = 20
+        suite.expect(HAL.notifyIfRegistered(HAL.key(AudioObjectID(kAudioObjectSystemObject), 0,
+                                                    kAudioHardwarePropertyDefaultInputDevice,
+                                                    scope: kAudioObjectPropertyScopeGlobal)),
+                     "the HAL delivers a default-input change while muted")
+        DispatchQueue.drain()
+        suite.expect(HAL.current == 10 && MicMuteService.shared.isMuted,
+                     "a default-input jump back to the USB mic is corrected while mute stays on")
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        suite.expect(!MicMuteService.shared.isMuted && HAL.current == 20
+                     && UserDefaults.standard.string(forKey: DefaultsKey.micMuteSavedDefaultInput) == nil
+                     && HAL.levels[HAL.key(10)] == 0.5 && HAL.levels[HAL.key(20)] == 0.8,
+                     "unmute restores the previous default input and both levels")
     }
 
     private static func runCoalescedReconnectTests(_ suite: TestSuite) {
@@ -1720,20 +1762,25 @@ enum MixerInputVolumeContract {
             HAL.levels[gain] = 0.8
             let ownPID = ProcessInfo.processInfo.processIdentifier
             HAL.processes = [(100, ownPID == 4242 ? 4243 : 4242, true, [10])]
+            let processRunning = HAL.key(100, 0, kAudioProcessPropertyIsRunningInput,
+                                         scope: kAudioObjectPropertyScopeGlobal)
             _ = HAL.notifyIfRegistered(devicesChanged)
             DispatchQueue.drain()
-            suite.expect(service.isMuted && HAL.levels[gain] == 0 && HAL.listeners == original,
+            suite.expect(service.isMuted && HAL.levels[gain] == 0
+                         && HAL.listeners == original.union([processRunning]),
                          "a same-ID reconnect between inventory reads is silenced even while captured")
-            suite.expect(Set(HAL.listenerAdds) == inputListeners && HAL.listenerAdds.count == inputListeners.count
-                         && Set(HAL.listenerRemovals) == inputListeners && HAL.listenerRemovals.count == inputListeners.count,
+            suite.expect(Set(HAL.listenerAdds) == inputListeners.union([processRunning])
+                         && Set(HAL.listenerRemovals) == inputListeners,
                          "an ambiguous device list renews each input listener once and keeps the system listeners")
 
             HAL.processes = []
             HAL.levels[gain] = 0.8
+            HAL.listenerAdds = []
+            HAL.listenerRemovals = []
             _ = HAL.notifyIfRegistered(gain)
             DispatchQueue.drain()
-            suite.expect(HAL.levels[gain] == 0 && HAL.listenerAdds.count == inputListeners.count
-                         && HAL.listenerRemovals.count == inputListeners.count,
+            suite.expect(HAL.levels[gain] == 0 && HAL.listeners == original
+                         && Set(HAL.listenerRemovals) == [processRunning],
                          "the first gain change after reconnect is caught without replacing listeners again")
             service.setMuted(false)
             DispatchQueue.drain()
@@ -1761,6 +1808,7 @@ enum MixerInputVolumeContract {
         let devicesChanged = HAL.key(system, 0, kAudioHardwarePropertyDevices, scope: global)
         let restarted = HAL.key(system, 0, kAudioHardwarePropertyServiceRestarted, scope: global)
         let defaultInput = HAL.key(system, 0, kAudioHardwarePropertyDefaultInputDevice, scope: global)
+        let processList = HAL.key(system, 0, kAudioHardwarePropertyProcessObjectList, scope: global)
         let controlsChanged = HAL.key(10, 0, kAudioObjectPropertyControlList, scope: global)
         let gain = HAL.key(10)
         let channelSwitch = HAL.key(10, 1, kAudioDevicePropertyMute)
@@ -1771,14 +1819,34 @@ enum MixerInputVolumeContract {
         MicMuteService.shared.setMuted(true)
         DispatchQueue.drain()
         let original = HAL.listeners
-        let expected: Set<Key> = [devicesChanged, restarted, defaultInput,
+        let running = HAL.key(10, 0, kAudioDevicePropertyDeviceIsRunningSomewhere, scope: global)
+        let expected: Set<Key> = [devicesChanged, restarted, defaultInput, processList,
                                   controlsChanged, HAL.key(10, 0, kAudioDevicePropertyStreamConfiguration),
                                   HAL.key(10, 0, kAudioDevicePropertyStreams),
                                   HAL.key(10, 0, kAudioDevicePropertyDeviceIsAlive, scope: global),
                                   HAL.key(10, 0, kAudioDevicePropertyDeviceHasChanged, scope: global),
-                                  gain, channelSwitch]
+                                  running, gain, channelSwitch]
         suite.expect(original == expected, "mute watches topology and only the controls present on the physical input")
         expectCalls("the first mute installs each listener once", adding: original)
+
+        HAL.levels[gain] = 0.8
+        notify(processList)
+        suite.expect(HAL.levels[gain] == 0, "a process opening the mic remutes without waiting for a gain callback")
+        expectCalls("a process-list remute keeps existing listeners")
+
+        UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteFollowCallApps)
+        HAL.processes = [(object: 100, pid: 4242, recording: true, devices: [10])]
+        let processRunning = HAL.key(100, 0, kAudioProcessPropertyIsRunningInput, scope: global)
+        HAL.levels[gain] = 0.8
+        notify(gain)
+        suite.expect(MicMuteService.shared.isMuted && HAL.levels[gain] == 0,
+                     "startup gain right after a process appears remutes even with call following on")
+        expectCalls("a suppressed follow remute keeps existing listeners", adding: [processRunning])
+        UserDefaults.standard.set(false, forKey: DefaultsKey.micMuteFollowCallApps)
+        HAL.processes = []
+        notify(processList)
+        suite.expect(HAL.levels[gain] == 0, "clearing capture processes keeps mute")
+        expectCalls("dropping process-capture watch removes only that listener", removing: [processRunning])
 
         HAL.levels[gain] = 0.8
         notify(gain)
@@ -2095,8 +2163,7 @@ enum MixerInputVolumeContract {
             HAL.levels[microphone] = 0.7
             notify()
             suite.expect(MicMuteService.shared.isMuted && HAL.levels[microphone] == 0
-                            && HAL.levels[secondInput] == 0 && HAL.processListReads == 0
-                            && QuickToolHUD.messages.isEmpty,
+                            && HAL.levels[secondInput] == 0 && QuickToolHUD.messages.isEmpty,
                          "the default and disabled settings hold the global mute during another app's capture")
         }
 
@@ -2165,8 +2232,8 @@ enum MixerInputVolumeContract {
             mute()
             record()
             notify()
-            suite.expect(HAL.processListReads == 0 && HAL.mute[10] == 1 && HAL.levels[microphone] == 0,
-                         "a microphone that is still quiet does not need a process-list lookup")
+            suite.expect(HAL.mute[10] == 1 && HAL.levels[microphone] == 0,
+                         "a microphone that is still quiet stays muted without following")
             if switchOnly {
                 HAL.mute[10] = 0
                 notify(selector: kAudioDevicePropertyMute)
@@ -2844,7 +2911,7 @@ enum MixerInputVolumeContract {
             } else {
                 suite.expect(MicMuteService.shared.isMuted && HAL.levels[microphone] == 0 && HAL.levels[channelGain] == 0
                              && HAL.levels[secondInput] == 0 && HAL.levels[otherChannel] == 0
-                             && HAL.processListReads == 0 && QuickToolHUD.messages.isEmpty,
+                             && QuickToolHUD.messages.isEmpty,
                              "with following disabled the same late click is silenced without a release")
             }
         }

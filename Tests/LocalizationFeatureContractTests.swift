@@ -38,6 +38,8 @@ enum LocalizationFeatureContractTests {
             suite.expect(strings.micMuteCaption.contains("Siri"),
                    "Mic Mute explains the Siri coverage limit (\(language.rawValue))")
         }
+        suite.expect(Strings.enUS.micMuteCaption.contains("dictation"),
+               "Mic Mute names dictation among the apps that may still hear")
         suite.expect(Strings.enUS.micMutedHUD == "Mic Mute on"
                 && Strings.enUS.micUnmutedHUD == "Mic Mute off",
                "microphone notices report the feature state without certifying silence")

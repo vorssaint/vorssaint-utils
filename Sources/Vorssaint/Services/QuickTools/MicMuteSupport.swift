@@ -30,9 +30,18 @@ enum MicMuteSupport {
     /// CoreAudio's master element. Kept as a number so this file stays
     /// free of the HAL import the tests do not need.
     static let masterElement: UInt32 = 0
+    /// `kAudioDeviceTransportTypeBuiltIn` ('bltn'). Built-in mics honor mute
+    /// and input volume; many USB camera mics report those controls at zero
+    /// while still delivering live samples to every app.
+    static let builtInTransport: UInt32 = 0x626C746E
 
     static func isOwnDevice(name: String) -> Bool {
         ownDeviceNames.contains(name)
+    }
+
+    /// Whether device-level mute/volume can be trusted to silence capture.
+    static func honorsDeviceMute(transport: UInt32?) -> Bool {
+        transport == builtInTransport
     }
 
     /// A level worth remembering. Saving a zero would make the unmute restore
