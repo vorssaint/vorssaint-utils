@@ -54,7 +54,8 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var isRunning = false
     @Published private(set) var shortcutRegistrationFailed = false
     @Published private(set) var quickBatchEntryIDs: Set<UUID> = []
-    @Published private(set) var pasteStackCount = 0
+    @Published private var pasteStackStatus = ClipboardPasteStack.Status()
+    var pasteStackCount: Int { pasteStackStatus.count }
     private let pasteStack = OSAllocatedUnfairLock(initialState: ClipboardPasteStack())
     @Published var quickQuery = "" {
         didSet {
@@ -891,21 +892,22 @@ final class ClipboardHistoryService: ObservableObject {
             ? visible.filter { quickBatchEntryIDs.contains($0.id) }.map(\.id)
             : [entry.id]
         pasteStack.withLock { $0.append(ids) }
-        syncPasteStackCount()
+        syncPasteStackStatus()
     }
 
     func clearPasteStack() {
         pasteStack.withLock { $0.clear() }
-        syncPasteStackCount()
+        syncPasteStackStatus()
     }
 
     func skipNextPasteStackEntry() {
         pasteStack.withLock { $0.removeFirst() }
-        syncPasteStackCount()
+        syncPasteStackStatus()
     }
 
     var canPasteNextFromStack: Bool {
-        guard isRunning, !copyInFlight, quickLayout == .cards, panel?.isVisible == true, !shelfIsClosing,
+        guard isRunning, !copyInFlight, !pasteStackStatus.hasPendingPaste,
+              quickLayout == .cards, panel?.isVisible == true, !shelfIsClosing,
               !UserDefaults.standard.bool(forKey: DefaultsKey.clipboardShelfPrivacyMode),
               let target = pasteTargetApp, !target.isTerminated else { return false }
         return ClipboardHistoryPasteTarget.acceptsSyntheticPaste(bundleID: target.bundleIdentifier)
@@ -913,6 +915,7 @@ final class ClipboardHistoryService: ObservableObject {
 
     func pasteNextFromStack() {
         guard canPasteNextFromStack, let request = pasteStack.withLock({ $0.beginPaste() }) else { return }
+        syncPasteStackStatus()
         guard let entry = entries.first(where: { $0.id == request.entryID }) else {
             prunePasteStack()
             return
@@ -924,18 +927,18 @@ final class ClipboardHistoryService: ObservableObject {
         guard pasteStackCount > 0 else { return }
         let validIDs = Set(entries.map(\.id))
         pasteStack.withLock { $0.prune(keeping: validIDs) }
-        syncPasteStackCount()
+        syncPasteStackStatus()
     }
 
     private func finishPasteStackRequest(_ request: ClipboardPasteStack.Request?) {
         guard let request else { return }
         pasteStack.withLock { $0.finishPaste(request) }
-        syncPasteStackCount()
+        syncPasteStackStatus()
     }
 
-    private func syncPasteStackCount() {
-        let count = pasteStack.withLock { $0.count }
-        if pasteStackCount != count { pasteStackCount = count }
+    private func syncPasteStackStatus() {
+        let status = pasteStack.withLock { $0.status }
+        if pasteStackStatus != status { pasteStackStatus = status }
     }
 
     private func shelfStackWriteGuard(for request: ClipboardPasteStack.Request, presentation: UUID) -> () -> Bool {

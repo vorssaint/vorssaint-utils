@@ -270,8 +270,11 @@ enum ClipboardFeatureTests {
         }
         suite.expect(failing.entryID == first && stack.count == 3 && stack.beginPaste() == nil,
                      "a stack keeps queue order and accepts one request at a time")
+        suite.expect(stack.status.hasPendingPaste, "Paste Next remains unavailable until the pending request finishes")
         suite.expect(!stack.post(failing) { false }, "a failed shortcut cannot consume a clip")
         stack.finishPaste(failing)
+        suite.expect(!stack.status.hasPendingPaste && stack.status.count == 3,
+                     "completing a failed request restores availability without advancing the stack")
         guard let retry = stack.beginPaste() else {
             suite.expect(false, "a failed paste can be retried")
             return
@@ -2084,7 +2087,8 @@ enum ClipboardPreviewContract {
         func pruneQuickBatchSelection() {}
         let pasteStack = OSAllocatedUnfairLock(initialState: ClipboardPasteStack())
         let shelfPasteSession = OSAllocatedUnfairLock(initialState: UUID())
-        var pasteStackCount = 0
+        var pasteStackStatus = ClipboardPasteStack.Status()
+        var pasteStackCount: Int { pasteStackStatus.count }
         var isRunning = true
         var latestPasteboardEntry: ClipboardHistoryEntry?
         var entriesStamp = 0

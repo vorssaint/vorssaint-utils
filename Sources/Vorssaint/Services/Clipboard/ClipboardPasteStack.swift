@@ -9,10 +9,16 @@ struct ClipboardPasteStack {
         private let token = UUID()
     }
 
+    struct Status: Equatable {
+        var count = 0
+        var hasPendingPaste = false
+    }
+
     private var entryIDs: [UUID] = []
     private var pending: Request?
 
     var count: Int { entryIDs.count }
+    var status: Status { Status(count: count, hasPendingPaste: pending != nil) }
 
     mutating func append(_ ids: [UUID]) {
         var queued = Set(entryIDs)
