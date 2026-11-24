@@ -151,6 +151,7 @@ enum SettingsBackupSupport {
         DefaultsKey.micMuteSavedControls,
         DefaultsKey.micMuteProtectedChannels,
         DefaultsKey.micMutePendingLegacyControls,
+        DefaultsKey.micMuteMixerHandoffUID,
         DefaultsKey.micMuteManualCheckNeeded,
         DefaultsKey.micMuteMutedDevices,
         DefaultsKey.cleanerLastAutoRun,

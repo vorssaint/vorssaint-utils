@@ -684,6 +684,7 @@ enum DefaultsKey {
     // While resolving a legacy UID-only gain, element 0 records an observed master.
     static let micMuteProtectedChannels = "micMuteProtectedChannels"
     static let micMutePendingLegacyControls = "micMutePendingLegacyControls" // unresolved pre-3.2 default input and its controls
+    static let micMuteMixerHandoffUID = "micMuteMixerHandoffUID" // input with a mixer handoff in progress
     static let micMuteManualCheckNeeded = "micMuteManualCheckNeeded" // previous input settings need a manual check
     static let micMuteMutedDevices = "micMuteMutedDevices"   // uids of the devices this app muted
     static let micMuteMenuBarIndicator = "micMuteMenuBarIndicator" // badge the status icon while muted

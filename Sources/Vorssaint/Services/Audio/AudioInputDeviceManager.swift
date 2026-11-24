@@ -198,14 +198,15 @@ final class AudioInputDeviceManager: ObservableObject {
             let deviceID = device.audioObjectID
             mute.withUnmutedInput(lifetime: muteLifetime) {
                 Self.writeInputVolume(on: deviceID) { address in
-                    guard Self.defaultInputDeviceID() == deviceID, Self.inputDeviceUID(for: deviceID) == uid,
-                          mute.inputVolumeAdjustmentLifetime == muteLifetime,
-                          self.volumeWriteLock.withLock({ self.volumeWriteLifetime == lifetime }) else { return nil }
-                    var address = address
-                    var value = gain
-                    let status = AudioObjectSetPropertyData(deviceID, &address, 0, nil, UInt32(MemoryLayout<Float32>.size), &value)
-                    if status == noErr { mute.didAcceptMixerEdit(for: uid) }
-                    return status
+                    mute.writeMixerGain(for: uid, isCurrent: {
+                        Self.defaultInputDeviceID() == deviceID && Self.inputDeviceUID(for: deviceID) == uid
+                            && mute.inputVolumeAdjustmentLifetime == muteLifetime
+                            && self.volumeWriteLock.withLock { self.volumeWriteLifetime == lifetime }
+                    }) {
+                        var address = address
+                        var value = gain
+                        return AudioObjectSetPropertyData(deviceID, &address, 0, nil, UInt32(MemoryLayout<Float32>.size), &value)
+                    }
                 }
             }
             DispatchQueue.main.async {

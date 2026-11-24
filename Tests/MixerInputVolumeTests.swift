@@ -61,6 +61,7 @@ enum MixerInputVolumeContract {
         static let micMuteSavedControls = "savedControls"
         static let micMuteProtectedChannels = "protectedChannels"
         static let micMutePendingLegacyControls = "pendingLegacyControls"
+        static let micMuteMixerHandoffUID = "mixerHandoffUID"
         static let micMuteManualCheckNeeded = "manualCheckNeeded"
         static let micMuteMutedDevices = "owned"
         static let micMuteSavedVolume = "legacyVolume"
@@ -73,6 +74,7 @@ enum MixerInputVolumeContract {
         final class Store {
             var values: [String: Any] = [:]
             var writtenKeys: [String] = []
+            var afterChange: ((String) -> Void)?
             func object(forKey k: String) -> Any? { values[k] }
             func data(forKey k: String) -> Data? { values[k] as? Data }
             func string(forKey k: String) -> String? { values[k] as? String }
@@ -83,8 +85,12 @@ enum MixerInputVolumeContract {
             func set(_ v: Any, forKey k: String) {
                 values[k] = v
                 writtenKeys.append(k)
+                afterChange?(k)
             }
-            func removeObject(forKey k: String) { values[k] = nil }
+            func removeObject(forKey k: String) {
+                values[k] = nil
+                afterChange?(k)
+            }
         }
     }
     final class QuickToolHotkey {
@@ -188,6 +194,7 @@ enum MixerInputVolumeContract {
         static var afterSwitchRead: [Key: () -> Void] = [:]
         static var afterSettableCheck: [Key: () -> Void] = [:]
         static var beforeControlWrite: ((Key, Double) -> Void)?
+        static var afterControlWrite: ((Key) -> Void)?
         static var afterUIDRead: (() -> Void)?
         /// The audio server's process list: each process, whether it is
         /// recording, and from which devices.
@@ -249,10 +256,12 @@ enum MixerInputVolumeContract {
             afterSwitchRead = [:]
             afterSettableCheck = [:]
             beforeControlWrite = nil
+            afterControlWrite = nil
             afterUIDRead = nil
             processes = []
             processListReads = 0
             afterProcessListRead = nil
+            UserDefaults.standard.afterChange = nil
             UserDefaults.standard.values = [:]
             AppFeature.micMuteAvailable = true
             relaunchClient()
@@ -413,6 +422,7 @@ enum MixerInputVolumeContract {
         ) -> OSStatus {
             let k = Key(d, a.pointee)
             writes.append(k)
+            defer { afterControlWrite?(k) }
             if let beforeControlWrite {
                 if k.s == kAudioDevicePropertyMute {
                     beforeControlWrite(k, Double(p.load(as: UInt32.self)))
@@ -4048,50 +4058,251 @@ enum MixerInputVolumeContract {
         let defaults = UserDefaults.standard
         let uid = "device-10", peer = "device-20"
         let master = HAL.key(10), channel = HAL.key(10, 1), other = HAL.key(20)
-        let mainKey = "\(master.s):0", channelKey = "\(channel.s):1", switchKey = "\(kAudioDevicePropertyMute):0"
-        let maps: [(key: String, stale: Any)] = [
-            (DefaultsKey.micMuteSavedControls, [mainKey: 0.625, channelKey: 0.75, switchKey: 1.0]),
-            (DefaultsKey.micMuteSavedVolumes, 0.625),
-            (DefaultsKey.micMuteSavedChannelVolumes, ["1": 0.75]),
-            (DefaultsKey.micMuteProtectedChannels, [UInt32(9)]),
-        ]
-        let cuts = ["all maps", "legacy gains and protection", "stereo and protection", "protection only", "no residue"]
-        for (cleared, cut) in cuts.enumerated() {
-            HAL.reset()
-            let hasPeer = cleared % 2 == 0
-            HAL.devices = [10, 20]
-            HAL.levels = [master: 0.375, channel: 0.1875, other: 0]
-            HAL.mute[10] = 0
-            defaults.set(true, forKey: DefaultsKey.micMuteReleasePending)
-            defaults.set(true, forKey: DefaultsKey.micMuteManualCheckNeeded)
-            defaults.set(hasPeer ? [peer] : [], forKey: DefaultsKey.micMuteMutedDevices)
-            for (index, map) in maps.enumerated() {
-                var records: [String: Any] = [:]
-                if index >= cleared { records[uid] = map.stale }
-                if hasPeer && map.key == DefaultsKey.micMuteSavedControls { records[peer] = [mainKey: 0.875] }
-                defaults.set(records, forKey: map.key)
+        struct Checkpoint {
+            let name: String
+            let preferences = UserDefaults.standard.values
+            let devices = HAL.devices
+            let levels = HAL.levels
+            let minimumGain = HAL.minimumGain
+            let switches = HAL.mute
+
+            func reopen() {
+                HAL.reset()
+                UserDefaults.standard.values = preferences
+                HAL.devices = devices
+                HAL.levels = levels
+                HAL.minimumGain = minimumGain
+                HAL.mute = switches
+                HAL.relaunchClient()
             }
+        }
+
+        for allFail in [false, true] {
+            HAL.reset()
+            HAL.devices = [10, 20]
+            let original: [Key: Float] = [master: 0.625, channel: 0.75, other: 0.875]
+            HAL.levels = original
+            HAL.mute[10] = 0
+            let service = MicMuteService.shared
+            service.toggle()
+            DispatchQueue.drain()
+            HAL.ignoredWrites = [master, other]
+            service.toggle()
+            DispatchQueue.drain()
+            let mixer = AudioInputDeviceManager()
+            mixer.start()
+            DispatchQueue.drain()
+
+            HAL.ignoredWrites = []
+            HAL.writeFails = allFail ? [master, channel] : []
+            var checkpoints: [Checkpoint] = []
+            var unedited = allFail ? [Checkpoint(name: "before the mixer edit")] : []
+            var accepted = false
+            HAL.beforeControlWrite = { key, _ in
+                suite.expect(defaults.string(forKey: DefaultsKey.micMuteMixerHandoffUID) == uid,
+                             "each attempted mixer setter on an owed input records its UID before entering the HAL")
+                checkpoints.append(Checkpoint(name: "before mixer Set on element \(key.e)"))
+            }
+            HAL.afterControlWrite = { key in
+                accepted = !allFail
+                checkpoints.append(Checkpoint(name: "inside mixer Set on element \(key.e)"))
+            }
+            defaults.afterChange = { key in
+                if accepted && key == DefaultsKey.micMuteMixerHandoffUID && defaults.string(forKey: key) == nil {
+                    let maps = [DefaultsKey.micMuteSavedControls, DefaultsKey.micMuteSavedVolumes,
+                                DefaultsKey.micMuteSavedChannelVolumes, DefaultsKey.micMuteProtectedChannels]
+                    suite.expect(maps.allSatisfy { defaults.dictionary(forKey: $0)?[uid] == nil }
+                                 && defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices) == [peer]
+                                 && defaults.bool(forKey: DefaultsKey.micMuteManualCheckNeeded),
+                                 "the accepted edit retires its marker after the full UID handoff and reminder")
+                }
+                if accepted || (key == DefaultsKey.micMuteMixerHandoffUID && defaults.string(forKey: key) == uid) {
+                    checkpoints.append(Checkpoint(name: "mixer preference \(key)"))
+                } else if key == DefaultsKey.micMuteMixerHandoffUID && allFail {
+                    unedited.append(Checkpoint(name: "marker removed after rejected mixer Set"))
+                }
+            }
+            mixer.setInputVolume(0.375)
+            DispatchQueue.drain()
+            defaults.afterChange = nil
+            HAL.beforeControlWrite = nil
+            HAL.afterControlWrite = nil
+            mixer.stop()
+            let completed = Checkpoint(name: "completed mixer edit")
+            suite.expect(!checkpoints.isEmpty && defaults.string(forKey: DefaultsKey.micMuteMixerHandoffUID) == nil
+                         && defaults.bool(forKey: DefaultsKey.micMuteManualCheckNeeded) == !allFail,
+                         "the completed mixer call removes its marker and warns only after an accepted setter")
+
+            if allFail { unedited.append(completed) }
+            for point in unedited {
+                point.reopen()
+                MicMuteService.shared.syncWithPreferences()
+                DispatchQueue.drain()
+                suite.expect(HAL.levels == original && HAL.mute[10] == 0 && MicMuteService.shared.warning == nil,
+                             "both inputs keep their genuine targets at \(point.name)")
+            }
+            for point in checkpoints {
+                var expected = point.levels
+                expected[other] = original[other]
+                for syncFirst in [true, false] {
+                    point.reopen()
+                    let restored = MicMuteService.shared
+                    if syncFirst {
+                        restored.syncWithPreferences()
+                        DispatchQueue.drain()
+                        suite.expect(HAL.writes == [other] && HAL.levels == expected && HAL.mute == point.switches
+                                     && restored.warning == .manualRestore && !restored.hasOutstandingClaims,
+                                     "only the peer restores after interruption at \(point.name)")
+                    }
+                    restored.toggle()
+                    DispatchQueue.drain()
+                    restored.toggle()
+                    DispatchQueue.drain()
+                    suite.expect(HAL.levels == expected && HAL.mute == point.switches && restored.warning == .manualRestore
+                                 && !restored.hasOutstandingClaims,
+                                 "a fresh mute cycle preserves the manual mix after \(point.name), sync first: \(syncFirst)")
+                }
+            }
+        }
+
+        // B arrives after A was muted. C was already quiet when it appeared.
+        let left = HAL.key(20, 1), right = HAL.key(20, 2), quiet = HAL.key(30)
+        let devicesChanged = HAL.key(AudioObjectID(kAudioObjectSystemObject), 0, kAudioHardwarePropertyDevices,
+                                     scope: kAudioObjectPropertyScopeGlobal)
+        enum CaptureDriver { case roundsUp, rejects, ignores }
+        for driver in [CaptureDriver.roundsUp, .rejects, .ignores] {
+            HAL.reset()
+            HAL.levels[master] = 0.875
+            MicMuteService.shared.toggle()
+            DispatchQueue.drain()
+            var arrivingMix: [Key: Float] = [master: 0.875, other: 0.625, quiet: 0]
+            if driver == .roundsUp {
+                arrivingMix[left] = 0.005
+                arrivingMix[right] = 0
+            }
+            HAL.devices = [10, 20, 30]
+            HAL.levels = arrivingMix
+            HAL.levels[master] = 0
+            let originalSwitch: UInt32 = driver == .roundsUp ? 0 : 1
+            HAL.mute[20] = originalSwitch
+            switch driver {
+            case .roundsUp: HAL.minimumGain[other] = 0.005
+            case .rejects: HAL.writeFails.insert(other)
+            case .ignores: HAL.ignoredWrites.insert(other)
+            }
+            HAL.writes = []
+            var captures = [Checkpoint(name: "before capturing the new input")]
+            defaults.afterChange = { captures.append(Checkpoint(name: "capture preference \($0)")) }
+            HAL.beforeControlWrite = { key, _ in captures.append(Checkpoint(name: "before capture Set \(key.s):\(key.e)")) }
+            HAL.afterControlWrite = { key in captures.append(Checkpoint(name: "after capture Set \(key.s):\(key.e)")) }
+            suite.expect(HAL.notifyIfRegistered(devicesChanged), "the real device-list listener sees the arriving microphones")
+            DispatchQueue.drain()
+            defaults.afterChange = nil
+            HAL.beforeControlWrite = nil
+            HAL.afterControlWrite = nil
+            let owners = Set(defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices) ?? [])
+            if driver == .roundsUp {
+                suite.expect(HAL.levels[other] == 0.005 && HAL.levels[left] == 0 && HAL.mute[20] == 1 && owners == [uid, peer],
+                             "a capture owns the input whose master rounds zero up, leaving a user-silenced input alone")
+            } else {
+                suite.expect(HAL.writes.contains(other) && (driver != .rejects || owners == [uid]) && captures.contains {
+                    ($0.preferences[DefaultsKey.micMuteMutedDevices] as? [String])?.contains(peer) == true
+                }, "the new input is provisionally recorded and a definitive setter error retires its claim")
+            }
+            for point in captures {
+                for syncFirst in (driver == .roundsUp ? [false, true] : [false]) {
+                    point.reopen()
+                    let restored = MicMuteService.shared
+                    if syncFirst {
+                        restored.syncWithPreferences()
+                        DispatchQueue.drain()
+                    }
+                    restored.toggle()
+                    DispatchQueue.drain()
+                    suite.expect(HAL.levels == arrivingMix && HAL.mute[20] == originalSwitch && !HAL.writes.contains(quiet)
+                                 && !restored.hasOutstandingClaims && restored.warning == nil,
+                                 "unmute preserves every original gain and switch after \(point.name), driver: \(driver), sync first: \(syncFirst)")
+                }
+            }
+        }
+
+        HAL.reset()
+        HAL.levels[master] = 0.875
+        MicMuteService.shared.toggle()
+        DispatchQueue.drain()
+        HAL.devices = [10, 20]
+        HAL.levels[other] = 0.625
+        var replaced = false
+        defaults.afterChange = { key in
+            guard !replaced, key == DefaultsKey.micMuteMutedDevices,
+                  defaults.stringArray(forKey: key)?.contains(peer) == true else { return }
+            HAL.uids[20] = "quiet-replacement"
+            HAL.levels[other] = 0
+            replaced = HAL.notifyIfRegistered(devicesChanged)
+        }
+        HAL.writes = []
+        _ = HAL.notifyIfRegistered(devicesChanged)
+        DispatchQueue.drain()
+        defaults.afterChange = nil
+        suite.expect(replaced && HAL.writes.isEmpty && defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices) == [uid],
+                     "reusing the ID during capture leaves the quiet replacement untouched and retires the unsubmitted claim")
+        HAL.uids[20] = peer
+        MicMuteService.shared.toggle()
+        DispatchQueue.drain()
+        suite.expect(HAL.writes == [master] && HAL.levels == [master: 0.875, other: 0],
+                     "a pre-Set capture cannot reopen an input that returned already quiet")
+
+        // Older captures saved the new UID's scalar before its other maps and before adding it to the list.
+        enum PartialInput { case master, unrecordedChannel, third, readOnlyThird }
+        for (residual, reapply, input) in [(Float(0), false, PartialInput.master), (0.005, false, .master),
+                                           (0.005, true, .master), (0.005, false, .unrecordedChannel),
+                                           (0.005, true, .unrecordedChannel), (0, false, .third), (0, false, .readOnlyThird)] {
+            HAL.reset()
+            HAL.levels[master] = 0.875
+            MicMuteService.shared.toggle()
+            DispatchQueue.drain()
+            HAL.devices = [10, 20]
+            let third = HAL.key(20, 3)
+            if input == .third || input == .readOnlyThird {
+                HAL.streamChannels[20] = [3]
+                HAL.levels[third] = residual
+                defaults.set([peer: ["3": 0.625]], forKey: DefaultsKey.micMuteSavedChannelVolumes)
+                if input == .readOnlyThird {
+                    HAL.levels[left] = 0
+                    HAL.readOnly.insert(third)
+                }
+            } else {
+                HAL.levels[other] = residual
+                HAL.minimumGain[other] = residual
+                if input == .unrecordedChannel { HAL.levels[left] = 0 }
+            }
+            defaults.set([uid: 0.875, peer: 0.625], forKey: DefaultsKey.micMuteSavedVolumes)
             HAL.relaunchClient()
             let service = MicMuteService.shared
-            if !hasPeer {
+            var openedChannel = false
+            HAL.beforeControlWrite = { key, value in
+                if key == left && value > 0 { openedChannel = true }
+            }
+            if reapply {
                 service.syncWithPreferences()
                 DispatchQueue.drain()
-                suite.expect(HAL.writes.isEmpty && !service.hasOutstandingClaims && service.warning == .manualRestore,
-                             "relaunch leaves an explicitly released input alone with \(cut)")
             }
-            // A shortcut can be the first action after relaunch, before a release sweep.
             service.toggle()
             DispatchQueue.drain()
-            let gains = defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes) as? [String: Double]
-            let stereo = defaults.dictionary(forKey: DefaultsKey.micMuteSavedChannelVolumes) as? [String: [String: Double]]
-            suite.expect(service.isMuted && HAL.levels[master] == 0 && HAL.mute[10] == 1
-                         && gains?[uid] == 0.375 && stereo?[uid]?["1"] == 0.1875,
-                         "a fresh mute saves the current scalar and stereo gains with \(cut)")
-            service.toggle()
-            DispatchQueue.drain()
-            suite.expect(!service.hasOutstandingClaims && service.warning == .manualRestore && HAL.mute[10] == 0
-                         && HAL.levels == [master: 0.375, channel: 0.1875, other: hasPeer ? 0.875 : 0],
-                         "the new cycle restores its own switch and mix and keeps the peer's valid target with \(cut)")
+            if input == .third || input == .readOnlyThird {
+                suite.expect(HAL.levels[third] == (input == .third ? 0.625 : 0) && !openedChannel
+                             && HAL.writes.contains(third) == (input == .third) && !service.hasOutstandingClaims
+                             && service.warning == (input == .third ? nil : .manualRestore),
+                             "a partial capture restores its named third channel only when it is writable")
+            } else if input == .unrecordedChannel {
+                suite.expect(!openedChannel && HAL.levels[left] == 0,
+                             "a partial scalar capture cannot open an independent channel with no saved level")
+                suite.expect(HAL.levels[master] == 0.875 && (HAL.levels[other] == 0.625 || service.warning == .manualRestore),
+                             "the peer restores even if the partial input needs a manual check")
+            } else {
+                suite.expect(HAL.levels == [master: 0.875, other: 0.625] && !service.hasOutstandingClaims,
+                             "a pre-marker capture restores B's saved gain with or without an intervening mute sweep")
+            }
         }
 
         for hasList in [false, true] {
@@ -4122,26 +4333,6 @@ enum MixerInputVolumeContract {
                          && !MicMuteService.shared.hasOutstandingClaims,
                          "the same bound legacy record is valid with a missing list and retired by an explicit empty list")
         }
-
-        HAL.reset()
-        HAL.levels[master] = 0.625
-        let service = MicMuteService.shared
-        service.toggle()
-        DispatchQueue.drain()
-        HAL.ignoredWrites.insert(master)
-        service.toggle()
-        DispatchQueue.drain()
-        let mixer = AudioInputDeviceManager()
-        mixer.start()
-        DispatchQueue.drain()
-        defaults.writtenKeys = []
-        mixer.setInputVolume(0.375)
-        DispatchQueue.drain()
-        let writes = defaults.writtenKeys
-        suite.expect(writes.contains(DefaultsKey.micMuteMutedDevices)
-                     && writes.prefix { $0 != DefaultsKey.micMuteMutedDevices }.contains(DefaultsKey.micMuteManualCheckNeeded),
-                     "the real mixer handoff persists its manual reminder before removing the UID")
-        mixer.stop()
     }
 
     private static func runMixerRestoreAdjustmentTests(_ suite: TestSuite) {
@@ -4291,22 +4482,34 @@ enum MixerInputVolumeContract {
                          "a real reconnect can recover the original gains when the entire mixer edit failed")
         }
 
-        let replaced = recoveringMixer([linked: 0.25, independent: 0.875])
-        HAL.ignoredWrites = []
-        HAL.afterWrite = {
-            HAL.uids[10] = "replacement"
-            HAL.levels = [linked: 0.25, independent: 0.125]
+        for beforeSet in [true, false] {
+            let replaced = recoveringMixer([linked: 0.25, independent: 0.875])
+            HAL.ignoredWrites = []
+            func replaceInput() {
+                HAL.uids[10] = "replacement"
+                HAL.levels = [linked: 0.25, independent: 0.125]
+            }
+            if beforeSet {
+                defaults.afterChange = { key in
+                    if key == DefaultsKey.micMuteMixerHandoffUID && defaults.string(forKey: key) == "device-10" { replaceInput() }
+                }
+            } else { HAL.afterWrite = replaceInput }
+            replaced.setInputVolume(0.375)
+            DispatchQueue.drain()
+            defaults.afterChange = nil
+            let service = MicMuteService.shared
+            suite.expect(HAL.uids[10] == "replacement" && HAL.writes == (beforeSet ? [] : [linked])
+                         && HAL.levels[independent] == 0.125 && service.hasOutstandingClaims == beforeSet
+                         && defaults.string(forKey: DefaultsKey.micMuteMixerHandoffUID) == nil
+                         && service.warning == (beforeSet ? .restoreExhausted : .manualRestore),
+                         "reusing the ID before or after the first setter releases the UID only for an accepted edit")
+            HAL.uids[10] = "device-10"
+            relaunch(replaced)
+            suite.expect(HAL.writes == (beforeSet ? [independent] : []) && HAL.levels[linked] == 0.25
+                         && HAL.levels[independent] == (beforeSet ? 0.875 : 0.125)
+                         && MicMuteService.shared.warning == (beforeSet ? nil : .manualRestore),
+                         "on return the original input still owes its old gain only when the mixer never wrote")
         }
-        replaced.setInputVolume(0.375)
-        DispatchQueue.drain()
-        suite.expect(HAL.writes == [linked] && HAL.levels[independent] == 0.125 && !MicMuteService.shared.hasOutstandingClaims
-                     && MicMuteService.shared.warning == .manualRestore,
-                     "the accepted channel hands off the original UID and the slider never writes the replacement's second channel")
-        HAL.uids[10] = "device-10"
-        relaunch(replaced)
-        suite.expect(HAL.writes.isEmpty && HAL.levels == [linked: 0.25, independent: 0.125]
-                     && MicMuteService.shared.warning == .manualRestore,
-                     "even when its object ID was reused, the original UID cannot regain its old target")
 
         let unclaimed = recoveringMixer([master: 0, other: 0.5])
         HAL.ignoredWrites.remove(master)
