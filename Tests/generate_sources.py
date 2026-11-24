@@ -688,6 +688,9 @@ def main():
                     .replace("private var", "var", 1)
                     .replace("private func", "func", 1) for prefix in [
                         "    static func recoverIfNeeded(", "    func syncWithPreferences(",
+                        "    func refresh()", "    func panelDidAppear()", "    func panelDidDisappear()",
+                        "    private func replaceRegistrationIfNeeded(",
+                        "    private func replaceReservedRegistration(",
                         "    func returnToSystem(", "    func forgetResume(", "    private func dismissStop(",
                         "    func resumePreferenceDidChange(",
                         "    private static var resumableConfiguration:", "    private func resume(",
@@ -703,6 +706,7 @@ def main():
                         "    static func restoreBeforeTerminationIfNeeded()", "    private func restoreBeforeTermination()",
                         "    private func restoreOwnedBeforeExit()",
                         "    private func restoreThenUnregister()", "    private func checkUnregisterStatus(",
+                        "    private func prepareForUnregister(",
                         "    private func finishUnregisterCheck(",
                         "    private func cancelUnregisterCheck(", "    private func releaseUnregisterConnection(",
                         "    private func finishSystemHandoff()", "    private func startTimerIfNeeded()",
@@ -715,6 +719,7 @@ def main():
           + "extension FanControlRecoveryContract {\ntypealias FanControlIPC = FanControlResumeContract.FanControlIPC\n"
           + "final class Controller: Fixture {\n"
           + declaration("Sources/FanControlHelper/main.swift", "    func connectionClosed(")
+          + declaration("Sources/FanControlHelper/main.swift", "    func shutdown(")
           + declaration("Sources/FanControlHelper/main.swift", "    func status(reply:")
           + declaration("Sources/FanControlHelper/main.swift", "    func prepareForUnregister(session")
           + declaration("Sources/FanControlHelper/main.swift", "    func startLegacySession(")

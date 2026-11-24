@@ -56,7 +56,7 @@ enum FanControlInterruption: Equatable {
 }
 
 enum FanControlRequest {
-    case read, apply, restore
+    case read, apply, restore, prepareUnregister, replaceRegistration
 }
 
 enum FanControlResumePolicy {

@@ -122,10 +122,34 @@ enum FanControlResumeContract {
         enum AccessState { case notRegistered, requiresApproval, enabled, unavailable }
         final class Registration {
             var unregisterCalls = 0
+            var registerCalls = 0
+            var unregisterAttempts = 0
+            var registerAttempts = 0
             var fails = false
+            var registerFails = false
+            var status: AccessState?
+            var onUnregister: (() -> Void)?
+            var holdUnregister = false
+            var heldUnregister: (() -> Void)?
             func unregister() throws {
+                unregisterAttempts += 1
                 if fails { throw FanControlErrorCode.helperUnavailable }
                 unregisterCalls += 1
+                status = .notRegistered
+                onUnregister?()
+            }
+            func unregister(completionHandler reply: @escaping (Error?) -> Void) {
+                let error: Error?
+                do { try unregister(); error = nil }
+                catch let failure { error = failure }
+                if holdUnregister { heldUnregister = { reply(error) } }
+                else { reply(error) }
+            }
+            func register() throws {
+                registerAttempts += 1
+                if registerFails { throw FanControlErrorCode.helperUnavailable }
+                registerCalls += 1
+                status = .enabled
             }
         }
         static let appService = Registration()
@@ -144,6 +168,7 @@ enum FanControlResumeContract {
         var workspaceIsSleeping = false
         var recoveryPollInterval = 2
         var checkingUnregister = false
+        var registrationAttemptedVersion: String?
         var requestGeneration = 0
         var requestInFlight: FanControlRequest?
         var panelIsVisible = false
@@ -163,7 +188,7 @@ enum FanControlResumeContract {
             operation(proxy) { completion(self.controller?.statusResponse() ?? self.statusResponse) }
         }
         func refreshAccessState() {
-            if Self.appService.unregisterCalls > 0 { accessState = .notRegistered }
+            if let status = Self.appService.status { accessState = status }
         }
         func applyConfiguration(_ configuration: FanControlConfiguration, resuming: Bool) {
             applied.append(configuration)
@@ -172,7 +197,7 @@ enum FanControlResumeContract {
         func scheduleResumeAttempt(after delay: TimeInterval) { scheduledResumes.append(delay) }
         func cancelResumeAttempt() { scheduledResumes.removeAll() }
         func authorize() { events.append("authorize") }
-        func refresh() { events.append("refresh") }
+        func refreshLocalProbe() { events.append("probe") }
         func startObservingSystemState() { observing = true }
         func stopObservingSystemState() {
             guard observing else { return }
@@ -189,7 +214,15 @@ enum FanControlResumeContract {
                    recovery: Bool = false) {
             Environment.available = true
             Service.appService.unregisterCalls = 0
+            Service.appService.registerCalls = 0
+            Service.appService.unregisterAttempts = 0
+            Service.appService.registerAttempts = 0
             Service.appService.fails = false
+            Service.appService.registerFails = false
+            Service.appService.status = nil
+            Service.appService.onUnregister = nil
+            Service.appService.holdUnregister = false
+            Service.appService.heldUnregister = nil
             defaults.values = [:]
             defaults.values[DefaultsKey.fanControlResume] = resume
             defaults.values[DefaultsKey.fanControlRecoveryNeeded] = recovery
@@ -351,7 +384,7 @@ enum FanControlResumeContract {
         service.panelIsVisible = true
         service.workspaceWillSleep()
         service.workspaceDidWake()
-        suite.expect(service.applied.isEmpty && service.events == ["refresh"] && service.proxy.restores == 0,
+        suite.expect(service.applied.isEmpty && service.proxy.statusReads == 1 && service.proxy.restores == 0,
                      "without resume, waking only refreshes a visible panel")
 
 
@@ -737,11 +770,27 @@ enum FanControlResumeContract {
             reset(stored: nil)
             checkUnregisterReservation(suite, reenable: reenable)
         }
+        for outcome in [UnregisterRetry.succeeds, .relaunched, .approvalRestored, .reenabled, .persistent] {
+            reset(stored: nil)
+            checkUnregisterRetry(suite, outcome: outcome)
+        }
         reset(stored: nil)
         checkReenabledBeforeRelease(suite)
         for lost in [LostDisableRead.disconnected, .relaunched, .unregistered] {
             reset(stored: nil)
             checkLostDisableRead(suite, lost: lost)
+        }
+        for legacy in [false, true] {
+            reset(stored: nil)
+            checkSwapWithOwner(suite, legacy: legacy)
+        }
+        for event in [SwapInterleaving.takeover, .panelCloses, .connectionLost, .approvalLost] {
+            reset(stored: nil)
+            checkSwapInterleaving(suite, event: event)
+        }
+        for outcome in [SwapOutcome.success, .unregisterFailed, .registerFailed, .panelClosed, .featureDisabled, .reenabled] {
+            reset(stored: nil)
+            checkIdleSwap(suite, outcome: outcome)
         }
         for panelOpen in [false, true] {
             reset(resume: panelOpen, stored: nil)
@@ -768,9 +817,9 @@ enum FanControlResumeContract {
             reset(stored: nil)
             checkUnconfirmedExit(suite, reply: result)
         }
-        for cancelCurve in [false, true] {
+        for choice in [SleepResumeChoice.keep, .forget, .removeAndReinstall] {
             reset(stored: nil)
-            checkWakeBeforeReply(suite, cancelCurve: cancelCurve)
+            checkWakeBeforeReply(suite, choice: choice)
         }
         reset(stored: nil)
         checkContestedWake(suite)
@@ -1291,6 +1340,157 @@ enum FanControlResumeContract {
         client.onResume = { [unowned client] in client.sendConfiguration($0, resuming: true) }
     }
 
+    private static func deliverRegistrationCallbacks() {
+        // SMAppService's completion returns to the service through the main queue.
+        RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+    }
+
+    private static func checkSwapWithOwner(_ suite: TestSuite, legacy: Bool) {
+        let helper = idleHelper()
+        let client = Service.shared
+        let requester = UUID(), other = UUID()
+        let registration = Service.appService
+        let defaults = UserDefaults.standard
+        defaults.set("previous", forKey: DefaultsKey.fanControlHelperVersion)
+        connect(client, to: helper, session: requester, legacy: legacy)
+        let manual = FanControlConfiguration.manual(level: 65)
+        let started = helper.applyConfiguration(session: other, configuration: manual, duration: nil)
+        var shutdowns = 0
+        registration.onUnregister = {
+            // Model unloading the daemon by delivering its termination and connection-close events.
+            helper.shutdown { _ in shutdowns += 1 }
+            helper.connectionClosed(other)
+        }
+        client.panelDidAppear()
+        deliverRegistrationCallbacks()
+        var heartbeat: FanControlResponse?
+        helper.heartbeat(session: other) { heartbeat = FanControlIPC.decode($0) }
+        let restored = helper.hardware?.restores ?? 0
+        let writes = helper.hardware?.updates ?? []
+        suite.expect(started.succeeded && helper.owner == other && heartbeat?.snapshot.configuration == manual
+                        && heartbeat?.succeeded == true && registration.unregisterAttempts == 0
+                        && shutdowns == 0 && restored == 0 && writes == [65]
+                        && defaults.string(forKey: DefaultsKey.fanControlHelperVersion) == "previous",
+                     "opening A's panel keeps B running: legacy=\(legacy), unregister=\(registration.unregisterCalls), shutdown=\(shutdowns), owns=\(helper.owner == other), writes=\(writes), restores=\(restored), stop=\(String(describing: helper.lastStopReason))")
+        helper.restore { _ in } // B chooses System before A next refreshes.
+        client.refresh()
+        deliverRegistrationCallbacks()
+        if legacy {
+            suite.expect(registration.unregisterAttempts == 0 && client.proxy.preparationCount == 0
+                            && !client.isWorking && !client.snapshot.isCooling
+                            && defaults.string(forKey: DefaultsKey.fanControlHelperVersion) == "previous",
+                         "an idle compatible legacy helper stays registered without claiming the bundled version")
+            client.applyConfiguration(manual)
+            suite.expect(helper.owner == requester && client.snapshot.isCooling && client.proxy.writes == [manual],
+                         "A can still use explicit Apply with the compatible legacy registration")
+        }
+    }
+
+    private enum SwapInterleaving { case takeover, panelCloses, connectionLost, approvalLost }
+
+    private static func checkSwapInterleaving(_ suite: TestSuite, event: SwapInterleaving) {
+        let helper = idleHelper()
+        let client = Service.shared
+        let requester = UUID(), other = UUID()
+        let registration = Service.appService
+        let key = DefaultsKey.fanControlHelperVersion
+        UserDefaults.standard.set("previous", forKey: key)
+        connect(client, to: helper, session: requester)
+        client.panelIsVisible = false
+        client.refresh()
+        deliverRegistrationCallbacks()
+        suite.expect(registration.unregisterAttempts == 0 && client.proxy.preparationCount == 0,
+                     "a refresh outside the panel cannot start a registration swap")
+        connect(client, to: helper, session: requester)
+        client.proxy.holdNextStatus = event == .takeover
+        client.proxy.holdPreparation = event != .takeover
+        client.panelDidAppear()
+        deliverRegistrationCallbacks()
+        if event == .takeover {
+            let held = client.proxy.heldStatus
+            client.proxy.heldStatus = nil
+            let accepted = helper.applyConfiguration(session: other, configuration: .manual(level: 45), duration: nil)
+            held?()
+            suite.expect(held != nil && accepted.succeeded && helper.owner == other && client.proxy.preparationCount == 1
+                            && registration.unregisterAttempts == 0 && helper.hardware?.restores == 0,
+                         "B taking over after A's idle status makes the daemon refuse the swap reservation")
+            helper.restore { _ in }
+            client.refresh()
+            deliverRegistrationCallbacks()
+            suite.expect(registration.unregisterCalls == 1 && registration.registerCalls == 1
+                            && UserDefaults.standard.string(forKey: key) == Service.helperVersion,
+                         "a later visible idle refresh can safely complete the previously contested swap")
+        } else {
+            let held = client.proxy.heldPreparation
+            client.proxy.heldPreparation = nil
+            suite.expect(held != nil && helper.unregisterSession == requester, "the idle reservation reply is in flight")
+            if event == .approvalLost {
+                client.accessState = .requiresApproval
+                held?() // The callback must recheck authorization before unregistering.
+            } else if event == .panelCloses {
+                client.panelDidDisappear()
+            } else {
+                client.connection?.invalidate()
+            }
+            let accepted = helper.applyConfiguration(session: other, configuration: .manual(level: 45), duration: nil)
+            if event != .approvalLost { held?() }
+            suite.expect(accepted.succeeded && helper.owner == other && helper.unregisterSession == nil
+                            && registration.unregisterAttempts == 0 && !client.awaitingSystemControl && !client.isWorking
+                            && UserDefaults.standard.string(forKey: key) == "previous",
+                         "a stale reservation reply after \(event) cannot remove B's helper or claim a swap")
+        }
+    }
+
+    private enum SwapOutcome { case success, unregisterFailed, registerFailed, panelClosed, featureDisabled, reenabled }
+
+    private static func checkIdleSwap(_ suite: TestSuite, outcome: SwapOutcome) {
+        let helper = idleHelper()
+        let client = Service.shared
+        let requester = UUID(), other = UUID()
+        let registration = Service.appService
+        let key = DefaultsKey.fanControlHelperVersion
+        UserDefaults.standard.set("previous", forKey: key)
+        connect(client, to: helper, session: requester)
+        registration.fails = outcome == .unregisterFailed
+        registration.registerFails = outcome == .registerFailed
+        registration.holdUnregister = true
+        var reservedWhenUnregistered = false
+        registration.onUnregister = {
+            let denied = helper.applyConfiguration(session: other, configuration: .manual(level: 45), duration: nil)
+            reservedWhenUnregistered = helper.unregisterSession == requester && denied.error == .alreadyControlled
+            helper.shutdown { _ in }
+        }
+        client.panelDidAppear()
+        if outcome == .panelClosed { client.panelDidDisappear() }
+        if outcome == .featureDisabled || outcome == .reenabled {
+            Environment.available = false
+            client.syncWithPreferences()
+            if outcome == .reenabled {
+                Environment.available = true
+                client.syncWithPreferences()
+            }
+        }
+        suite.expect(registration.heldUnregister != nil && registration.registerAttempts == 0
+                        && helper.unregisterSession == requester,
+                     "registration waits for the OS to finish unregistering the reserved daemon (\(outcome))")
+        registration.heldUnregister?()
+        registration.heldUnregister = nil
+        deliverRegistrationCallbacks()
+        let shouldRegister = outcome != .unregisterFailed && outcome != .featureDisabled
+        let registered = shouldRegister && outcome != .registerFailed
+        suite.expect(client.proxy.preparationCount == 1 && registration.unregisterAttempts == 1
+                        && registration.registerAttempts == (shouldRegister ? 1 : 0)
+                        && registration.registerCalls == (registered ? 1 : 0)
+                        && reservedWhenUnregistered == (outcome != .unregisterFailed) && helper.unregisterSession == nil
+                        && helper.hardware?.updates.isEmpty == true && !client.isWorking,
+                     "swap with \(outcome) keeps B out until unregister and releases the reservation afterwards")
+        let recorded = UserDefaults.standard.string(forKey: key)
+        suite.expect((recorded == Service.helperVersion) == registered
+                        && (outcome != .unregisterFailed || recorded == "previous")
+                        && client.accessState == (registered || outcome == .unregisterFailed ? .enabled : .notRegistered),
+                     "the recorded version and access state reflect the actual registration outcome (\(outcome))")
+    }
+
     private static func checkDisableWithOtherOwner(_ suite: TestSuite, legacy: Bool) {
         let client = Service.shared
         let helper = idleHelper()
@@ -1379,6 +1579,100 @@ enum FanControlResumeContract {
         suite.expect(Service.appService.unregisterCalls == 0 && helper.unregisterSession == nil && accepted.succeeded
                         && helper.owner == other && !client.awaitingSystemControl && client.connection == nil,
                      "reenabling or a failed unregister releases the idle daemon to a subsequent owner")
+    }
+
+    private enum UnregisterRetry { case succeeds, relaunched, approvalRestored, reenabled, persistent }
+
+    private static func checkUnregisterRetry(_ suite: TestSuite, outcome: UnregisterRetry) {
+        let defaults = UserDefaults.standard
+        let helper = idleHelper()
+        let initial = Service.shared
+        defaults.set(Service.helperVersion, forKey: DefaultsKey.fanControlHelperVersion)
+        connect(initial, to: helper, session: UUID())
+        initial.panelIsVisible = false
+        Environment.available = false
+        Service.appService.fails = true
+        initial.syncWithPreferences()
+        suite.expect(defaults.bool(forKey: DefaultsKey.fanControlUnregisterPending) && initial.checkingUnregister
+                        && defaults.string(forKey: DefaultsKey.fanControlHelperVersion) == Service.helperVersion
+                        && !defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded) && initial.interruption == nil
+                        && helper.unregisterSession == nil && initial.connection == nil && initial.timer != nil,
+                     "a failed unregister releases the daemon while retaining removal intent and its registered version")
+        for _ in 0..<5 { initial.syncWithPreferences() }
+        suite.expect(initial.proxy.statusReads == 1 && initial.proxy.preparationCount == 1,
+                     "repeat preference notifications cannot bypass the unregister retry delay")
+
+        let other = UUID()
+        let otherApply = helper.applyConfiguration(session: other, configuration: .manual(level: 65), duration: nil)
+        suite.expect(otherApply.succeeded && helper.owner == other,
+                     "another client can acquire the daemon during the removal backoff")
+        if outcome == .reenabled {
+            let timer = initial.timer
+            Environment.available = true
+            initial.syncWithPreferences()
+            for _ in 0..<65 { timer?.fire() }
+            suite.expect(!defaults.bool(forKey: DefaultsKey.fanControlUnregisterPending) && initial.timer == nil
+                            && initial.proxy.statusReads == 1 && initial.proxy.preparationCount == 1
+                            && helper.owner == other && Service.appService.unregisterCalls == 0,
+                         "reenabling during removal backoff cancels every later attempt and preserves the new owner")
+            return
+        }
+        let relaunch = outcome == .relaunched || outcome == .approvalRestored
+        if outcome == .approvalRestored {
+            initial.accessState = .requiresApproval
+            for _ in 0..<65 { initial.timer?.fire() }
+            suite.expect(initial.proxy.statusReads == 1 && initial.events.isEmpty && initial.timer != nil
+                            && defaults.bool(forKey: DefaultsKey.fanControlUnregisterPending),
+                         "a failed removal retains its intent without contacting the daemon or prompting while approval is unavailable")
+        }
+        if relaunch {
+            Service.restoreBeforeTerminationIfNeeded()
+            Service.shared = Service()
+        }
+        let client = Service.shared
+        connect(client, to: helper, session: UUID())
+        client.panelIsVisible = false
+        if relaunch {
+            if outcome == .approvalRestored { client.accessState = .requiresApproval }
+            Service.recoverIfNeeded()
+            if outcome == .approvalRestored {
+                suite.expect(client.proxy.statusReads == 0 && client.timer != nil && client.events.isEmpty
+                                && defaults.bool(forKey: DefaultsKey.fanControlUnregisterPending),
+                             "launch with a pending unregister error preserves it while awaiting approval")
+                client.accessState = .enabled
+                client.timer?.fire()
+                client.timer?.fire()
+            }
+        }
+        else {
+            client.timer?.fire()
+            client.timer?.fire()
+        }
+        suite.expect(defaults.bool(forKey: DefaultsKey.fanControlUnregisterPending) && helper.owner == other
+                        && helper.hardware?.restores == 0 && Service.appService.unregisterCalls == 0,
+                     "a retried removal checks the current owner again, including after relaunch")
+        helper.restore(session: other) { _ in }
+        Service.appService.fails = outcome == .persistent
+        let before = client.proxy.preparationCount
+        for _ in 0..<180 {
+            guard let timer = client.timer else { break }
+            if client.connection == nil {
+                connect(client, to: helper, session: UUID())
+                client.panelIsVisible = false
+            }
+            timer.fire()
+        }
+        if outcome == .persistent {
+            suite.expect(client.proxy.preparationCount - before > 0 && client.proxy.preparationCount - before < 10
+                            && defaults.bool(forKey: DefaultsKey.fanControlUnregisterPending) && client.timer != nil
+                            && Service.appService.unregisterCalls == 0 && helper.owner == nil && helper.unregisterSession == nil,
+                         "persistent unregister failures back off without losing intent or holding the helper reservation")
+        } else {
+            suite.expect(Service.appService.unregisterCalls == 1 && client.proxy.preparationCount == before + 1
+                            && !defaults.bool(forKey: DefaultsKey.fanControlUnregisterPending) && client.timer == nil
+                            && defaults.string(forKey: DefaultsKey.fanControlHelperVersion) == nil,
+                         "a transient unregister error is retried under a fresh reservation and completes once")
+        }
     }
 
     private enum LostDisableRead { case disconnected, relaunched, unregistered }
@@ -1564,7 +1858,9 @@ enum FanControlResumeContract {
                      "relaunch, wake and a late ACK require Apply after an unconfirmed exit (\(reply))")
     }
 
-    private static func checkWakeBeforeReply(_ suite: TestSuite, cancelCurve: Bool) {
+    private enum SleepResumeChoice { case keep, forget, removeAndReinstall }
+
+    private static func checkWakeBeforeReply(_ suite: TestSuite, choice: SleepResumeChoice) {
         let helper = idleHelper()
         let service = Service.shared
         let curve = FanControlConfiguration.curve([FanControlConfiguration.defaultCurve])
@@ -1581,12 +1877,20 @@ enum FanControlResumeContract {
         service.workspaceDidWake()
         suite.expect(service.proxy.writes == [curve] && Service.resumableConfiguration == nil && helper.owner == nil,
                      "wake before the owned release reply waits without writing")
-        if cancelCurve { service.forgetResume() }
+        switch choice {
+        case .keep: break
+        case .forget: service.forgetResume()
+        case .removeAndReinstall:
+            Environment.available = false
+            service.syncWithPreferences()
+            Environment.available = true
+            service.syncWithPreferences()
+        }
         reply()
         suite.expect(service.proxy.ownedRestores == 1 && service.proxy.restores == 0
-                        && service.proxy.writes == (cancelCurve ? [curve] : [curve, curve])
-                        && helper.owner == (cancelCurve ? nil : session) && Service.resumableConfiguration == nil,
-                     "the late sleep ACK serves a waiting wake only while the user still wants the curve")
+                        && service.proxy.writes == (choice == .keep ? [curve, curve] : [curve])
+                        && helper.owner == (choice == .keep ? session : nil) && Service.resumableConfiguration == nil,
+                     "a late sleep ACK resumes only consent retained across wake (\(choice))")
     }
 
     private static func checkContestedWake(_ suite: TestSuite) {
