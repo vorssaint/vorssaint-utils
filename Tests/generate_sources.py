@@ -167,6 +167,8 @@ def main():
                         "    static func rememberSwitcherWindows(",
                         "    static func beginSourcePrefetch(",
                         "    private struct WalkApps {",
+                        "    private static func regularBundlePaths(",
+                        "    static func appPID(forWindowOwner",
                         "    private static func walkApps(",
                         "    static func listWindowsForCommandBar(",
                         "    private static func listWindows(appRules:",
@@ -196,6 +198,12 @@ def main():
           + "extension SwitcherQuickCommitTests.HistoryFixture {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift",
                         "    func reconcile(")
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    func recordSwitch(")
+              .replace("focusPID: focusPID)", "focusPID: focusPID, now: SwitcherHoverSelectionTests.Queue.time)", 1)
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    func recordObservedFocus(")
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    func recordDestroyedWindow(")
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    private func readFocusedWindow(")
+              .replace("private func", "func", 1).replace("WindowActivator.focusedWindowID(for: ", "readAXFocus(")
           + "}\n")
     (OUTPUT / "SwitcherWindowTitles.swift").unlink(missing_ok=True)
     write("SwitcherWindowTitlesContract.swift", "import AppKit\nimport ApplicationServices\n"
@@ -228,10 +236,14 @@ def main():
                         "    private func observeScreenChanges(").replace("private func", "func", 1)
           + "}\nextension SwitcherRememberedSelectionTests.SessionOpening.Events {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowEvents.swift", "    enum Event {")
+          + "}\nextension SwitcherRememberedSelectionTests.SessionOpening.WindowEnumerator {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift", "    static func readFrontAppSelection(")
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift", "    private static func frontAppWindowStack(")
           + "}\nextension SwitcherRememberedSelectionTests.SessionOpening {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowInventory.swift",
                         "final class SwitcherWindowInventory {")
               .replace("NSWorkspace.shared", "desktop").replace("NSApp.windows", "desktop.windows")
+              .replace("private func remove(pid:", "func remove(pid:")
               .replace("CGWindowListCopyWindowInfo(", "SwitcherRememberedSelectionTests.SessionOpening.windowInfo(")
               .replace("screenObservers = observeScreenChanges()",
                        "screenObservers = observeScreenChanges(in: desktop.notificationCenter)")
@@ -2217,10 +2229,17 @@ def main():
           + "}\n"
           + declaration(switcher_service, "    @Published private(set) var selectedIndex").replace("private(set) ", "", 1)
           + declaration(switcher_service, "    private func beginPendingSession(").replace("private func", "func", 1)
+              .replace("CGEventSource.flagsState(.combinedSessionState)", "replayModifiers")
               .replace("UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)", "currentSpaceOnly")
               .replace("AXIsProcessTrusted()", "true")
+          + declaration(switcher_service, "    private func readFrontAppWindows(")
+              .replace("WindowEnumerator.", "FrontAppEnumerator.")
+              .replace("UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)", "self.currentSpaceOnly")
+              .replace("ProcessInfo.processInfo.systemUptime", "Queue.time")
           + declaration(switcher_service, "    private func finishPendingSession(").replace("private func", "func", 1)
-              .replace("CGEventSource.flagsState(.combinedSessionState)", "[]")
+              .replace("CGEventSource.flagsState(.combinedSessionState)", "replayModifiers")
+          + declaration(switcher_service, "    private func routeSecureInputHotKey(").replace("private func", "func", 1)
+              .replace("CFRunLoopPerformBlock(", "performCarbonBlock(").replace("CFRunLoopWakeUp(runLoop)", "")
           + declaration(switcher_service, "    private func route(type:").replace("private func", "func", 1)
               .replace("CGEvent.tapEnable(", "Tap.enable(")
               .replace("CFMachPortIsValid(", "Tap.isValid(")
@@ -2236,6 +2255,7 @@ def main():
                     for prefix in ["    private func handle(type:", "    private func handleKeyDown(",
                                    "    private func installTap(", "    private func finishEventTapThread(", "    func suspend(",
                                    "    private func claimPendingKey(", "    private func setYieldsToExclusiveFullscreen(",
+                                   "    private func secureInputChanged(",
                                    "    private func initialSelectionIndex(", "    private func discardPendingSessionStart(",
                                    "    private func invalidateSecureInputReplays(", "    private func releaseSecureInputActionsIfIdle(",
                                    "    private func applyNativeHotkeySuppressionIfTapLive(",

@@ -10,8 +10,36 @@ import Foundation
 struct WindowFocusHistory {
     struct Request: Equatable {
         let pid: pid_t
+        // A switch to a host's window may keep the keyboard in its embedded helper.
+        let focusPID: pid_t
         let id = UUID()
+
+        init(pid: pid_t, focusPID: pid_t? = nil) {
+            self.pid = pid
+            self.focusPID = focusPID ?? pid
+        }
+
+        func involves(_ pid: pid_t) -> Bool { self.pid == pid || focusPID == pid }
     }
+
+    struct Observation {
+        let windowID: CGWindowID
+        let previousWindowID: CGWindowID?
+        let confirmation: UUID
+        fileprivate let switchedAt: TimeInterval?
+
+        fileprivate func includes(_ id: CGWindowID) -> Bool { windowID == id || previousWindowID == id }
+    }
+
+    struct FrontAppFocus {
+        let windowID: CGWindowID?
+        let observedWindows: [CGWindowID]
+        let latest: Observation?
+        let recentSwitch: (windowID: CGWindowID, previousWindowID: CGWindowID)?
+    }
+
+    /// The first focus retry marks the end of the immediate switch handoff.
+    static let switchConfirmationInterval: TimeInterval = 0.12
 
     private enum Use: Equatable {
         case app(Request)
@@ -21,15 +49,56 @@ struct WindowFocusHistory {
     private var recent: [Use] = []
     private(set) var current: Request?
     private(set) var revision = UUID()
+    private var lastFocus: Observation?
+    // Only the watcher's current AX call needs removals. Its reply may name a window for the first time.
+    private var destroyedDuringFocusRead: Set<CGWindowID>?
+
+    func frontAppFocus(for pid: pid_t, appPID: pid_t? = nil,
+                       now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> FrontAppFocus {
+        let observed = recent.compactMap { use -> CGWindowID? in
+            if case .window(let id, _) = use { return id }
+            return nil
+        }
+        guard let current, current.focusPID == pid || current.pid == (appPID ?? pid), let lastFocus else {
+            return FrontAppFocus(windowID: nil, observedWindows: observed, latest: nil, recentSwitch: nil)
+        }
+        // Reconciliation can omit a newly focused window. Keep its observation for
+        // invalidating older reads, but only offer a focus hint that is still present.
+        let present = recent.first == .window(lastFocus.windowID, current)
+        let recentSwitch: (CGWindowID, CGWindowID)?
+        if present, let switchedAt = lastFocus.switchedAt,
+           now >= switchedAt, now < switchedAt + Self.switchConfirmationInterval,
+           let previous = lastFocus.previousWindowID {
+            recentSwitch = (lastFocus.windowID, previous)
+        } else {
+            recentSwitch = nil
+        }
+        return FrontAppFocus(windowID: present ? lastFocus.windowID : nil, observedWindows: observed,
+                             latest: lastFocus, recentSwitch: recentSwitch)
+    }
 
     mutating func activate(_ pid: pid_t, recording: Bool = true) -> Request? {
         if !recording, let current { invalidate(current.pid, keepingActivation: true) }
         invalidate(pid)
         current = recording ? Request(pid: pid) : nil
+        lastFocus = nil
         if let current {
             promote(.app(current))
         }
         return current
+    }
+
+    @discardableResult
+    mutating func beginFocusRead(for request: Request) -> Bool {
+        guard current == request, destroyedDuringFocusRead == nil else { return false }
+        destroyedDuringFocusRead = []
+        return true
+    }
+
+    mutating func finishFocusRead(_ window: CGWindowID?, for request: Request) -> Bool {
+        defer { destroyedDuringFocusRead = nil }
+        guard let window, destroyedDuringFocusRead?.contains(window) == false else { return false }
+        return focus(window, for: request)
     }
 
     @discardableResult
@@ -40,6 +109,10 @@ struct WindowFocusHistory {
                 return false
             }
             promote(.window(window, request))
+            let sameWindow = lastFocus?.windowID == window
+            let previous = sameWindow ? lastFocus?.previousWindowID : lastFocus?.windowID
+            lastFocus = Observation(windowID: window, previousWindowID: previous,
+                                    confirmation: revision, switchedAt: sameWindow ? lastFocus?.switchedAt : nil)
             return true
         }
         // Keep the activation identity after its first answer, so an in-flight
@@ -66,15 +139,25 @@ struct WindowFocusHistory {
         return true
     }
 
-    mutating func switched(to window: CGWindowID?, pid: pid_t, previous: CGWindowID?) {
+    mutating func switched(to window: CGWindowID?, pid: pid_t, previous: CGWindowID?, focusPID: pid_t? = nil,
+                           now: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        // Cross-app source windows belong in global history, outside the target app's focus pair.
+        let sameApp = focusPID != nil || current?.involves(pid) == true
         // Invalidate an AX read already in flight before the explicit switch.
         if let current { invalidate(current.pid, keepingActivation: previous == nil) }
         invalidate(pid)
-        let request = Request(pid: pid)
+        if let focusPID, focusPID != pid { invalidate(focusPID) }
+        let request = Request(pid: pid, focusPID: focusPID)
         current = request
         if let previous { promote(.window(previous)) }
-        if let window { promote(.window(window, request)) }
-        else { promote(.app(request)) }
+        if let window {
+            promote(.window(window, request))
+            lastFocus = Observation(windowID: window, previousWindowID: sameApp && previous != window ? previous : nil,
+                                    confirmation: revision, switchedAt: now)
+        } else {
+            promote(.app(request))
+            lastFocus = nil
+        }
     }
 
     mutating func reconcile(windows: Set<CGWindowID>, revision capturedRevision: UUID) {
@@ -90,9 +173,31 @@ struct WindowFocusHistory {
         }
     }
 
+    /// Unlike omission from a scan, destruction also retires the last observation of this ID.
+    mutating func destroyed(_ windowID: CGWindowID, wasRanked: Bool = false) {
+        destroyedDuringFocusRead?.insert(windowID)
+        let position = index(of: windowID)
+        guard wasRanked || position != nil || lastFocus?.includes(windowID) == true else { return }
+        if let position { recent.remove(at: position) }
+        revision = UUID()
+        if lastFocus?.windowID == windowID {
+            lastFocus = nil
+        } else if let focus = lastFocus, focus.previousWindowID == windowID {
+            lastFocus = Observation(windowID: focus.windowID, previousWindowID: nil,
+                                    confirmation: revision, switchedAt: nil)
+        }
+    }
+
+    private func index(of windowID: CGWindowID) -> Int? {
+        recent.firstIndex { use in
+            if case .window(let id, _) = use { return id == windowID }
+            return false
+        }
+    }
+
     mutating func terminated(_ pid: pid_t) {
         invalidate(pid)
-        if current?.pid == pid { current = nil }
+        if current?.involves(pid) == true { current = nil }
         revision = UUID()
     }
 
@@ -119,10 +224,10 @@ struct WindowFocusHistory {
         recent = recent.compactMap { use in
             switch use {
             case .app(let request):
-                guard request.pid == pid else { return use }
-                return keepingActivation ? .app(Request(pid: pid)) : nil
+                guard request.involves(pid) else { return use }
+                return keepingActivation ? .app(Request(pid: request.pid, focusPID: request.focusPID)) : nil
             case .window(let id, let request):
-                return request?.pid == pid ? .window(id) : use
+                return request?.involves(pid) == true ? .window(id) : use
             }
         }
     }

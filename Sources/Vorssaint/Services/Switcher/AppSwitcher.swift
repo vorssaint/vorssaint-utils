@@ -16,6 +16,15 @@ private struct SwitcherSourceContext {
     let isFullscreen: Bool
     /// Window server bounds of the source window; `.zero` for an app-only entry.
     let frame: CGRect
+
+    init(_ item: SwitcherItem) {
+        itemID = item.id
+        pid = item.pid
+        windowID = item.windowID
+        windowOwnerPID = item.windowOwnerPID
+        isFullscreen = item.isFullscreen
+        frame = item.frame
+    }
 }
 
 /// The window switcher: a global event tap takes over the configured shortcut,
@@ -89,7 +98,11 @@ final class AppSwitcher: ObservableObject {
         let pid: pid_t
         let regularBundleIdentifier: String?
         let displayScope: WindowEnumerator.DisplayScope?
+        var readingFrontApp = false
+        var removals: Set<SwitcherWindowInventory.Removal> = []
+        var environmentStillCurrent: (() -> Bool)?
     }
+    private let frontAppReadQueue = DispatchQueue(label: "com.vorssaint.switcher.front-app", qos: .userInitiated)
     private var sessionOrigin: SessionOrigin?
 
     // The tap lives on a dedicated thread: an active keyDown tap makes the
@@ -623,6 +636,7 @@ final class AppSwitcher: ObservableObject {
             routePendingSessionStart = nil
         }
         if sessionActive { cancelSession() }
+        else { releaseSecureInputActionsIfIdle() }
         applyNativeHotkeySuppressionIfTapLive()
         if secureInputHotKeys.isEmpty, !routeLock.withLock({ routeCapturing }) { restoreNativeHotkeys() }
     }
@@ -714,6 +728,10 @@ final class AppSwitcher: ObservableObject {
     private func releaseSecureInputActionsIfIdle() {
         guard !routeLock.withLock({ routeSessionActive || routePendingSessionStart != nil || secureInputReplays.hasPending })
         else { return }
+        if sessionOrigin != nil {
+            sessionOrigin = nil
+            windowInventory.onRemoval = nil
+        }
         unregisterSecureInputActionHotKeys()
     }
 
@@ -863,6 +881,13 @@ final class AppSwitcher: ObservableObject {
                     guard !routeSessionActive else { return false }
                     if var pending = routePendingSessionStart,
                        !pending.shortcut.requiredModifiersHeld(in: event.flags) {
+                        if pending.scope == .frontmostApp, pending.isSecureInputReplay {
+                            // The next typed key is invisible to the tap after modifier-up.
+                            routePendingSessionStart = nil
+                            secureInputReplays.invalidate()
+                            DispatchQueue.main.async { [weak self] in self?.releaseSecureInputActionsIfIdle() }
+                            return true
+                        }
                         // A quick flick still commits once enumeration finishes,
                         // but can never flash a panel after the key was released.
                         pending.observeModifiers(event.flags)
@@ -1198,6 +1223,7 @@ final class AppSwitcher: ObservableObject {
         if let captured = sessionOrigin, captured.generation == generation {
             origin = captured
         } else {
+            windowInventory.onRemoval = nil
             guard let app = NSWorkspace.shared.frontmostApplication else {
                 discardPendingSessionStart(generation: generation, reason: "no_frontmost_app")
                 return
@@ -1219,6 +1245,17 @@ final class AppSwitcher: ObservableObject {
             discardPendingSessionStart(generation: generation, reason: "secure_input_guard_unavailable")
             return
         }
+        if requested.scope == .frontmostApp {
+            if requested.isSecureInputReplay,
+               !requested.shortcut.requiredModifiersHeld(in: CGEventSource.flagsState(.combinedSessionState)) {
+                discardPendingSessionStart(generation: generation, reason: "released_secure_input_shortcut")
+                return
+            }
+            guard !origin.readingFrontApp else { return }
+            sessionOrigin?.readingFrontApp = true
+            readFrontAppWindows(origin: origin)
+            return
+        }
         guard windowInventory.readyForSession(currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)) else { return }
         guard let selection = windowInventory.selection(
             for: generation,
@@ -1233,12 +1270,81 @@ final class AppSwitcher: ObservableObject {
                              windowServerSnapshot: selection.list.activationSnapshot)
     }
 
+    /// The app can focus a new window before either inventory observer catches up.
+    /// Keep this answer private to the key press that requested it.
+    private func readFrontAppWindows(origin: SessionOrigin) {
+        let generation = origin.generation
+        let deadline = ProcessInfo.processInfo.systemUptime + 1
+        let isCancelled = { [weak self] in
+            guard let self, ProcessInfo.processInfo.systemUptime < deadline else { return true }
+            return self.routeLock.withLock { self.routePendingSessionStart?.generation != generation }
+        }
+        let currentSpaceOnly = UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        let secureInputAtOpening = IsSecureEventInputEnabled()
+        let spaceRevision = windowInventory.currentSpaceRevision
+        let visibleSpaces = currentSpaceOnly ? SpaceWindowBridge.topology()?.visibleSpaces : nil
+        windowInventory.onRemoval = { [weak self] removal in
+            guard let self, self.sessionOrigin?.generation == generation else { return }
+            if !self.sessionItems.isEmpty, !self.sessionItems.contains(where: removal.removes) {
+                guard let source = self.sessionSourceContext,
+                      removal.matches(windowID: source.windowID, pid: source.pid, ownerPID: source.windowOwnerPID) else { return }
+            }
+            self.sessionOrigin?.removals.insert(removal)
+        }
+        let knownIDs = windowInventory.knownWindowIDs
+        let appKitSnapshot = WindowEnumerator.snapshot(includingRunningApps: false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self, self.sessionOrigin?.generation == generation else { return }
+            if self.routeLock.withLock({ self.routePendingSessionStart?.generation == generation }) {
+                self.discardPendingSessionStart(generation: generation, reason: "front_app_read_timeout")
+            } else {
+                self.releaseSecureInputActionsIfIdle()
+            }
+        }
+        frontAppReadQueue.async { [weak self] in
+            let read = { (isRetry: Bool) in
+                var snapshot = appKitSnapshot
+                snapshot.runningApps = WindowEnumerator.runningApplications()
+                return WindowEnumerator.readFrontAppSelection(
+                    snapshot: snapshot, frontmostPID: origin.pid, displayScope: origin.displayScope,
+                    knownWindowIDs: knownIDs, isRetry: isRetry, isCancelled: isCancelled)
+            }
+            guard !isCancelled() else { return }
+            let first = read(false)
+            // AX and the WindowServer may straddle the creation or focus change.
+            let result = first.list.items.isEmpty && !isCancelled() ? read(true) : first
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !isCancelled() else { return }
+                let readSpaces = result.list.capturedVisibleSpaces
+                let focusStillCurrent = result.focusStillCurrent
+                let environmentStillCurrent = { [weak self] in
+                    guard let self, IsSecureEventInputEnabled() == secureInputAtOpening else { return false }
+                    guard currentSpaceOnly else { return true }
+                    // A late notification can describe the Space already sampled at the key press.
+                    let current = SpaceWindowBridge.topology()?.visibleSpaces
+                    let sameOrigin = visibleSpaces.map { $0 == current } ?? (spaceRevision == self.windowInventory.currentSpaceRevision)
+                    return sameOrigin && (readSpaces.map { $0 == current } ?? true)
+                }
+                guard environmentStillCurrent(), focusStillCurrent() else {
+                    self.discardPendingSessionStart(generation: generation, reason: "front_app_source_changed")
+                    return
+                }
+                self.sessionOrigin?.environmentStillCurrent = environmentStillCurrent
+                self.finishPendingSession(generation: generation, reportedFrontPID: result.list.items.first?.pid ?? origin.pid,
+                                          focusedSourceWindowID: result.focusedWindowID,
+                                          windows: result.list.items, sourceItems: result.list.sourceItems,
+                                          windowServerSnapshot: result.list.activationSnapshot, validateQuickSource: focusStillCurrent)
+            }
+        }
+    }
+
     private func finishPendingSession(generation: UInt64,
                                       reportedFrontPID: pid_t,
                                       focusedSourceWindowID: CGWindowID?,
                                       windows: [SwitcherItem],
                                       sourceItems: [SwitcherItem],
-                                      windowServerSnapshot: SwitcherWindowServerSnapshot?) {
+                                      windowServerSnapshot: SwitcherWindowServerSnapshot?,
+                                      validateQuickSource: (() -> Bool)? = nil) {
         guard routeLock.withLock({
             SwitcherSupport.isCurrentSessionStart(
                 generation: generation,
@@ -1282,6 +1388,10 @@ final class AppSwitcher: ObservableObject {
         guard let pending = handedOverPending else {
             return
         }
+        if pending.scope == .frontmostApp, pending.isSecureInputReplay, pending.commitWhenReady {
+            endSession()
+            return
+        }
         sessionItems = list
         sessionWindowServerSnapshot = windowServerSnapshot
         totalWindowCount = list.count
@@ -1291,14 +1401,7 @@ final class AppSwitcher: ObservableObject {
         self.windows = list
         // Optional.map: a session that starts with no source clears the
         // context instead of keeping the previous session's.
-        sessionSourceContext = source.map { source in
-            SwitcherSourceContext(itemID: source.id,
-                                  pid: source.pid,
-                                  windowID: source.windowID,
-                                  windowOwnerPID: source.windowOwnerPID,
-                                  isFullscreen: source.isFullscreen,
-                                  frame: source.frame)
-        }
+        sessionSourceContext = source.map(SwitcherSourceContext.init)
         sessionStartWindowID = source?.windowID
         // The layout pass below reads usesWindowRow, which depends on the
         // session scope; teardown resets it to .allApps, so assigning it after
@@ -1335,6 +1438,12 @@ final class AppSwitcher: ObservableObject {
         }
         startObservingTermination(generation: generation)
         if pending.commitWhenReady {
+            if validateQuickSource?() == false || source.map({ item in
+                sessionOrigin?.removals.contains(where: { $0.removes(item) }) == true
+            }) == true {
+                endSession()
+                return
+            }
             commitSession()
             return
         }
@@ -1352,6 +1461,7 @@ final class AppSwitcher: ObservableObject {
                 generation: generation,
                 pendingGeneration: routePendingSessionStart?.generation
             ) else { return }
+            windowInventory.onRemoval = nil
             sessionOrigin = nil
             routePendingSessionStart = nil
             secureInputReplays.invalidate()
@@ -1415,8 +1525,8 @@ final class AppSwitcher: ObservableObject {
     /// Records a switch straight away instead of waiting for the window server
     /// and Accessibility to report it: a flick of the shortcut is faster than
     /// either, and it is exactly the moment the toggle has to be right.
-    private func recordUse(_ activated: SwitcherItem, previous: CGWindowID?) {
-        WindowUseTracker.shared.recordSwitch(to: activated.windowID, pid: activated.pid, from: previous)
+    private func recordUse(_ activated: SwitcherItem, previous: CGWindowID?, focusPID: pid_t?) {
+        WindowUseTracker.shared.recordSwitch(to: activated.windowID, pid: activated.pid, from: previous, focusPID: focusPID)
     }
 
     func select(index: Int) {
@@ -1876,19 +1986,43 @@ final class AppSwitcher: ObservableObject {
         }
         // A window that was just closed is still listed for a moment; letting
         // go right after must land on what takes its place, never on it.
-        let unavailableIDs = Set(windows.filter { !windowInventory.contains($0) }.map(\.id))
+        let frontAppSession = sessionScope == .frontmostApp
+        let removals = sessionOrigin?.removals ?? []
+        if frontAppSession {
+            guard sessionOrigin?.environmentStillCurrent?() != false,
+                  windows.indices.contains(selectedIndex),
+                  !removals.contains(where: { $0.removes(windows[selectedIndex]) }) else {
+                endSession()
+                return
+            }
+        }
+        // The current app supplied its own session list; the shared inventory can still be behind.
+        let unavailableIDs = frontAppSession ? [] : Set(windows.filter { !windowInventory.contains($0) }.map(\.id))
         let selection = SwitcherSupport.commitTargetID(itemIDs: windows.map(\.id),
                                                        selectedIndex: selectedIndex,
                                                        closingItemIDs: closingItemIDs.union(unavailableIDs))
             .flatMap { id in windows.first { $0.id == id } }
-        let source = sessionSourceContext
+        var source = sessionSourceContext
+        var previousWindowID = sessionStartWindowID
+        if frontAppSession, let original = source, original.windowID != nil, let frontPID = sessionOrigin?.pid,
+           previousWindowID == nil || removals.contains(where: {
+               $0.matches(windowID: original.windowID, pid: original.pid, ownerPID: original.windowOwnerPID)
+           }) {
+            // Closing the source in the panel can focus a sibling while the user chooses the target.
+            let focus = WindowUseTracker.shared.frontAppFocus(for: frontPID, appPID: original.pid).windowID
+            let replacement = sessionItems.first { item in
+                item.windowID != nil && item.windowID == focus && item.pid == original.pid
+                    && !removals.contains(where: { $0.removes(item) })
+            }
+            source = replacement.map(SwitcherSourceContext.init)
+            previousWindowID = source?.windowID
+        }
         let windowServerSnapshot = sessionWindowServerSnapshot
         // The app that held the keyboard can be the source even without a listed window.
         let handoffSourcePID = sessionOrigin?.pid
-        let previousWindowID = sessionStartWindowID
         endSession()
         if let selection {
-            recordUse(selection, previous: previousWindowID)
+            recordUse(selection, previous: previousWindowID, focusPID: frontAppSession ? handoffSourcePID : nil)
             WindowActivator.activate(selection,
                                      sourceWasFullscreen: source?.isFullscreen ?? false,
                                      sourcePID: source?.pid,
@@ -1917,6 +2051,7 @@ final class AppSwitcher: ObservableObject {
         SwitcherAppIconCache.endSession()
         sessionActive = false
         sessionOrigin = nil
+        windowInventory.onRemoval = nil
         invalidateSecureInputReplays()
         pendingShow?.cancel()
         pendingShow = nil
