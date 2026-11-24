@@ -159,7 +159,7 @@ final class FanControlService: ObservableObject {
         case .requiresApproval:
             SMAppService.openSystemSettingsLoginItems()
         case .enabled:
-            if !replaceRegistrationIfNeeded() { requestStatus() }
+            requestStatus()
         case .unavailable:
             error = .helperUnavailable
         case .notRegistered:
