@@ -32,7 +32,7 @@ enum WindowFocusHistoryTests {
         expect(history.focus(20, for: b) && windows(history) == [20, 11, 30, 10],
                "B resolving its window retains the unresolved activation of A")
         let focus = history.frontAppFocus(for: 2)
-        expect(focus.windowID == 20 && focus.observedWindows == [11, 20],
+        expect(focus.windowID == 20 && focus.observedWindows == [20, 11],
                "the request sees only observed windows as focus evidence, excluding the window-server seed")
         let againA = history.activate(1)!
         expect(!history.focus(10, for: a), "returning to the same PID does not accept its old request")

@@ -232,6 +232,7 @@ def main():
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowEvents.swift", "    enum Event {")
           + "}\nextension SwitcherRememberedSelectionTests.SessionOpening.WindowEnumerator {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift", "    static func readFrontAppSelection(")
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift", "    private static func frontAppWindowStack(")
           + "}\nextension SwitcherRememberedSelectionTests.SessionOpening {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowInventory.swift",
                         "final class SwitcherWindowInventory {")
@@ -2193,6 +2194,9 @@ def main():
         raise ValueError("Expected one switcher tap publication before the run loop starts")
     publish_tap = worker.split(registration)[1].split(attach_source)[0]
     write("SwitcherHoverSelection.swift", "import AppKit\nimport Combine\n"
+          + "extension SwitcherHoverSelectionTests.Activator {\n"
+          + declaration(activator, "    static func confirmsWindow(")
+          + "}\n"
           + "extension SwitcherHoverSelectionTests {\n"
           + declaration(switcher_service, "private struct SwitcherSourceContext").replace("private struct", "struct", 1)
           + declaration(switcher_service, "    private enum KeyCode {").replace("private enum", "enum", 1)
@@ -2209,6 +2213,8 @@ def main():
           + declaration(switcher_service, "    private func readFrontAppWindows(")
               .replace("WindowEnumerator.", "FrontAppEnumerator.")
               .replace("UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)", "self.currentSpaceOnly")
+              .replace("ProcessInfo.processInfo.systemUptime", "Queue.time")
+          + declaration(switcher_service, "    private func confirmFrontAppTarget(")
               .replace("ProcessInfo.processInfo.systemUptime", "Queue.time")
           + declaration(switcher_service, "    private func finishPendingSession(").replace("private func", "func", 1)
               .replace("CGEventSource.flagsState(.combinedSessionState)", "[]")

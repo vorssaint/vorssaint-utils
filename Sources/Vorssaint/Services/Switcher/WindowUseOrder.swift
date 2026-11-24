@@ -21,15 +21,17 @@ struct WindowFocusHistory {
     private var recent: [Use] = []
     private(set) var current: Request?
     private(set) var revision = UUID()
+    private var lastFocus: (windowID: CGWindowID, confirmation: UUID)?
 
-    func frontAppFocus(for pid: pid_t) -> (windowID: CGWindowID?, observedWindows: Set<CGWindowID>) {
-        let observed = Set(recent.compactMap { use -> CGWindowID? in
+    func frontAppFocus(for pid: pid_t) -> (windowID: CGWindowID?, confirmation: UUID?, observedWindows: [CGWindowID]) {
+        let observed = recent.compactMap { use -> CGWindowID? in
             if case .window(let id, _) = use { return id }
             return nil
-        })
-        guard let current, current.pid == pid,
-              case let .window(id, request)? = recent.first, request == current else { return (nil, observed) }
-        return (id, observed)
+        }
+        guard let current, current.pid == pid, let lastFocus,
+              case let .window(id, request)? = recent.first, request == current,
+              id == lastFocus.windowID else { return (nil, nil, observed) }
+        return (lastFocus.windowID, lastFocus.confirmation, observed)
     }
 
     mutating func activate(_ pid: pid_t, recording: Bool = true) -> Request? {
@@ -50,6 +52,7 @@ struct WindowFocusHistory {
                 return false
             }
             promote(.window(window, request))
+            lastFocus = (window, revision)
             return true
         }
         // Keep the activation identity after its first answer, so an in-flight
@@ -83,8 +86,12 @@ struct WindowFocusHistory {
         let request = Request(pid: pid)
         current = request
         if let previous { promote(.window(previous)) }
-        if let window { promote(.window(window, request)) }
-        else { promote(.app(request)) }
+        if let window {
+            promote(.window(window, request))
+            lastFocus = (window, revision)
+        } else {
+            promote(.app(request))
+        }
     }
 
     mutating func reconcile(windows: Set<CGWindowID>, revision capturedRevision: UUID) {

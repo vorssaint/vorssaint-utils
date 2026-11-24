@@ -6,8 +6,8 @@ import Combine
 
 /// Production hover, click callbacks, keyboard routing, commit, close and
 /// teardown bodies run with synthetic entries and an explicit clock. Only OS
-/// effects and layout are doubles. No input is posted or real window touched;
-/// these checks do not exercise SwiftUI hit testing or Accessibility transport.
+/// effects and layout are doubles. Three private windows supply real WindowServer
+/// IDs without posting input or changing desktop focus.
 enum SwitcherHoverSelectionTests {
     typealias NSEvent = Pointer
     typealias NSWorkspace = Workspace
@@ -128,6 +128,24 @@ enum SwitcherHoverSelectionTests {
         }
     }
     enum Activator {
+        enum WindowServerSupport {
+            static var owners: [CGWindowID: pid_t] = [:]
+            static func ownerProcessID(ofWindowID id: CGWindowID) -> pid_t? { owners[id] }
+        }
+        enum AXWindowResolver {
+            static var windows: [CGWindowID: pid_t] = [:]
+            static var queries: [CGWindowID] = []
+            static func publishedElement(for id: CGWindowID, in app: pid_t, deadline: TimeInterval) -> pid_t? {
+                queries.append(id)
+                return windows[id] == app ? app : nil
+            }
+        }
+        static func AXIsProcessTrusted() -> Bool { Permissions.shared.accessibility }
+        static func AXUIElementCreateApplication(_ pid: pid_t) -> pid_t { pid }
+        static func AXUIElementGetPid(_ element: pid_t, _ pid: inout pid_t) -> AXError {
+            pid = element
+            return .success
+        }
         static var activated: [String] = []
         static var lastHandoffSourcePID: pid_t?
         static var lastSourceWindowID: CGWindowID?
@@ -165,7 +183,12 @@ enum SwitcherHoverSelectionTests {
         static let empty = Row()
     }
     final class Inventory {
-        var observed: SwitcherRememberedSelectionTests.SessionOpening.SwitcherWindowInventory?
+        var observed: SwitcherRememberedSelectionTests.SessionOpening.SwitcherWindowInventory? {
+            didSet { observed?.onWindowDestroyed = onWindowDestroyed }
+        }
+        var onWindowDestroyed: ((CGWindowID) -> Void)? {
+            didSet { observed?.onWindowDestroyed = onWindowDestroyed }
+        }
         var currentSpaceRevision: Int { observed?.currentSpaceRevision ?? 0 }
         var knownWindowIDs: Set<CGWindowID> {
             observed?.knownWindowIDs ?? Set((items ?? []).compactMap(\.windowID))
@@ -207,6 +230,7 @@ enum SwitcherHoverSelectionTests {
     class Fixture {
         let windowInventory = Inventory()
         let frontAppReadQueue = SwitcherActivationTests.DeferredQueue()
+        var confirmingFrontAppTarget: UUID?
         var sessionActive = false
         let routeLock = NSLock()
         let lifecycleLock = NSLock()
@@ -314,8 +338,9 @@ enum SwitcherHoverSelectionTests {
         func cancelLetterConfirmation() {}
         func stopObservingTermination() {}
         func unregisterSecureInputActionHotKeys() {}
-        func recordUse(_ item: SwitcherItem, previous: CGWindowID?) {}
-        func runProtectedLetterAction(_ action: SwitcherLetterAction) {
+        var recordedIDs: [String] = []
+        func recordUse(_ item: SwitcherItem, previous: CGWindowID?) { recordedIDs.append(item.id) }
+        var runProtectedLetterAction: (SwitcherLetterAction) -> Void = { _ in
             preconditionFailure("quit-protection commands are covered separately")
         }
     }
@@ -959,7 +984,18 @@ enum SwitcherHoverSelectionTests {
         typealias Desktop = SwitcherRememberedSelectionTests.SessionOpening
         typealias Work = Desktop.DispatchQueue
         enum Case: CaseIterable {
-            case front, background, noNotice, retry, omittedFocus, conflictingFocus, escape, space, timeout, newerFocus, allApps, allWindows
+            case front, background, noNotice, retry, omittedFocus, conflictingFocus, escape, timeout, newerFocus, allApps, allWindows
+            case unlistedFront, foreignFront, overlayFront
+            case observedPrevious, onlyPreviousObserved, unknownPrevious
+            case repeatedFocus, changedPrevious, confirmedSource, destroyedTarget
+            case heldKnown, heldLive, heldClosed, heldInconclusive, heldEscape, heldTypeW, heldTypeQ, heldDestroyed, heldWrongOwner
+            case lateSpaceNotice, changedSpace, differentCapturedSpace
+
+            var held: Bool {
+                [.heldKnown, .heldLive, .heldClosed, .heldInconclusive, .heldEscape, .heldTypeW, .heldTypeQ,
+                 .heldDestroyed, .heldWrongOwner].contains(self)
+            }
+            var omitsFront: Bool { [.unlistedFront, .foreignFront, .overlayFront].contains(self) }
         }
 
         _ = NSApplication.shared
@@ -997,7 +1033,7 @@ enum SwitcherHoverSelectionTests {
         for scenario in Case.allCases {
             let service = Service(), inventory = Desktop.SwitcherWindowInventory()
             service.tap = Tap()
-            service.currentSpaceOnly = scenario == .space
+            service.currentSpaceOnly = [.lateSpaceNotice, .changedSpace, .differentCapturedSpace].contains(scenario)
             service.routeAllWindowsShortcut = .switcherAllWindowsDefault
             service.windowInventory.observed = inventory
             inventory.onReady = service.windowInventory.onReady
@@ -1005,6 +1041,12 @@ enum SwitcherHoverSelectionTests {
                 inventory.stop()
                 FrontAppEnumerator.items = []
                 FrontAppEnumerator.firstFrontAppItems = nil
+                FrontAppEnumerator.focusByRead = []
+                FrontAppEnumerator.stackRows = nil
+                Activator.AXWindowResolver.queries = []
+                Activator.AXWindowResolver.windows = [:]
+                Activator.WindowServerSupport.owners = [:]
+                Permissions.shared.accessibility = true
                 FrontAppEnumerator.reads = []
                 Work.scans.reset()
                 Work.discoveries.reset()
@@ -1012,32 +1054,109 @@ enum SwitcherHoverSelectionTests {
                 Work.main.deliveries.reset()
             }
             Desktop.SpaceWindowBridge.visibleSpaces = [1]
-            tracker.history = [ids[1], ids[0]]
-            Desktop.WindowUseTracker.confirmedFocus = scenario == .noNotice ? nil : ids[1]
-            FrontAppEnumerator.items = [b, a]
+            let newPrevious = [.observedPrevious, .onlyPreviousObserved, .unknownPrevious].contains(scenario)
+            tracker.history = newPrevious ? [ids[0]] : [ids[1], ids[0]]
+            Desktop.WindowUseTracker.confirmedFocus = nil
+            if scenario != .noNotice && scenario != .unknownPrevious {
+                Desktop.WindowUseTracker.confirmedFocus = ids[0]
+                if scenario == .observedPrevious {
+                    Desktop.WindowUseTracker.confirmedFocus = ids[2]
+                    tracker.history.insert(ids[2], at: 0)
+                } else if !newPrevious {
+                    Desktop.WindowUseTracker.confirmedFocus = ids[1]
+                }
+            }
+            let sourceIsB = scenario == .background || scenario.omitsFront || scenario.held
+            let source = sourceIsB ? ids[1] : ids[2]
+            FrontAppEnumerator.items = newPrevious ? [a] : [b, a]
             inventory.start()
             Work.scans.drain()
             Work.main.deliveries.drain()
             FrontAppEnumerator.reads = []
-            FrontAppEnumerator.items = scenario == .background ? [b, c, a] : [c, b, a]
-            let source = scenario == .background ? ids[1] : ids[2]
+            FrontAppEnumerator.items = sourceIsB ? [b, c, a] : [c, b, a]
             Desktop.WindowActivator.focusedWindow = scenario == .noNotice ? nil : source
-            if scenario == .retry { FrontAppEnumerator.firstFrontAppItems = [b, a] }
+            if scenario == .retry {
+                FrontAppEnumerator.firstFrontAppItems = [b, a]
+                FrontAppEnumerator.focusByRead = [ids[1], ids[2]]
+            }
             if scenario == .omittedFocus { FrontAppEnumerator.items = [b, a] }
             if scenario == .conflictingFocus { Desktop.WindowActivator.focusedWindow = ids[0] }
+            if scenario.omitsFront {
+                // AX and candidates agree on B while an independently sampled CG row leads them.
+                FrontAppEnumerator.items = [b, a]
+                let top = FrontAppEnumerator.stackRow(c, owner: scenario == .foreignFront ? pid + 1 : pid,
+                                                      layer: scenario == .overlayFront ? 1 : 0)
+                FrontAppEnumerator.stackRows = [top, FrontAppEnumerator.stackRow(b), FrontAppEnumerator.stackRow(a)]
+            }
+            let renderer = pid + 20
+            if scenario.held {
+                let privateWindow = SwitcherItem.window(id: ids[2], title: "AX-only C", appName: "Editor", pid: pid,
+                                                        windowOwnerPID: renderer, isOnScreen: false, isMinimized: true, frame: frame)
+                FrontAppEnumerator.items = [b, a, privateWindow]
+                FrontAppEnumerator.stackRows = [FrontAppEnumerator.stackRow(b), FrontAppEnumerator.stackRow(a)]
+            }
+            if service.currentSpaceOnly { Desktop.SpaceWindowBridge.visibleSpaces = [2] }
             if scenario != .noNotice { Desktop.Events.shared.deliver?(.changed(ids[2])) }
             let wide = scenario == .allApps || scenario == .allWindows
             let shortcut: GlobalShortcut = scenario == .allApps ? .switcherDefault
                 : (scenario == .allWindows ? .switcherAllWindowsDefault : .switcherWindowDefault)
             let before = Activator.activated
             let generation = press(service, shortcut: shortcut)
-            if scenario == .escape {
+            func escape(flags: CGEventFlags) -> Bool {
                 let esc = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(KeyCode.escape), keyDown: true)!
-                esc.flags = shortcut.modifiers.cgFlags
-                _ = service.route(type: .keyDown, event: esc)
+                esc.flags = flags
+                return service.route(type: .keyDown, event: esc) == nil
             }
+            if scenario == .escape { _ = escape(flags: shortcut.modifiers.cgFlags) }
             let release = CGEvent(source: nil)!
             release.flags = []
+            if scenario.held {
+                service.frontAppReadQueue.drain()
+                Queue.advance(to: Queue.time)
+                let target = scenario == .heldKnown ? a : c
+                guard let index = service.windows.firstIndex(where: { $0.id == target.id }) else {
+                    suite.expect(false, "the private panel includes its AX-only card and both remembered windows")
+                    continue
+                }
+                service.select(index: index)
+                if scenario != .heldClosed { Activator.AXWindowResolver.windows = [ids[2]: renderer] }
+                if scenario == .heldWrongOwner { Activator.WindowServerSupport.owners[ids[2]] = pid }
+                _ = service.route(type: .flagsChanged, event: release)
+                if scenario == .heldKnown {
+                    suite.expect(service.recordedIDs == [a.id] && Activator.activated == before + [a.id]
+                                 && service.frontAppReadQueue.pending.isEmpty, "a known selection commits without probing another card")
+                    continue
+                }
+                suite.expect(service.frontAppReadQueue.pending.count == 1 && service.recordedIDs.isEmpty
+                             && Activator.AXWindowResolver.queries.isEmpty && Activator.activated == before
+                             && !service.keyboardInputOwnership.isOwned && !service.sessionActive && service.panel?.isVisible == false,
+                             "releasing the held selection returns the keyboard and closes the panel before the worker checks it")
+                if scenario == .heldInconclusive { Permissions.shared.accessibility = false }
+                service.frontAppReadQueue.drain()
+                if scenario == .heldEscape {
+                    suite.expect(escape(flags: []), "Escape cancels the outstanding selection after modifier release")
+                }
+                if scenario == .heldDestroyed { Desktop.Events.shared.deliver?(.destroyed(ids[2])) }
+                if scenario == .heldTypeW || scenario == .heldTypeQ {
+                    var commands: [SwitcherLetterAction] = []
+                    service.runProtectedLetterAction = { commands.append($0) }
+                    let letter = CGEvent(keyboardEventSource: nil, virtualKey: scenario == .heldTypeW ? 13 : 12, keyDown: true)!
+                    letter.flags = []
+                    var character = UniChar(scenario == .heldTypeW ? 0x77 : 0x71)
+                    letter.keyboardSetUnicodeString(stringLength: 1, unicodeString: &character)
+                    let delivered = service.route(type: .keyDown, event: letter)?.takeUnretainedValue()
+                    suite.expect(delivered === letter && commands.isEmpty,
+                                 "the app receives the typed letter while the AX reply is pending without a close or quit command")
+                }
+                Queue.advance(to: Queue.time)
+                let expected = scenario == .heldLive ? [c.id] : []
+                let queriedAX = scenario != .heldWrongOwner && scenario != .heldInconclusive
+                suite.expect(Activator.AXWindowResolver.queries == (queriedAX ? [ids[2]] : [])
+                             && service.recordedIDs == expected && Activator.activated == before + expected
+                             && !service.keyboardInputOwnership.isOwned,
+                             "\(scenario) activates only the selected AX window whose owner confirmed it")
+                continue
+            }
             _ = service.route(type: .flagsChanged, event: release)
             if wide {
                 suite.expect(Activator.activated == before + [a.id] && service.frontAppReadQueue.pending.isEmpty,
@@ -1047,44 +1166,36 @@ enum SwitcherHoverSelectionTests {
             suite.expect(Activator.activated == before && service.frontAppReadQueue.pending.count == 1,
                          "\(scenario) queues one private read and leaves the key path free")
             if scenario == .timeout { Queue.advance(to: Queue.time + 1) }
+            if scenario == .differentCapturedSpace { Desktop.SpaceWindowBridge.visibleSpaces = [3] }
             service.frontAppReadQueue.drain()
             if scenario == .newerFocus { Desktop.WindowUseTracker.confirmedFocus = ids[0] }
-            if scenario == .space {
-                Desktop.SpaceWindowBridge.visibleSpaces = [2]
+            if scenario == .repeatedFocus { Desktop.WindowUseTracker.shared.recordObservedFocus(windowID: ids[1], pid: pid) }
+            if scenario == .changedPrevious { Desktop.WindowUseTracker.shared.recordObservedFocus(windowID: ids[0], pid: pid) }
+            if scenario == .changedPrevious || scenario == .confirmedSource {
+                Desktop.WindowUseTracker.shared.recordObservedFocus(windowID: ids[2], pid: pid)
+            }
+            if scenario == .destroyedTarget { Desktop.Events.shared.deliver?(.destroyed(ids[1])) }
+            if service.currentSpaceOnly {
+                Desktop.SpaceWindowBridge.visibleSpaces = scenario == .changedSpace ? [3] : [2]
                 Desktop.Events.shared.deliver?(.spacesChanged)
             }
             Queue.advance(to: Queue.time)
-            if [.omittedFocus, .conflictingFocus, .escape, .space, .timeout, .newerFocus].contains(scenario) {
-                suite.expect(Activator.activated == before && !service.keyboardInputOwnership.isOwned && service.startedGenerations.isEmpty,
-                             "\(scenario) discards the late reply and gives back the keyboard")
-                if scenario == .omittedFocus || scenario == .conflictingFocus {
-                    suite.expect(FrontAppEnumerator.reads == [pid, pid], "inconsistent focus gets one scoped retry")
+            let discarded: [Case] = [.omittedFocus, .conflictingFocus, .escape, .changedSpace, .differentCapturedSpace, .timeout, .newerFocus,
+                                     .unlistedFront, .repeatedFocus, .changedPrevious, .destroyedTarget]
+            if discarded.contains(scenario) {
+                suite.expect(Activator.activated == before && !service.keyboardInputOwnership.isOwned && service.recordedIDs.isEmpty
+                             && (scenario == .destroyedTarget || service.startedGenerations.isEmpty),
+                             "\(scenario) discards the reply without recording or activating any target")
+                if [.omittedFocus, .conflictingFocus, .unlistedFront].contains(scenario) {
+                    suite.expect(FrontAppEnumerator.reads == [pid, pid], "inconsistent evidence gets one scoped retry")
                 }
             } else {
-                let target = scenario == .background ? a : b
+                let target = sourceIsB || scenario == .observedPrevious || scenario == .onlyPreviousObserved ? a : b
                 suite.expect(service.startedGenerations == [generation] && Activator.activated == before + [target.id]
-                             && Activator.lastSourceWindowID == source
+                             && service.recordedIDs == [target.id] && Activator.lastSourceWindowID == source
                              && FrontAppEnumerator.reads == (scenario == .retry ? [pid, pid] : [pid]),
                              "\(scenario) commits once from the fresh source to the editor's previous window")
             }
-        }
-        // A held panel can outlive its opening snapshot. An AX-only card can disappear
-        // without ever having a WindowServer row, while a remembered target stays valid.
-        let previousItems = FrontAppEnumerator.items
-        defer { FrontAppEnumerator.items = previousItems; Desktop.SpaceWindowBridge.canReadWindowIDs = true }
-        FrontAppEnumerator.items = [b, a]
-        for (readable, selected) in [(false, b), (false, c), (true, c)] {
-            let service = Service(), before = Activator.activated
-            service.windows = [c, b, a]
-            service.sessionScope = .frontmostApp
-            service.sessionActive = true
-            service.selectedIndex = selected.id == b.id ? 1 : 0
-            service.windowInventory.removedIDs = [c.id]
-            Desktop.SpaceWindowBridge.canReadWindowIDs = readable
-            service.commitSession()
-            let expected = selected.id == b.id ? before + [b.id] : before
-            suite.expect(Activator.activated == expected && !service.sessionActive,
-                         "a held selection checks only its chosen target and cancels if its existence is uncertain")
         }
     }
 

@@ -44,6 +44,7 @@ final class SwitcherWindowInventory {
     private let titles = SwitcherWindowTitles()
 
     var onReady: (([SwitcherItem]) -> Void)?
+    var onWindowDestroyed: ((CGWindowID) -> Void)?
     private(set) var isReady = false
 
     func start() {
@@ -213,7 +214,10 @@ final class SwitcherWindowInventory {
         case .membershipChanged:
             invalidate()
             return
-        case .changed(let id), .destroyed(let id), .focused(let id):
+        case .destroyed(let id):
+            onWindowDestroyed?(id)
+            windowID = id
+        case .changed(let id), .focused(let id):
             windowID = id
         }
         guard !NSApp.windows.contains(where: { SwitcherWindowEvents.matchesWindowNumber($0.windowNumber, windowID: windowID) }) else {

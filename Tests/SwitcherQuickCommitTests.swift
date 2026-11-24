@@ -256,7 +256,8 @@ enum SwitcherQuickCommitTests {
         Reader.items = [source, raised, destination]
         tracker.history = [44]
         Opening.WindowUseTracker.physicalOrder = nil
-        Opening.WindowUseTracker.confirmedFocus = nil
+        Opening.WindowUseTracker.confirmedFocus = 44
+        Opening.WindowActivator.focusedWindow = 43
         let reordered = Reader.readFrontAppSelection(snapshot: snapshot, frontmostPID: host, displayScope: nil,
                                                      knownWindowIDs: [44, 45], isCancelled: { false })
         suite.expect(reordered.list.items.map(\.id) == [source.id, destination.id, raised.id],

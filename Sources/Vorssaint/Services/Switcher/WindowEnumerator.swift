@@ -101,6 +101,7 @@ enum WindowEnumerator {
         /// to the foreground window even when it belongs to another display.
         let sourceItems: [SwitcherItem]
         var activationSnapshot: SwitcherWindowServerSnapshot? = nil
+        var capturedVisibleSpaces: Set<UInt64>? = nil
         var bundleIdentifiers: [pid_t: String] = [:]
         var nativeFullscreenWindowIDs: Set<CGWindowID> = []
         var observedWindowIDs: Set<CGWindowID> = []
@@ -391,14 +392,15 @@ enum WindowEnumerator {
         let windows = captured.items.filter { $0.pid == appPID && $0.windowID != nil }
         let visible = windows.filter { $0.isOnScreen && !$0.isMinimized }
         let visibleIDs = Set(visible.compactMap(\.windowID))
-        let physicalOrder = WindowUseTracker.frontToBack().windows
-        let stack = physicalOrder.filter { visibleIDs.contains($0) }
+        let stack = frontAppWindowStack(appPID: appPID, snapshot: snapshot, captured: captured)
         let top = stack.first
+        // The candidate capture can predate the new window while AX still names its predecessor.
+        if let top, !visibleIDs.contains(top) { return empty }
         let ax = snapshot.accessibilityGranted ? WindowActivator.focusedWindowID(for: frontmostPID) : nil
         if let top, let ax, ax != top { return empty }
         // Even matching old history and z-order can describe an inventory that missed a new AX window.
         if let reported = ax ?? observed.windowID, !windows.contains(where: { $0.windowID == reported }) { return empty }
-        if let hint = observed.windowID, !visibleIDs.contains(hint), physicalOrder.contains(hint) { return empty }
+        if let hint = observed.windowID, !visibleIDs.contains(hint), stack.contains(hint) { return empty }
         // A window can be ordered to the front without taking keyboard focus.
         if ax == nil, let hint = observed.windowID, visibleIDs.contains(hint), let top, top != hint { return empty }
         let source = (ax ?? top ?? observed.windowID).flatMap { id in visible.first { $0.windowID == id } }
@@ -411,16 +413,34 @@ enum WindowEnumerator {
             list = WindowList(items: list.items, sourceItems: source.map { [$0] + list.sourceItems } ?? [],
                               activationSnapshot: captured.activationSnapshot)
         }
-        // If the source is new, another previously unseen window may have been focused just
-        // before it. Its position behind the source is the only recorded evidence of that use.
-        if let source, let sourceID, !knownWindowIDs.contains(sourceID), top == sourceID, !list.items.isEmpty {
-            let eligible = displayScope.map {
+        let previousCandidates: Set<CGWindowID>
+        if let source, let sourceID, !list.items.isEmpty {
+            let onDisplay = displayScope.map {
                 SwitcherSupport.itemsOnDisplay(list.sourceItems, displayBounds: $0.bounds, targetIndex: $0.targetIndex)
             } ?? list.sourceItems
-            let ids = Set(eligible.compactMap(\.windowID))
-            if let id = stack.dropFirst().first(where: { ids.contains($0) }),
-               !knownWindowIDs.contains(id), !observed.observedWindows.contains(id),
-               let previous = eligible.first(where: { $0.windowID == id }) {
+            let destinations = onDisplay.filter { $0.windowID != nil && $0.windowID != sourceID }
+            let defaults = UserDefaults.standard
+            let defersMinimized = defaults.string(forKey: DefaultsKey.switcherMinimizedPlacement)
+                == WindowSwitchMinimizedPlacement.end.rawValue
+            let hiddenAsMinimized = defaults.bool(forKey: DefaultsKey.switcherTreatHiddenAppsLikeMinimized)
+            let primary = defersMinimized ? destinations.filter {
+                !$0.isMinimizedForPlacement(treatHiddenAppsLikeMinimized: hiddenAsMinimized)
+            } : []
+            let eligible = primary.isEmpty ? destinations : primary
+            previousCandidates = Set(eligible.compactMap(\.windowID))
+            var previousID = observed.observedWindows.first(where: previousCandidates.contains)
+            if previousID == nil, top == sourceID,
+               let next = stack.dropFirst().first(where: { !visibleIDs.contains($0) || previousCandidates.contains($0) }) {
+                previousID = next
+                if knownWindowIDs.contains(sourceID), !knownWindowIDs.contains(next) {
+                    // A new background window need not displace the already known previous window.
+                    previousID = tracker.windows.first {
+                        knownWindowIDs.contains($0) && previousCandidates.contains($0)
+                    } ?? next
+                }
+            }
+            if let previousID {
+                guard let previous = eligible.first(where: { $0.windowID == previousID }) else { return empty }
                 // The ordinary MRU cap may have omitted this previously unknown window.
                 if !list.items.contains(where: { $0.id == previous.id }) {
                     list.items.removeLast()
@@ -429,13 +449,47 @@ enum WindowEnumerator {
                 list.items = SwitcherSupport.orderedForSession(list.items, currentID: previous.id)
                 list.items = SwitcherSupport.orderedForSession(list.items, currentID: source.id)
             }
+        } else {
+            previousCandidates = []
         }
+        let expectedPrevious = list.items.first { $0.windowID != sourceID }?.windowID
+        list.capturedVisibleSpaces = captured.capturedVisibleSpaces
         let focusStillCurrent = {
             // A different app taking focus clears this app's hint (#4393).
-            guard let latest = tracker.frontAppFocus(for: frontmostPID).windowID else { return true }
-            return latest == observed.windowID || latest == sourceID
+            let latest = tracker.frontAppFocus(for: frontmostPID)
+            guard let latestID = latest.windowID, latest.confirmation != observed.confirmation else { return true }
+            guard latestID == sourceID else { return false }
+            // Returning to the same source can make a different window its predecessor.
+            let latestPrevious = latest.observedWindows.first(where: previousCandidates.contains)
+            return latestPrevious == nil || latestPrevious == expectedPrevious
         }
         return (list, sourceID, focusStillCurrent)
+    }
+
+    /// Keep the real app's on-screen stack, including a plausible new surface absent from the
+    /// candidate capture. A foreign owner's window or an overlay cannot invalidate this request.
+    private static func frontAppWindowStack(appPID: pid_t, snapshot: Snapshot, captured: WindowList) -> [CGWindowID] {
+        let rows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] ?? []
+        let appItems = captured.items.filter { $0.pid == appPID }
+        let candidateIDs = Set(appItems.compactMap(\.windowID))
+        var owners = [appPID: true]
+        for item in appItems { owners[item.windowOwnerPID] = true }
+        return rows.compactMap { row in
+            guard (row[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                  (row[kCGWindowAlpha as String] as? NSNumber)?.doubleValue != 0,
+                  let owner = (row[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+                  let id = (row[kCGWindowNumber as String] as? NSNumber)?.uint32Value else { return nil }
+            if owners[owner] == nil {
+                owners[owner] = Self.appPID(forWindowOwner: owner, runningApps: snapshot.runningApps) == appPID
+            }
+            guard owners[owner] == true else { return nil }
+            if candidateIDs.contains(id) { return id }
+            guard let bounds = row[kCGWindowBounds as String] as? [String: Any],
+                  let frame = CGRect(dictionaryRepresentation: bounds as CFDictionary), frameIsSwitchable(frame),
+                  !SpaceWindowBridge.isExcludedFromWindowCycle(id) else { return nil }
+            return id
+        }
     }
 
     /// The Command Bar shares the window walk, not the Switcher's visibility
@@ -982,6 +1036,7 @@ enum WindowEnumerator {
                 return id
             })
         }
+        if forFrontAppSession { list.capturedVisibleSpaces = topology?.visibleSpaces }
         return list
     }
 
