@@ -728,7 +728,7 @@ private struct NotchAgentTrendCard: View {
             return (label(bucket.start, long: true) + " · " + value, partial)
         }
         let total = snapshot.usage(period).total
-        let partial = byCost && total.hasPartialCost
+        let partial = byCost && snapshot.hasPartialCost(period)
         let value = byCost ? AgentFormat.cost(total.cost, partial: partial)
             : text.tokens(AgentFormat.tokens(total.tokens.total))
         return (text.period(period) + " · " + value, partial)
