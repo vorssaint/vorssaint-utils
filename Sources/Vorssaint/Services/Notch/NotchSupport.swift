@@ -3161,14 +3161,14 @@ enum NotchMenuBarLayout {
     /// Without an item on this display, its menu space remains unknown.
     /// Only status windows actually centered inside this display's bar are evidence about its icons.
     static func statusFrames(screen: CGRect, barHeight: CGFloat, windows: [CGRect],
-                             requiresExtras: Bool, extras: () -> [CGRect]?) -> [CGRect]? {
+                             requiresExtras: Bool, extras: (CGRect) -> [CGRect]?) -> [CGRect]? {
         let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)
         func onBar(_ rect: CGRect) -> Bool {
             !rect.isEmpty && bar.contains(CGPoint(x: rect.midX, y: rect.midY))
         }
         let legacy = windows.filter(onBar)
         if !requiresExtras, !legacy.isEmpty { return legacy }
-        guard let reported = extras() else { return nil }
+        guard let reported = extras(bar) else { return nil }
         let visible = reported.filter(onBar)
         guard !visible.isEmpty else { return nil }
         return visible + legacy
