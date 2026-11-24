@@ -266,7 +266,7 @@ enum SettingsDirectory {
         let batteryRest = state.hardware.battery && state.batteryRest
         let tintedBattery = batteryRest && state.on(DefaultsKey.notchLowBatteryTint)
         let islandTerms: [SettingsSearchTerms] = [
-            .init([notchEditor.layout, notch.size, notch.translucentBackground, notch.showOutline], notch: .layout),
+            .init([notchEditor.layout, notch.size, notch.translucentBackground, notch.showOutline, notch.restingGlass], notch: .layout),
             // Shown above the tabs, so it belongs to no one tab.
             .init([notch.claudeQuestions]),
             .init([notch.width, notch.maximumHeight], notch: .layout, when: state.customSize),
@@ -603,7 +603,7 @@ enum SettingsDirectory {
                                       icon: "macbook",
                                       keywords: [notch.description, "notch"], terms: islandTerms),
                 SettingsDirectoryItem(page: .notchMascot, title: mascot.title,
-                                      icon: AppFeature.notchMascot.symbolName, keywords: mascot.searchKeywords,
+                                      icon: AppFeature.notchMascot.symbolName, keywords: mascot.searchKeywords + [FeatureStrings.notchCompanion(language).character],
                                       terms: [
                                         .init([mascot.shape], when: state.minimalMascot),
                                         .init([mascot.side], when: state.hardware.notchedDisplay || !state.capsule),

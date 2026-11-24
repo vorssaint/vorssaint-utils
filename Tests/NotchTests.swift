@@ -1901,8 +1901,13 @@ enum NotchTests {
     private static func restingGlassContracts(_ suite: TestSuite) {
         let domain = "com.vorssaint.tests.notch-resting-glass"
         let defaults = UserDefaults(suiteName: domain)!
+        // Registration is process-wide, so later migration checks need it back.
+        let registrationDomain = UserDefaults.standard.volatileDomain(forName: UserDefaults.registrationDomain)
         defaults.removePersistentDomain(forName: domain)
-        defer { defaults.removePersistentDomain(forName: domain) }
+        defer {
+            defaults.removePersistentDomain(forName: domain)
+            UserDefaults.standard.setVolatileDomain(registrationDomain, forName: UserDefaults.registrationDomain)
+        }
         defaults.register(defaults: Defaults.registeredDefaults)
         suite.expect(!NotchRestingGlass.isEnabled(in: defaults, reduceTransparency: false)
                 && NotchRestingGlass.tint(in: defaults) == NotchRestingGlass.defaultTint

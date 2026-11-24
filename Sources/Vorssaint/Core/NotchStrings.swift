@@ -1080,11 +1080,11 @@ extension NotchStrings {
         restingGlass: "Siyah yerine cam",
         restingGlassHint: "Dynamic Island kapalıyken düz siyah yerine arkasındaki ekranı gösterir.",
         restingGlassTransparency: "Saydamlık",
-        restingGlassTransparencyHint: "%100'de cam karartılmaz.",
+        restingGlassTransparencyHint: "%100’de cam karartılmaz.",
         restingGlassFrost: "Buzlu cam",
-        restingGlassFrostHint: "Camın arkasındakini ne kadar bulanıklaştırdığı. %0'da net kalır.",
+        restingGlassFrostHint: "Camın arkasındakini ne kadar bulanıklaştırdığı. %0’da net kalır.",
         restingBrightness: "Bekleme parlaklığı",
-        restingBrightnessHint: "Kapalı Dynamic Island'ın simgelerini ve metnini soluklaştırır. Açıldığında tam parlaklık geri gelir."
+        restingBrightnessHint: "Kapalı Dynamic Island’ın simgelerini ve metnini soluklaştırır. Açıldığında tam parlaklık geri gelir."
     )
 
     static let ja = NotchStrings(
