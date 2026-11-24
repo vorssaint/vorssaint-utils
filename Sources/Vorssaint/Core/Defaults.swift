@@ -681,7 +681,6 @@ enum DefaultsKey {
     // Per UID, selector:element keys carry restore targets. A bare legacy element still needs a writability check.
     static let micMuteSavedControls = "micMuteSavedControls"
     // Channel elements to preserve on a pending master restore, by UID.
-    // While resolving a legacy UID-only gain, element 0 records an observed master.
     static let micMuteProtectedChannels = "micMuteProtectedChannels"
     static let micMutePendingLegacyControls = "micMutePendingLegacyControls" // unresolved pre-3.2 default input and its controls
     static let micMuteMixerHandoffUID = "micMuteMixerHandoffUID" // input with a mixer handoff in progress

@@ -15,8 +15,8 @@ enum MicMuteSupport {
     static let ownDeviceNames: Set<String> = ["Vorssaint Mixer", "Vorssaint AirPlay", "Vorssaint Island Levels",
                                               "Vorssaint Recorder"]
 
-    /// The level a device falls back to when nothing was ever saved for it:
-    /// loud enough to be usable, quiet enough not to startle.
+    /// A restore bound to the old default input and its scalar elements can
+    /// lack an original gain. Its historical fallback was 75 percent.
     static let fallbackVolume: Float = 0.75
     /// Drivers may rebound to a small positive gain after a zero write. It
     /// still needs to be zeroed and cannot establish a call's unmute.
@@ -81,11 +81,6 @@ enum MicMuteSupport {
             previous.isSilenced && ((previous.gain == .silent && gain == .audible)
                 || ((previous.muteSwitch == 1 || !previous.mutedElements.isEmpty) && muteSwitch == 0))
         }
-    }
-
-    static func volumeToRestore(uid: String, saved: [String: Double]) -> Float {
-        if let value = saved[uid], shouldSaveVolume(Float(value)) { return Float(value) }
-        return fallbackVolume
     }
 
     /// Master first, then every channel the stream layout named, never fewer
