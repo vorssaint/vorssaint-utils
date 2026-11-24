@@ -54,6 +54,15 @@ enum FanControlRecoveryContract {
         func readTemperatures() -> FanControlTemperatureSample {
             FanControlTemperatureSample(readings: temperatures, gpuPoweredDown: gpuPoweredDown)
         }
+
+        func snapshot(isCooling: Bool, endsAt: Date?, stopReason: FanControlStopReason?,
+                      coolingLevel: Int?, configuration: FanControlConfiguration?) throws -> FanControlSnapshot {
+            let fan = FanControlFanReading(index: 0, actualRPM: 1_800, minimumRPM: 1_200,
+                                           maximumRPM: 5_800, targetRPM: 1_800, isManuallyControlled: isManual)
+            return FanControlSnapshot(fans: [fan], isCooling: isCooling, endsAt: endsAt, stopReason: stopReason,
+                                      coolingLevel: coolingLevel, configuration: configuration,
+                                      temperatures: temperatures, gpuPoweredDown: gpuPoweredDown)
+        }
     }
 
     final class Ownership {

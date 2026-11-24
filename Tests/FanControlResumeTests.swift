@@ -31,20 +31,69 @@ enum FanControlResumeContract {
     }
     final class Invalidating {
         var invalidated = false
+        var tolerance: TimeInterval = 0
+        private var tick: ((Invalidating) -> Void)?
+        static func scheduledTimer(withTimeInterval: TimeInterval, repeats: Bool,
+                                   block: @escaping (Invalidating) -> Void) -> Invalidating {
+            let timer = Invalidating()
+            timer.tick = block
+            return timer
+        }
+        func fire() { if !invalidated { tick?(self) } }
         func invalidate() { invalidated = true }
     }
-    struct StatusProxy {
-        func status(withReply reply: () -> Void) { reply() }
+    typealias Timer = Invalidating
+    final class StatusProxy {
+        var statusReads = 0
+        var heartbeats = 0
+        var restores = 0
+        var holdRestore = false
+        var heldRestore: (() -> Void)?
+        var holdNextStatus = false
+        var heldStatus: (() -> Void)?
+        var holdNextApply = false
+        var heldApply: (() -> Void)?
+        var writes: [FanControlConfiguration] = []
+        func status(withReply reply: @escaping () -> Void) {
+            statusReads += 1
+            if holdNextStatus {
+                holdNextStatus = false
+                heldStatus = reply
+            } else { reply() }
+        }
+        func heartbeat(withReply reply: () -> Void) { heartbeats += 1; reply() }
+        func restoreAutomatic(withReply reply: @escaping () -> Void) {
+            restores += 1
+            if holdRestore { heldRestore = reply } else { reply() }
+        }
+        func applyConfiguration(_ data: Data, withReply reply: @escaping () -> Void) {
+            if let configuration = FanControlIPC.decodeConfiguration(data) { writes.append(configuration) }
+            if holdNextApply {
+                holdNextApply = false
+                heldApply = reply
+            } else { reply() }
+        }
     }
     class Fixture {
         enum AccessState { case notRegistered, requiresApproval, enabled, unavailable }
-        static let shared = Service()
+        final class Registration {
+            var unregisterCalls = 0
+            func unregister() throws { unregisterCalls += 1 }
+        }
+        static let appService = Registration()
+        static var shared = Service()
         static var helperVersion = "bundled"
         static let log = Logger(subsystem: "com.vorssaint.tests", category: "FanControlResume")
         var accessState = AccessState.enabled
         var snapshot = FanControlSnapshot.empty
         var error: FanControlErrorCode?
         var statusResponse: FanControlResponse?
+        var controller: FanControlRecoveryContract.Controller?
+        let proxy = StatusProxy()
+        var tickCount = 0
+        var hadActiveControl = false
+        var handoffInFlight = false
+        var recoveryPollInterval = 2
         var requestGeneration = 0
         var requestInFlight = false
         var panelIsVisible = false
@@ -53,36 +102,36 @@ enum FanControlResumeContract {
         var observing = true
         var isWorking = false
         var resumeFailures = 0
-        var interruption: FanControlInterruption?
         var dismissedStopReason: FanControlStopReason?
         var scheduledResumes: [TimeInterval] = []
         var applied: [FanControlConfiguration] = []
         var events: [String] = []
-        func send(_ operation: (StatusProxy, () -> Void) -> Void,
+        func send(_ operation: (StatusProxy, @escaping () -> Void) -> Void,
                   completion: @escaping (FanControlResponse?) -> Void) {
-            operation(StatusProxy()) { completion(self.statusResponse) }
+            operation(proxy) { completion(self.controller?.statusResponse() ?? self.statusResponse) }
         }
-        func refreshAccessState() {}
+        func refreshAccessState() {
+            if Self.appService.unregisterCalls > 0 { accessState = .notRegistered }
+        }
         func applyConfiguration(_ configuration: FanControlConfiguration, resuming: Bool) {
             applied.append(configuration)
         }
         func scheduleResumeAttempt(after delay: TimeInterval) { scheduledResumes.append(delay) }
         func cancelResumeAttempt() { scheduledResumes.removeAll() }
-        func restoreAutomatic() { events.append("restore") }
-        func restoreAutomatic(supersedingCurrentRequest: Bool) { events.append("restore superseding") }
-        func restoreThenUnregister() { events.append("unregister") }
+        func authorize() { events.append("authorize") }
         func refresh() { events.append("refresh") }
         func startObservingSystemState() { observing = true }
         func stopObservingSystemState() { observing = false }
     }
 
     static func run(_ suite: TestSuite) {
-        let service = Service.shared
+        var service: Service { Service.shared }
         let defaults = UserDefaults.standard
         let manual = FanControlConfiguration.manual(level: 100)
         func reset(resume: Bool = true, stored: FanControlConfiguration? = manual,
                    recovery: Bool = false) {
             Environment.available = true
+            Service.appService.unregisterCalls = 0
             defaults.values = [:]
             defaults.values[DefaultsKey.fanControlResume] = resume
             defaults.values[DefaultsKey.fanControlRecoveryNeeded] = recovery
@@ -91,38 +140,24 @@ enum FanControlResumeContract {
                 defaults.values[DefaultsKey.fanControlResumeConfiguration] =
                     FanControlConfiguration.encodeResume(stored)
             }
-            service.accessState = .enabled
-            service.snapshot = .empty
-            service.error = nil
-            service.statusResponse = nil
-            service.requestInFlight = false
-            service.panelIsVisible = false
-            service.timer = Invalidating()
+            Service.shared = Service()
             service.connection = Invalidating()
-            service.observing = true
-            service.applied = []
-            service.events = []
-            service.isWorking = false
-            service.resumeFailures = 0
-            service.interruption = nil
-            service.dismissedStopReason = nil
-            service.scheduledResumes = []
             ProcessInfo.processInfo.thermalState = .nominal
         }
         var storedResume: String? { defaults.string(forKey: DefaultsKey.fanControlResumeConfiguration) }
 
         reset(resume: false, recovery: true)
         Service.recoverIfNeeded()
-        suite.expect(service.applied.isEmpty && service.events == ["restore"],
+        suite.expect(service.applied.isEmpty && service.proxy.restores == 1,
                      "without resume, a launch after an interrupted session only returns the fans to the system")
         reset(recovery: true)
         Service.recoverIfNeeded()
-        suite.expect(service.applied == [manual] && service.events.isEmpty,
+        suite.expect(service.applied == [manual] && service.events.isEmpty && service.proxy.restores == 0,
                      "with resume on, a launch re-applies the kept control instead of restoring first")
         reset()
         service.accessState = .requiresApproval
         Service.recoverIfNeeded()
-        suite.expect(service.applied.isEmpty && service.events.isEmpty,
+        suite.expect(service.applied.isEmpty && service.events.isEmpty && service.proxy.restores == 0,
                      "a resume never asks for helper approval on its own")
         reset()
         Environment.available = false
@@ -227,10 +262,11 @@ enum FanControlResumeContract {
 
         reset()
         service.returnToSystem()
-        suite.expect(storedResume == nil && service.events == ["restore"],
+        suite.expect(storedResume == nil && service.proxy.restores == 1,
                      "returning to System forgets the kept control and restores the fans")
 
         reset()
+        service.timer = Invalidating()
         service.stopIdleWorkIfPossible()
         suite.expect(service.timer == nil && service.connection == nil && service.observing,
                      "idle work stops while a pending resume keeps watching for the next wake")
@@ -240,16 +276,16 @@ enum FanControlResumeContract {
 
         reset()
         service.workspaceDidWake()
-        suite.expect(service.applied == [manual] && service.events.isEmpty,
+        suite.expect(service.applied == [manual] && service.events.isEmpty && service.proxy.restores == 0,
                      "waking re-applies the kept control")
         reset(resume: false, recovery: true)
         service.workspaceDidWake()
-        suite.expect(service.applied.isEmpty && service.events == ["restore superseding"],
+        suite.expect(service.applied.isEmpty && service.proxy.restores == 1,
                      "without resume, waking still returns an interrupted session to the system")
         reset(resume: false)
         service.panelIsVisible = true
         service.workspaceDidWake()
-        suite.expect(service.applied.isEmpty && service.events == ["refresh"],
+        suite.expect(service.applied.isEmpty && service.events == ["refresh"] && service.proxy.restores == 0,
                      "without resume, waking only refreshes a visible panel")
 
 
@@ -337,15 +373,20 @@ enum FanControlResumeContract {
         suite.expect(storedResume == nil && service.applied.isEmpty,
                      "selecting System then Manual cannot bring back an unapplied curve")
 
+        var active = FanControlSnapshot.empty
+        active.isCooling = true
+        active.configuration = manual
         for reason: FanControlStopReason? in [.hardwareChanged, .temperatureUnavailable, .thermalPressure,
                                                .recovery, .appDisconnected, .timeLimit, nil, .heartbeatLost] {
             reset()
-            service.snapshot.isCooling = true
+            service.statusResponse = .success(active)
+            service.applyConfiguration(manual)
             var stopped = FanControlSnapshot.empty
             stopped.stopReason = reason
-            service.applyStatus(.success(stopped))
-            service.applyStatus(.success(stopped))
-            suite.expect(service.scheduledResumes.count == (reason == .heartbeatLost ? 1 : 0)
+            service.statusResponse = .success(stopped)
+            service.poll()
+            service.requestStatus()
+            suite.expect(service.proxy.heartbeats == 1 && service.scheduledResumes.count == (reason == .heartbeatLost ? 1 : 0)
                             && (service.interruption != nil) == (reason != .heartbeatLost),
                          "polling a stopped session twice honors its reason and schedules at most once")
         }
@@ -353,25 +394,200 @@ enum FanControlResumeContract {
         service.resumeDidFail(.controlFailed, stopReason: .hardwareChanged)
         suite.expect(service.interruption == .resumeFailed && service.scheduledResumes.isEmpty,
                      "a refused application that lost hardware ownership leaves control with the system")
-        reset(resume: false, stored: nil)
-        service.snapshot.isCooling = true
+        for keepControl in [false, true] {
+            reset(resume: keepControl, stored: nil)
+            let controller = FanControlRecoveryContract.Controller()
+            controller.activeConfiguration = manual
+            service.controller = controller
+            service.applyConfiguration(manual)
+            controller.lastHeartbeatUptime -= FanControlPolicy.heartbeatLimit + 1
+            controller.watchdogTick()
+            service.timer?.fire()
+            suite.expect(controller.hardware?.restores == 1 && !controller.isRecovering
+                            && service.snapshot.stopReason == .heartbeatLost && service.interruptedStop == nil
+                            && !service.awaitingSystemControl && !defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded),
+                         "a handoff that succeeds on the first watchdog attempt needs no further confirmation")
+            suite.expect(service.scheduledResumes == (keepControl ? [FanControlResumePolicy.retryDelays[0]] : [])
+                            && service.interruption == (keepControl ? nil : .stopped(.heartbeatLost))
+                            && FanControlConfiguration.decodeResume(storedResume ?? "") == (keepControl ? manual : nil),
+                         "a confirmed heartbeat loss preserves the usual opt-in retry and the selected configuration")
+        }
         var stopped = FanControlSnapshot.empty
         stopped.stopReason = .heartbeatLost
-        service.applyStatus(.success(stopped))
-        suite.expect(service.interruption == .stopped(.heartbeatLost) && service.scheduledResumes.isEmpty,
-                     "a confirmed heartbeat loss is remembered without resuming control when resume is off")
+
+        var customCurve = FanControlConfiguration.defaultCurve
+        customCurve.sensor = .hottestGPU
+        let selection = FanControlConfiguration.curve([customCurve])
+        let storedCurves = FanControlConfiguration.encodeCurves([customCurve])
+        var running = active
+        running.configuration = selection
+        for panelOpen in [false, true] {
+            reset(resume: !panelOpen, stored: nil)
+            service.panelIsVisible = panelOpen
+            defaults.values[DefaultsKey.fanControlMode] = FanControlMode.curve.rawValue
+            defaults.values[DefaultsKey.fanControlCurves] = storedCurves
+            defaults.values[DefaultsKey.fanControlCoolingLevel] = 65
+            service.statusResponse = .success(running)
+            service.applyConfiguration(selection)
+            service.statusResponse = .failure(.controlFailed, snapshot: stopped)
+            service.poll()
+            var readTicks: [Int] = []
+            for tick in 1...32 {
+                let reads = service.proxy.statusReads
+                service.poll()
+                if service.proxy.statusReads > reads { readTicks.append(tick) }
+            }
+            let gaps = zip(readTicks.dropFirst(), readTicks).map { $0.0 - $0.1 }
+            suite.expect(readTicks.count >= 3 && readTicks.count < 10 && (gaps.last ?? 0) > (gaps.first ?? 0),
+                         "repeated unconfirmed handoffs back off between status checks")
+            suite.expect(service.proxy.writes == [selection] && service.proxy.heartbeats == 1 && storedResume == nil
+                            && defaults.bool(forKey: DefaultsKey.fanControlResume) == !panelOpen
+                            && service.isWorking && service.timer != nil && defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded),
+                         "a failed heartbeat handoff keeps polling for automatic control through another failed read")
+            if panelOpen {
+                service.statusResponse = .success(active) // An unrelated active session during recovery.
+                service.requestStatus()
+                let exitingConnection = service.connection
+                let exitingTimer = service.timer
+                service.proxy.holdNextStatus = true
+                service.requestStatus()
+                Service.restoreBeforeTerminationIfNeeded()
+                service.statusResponse = .success(.empty)
+                let late = service.proxy.heldStatus
+                service.proxy.heldStatus = nil
+                late?()
+                suite.expect(late != nil && !service.requestInFlight && exitingTimer?.invalidated == true && exitingConnection?.invalidated == true
+                                && service.connection == nil && service.proxy.restores == 0
+                                && defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded) && service.interruptedStop == stopped.stopReason?.rawValue,
+                             "quitting while another session is active only closes the client, and a late idle reply preserves the handoff markers")
+                Service.shared = Service() // Preserve only the preferences across relaunch.
+                service.panelIsVisible = true
+                service.accessState = .requiresApproval
+                Service.recoverIfNeeded()
+                service.workspaceWillSleep()
+                service.workspaceDidWake()
+                service.applyConfiguration(manual)
+                for _ in 0..<8 { service.poll() }
+                suite.expect(service.proxy.statusReads == 0 && service.proxy.restores == 0,
+                             "a relaunched client without approval waits without contacting the helper")
+                service.accessState = .enabled
+                service.proxy.holdNextStatus = true
+                service.requestStatus()
+                for _ in 0..<60 { service.poll() }
+                suite.expect(service.proxy.statusReads == 1 && service.requestInFlight, "polling leaves the in-flight status request alone")
+                service.statusResponse = .success(active) // An unrelated session now controls the fans.
+                let reply = service.proxy.heldStatus
+                service.proxy.heldStatus = nil
+                reply?()
+                defaults.values[DefaultsKey.fanControlResume] = false
+                service.resumePreferenceDidChange()
+                defaults.values[DefaultsKey.fanControlResume] = true
+                service.resumePreferenceDidChange()
+                service.statusResponse = nil
+                service.requestStatus()
+                service.retryResume()
+                suite.expect(service.proxy.writes.isEmpty && service.proxy.heartbeats == 0 && service.applied.isEmpty
+                                && service.proxy.restores == 0 && !service.events.contains("authorize")
+                                && storedResume == nil && defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded),
+                             "relaunch, missing approval, sleep and an external session cannot interrupt the pending handoff")
+            }
+            let priorWrites = service.proxy.writes
+            let readsBeforeConfirmation = service.proxy.statusReads
+            service.statusResponse = .success(.empty)
+            for _ in 0..<120 { service.poll() }
+            if !panelOpen {
+                suite.expect(service.proxy.statusReads == readsBeforeConfirmation + 1 && service.timer == nil,
+                             "the first idle confirmation stops all closed-panel status polling")
+            }
+            service.requestStatus() // Duplicate idle telemetry.
+            service.workspaceDidWake()
+            service.retryResume()
+            suite.expect(service.snapshot == .empty && service.interruption == .stopped(.heartbeatLost)
+                            && !service.isWorking && !defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
+                            && service.proxy.writes == priorWrites && service.scheduledResumes.isEmpty && service.applied.isEmpty,
+                         "confirmed automatic control ends the wait without reapplying the failed curve on a later wake")
+            suite.expect(storedResume == nil && defaults.bool(forKey: DefaultsKey.fanControlResume)
+                            && defaults.string(forKey: DefaultsKey.fanControlMode) == FanControlMode.curve.rawValue
+                            && defaults.string(forKey: DefaultsKey.fanControlCurves) == storedCurves
+                            && defaults.values[DefaultsKey.fanControlCoolingLevel] as? Int == 65,
+                         "loss of session consent preserves the user's selected mode, curves, manual speed and resume setting")
+            service.statusResponse = .failure(.controlFailed)
+            service.applyConfiguration(selection)
+            suite.expect(service.proxy.restores == 1 && !service.awaitingSystemControl && storedResume == nil
+                            && service.interruptedStop == FanControlStopReason.heartbeatLost.rawValue
+                            && service.interruption == .stopped(.heartbeatLost),
+                         "a refused explicit application uses the ordinary restore path without granting new resume consent")
+            service.statusResponse = .success(running)
+            service.applyConfiguration(selection)
+            suite.expect(service.proxy.writes == priorWrites + [selection, selection] && service.snapshot.isCooling && service.interruptedStop == nil
+                            && FanControlConfiguration.decodeResume(storedResume ?? "") == selection,
+                         "a new explicit application works once the system handoff has been confirmed")
+        }
+        for restored in [true, false] {
+            reset(stored: nil)
+            service.statusResponse = .success(active)
+            service.applyConfiguration(manual)
+            service.proxy.holdRestore = true
+            service.workspaceWillSleep()
+            service.workspaceWillSleep()
+            let reply = service.proxy.heldRestore
+            service.proxy.heldRestore = nil
+            service.statusResponse = restored ? .success(.empty) : .failure(.controlFailed, snapshot: stopped)
+            reply?()
+            service.workspaceDidWake()
+            suite.expect(reply != nil && service.proxy.restores == 1 && service.isWorking == !restored && (storedResume != nil) == restored
+                            && service.scheduledResumes.isEmpty && service.applied == (restored ? [manual] : []) && service.proxy.writes == [manual],
+                         "duplicate sleep notifications preserve the first restore reply and only a successful handoff resumes on wake")
+        }
+        reset(stored: nil)
+        service.statusResponse = .success(active)
+        service.applyConfiguration(manual)
+        let ownedConnection = service.connection
+        service.statusResponse = .success(.empty)
+        Service.restoreBeforeTerminationIfNeeded()
+        suite.expect(service.proxy.restores == 1 && ownedConnection?.invalidated == true && !defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded),
+                     "normal termination still restores an active local session and closes its connection")
         reset()
         Environment.available = false
+        service.statusResponse = .success(.empty)
         service.syncWithPreferences()
-        suite.expect(storedResume == nil && service.events == ["unregister"],
+        suite.expect(storedResume == nil && service.proxy.restores == 1 && Service.appService.unregisterCalls == 1,
                      "removing the feature forgets the kept control before unregistering the helper")
-        reset(stored: .curve([FanControlConfiguration.defaultCurve]))
-        defaults.values[DefaultsKey.fanControlMode] = FanControlMode.curve.rawValue
-        MainActor.assumeIsolated { checkCardFeedback(suite, service: service) }
+        for failureDuringRemoval in [false, true] {
+            for reenable in [false, true] {
+                reset(stored: nil)
+                defaults.values[DefaultsKey.fanControlHelperVersion] = Service.helperVersion
+                service.statusResponse = .success(active)
+                service.applyConfiguration(manual)
+                service.statusResponse = .failure(.controlFailed, snapshot: stopped)
+                if !failureDuringRemoval { service.heartbeat() }
+                Environment.available = false
+                service.syncWithPreferences()
+                suite.expect(service.awaitingSystemControl && storedResume == nil && Service.appService.unregisterCalls == 0
+                                && service.interruptedStop == stopped.stopReason?.rawValue && service.timer != nil && service.isWorking,
+                             "removing the feature waits for confirmed automatic control even when its own restore first fails")
+                if reenable {
+                    Environment.available = true
+                    service.syncWithPreferences()
+                }
+                service.statusResponse = .success(.empty)
+                service.requestStatus()
+                service.requestStatus()
+                suite.expect(!service.awaitingSystemControl && !defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
+                                && Service.appService.unregisterCalls == (reenable ? 0 : 1) && service.proxy.restores == (failureDuringRemoval ? 1 : 0)
+                                && defaults.string(forKey: DefaultsKey.fanControlHelperVersion) == (reenable ? Service.helperVersion : nil),
+                             "duplicate status confirmations preserve the registration only when the feature was reenabled")
+            }
+        }
+        for panelOpen in [false, true] {
+            reset(resume: panelOpen, stored: nil)
+            MainActor.assumeIsolated { checkCardFeedback(suite, panelOpen: panelOpen) }
+        }
         reset()
     }
 
-    @MainActor private static func checkCardFeedback(_ suite: TestSuite, service: Service) {
+    @MainActor private static func checkCardFeedback(_ suite: TestSuite, panelOpen: Bool) {
+        var service: Service { Service.shared }
         _ = NSApplication.shared
         let attribute = "AXEnhancedUserInterface"
         let getter = NSSelectorFromString("accessibilityAttributeValue:")
@@ -393,144 +609,204 @@ enum FanControlResumeContract {
             return (node.accessibilityChildren?() ?? []).flatMap { texts($0 as AnyObject) }
         }
         let defaults = UserDefaults.standard
-        let mode = Section(service: service, modeRaw: Binding(
-            get: { defaults.string(forKey: DefaultsKey.fanControlMode) ?? FanControlMode.system.rawValue },
-            set: { defaults.set($0, forKey: DefaultsKey.fanControlMode) }
-        )).modeBinding
-        func expectFeedback(status: String, message: String?, _ context: String) {
+        var mode: Binding<FanControlMode> {
+            Section(service: service, modeRaw: Binding(
+                get: { defaults.string(forKey: DefaultsKey.fanControlMode) ?? FanControlMode.system.rawValue },
+                set: { defaults.set($0, forKey: DefaultsKey.fanControlMode) }
+            )).modeBinding
+        }
+        func renderCard() -> NSHostingView<FanControlCardContent> {
             let card = FanControlCardContent(
                 strings: strings, betaLabel: "Beta", snapshot: service.snapshot, fallbackFanSpeeds: [],
                 accessState: service.accessState, error: service.error, isWorking: service.isWorking,
-                systemControlUnconfirmed: service.systemControlUnconfirmed, interruption: service.interruption,
+                systemControlUnconfirmed: service.awaitingSystemControl, interruption: service.interruption,
                 dismissedStopReason: service.dismissedStopReason,
-                mode: mode, coolingLevel: .constant(100),
+                mode: mode, coolingLevel: .constant(defaults.values[DefaultsKey.fanControlCoolingLevel] as? Int ?? 100),
                 curves: .constant([FanControlConfiguration.defaultCurve]),
                 resume: .constant(defaults.bool(forKey: DefaultsKey.fanControlResume)),
-                temperatureUnit: .celsius, authorize: {}, applyConfiguration: { _ in }, stopCooling: {}
+                temperatureUnit: .celsius, authorize: {}, applyConfiguration: service.applyConfiguration,
+                stopCooling: service.returnToSystem
             )
             let host = NSHostingView(rootView: card)
             window.contentView = host
             host.layoutSubtreeIfNeeded()
             RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            return host
+        }
+        func expectFeedback(status: String, message: String?, _ context: String) {
             let warnings = [strings.temperatureUnavailable, strings.safetyStopped, strings.failed,
                             strings.helperUnavailable, strings.awaitingSystemControl]
-            let rendered = texts(host)
+            let rendered = texts(renderCard())
             let headers = rendered.filter { $0.id == "fanControl.status" }.map { $0.text }
             let messages = rendered.map { $0.text }.filter(warnings.contains)
             suite.expect(headers == [status] && messages == (message.map { [$0] } ?? []),
                          "\(context): got headers \(headers), messages \(messages)")
         }
-        func receiveStatus(_ response: FanControlResponse?) {
-            service.statusResponse = response
-            service.requestStatus()
+        func pollUntilStatusRead() {
+            let previousReads = service.proxy.statusReads
+            for _ in 0..<60 {
+                service.timer?.fire()
+                if service.proxy.statusReads > previousReads { break }
+            }
+            suite.expect(service.proxy.statusReads == previousReads + 1,
+                         "the scheduled timer polls the helper while waiting for confirmation")
         }
 
-        var idle = FanControlSnapshot.empty
-        idle.fans = [.init(index: 0, actualRPM: 1_200, minimumRPM: 1_200, maximumRPM: 5_800,
-                           targetRPM: 1_200, isManuallyControlled: false)]
-        var stopped = idle
+        let controller = FanControlRecoveryContract.Controller()
+        let curves = [FanControlConfiguration.defaultCurve]
+        let curve = FanControlConfiguration.curve(curves)
+        let manual = FanControlConfiguration.manual(level: 65)
+        controller.activeConfiguration = curve
+        controller.hardware?.restoreResults = [false, true]
+        service.controller = controller
+        let active = controller.statusResponse().snapshot
+        defaults.set(FanControlConfiguration.encodeCurves(curves), forKey: DefaultsKey.fanControlCurves)
+        defaults.set(65, forKey: DefaultsKey.fanControlCoolingLevel)
+        mode.wrappedValue = .curve
         service.panelIsVisible = true
-        service.isWorking = true
-        defaults.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
-        expectFeedback(status: strings.controlUnconfirmed, message: nil,
-                       "starting a configuration does not announce a safety stop or return to system control")
-        service.isWorking = false
-        for (reason, message): (FanControlStopReason, String) in [
-            (.hardwareChanged, strings.safetyStopped), (.temperatureUnavailable, strings.temperatureUnavailable)
-        ] {
-            service.workspaceDidWake()
-            service.snapshot.isCooling = true
-            stopped.stopReason = reason
-            service.applyStatus(.success(stopped))
-            expectFeedback(status: strings.systemControl, message: message,
-                           "the card explains why the kept curve stopped (\(reason))")
-        }
-        service.workspaceDidWake()
-        for _ in 0...FanControlResumePolicy.retryDelays.count { service.resumeDidFail(.controlFailed) }
-        service.applyStatus(.success(stopped)) // An idle poll still carries the old sensor stop.
-        expectFeedback(status: strings.systemControl, message: strings.failed,
-                       "the card explains a later exhausted resume")
+        service.proxy.holdNextApply = true
+        service.applyConfiguration(curve)
+        expectFeedback(status: strings.systemControl, message: nil,
+                       "an initial Apply keeps the last status while waiting for the controller")
+        let applied = service.proxy.heldApply
+        service.proxy.heldApply = nil
+        applied?()
+        suite.expect(applied != nil && service.snapshot.isCooling && service.timer != nil,
+                     "an accepted curve starts the scheduled heartbeat")
+        service.panelIsVisible = panelOpen
+        service.stopIdleWorkIfPossible()
 
-        service.workspaceDidWake()
-        service.snapshot.isCooling = true
-        stopped.stopReason = .thermalPressure
-        defaults.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
-        receiveStatus(.failure(.controlFailed, snapshot: stopped))
+        controller.hardware?.temperatures = []
+        for _ in 0..<FanControlPolicy.temperatureFailureLimit { controller.watchdogTick() }
+        service.timer?.fire()
+        suite.expect(controller.isRecovering && controller.lastStopReason == .temperatureUnavailable
+                        && service.proxy.heartbeats == 1 && service.awaitingSystemControl
+                        && defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded),
+                     "the watchdog's failed restore enters confirmation through the scheduled heartbeat")
         expectFeedback(status: strings.controlUnconfirmed, message: strings.awaitingSystemControl,
-                       "the card waits for confirmation before reporting a return to system control")
-        suite.expect(defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
-                        && service.scheduledResumes.isEmpty,
-                     "observing the cause during recovery keeps the recovery flag and schedules no resume")
-        receiveStatus(nil)
+                       "a stopped sensor cannot announce system control before the helper confirms it")
+        service.applyConfiguration(manual)
+        suite.expect(service.proxy.writes == [curve] && service.scheduledResumes.isEmpty,
+                     "a pending handoff allows neither a manual write nor a retry")
+        service.controller = nil // A transport failure between two helper replies.
+        pollUntilStatusRead()
         expectFeedback(status: strings.controlUnconfirmed, message: strings.helperUnavailable,
                        "losing the helper during recovery leaves the status unconfirmed")
-        receiveStatus(.success(stopped))
-        expectFeedback(status: strings.systemControl, message: strings.safetyStopped,
-                       "the card explains the safety stop once restoration succeeds")
-        receiveStatus(.success(idle))
-        expectFeedback(status: strings.systemControl, message: strings.safetyStopped,
-                       "the card retains the stop reason after an idle helper restarts")
 
-        defaults.set(false, forKey: DefaultsKey.fanControlResume)
-        service.resumePreferenceDidChange()
-        var active = idle
-        active.isCooling = true
-        active.configuration = .curve([FanControlConfiguration.defaultCurve])
-        defaults.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
-        receiveStatus(.success(active))
-        service.panelIsVisible = false
-        service.stopIdleWorkIfPossible()
-        let appliedBeforeStop = service.applied
-        stopped.stopReason = .temperatureUnavailable
-        receiveStatus(.failure(.controlFailed, snapshot: stopped))
-        // A confirmation may no longer carry the reason seen at the stop.
-        receiveStatus(.success(idle))
-        suite.expect(service.timer == nil && service.connection == nil && !service.observing,
-                     "after a stop with resume off and the panel closed, the idle helper can exit")
-        service.panelIsVisible = true
-        receiveStatus(.success(idle))
-        expectFeedback(status: strings.systemControl, message: strings.temperatureUnavailable,
-                       "reopening the card after the helper exits preserves the sensor diagnosis with resume off")
-        suite.expect(service.scheduledResumes.isEmpty && service.applied == appliedBeforeStop,
-                     "reading the stop after reopening never resumes control")
-        mode.wrappedValue = .system
-        receiveStatus(.success(idle))
-        expectFeedback(status: strings.systemControl, message: nil,
-                       "selecting System clears the retained diagnosis")
-
-        func runCurveUntilSensorStops() {
-            mode.wrappedValue = .curve
-            receiveStatus(.success(active))
-            receiveStatus(.success(stopped))
+        if panelOpen {
+            service.controller = FanControlRecoveryContract.Controller() // Another active session.
+            pollUntilStatusRead()
+            expectFeedback(status: strings.controlUnconfirmed, message: strings.awaitingSystemControl,
+                           "an unrelated active session does not confirm our handoff")
+            Service.restoreBeforeTerminationIfNeeded()
+            Service.shared = Service()
+            service.panelIsVisible = true
+            Service.recoverIfNeeded()
+            expectFeedback(status: strings.controlUnconfirmed, message: strings.awaitingSystemControl,
+                           "relaunching remembers the pending handoff before a new helper reply")
         }
-        runCurveUntilSensorStops()
+        controller.watchdogTick()
+        service.controller = controller
+        pollUntilStatusRead()
+        let stopped = controller.statusResponse().snapshot
+        suite.expect(!controller.isRecovering && !controller.ownership.marker && !service.awaitingSystemControl
+                        && !defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
+                        && service.snapshot == stopped && stopped.stopReason == .temperatureUnavailable,
+                     "the timer observes the controller's successful restore with its original stop reason")
         expectFeedback(status: strings.systemControl, message: strings.temperatureUnavailable,
-                       "the helper reports the sensor stop while the panel stays open")
+                       "the card explains the sensor stop once restoration succeeds")
+        suite.expect(defaults.string(forKey: DefaultsKey.fanControlResumeConfiguration) == nil
+                        && defaults.bool(forKey: DefaultsKey.fanControlResume) == panelOpen
+                        && defaults.string(forKey: DefaultsKey.fanControlCurves) == FanControlConfiguration.encodeCurves(curves)
+                        && defaults.values[DefaultsKey.fanControlCoolingLevel] as? Int == 65
+                        && mode.wrappedValue == .curve && service.scheduledResumes.isEmpty,
+                     "a failed session keeps the user's choices without authorizing another write")
+        if !panelOpen {
+            suite.expect(service.timer == nil && service.connection == nil && !service.observing,
+                         "confirmation stops closed-panel polling when resume is off")
+            service.panelIsVisible = true
+            service.controller = nil
+            var idle = stopped
+            idle.stopReason = nil // A newly started helper has no prior stop.
+            service.statusResponse = .success(idle)
+            service.requestStatus()
+            expectFeedback(status: strings.systemControl, message: strings.temperatureUnavailable,
+                           "reopening after the helper exits preserves the sensor cause without a retry")
+        }
+
+        let rawSnapshot = service.snapshot
         mode.wrappedValue = .system
         expectFeedback(status: strings.systemControl, message: nil,
-                       "selecting System immediately dismisses the sensor stop still in the snapshot")
-        suite.expect(service.snapshot == stopped, "selecting System preserves the helper's actual snapshot")
+                       "selecting System immediately dismisses the confirmed stop")
+        suite.expect(service.snapshot == rawSnapshot, "selecting System preserves the helper's actual snapshot")
         for _ in 0..<2 {
             service.requestStatus()
             expectFeedback(status: strings.systemControl, message: nil,
-                           "idle replies repeating the dismissed sensor stop do not redisplay it")
-            suite.expect(service.snapshot == stopped, "an idle refresh preserves the reported sensor stop")
+                           "idle replies after dismissal do not redisplay the old sensor stop")
+            suite.expect(service.snapshot == rawSnapshot, "dismissing the diagnosis preserves the helper's snapshot")
         }
-        receiveStatus(.failure(.controlFailed))
-        receiveStatus(.success(stopped))
+        service.controller = nil
+        service.statusResponse = .failure(.controlFailed)
+        service.requestStatus()
+        service.statusResponse = .success(stopped)
+        service.requestStatus()
         expectFeedback(status: strings.systemControl, message: nil,
                        "a failed read between idle replies does not turn the old reason into a new stop")
-        runCurveUntilSensorStops()
+
+        mode.wrappedValue = .manual
+        var manuallyControlled = active
+        manuallyControlled.configuration = manual
+        manuallyControlled.coolingLevel = 65
+        service.statusResponse = .success(manuallyControlled)
+        let previousWrites = service.proxy.writes
+        func manualButton(_ node: AnyObject) -> AnyObject? {
+            if node.accessibilityRole?() == .button, node.accessibilityLabel?() == strings.applyManual { return node }
+            for child in node.accessibilityChildren?() ?? [] {
+                if let button = manualButton(child as AnyObject) { return button }
+            }
+            return nil
+        }
+        let pressed = manualButton(renderCard())?.accessibilityPerformPress?() ?? false
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        suite.expect(pressed && service.proxy.writes == previousWrites + [manual] && service.interruptedStop == nil
+                        && FanControlConfiguration.decodeResume(defaults.string(forKey: DefaultsKey.fanControlResumeConfiguration) ?? "")
+                            == (panelOpen ? manual : nil),
+                     "an explicit manual Apply starts a fresh session and respects the resume preference")
+        expectFeedback(status: "\(strings.manualControl) · 65%", message: nil,
+                       "the card shows the newly accepted manual speed")
+        guard panelOpen else { return }
+
+        func runCurveUntilStop(_ reason: FanControlStopReason) {
+            mode.wrappedValue = .curve
+            service.statusResponse = .success(active)
+            service.applyConfiguration(curve)
+            var interrupted = stopped
+            interrupted.stopReason = reason
+            service.statusResponse = .success(interrupted)
+            service.timer?.fire()
+        }
+        runCurveUntilStop(.temperatureUnavailable)
         expectFeedback(status: strings.systemControl, message: strings.temperatureUnavailable,
-                       "a new session reports the same sensor stop again")
+                       "a new curve session reports the same sensor stop again")
         mode.wrappedValue = .system
         var recovered = stopped
         recovered.stopReason = .recovery
-        receiveStatus(.success(recovered))
+        service.statusResponse = .success(recovered)
+        service.requestStatus()
         expectFeedback(status: strings.systemControl, message: strings.safetyStopped,
                        "an idle reply reporting a different cause still explains the stop")
-        receiveStatus(.success(stopped))
+        service.statusResponse = .success(stopped)
+        service.requestStatus()
         expectFeedback(status: strings.systemControl, message: strings.temperatureUnavailable,
                        "after a different stop, the same sensor can be reported again")
+        runCurveUntilStop(.hardwareChanged)
+        expectFeedback(status: strings.systemControl, message: strings.safetyStopped,
+                       "a safety stop also explains why a kept curve stopped")
+        service.workspaceDidWake()
+        for _ in 0...FanControlResumePolicy.retryDelays.count { service.resumeDidFail(.controlFailed) }
+        service.statusResponse = .success(stopped)
+        service.requestStatus()
+        expectFeedback(status: strings.systemControl, message: strings.failed,
+                       "a later exhausted resume takes precedence over the helper's last stop")
     }
 }

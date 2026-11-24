@@ -2041,10 +2041,8 @@ enum SwitcherSupport {
         })
     }
 
-    /// Source app for the delayed focus guards only. A session source wins;
-    /// otherwise the app a caller saw in front when the activation began keeps
-    /// the handoff retry settling, without reclaiming focus after a later
-    /// unrelated activation. The target and this process are never a handoff.
+    /// Source app for delayed focus checks. Fall back to the foreground app
+    /// captured by the caller so an unrelated activation can end the retry.
     static func focusRetrySourcePID(sessionSourcePID: pid_t?,
                                     handoffSourcePID: pid_t?,
                                     targetPID: pid_t,
@@ -2123,10 +2121,11 @@ enum SwitcherSupport {
     static func pendingKeyDecision(sessionIsActive: Bool,
                                    hasPendingStart: Bool,
                                    commitWhenReady: Bool,
-                                   matchesShortcut: Bool) -> SwitcherPendingKeyDecision {
+                                   matchesShortcut: Bool,
+                                   isEscape: Bool = false) -> SwitcherPendingKeyDecision {
         if sessionIsActive { return .handleActiveSession }
         guard hasPendingStart, !matchesShortcut else { return .routeShortcut }
-        return commitWhenReady ? .cancelAndSwallow : .swallow
+        return isEscape || commitWhenReady ? .cancelAndSwallow : .swallow
     }
 
     /// The explicit takeover setting is the authority to change WindowServer's

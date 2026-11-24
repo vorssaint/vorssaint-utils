@@ -988,7 +988,7 @@ extension Strings {
         cleanerCatDeveloper: "Geliştirici kalıntıları",
         cleanerCatTrash: "Çöp Sepeti",
         cleanerLeftoversNote: "Analizle bulundu ve işaretsiz bırakıldı. İşaretlemeden önce yolu kontrol et.",
-        cleanerLoginItemsNote: "Giriş Öğelerindeki kayıt Mac yeniden başlatılınca kaybolur.",
+        cleanerLoginItemsNote: "Yönetici onayı gerektiren öğeler yerinde kalır. Bir öğe kaldırıldıktan sonra listenin güncellenmesi için Mac’i yeniden başlatmanız gerekebilir.",
         cleanerTrashNote: "Çöp Sepetini boşaltmak kalıcıdır.",
         cleanerCatDeviceBackups: "iPhone yedekleri",
         cleanerDeviceBackupsCaption: "Eski iPhone ve iPad yedekleri, macOS’un Diğer dediği alanın büyük kısmını kaplar. Yalnızca artık gerekmeyenleri silin; aygıt yeniden bağlanınca yeni yedek alınır.",

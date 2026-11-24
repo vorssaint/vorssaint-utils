@@ -30,7 +30,7 @@ struct FanControlSection: View {
                                   accessState: service.accessState,
                                   error: service.error,
                                   isWorking: service.isWorking,
-                                  systemControlUnconfirmed: service.systemControlUnconfirmed,
+                                  systemControlUnconfirmed: service.awaitingSystemControl,
                                   interruption: service.interruption,
                                   dismissedStopReason: service.dismissedStopReason,
                                   mode: modeBinding,
@@ -221,13 +221,13 @@ struct FanControlCardContent: View {
     }
 
     private var statusHeader: some View {
-        HStack(spacing: 8) {
-            Image(systemName: snapshot.isCooling ? "fanblades.fill" : "fanblades")
+        let cooling = snapshot.isCooling && !systemControlUnconfirmed
+        return HStack(spacing: 8) {
+            Image(systemName: cooling ? "fanblades.fill" : "fanblades")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(snapshot.isCooling ? AnyShapeStyle(Color.cyan)
-                                                     : AnyShapeStyle(Color.secondary))
+                .foregroundStyle(cooling ? AnyShapeStyle(Color.cyan) : AnyShapeStyle(Color.secondary))
                 .symbolEffect(.variableColor.iterative, options: .repeating,
-                              isActive: snapshot.isCooling)
+                              isActive: cooling)
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 1) {
@@ -243,7 +243,7 @@ struct FanControlCardContent: View {
                 }
                 Text(statusText)
                     .font(.system(size: 10).monospacedDigit())
-                    .foregroundStyle(snapshot.isCooling ? Color.cyan : Color.secondary)
+                    .foregroundStyle(cooling ? Color.cyan : Color.secondary)
                     .accessibilityIdentifier("fanControl.status")
             }
             Spacer()
@@ -372,11 +372,7 @@ struct FanControlCardContent: View {
         }
         if accessState == .notRegistered, !snapshot.fans.isEmpty { return strings.approvalCaption }
         if accessState == .requiresApproval { return strings.approvalCaption }
-        if systemControlUnconfirmed {
-            // Starting a new configuration also sets the recovery marker before its reply.
-            if isWorking, error == nil, interruption == nil { return nil }
-            return strings.awaitingSystemControl
-        }
+        if systemControlUnconfirmed { return strings.awaitingSystemControl }
         guard !snapshot.isCooling else { return nil }
         let stopReason: FanControlStopReason?
         switch interruption {

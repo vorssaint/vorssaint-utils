@@ -214,6 +214,8 @@ def main():
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowSelection.swift",
                         "    static func contains(")
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowSelection.swift",
+                        "    static func excludesFrontmostApp(")
+          + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowSelection.swift",
                         "    static func select(")
           + "}\nextension SwitcherRememberedSelectionTests.WindowEvents {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowEvents.swift",
@@ -224,6 +226,16 @@ def main():
           + "}\nextension SwitcherRememberedSelectionTests.Inventory {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowInventory.swift",
                         "    private func observeScreenChanges(").replace("private func", "func", 1)
+          + "}\nextension SwitcherRememberedSelectionTests.SessionOpening.Events {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowEvents.swift", "    enum Event {")
+          + "}\nextension SwitcherRememberedSelectionTests.SessionOpening {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowInventory.swift",
+                        "final class SwitcherWindowInventory {")
+              .replace("NSWorkspace.shared", "desktop").replace("NSApp.windows", "desktop.windows")
+              .replace("CGWindowListCopyWindowInfo(", "SwitcherRememberedSelectionTests.SessionOpening.windowInfo(")
+              .replace("screenObservers = observeScreenChanges()",
+                       "screenObservers = observeScreenChanges(in: desktop.notificationCenter)")
+              .replace("NotificationCenter.default.removeObserver", "desktop.notificationCenter.removeObserver")
           + "}\n")
     write("RecorderSystemAudioTapLifecycle.swift", "import CoreAudio\nimport Foundation\n"
           + "extension RecorderSystemAudioTapLifecycleTests {\nfinal class Tap: Fixture, @unchecked Sendable {\n"
@@ -485,7 +497,7 @@ def main():
               "    func requestSpeakers(", "    private func acceptsSpeakerTarget(", "    private func drainPendingAudio(",
               "    private func isCurrentSpeakerChange(", "    private func confirmSliderWrite(",
               "    private func writeSpeakers(",
-              "    func monitorSpeakerOutput(", "    private func probeAudio("])
+              "    func monitorSpeakerOutput(", "    private func confirmsZeroUnmute(", "    private func probeAudio("])
           + "}\n}\n"
           + "extension DisplaySpeakerVolumeTests.DDCWriter {\n"
           + declaration(brightness, "    private func ddcSend(").replace("private func", "func", 1)
@@ -648,11 +660,20 @@ def main():
           + "}\n"
           + "}\n")
     write("FanControlResume.swift", "import Foundation\n"
-          + "extension FanControlResumeContract {\nfinal class Service: Fixture {\n"
-          + declaration(fan_control, "    var systemControlUnconfirmed:")
+          + "extension FanControlResumeContract {\n"
+          + declaration("Sources/Vorssaint/Services/FanControl/FanControlXPC.swift", "enum FanControlIPC {")
+          + "final class Service: Fixture {\n"
+          + declaration(fan_control, "    func applyConfiguration(_ configuration:")
+          .replace("applyConfiguration(configuration, resuming:", "sendConfiguration(configuration, resuming:", 1)
+          + declaration(fan_control, "    private func applyConfiguration(_ configuration:")
+          .replace("private func applyConfiguration", "func sendConfiguration", 1)
+          + "".join(declaration(fan_control, prefix, closing="}()").replace("@Published ", "", 1)
+                    for prefix in ["    @Published private(set) var awaitingSystemControl:",
+                                   "    @Published private(set) var interruption:"])
           + "".join(declaration(fan_control, prefix)
                     .replace("@objc private func", "func", 1)
                     .replace("private static var", "static var", 1)
+                    .replace("private var", "var", 1)
                     .replace("private func", "func", 1) for prefix in [
                         "    static func recoverIfNeeded(", "    func syncWithPreferences(",
                         "    func returnToSystem(", "    func forgetResume(", "    func resumePreferenceDidChange(",
@@ -663,6 +684,12 @@ def main():
                         "    private func beginResume(", "    private func cancelResumeRetry(",
                         "    private func resumeDidFail(", "    private func scheduleResumeRetry(",
                         "    private func retryResume(", "    private func applyStatus(", "    private func apply(_ response:",
+                        "    private var interruptedStop:",
+                        "    func restoreAutomatic()", "    private func restoreAutomatic(supersedingCurrentRequest:",
+                        "    static func restoreBeforeTerminationIfNeeded()", "    private func restoreBeforeTermination()",
+                        "    private func restoreThenUnregister()",
+                        "    private func finishSystemHandoff()", "    private func startTimerIfNeeded()",
+                        "    private func observeFailedHandoff(", "    private func poll(", "    private func heartbeat(",
                         "    private func requestStatus(", "    private func beginRequest(", "    private func finishRequest("])
           + "}\n}\n")
     write("FanControlRecovery.swift", "import Foundation\n"
@@ -671,7 +698,8 @@ def main():
                     .replace("private func", "func", 1) for prefix in [
                         "    private func requestedLevel(", "    private func performRestore(",
                         "    private func watchdogStopReason()",
-                        "    private func watchdogTick()", "    private func stopWatchdogIfIdle()"])
+                        "    private func watchdogTick()", "    private func stopWatchdogIfIdle()",
+                        "    private func statusResponse()", "    private func currentSnapshot()"])
           + "}\n}\n")
     fan_hardware = "Sources/Vorssaint/Services/FanControl/FanControlHardware.swift"
     write("FanControlHardwareContract.swift", "import Foundation\nextension FanControlHardwareContract {\n"
@@ -1343,6 +1371,7 @@ def main():
           + declaration(cleaner, "    private static func usesAppOwnersForLeftovers(")
           + declaration(cleaner, "    private static func hasLivingOwner(")
           + declaration(cleaner, "    private static func hasLivingLeftoverOwner(")
+          + declaration(cleaner, "    private static func orphanedLaunchPlistDetail(")
           + "".join(declaration(cleaner, "    private static func " + name)
                     .replace("private static func", "static func", 1)
                     for name in ["scanLeftovers(", "appendLeftovers(", "scanCaches(", "scanLogs(",
@@ -1358,8 +1387,11 @@ def main():
           + "mayRemove(item, installedApps: installed, audioPluginIDs: audioPluginIDs)\n}\n}\n")
     write("CleanerScanFlow.swift", "import Foundation\nextension CleanerScanFlowTests {\n"
           + declaration(cleaner, "    enum Phase:")
-          + "final class Scanner: ScannerState {\nstatic let shared = Scanner()\n"
-          + "".join(declaration(cleaner, prefix) for prefix in ["    func reset()", "    func scan("])
+          + "final class Scanner: ScannerState {\ntypealias FileManager = FixtureTrash\nstatic let shared = Scanner()\n"
+          + declaration(cleaner, "    private static func cachedAppLookup(")
+          + declaration(cleaner, "    private static func removalCheck(")
+          + "".join(declaration(cleaner, prefix) for prefix in [
+              "    func reset()", "    func scan(", "    func cleanSelected("])
           + "}\n}\n")
 
     super_key = "Sources/Vorssaint/Services/SuperKey/SuperKeyService.swift"
@@ -2154,7 +2186,17 @@ def main():
           + declaration(switcher_service, "private struct SwitcherSourceContext").replace("private struct", "struct", 1)
           + declaration(switcher_service, "    private enum KeyCode {").replace("private enum", "enum", 1)
           + "final class Service: Fixture, ObservableObject {\n"
+          + declaration(switcher_service, "    private struct SessionOrigin {")
+          + "private var sessionOrigin: SessionOrigin?\n"
+          + "override init() {\nsuper.init()\n"
+          + declaration(switcher_service, "        windowInventory.onReady = {")
+          + "}\n"
           + declaration(switcher_service, "    @Published private(set) var selectedIndex").replace("private(set) ", "", 1)
+          + declaration(switcher_service, "    private func beginPendingSession(").replace("private func", "func", 1)
+              .replace("UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)", "currentSpaceOnly")
+              .replace("AXIsProcessTrusted()", "true")
+          + declaration(switcher_service, "    private func finishPendingSession(").replace("private func", "func", 1)
+              .replace("CGEventSource.flagsState(.combinedSessionState)", "[]")
           + declaration(switcher_service, "    private func route(type:").replace("private func", "func", 1)
               .replace("CGEvent.tapEnable(", "Tap.enable(")
               .replace("CFMachPortIsValid(", "Tap.isValid(")
@@ -2170,6 +2212,7 @@ def main():
                     for prefix in ["    private func handle(type:", "    private func handleKeyDown(",
                                    "    private func installTap(", "    private func finishEventTapThread(", "    func suspend(",
                                    "    private func claimPendingKey(", "    private func setYieldsToExclusiveFullscreen(",
+                                   "    private func initialSelectionIndex(", "    private func discardPendingSessionStart(",
                                    "    private func invalidateSecureInputReplays(", "    private func releaseSecureInputActionsIfIdle(",
                                    "    private func applyNativeHotkeySuppressionIfTapLive(",
                                    "    var keyboardInputOwnership:", "    var scrollNavigationActive:",

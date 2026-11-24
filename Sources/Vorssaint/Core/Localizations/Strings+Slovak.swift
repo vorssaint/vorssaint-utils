@@ -988,7 +988,7 @@ extension Strings {
         cleanerCatDeveloper: "Vývojársky odpad",
         cleanerCatTrash: "Kôš",
         cleanerLeftoversNote: "Nájdené analýzou a ponechané neoznačené. Pred označením skontrolujte cestu.",
-        cleanerLoginItemsNote: "Položka v časti Položky a rozšírenia spúšťané pri prihlásení zmizne po reštarte Macu.",
+        cleanerLoginItemsNote: "Položky, ktoré vyžadujú súhlas správcu, zostanú na mieste. Po odstránení položky môže byť potrebné reštartovať Mac, aby sa zoznam aktualizoval.",
         cleanerTrashNote: "Vyprázdnenie Koša je nezvratné.",
         cleanerCatDeviceBackups: "Zálohy iPhonu",
         cleanerDeviceBackupsCaption: "Staré zálohy iPhonu a iPadu zaberajú veľkú časť úložiska, ktoré macOS označuje ako Ostatné. Odstráňte len tie, ktoré už nepotrebujete; nová záloha vznikne, keď zariadenie znova pripojíte.",

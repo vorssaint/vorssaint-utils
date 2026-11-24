@@ -989,7 +989,7 @@ extension Strings {
         cleanerCatDeveloper: "開發垃圾",
         cleanerCatTrash: "垃圾桶",
         cleanerLeftoversNote: "由分析找到，預設不勾選。勾選前請確認路徑。",
-        cleanerLoginItemsNote: "登入項目中的項目會在 Mac 重新開機後消失。",
+        cleanerLoginItemsNote: "需要管理員授權的項目會保留在原位。移除項目後，可能需要重新啟動 Mac 才能更新列表。",
         cleanerTrashNote: "清空垃圾桶是永久操作。",
         cleanerCatDeviceBackups: "iPhone 備份",
         cleanerDeviceBackupsCaption: "舊的 iPhone 和 iPad 備份佔了 macOS 所稱「其他」儲存空間的很大一部分。只刪除不再需要的備份；下次連接裝置時會建立新的備份。",
