@@ -1201,6 +1201,7 @@ extension AppFeature {
         case .notchDownloads: return FeatureStrings.notchFiles(language).downloadsTitle
         case .notchCalendar: return FeatureStrings.notchCalendar(language).title
         case .notchAgents: return FeatureStrings.notchAgents(language).title
+        case .notchHomeAssistant: return "Home Assistant"
         case .notchWatch: return FeatureStrings.notchWatch(language).title
         case .notchMascot: return FeatureStrings.notchMascot(language).title
         case .notch: return FeatureStrings.notch(language).title

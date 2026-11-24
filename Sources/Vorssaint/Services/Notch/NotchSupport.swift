@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, weather, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
+    case controls, mixer, music, clipboard, captures, files, system, weather, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch, homeAssistant
     var id: String { rawValue }
 
     var symbol: String {

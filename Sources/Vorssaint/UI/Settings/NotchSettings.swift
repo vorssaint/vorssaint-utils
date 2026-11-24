@@ -135,7 +135,7 @@ struct NotchSettings: View {
          String(microphone), String(battery), String(clipboard), String(clipboardWindow), clipboardCardSize,
          String(capture), String(trackChange), captureAction, String(showInCaptures),
          String(returnHome), homeModule, String(opensActivity), String(scratchpad),
-         String(agentsEnabled), String(watchEnabled), String(keepAwakeActivity), String(shortcutEnabled)]
+         String(agentsEnabled), String(watchEnabled), String(homeAssistantEnabled), String(keepAwakeActivity), String(shortcutEnabled)]
     }
 
     private var access: Binding<NotchQuickAccessConfiguration> {

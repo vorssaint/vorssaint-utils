@@ -70,7 +70,7 @@ struct NotchEditorStrings {
     let scratchpadSummary: String
     let agentsSummary: String
     let watchSummary: String
-    let homeAssistantSummary: String
+    var homeAssistantSummary = "Lights, switches, climate, scenes and sensors from your Home Assistant."
 
     func enableFeature(_ title: String) -> String { String(format: enableFeatureFormat, title) }
     func enableSetting(_ title: String) -> String { String(format: enableSettingFormat, title) }

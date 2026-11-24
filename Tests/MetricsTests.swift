@@ -125,6 +125,7 @@ struct MetricsTests {
                 CommandBarFeatureTests.run(suite)
                 CommandBarSelectionTests.run(suite)
             }),
+            ("home-assistant", { HomeAssistantTests.run(suite) }),
             ("transient-paste", { TransientPasteTests.run(suite) }),
             ("notch-music", { NotchMusicExtrasTests.run(suite) }),
             ("notch", {
