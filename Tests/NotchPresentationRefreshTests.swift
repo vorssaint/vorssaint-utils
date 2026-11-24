@@ -139,6 +139,8 @@ enum NotchPresentationRefreshContract {
             outlineEnabled = enabled
             outlineColor = color
         }
+        func setRestingGlass(_ enabled: Bool) {}
+        func setPointerOver(_ over: Bool) {}
         func present(size: CGSize, geometry: NotchGeometry, animated: Bool,
                      transitionContent: NotchContentTransition, quickAccess: NotchQuickAccessConfiguration?,
                      revealFromHidden: Bool, usesGlass: Bool, steady: Bool) {

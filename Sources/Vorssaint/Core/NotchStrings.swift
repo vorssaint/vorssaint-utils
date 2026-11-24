@@ -100,6 +100,12 @@ struct NotchStrings {
     let claudeQuestionsHint: String
     /// The island's first page, and the bottom button that returns to it.
     let home: String
+    let restingGlass: String
+    let restingGlassHint: String
+    let restingGlassTransparency: String
+    let restingGlassTransparencyHint: String
+    let restingGlassFrost: String
+    let restingGlassFrostHint: String
 }
 
 extension FeatureStrings {
@@ -220,7 +226,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "Liquid Glass is on, so Dynamic Island uses it instead.",
         claudeQuestions: "Show Claude Code questions on the island",
         claudeQuestionsHint: "Questions and permission requests pop up here to answer with a click. Adds two hooks to ~/.claude/settings.json.",
-        home: "Home"
+        home: "Home",
+        restingGlass: "Glass instead of black",
+        restingGlassHint: "When closed, Dynamic Island shows the screen behind it instead of solid black.",
+        restingGlassTransparency: "Transparency",
+        restingGlassTransparencyHint: "At 100%, the glass is not darkened.",
+        restingGlassFrost: "Frost",
+        restingGlassFrostHint: "How strongly the glass blurs what is behind it. At 0%, it stays clear."
     )
 
     static let ptBR = NotchStrings(
@@ -318,7 +330,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "O Liquid Glass está ativado, então a Dynamic Island o usa no lugar.",
         claudeQuestions: "Mostrar perguntas do Claude Code na ilha",
         claudeQuestionsHint: "Perguntas e pedidos de permissão aparecem aqui para responder com um clique. Adiciona dois hooks a ~/.claude/settings.json.",
-        home: "Início"
+        home: "Início",
+        restingGlass: "Vidro em vez de preto",
+        restingGlassHint: "Fechada, a Dynamic Island mostra a tela atrás dela em vez de preto sólido.",
+        restingGlassTransparency: "Transparência",
+        restingGlassTransparencyHint: "Em 100%, o vidro não é escurecido.",
+        restingGlassFrost: "Fosco",
+        restingGlassFrostHint: "Quanto o vidro desfoca o que está atrás dele. Em 0%, ele fica nítido."
     )
 
     static let es = NotchStrings(
@@ -416,7 +434,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "Liquid Glass está activado, así que Dynamic Island lo usa en su lugar.",
         claudeQuestions: "Mostrar preguntas de Claude Code en la isla",
         claudeQuestionsHint: "Las preguntas y solicitudes de permiso aparecen aquí para responder con un clic. Añade dos hooks a ~/.claude/settings.json.",
-        home: "Inicio"
+        home: "Inicio",
+        restingGlass: "Cristal en lugar de negro",
+        restingGlassHint: "Cerrada, Dynamic Island muestra la pantalla que hay detrás en lugar de negro sólido.",
+        restingGlassTransparency: "Transparencia",
+        restingGlassTransparencyHint: "Al 100 %, el cristal no se oscurece.",
+        restingGlassFrost: "Esmerilado",
+        restingGlassFrostHint: "Cuánto desenfoca el cristal lo que hay detrás. Al 0 %, queda nítido."
     )
 
     static let sk = NotchStrings(
@@ -514,7 +538,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "Liquid Glass je zapnuté, preto ho Dynamic Island používa namiesto systémového materiálu.",
         claudeQuestions: "Zobraziť otázky Claude Code na ostrove",
         claudeQuestionsHint: "Otázky a žiadosti o povolenie sa zobrazia tu a odpoviete na ne jedným kliknutím. Pridá dva hooky do ~/.claude/settings.json.",
-        home: "Domov"
+        home: "Domov",
+        restingGlass: "Sklo namiesto čiernej",
+        restingGlassHint: "Zatvorený Dynamic Island zobrazuje obrazovku za sebou namiesto plnej čiernej.",
+        restingGlassTransparency: "Priehľadnosť",
+        restingGlassTransparencyHint: "Pri 100 % sa sklo nestmavuje.",
+        restingGlassFrost: "Matnosť",
+        restingGlassFrostHint: "Ako silno sklo rozmazáva obsah za sebou. Pri 0 % zostáva čisté."
     )
 
     static let de = NotchStrings(
@@ -612,7 +642,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "Liquid Glass ist aktiv, daher verwendet Dynamic Island stattdessen Liquid Glass.",
         claudeQuestions: "Fragen von Claude Code auf der Insel zeigen",
         claudeQuestionsHint: "Fragen und Berechtigungsanfragen erscheinen hier und lassen sich mit einem Klick beantworten. Fügt zwei Hooks zu ~/.claude/settings.json hinzu.",
-        home: "Start"
+        home: "Start",
+        restingGlass: "Glas statt Schwarz",
+        restingGlassHint: "Geschlossen zeigt Dynamic Island den Bildschirm dahinter statt einer schwarzen Fläche.",
+        restingGlassTransparency: "Transparenz",
+        restingGlassTransparencyHint: "Bei 100 % wird das Glas nicht abgedunkelt.",
+        restingGlassFrost: "Frost",
+        restingGlassFrostHint: "Wie stark das Glas verwischt, was dahinter liegt. Bei 0 % bleibt es klar."
     )
 
     static let fr = NotchStrings(
@@ -710,7 +746,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "Liquid Glass est activé, Dynamic Island l’utilise donc à la place.",
         claudeQuestions: "Afficher les questions de Claude Code sur l’île",
         claudeQuestionsHint: "Les questions et demandes d’autorisation s’affichent ici pour y répondre d’un clic. Ajoute deux hooks à ~/.claude/settings.json.",
-        home: "Accueil"
+        home: "Accueil",
+        restingGlass: "Verre au lieu du noir",
+        restingGlassHint: "Fermée, Dynamic Island laisse voir l’écran derrière elle au lieu d’un noir uni.",
+        restingGlassTransparency: "Transparence",
+        restingGlassTransparencyHint: "À 100 %, le verre n’est pas assombri.",
+        restingGlassFrost: "Givre",
+        restingGlassFrostHint: "Intensité du flou de ce qui se trouve derrière le verre. À 0 %, il reste net."
     )
 
     static let it = NotchStrings(
@@ -808,7 +850,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "Liquid Glass è attivo, quindi Dynamic Island usa quello.",
         claudeQuestions: "Mostra le domande di Claude Code sull’isola",
         claudeQuestionsHint: "Domande e richieste di autorizzazione compaiono qui per rispondere con un clic. Aggiunge due hook a ~/.claude/settings.json.",
-        home: "Home"
+        home: "Home",
+        restingGlass: "Vetro invece del nero",
+        restingGlassHint: "Da chiusa, Dynamic Island mostra lo schermo dietro di sé invece del nero pieno.",
+        restingGlassTransparency: "Trasparenza",
+        restingGlassTransparencyHint: "Al 100% il vetro non viene scurito.",
+        restingGlassFrost: "Satinatura",
+        restingGlassFrostHint: "Quanto il vetro sfoca ciò che c’è dietro. Allo 0% resta nitido."
     )
 
     static let ru = NotchStrings(
@@ -906,7 +954,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "Включено Liquid Glass, поэтому Dynamic Island использует его.",
         claudeQuestions: "Показывать вопросы Claude Code на острове",
         claudeQuestionsHint: "Вопросы и запросы разрешений появляются здесь, чтобы ответить одним щелчком. Добавляет два хука в ~/.claude/settings.json.",
-        home: "Главная"
+        home: "Главная",
+        restingGlass: "Стекло вместо чёрного",
+        restingGlassHint: "В закрытом виде Dynamic Island показывает экран за собой вместо сплошного чёрного.",
+        restingGlassTransparency: "Прозрачность",
+        restingGlassTransparencyHint: "При 100% стекло не затемняется.",
+        restingGlassFrost: "Матовость",
+        restingGlassFrostHint: "Насколько стекло размывает то, что под ним. При 0% оно остаётся чистым."
     )
 
     static let tr = NotchStrings(
@@ -1004,7 +1058,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "Liquid Glass açık olduğundan Dynamic Island onu kullanır.",
         claudeQuestions: "Claude Code sorularını adada göster",
         claudeQuestionsHint: "Sorular ve izin istekleri burada açılır, tek tıkla yanıtlarsınız. ~/.claude/settings.json dosyasına iki hook ekler.",
-        home: "Ana Sayfa"
+        home: "Ana Sayfa",
+        restingGlass: "Siyah yerine cam",
+        restingGlassHint: "Dynamic Island kapalıyken düz siyah yerine arkasındaki ekranı gösterir.",
+        restingGlassTransparency: "Saydamlık",
+        restingGlassTransparencyHint: "%100'de cam karartılmaz.",
+        restingGlassFrost: "Buzlu cam",
+        restingGlassFrostHint: "Camın arkasındakini ne kadar bulanıklaştırdığı. %0'da net kalır."
     )
 
     static let ja = NotchStrings(
@@ -1102,7 +1162,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "Liquid Glass がオンのため、Dynamic Island はそちらを使います。",
         claudeQuestions: "Claude Code の質問をアイランドに表示",
         claudeQuestionsHint: "質問や許可のリクエストがここに表示され、クリックで回答できます。~/.claude/settings.json に 2 つのフックを追加します。",
-        home: "ホーム"
+        home: "ホーム",
+        restingGlass: "黒の代わりにガラス",
+        restingGlassHint: "閉じた Dynamic Island を黒一色ではなく、背後の画面が見えるガラスで表示します。",
+        restingGlassTransparency: "透明度",
+        restingGlassTransparencyHint: "100% ではガラスを暗くしません。",
+        restingGlassFrost: "すりガラス",
+        restingGlassFrostHint: "背後をぼかす強さです。0% では透明なままです。"
     )
 
     static let ko = NotchStrings(
@@ -1200,7 +1266,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "Liquid Glass가 켜져 있어 Dynamic Island가 대신 사용합니다.",
         claudeQuestions: "Claude Code 질문을 아일랜드에 표시",
         claudeQuestionsHint: "질문과 권한 요청이 여기에 나타나 클릭 한 번으로 답할 수 있습니다. ~/.claude/settings.json에 훅 두 개를 추가합니다.",
-        home: "홈"
+        home: "홈",
+        restingGlass: "검정 대신 유리",
+        restingGlassHint: "닫힌 Dynamic Island가 검은색 대신 뒤쪽 화면을 비춰 보여 줍니다.",
+        restingGlassTransparency: "투명도",
+        restingGlassTransparencyHint: "100%에서는 유리를 어둡게 하지 않습니다.",
+        restingGlassFrost: "반투명 효과",
+        restingGlassFrostHint: "유리가 뒤쪽을 흐리게 하는 정도입니다. 0%에서는 선명하게 유지됩니다."
     )
 
     static let zhHans = NotchStrings(
@@ -1298,7 +1370,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "Liquid Glass 已开启，Dynamic Island 将改用 Liquid Glass。",
         claudeQuestions: "在岛上显示 Claude Code 的提问",
         claudeQuestionsHint: "提问和权限请求会在这里弹出，点一下即可回答。会向 ~/.claude/settings.json 添加两个钩子。",
-        home: "主页"
+        home: "主页",
+        restingGlass: "以玻璃代替黑色",
+        restingGlassHint: "收起时，Dynamic Island 显示其后方的屏幕，而不是纯黑色。",
+        restingGlassTransparency: "透明度",
+        restingGlassTransparencyHint: "为 100% 时玻璃不会变暗。",
+        restingGlassFrost: "磨砂",
+        restingGlassFrostHint: "玻璃模糊后方内容的程度。为 0% 时保持清晰。"
     )
 
     static let zhTW = NotchStrings(
@@ -1396,7 +1474,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。",
         claudeQuestions: "在島上顯示 Claude Code 的提問",
         claudeQuestionsHint: "提問和權限請求會在這裡彈出，按一下即可回答。會在 ~/.claude/settings.json 加入兩個掛鉤。",
-        home: "主頁"
+        home: "主頁",
+        restingGlass: "以玻璃取代黑色",
+        restingGlassHint: "收合時，Dynamic Island 會顯示後方的螢幕，而非純黑色。",
+        restingGlassTransparency: "透明度",
+        restingGlassTransparencyHint: "設為 100% 時玻璃不會變暗。",
+        restingGlassFrost: "霧面",
+        restingGlassFrostHint: "玻璃模糊後方內容的程度。設為 0% 時保持清晰。"
     )
 
     static let zhHK = NotchStrings(
@@ -1494,7 +1578,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。",
         claudeQuestions: "在島上顯示 Claude Code 的提問",
         claudeQuestionsHint: "提問和權限請求會喺呢度彈出，㩒一下就可以回答。會喺 ~/.claude/settings.json 加入兩個掛鉤。",
-        home: "主頁"
+        home: "主頁",
+        restingGlass: "以玻璃取代黑色",
+        restingGlassHint: "收合時，Dynamic Island 會顯示後方的螢幕，而非純黑色。",
+        restingGlassTransparency: "透明度",
+        restingGlassTransparencyHint: "設為 100% 時玻璃不會變暗。",
+        restingGlassFrost: "霧面",
+        restingGlassFrostHint: "玻璃模糊後方內容的程度。設為 0% 時保持清晰。"
     )
 
     static let uk = NotchStrings(
@@ -1592,7 +1682,13 @@ extension NotchStrings {
         translucentBackgroundGlassHint: "Liquid Glass увімкнено, тому Dynamic Island використовує його.",
         claudeQuestions: "Показувати запитання Claude Code на острові",
         claudeQuestionsHint: "Запитання та запити дозволів з’являються тут, щоб відповісти одним клацанням. Додає два хуки до ~/.claude/settings.json.",
-        home: "Головна"
+        home: "Головна",
+        restingGlass: "Скло замість чорного",
+        restingGlassHint: "У закритому вигляді Dynamic Island показує екран позаду замість суцільного чорного.",
+        restingGlassTransparency: "Прозорість",
+        restingGlassTransparencyHint: "Зі 100% скло не затемнюється.",
+        restingGlassFrost: "Матовість",
+        restingGlassFrostHint: "Наскільки скло розмиває вміст позаду. При 0% воно залишається чистим."
     )
 
 }
