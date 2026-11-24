@@ -171,6 +171,9 @@ enum SwitcherHoverSelectionTests {
         var items: [SwitcherItem]? = Inventory.sampleWindows
         var onReady: (([SwitcherItem]) -> Void)?
         var removedIDs: Set<String> = []
+        func sourceCheckExpired(for generation: UInt64) -> Bool {
+            observed?.sourceCheckExpired(for: generation) ?? false
+        }
         func readyForSession(currentSpaceOnly: Bool) -> Bool {
             observed?.readyForSession(currentSpaceOnly: currentSpaceOnly) ?? true
         }
@@ -874,10 +877,12 @@ enum SwitcherHoverSelectionTests {
             inventory.stop()
             Windows.items = []
             Windows.reads = []
+            Windows.helperSearches = []
             Work.discoveries.reset()
             Work.scans.reset()
             Work.main.deliveries.reset()
             Work.main.debounce.reset()
+            Work.main.timeouts.reset()
             defaults.values = previousDefaults
             Workspace.shared.frontmostApplication = previousApp
             Activator.activated = previousActivations
@@ -949,118 +954,224 @@ enum SwitcherHoverSelectionTests {
         typealias Work = Desktop.DispatchQueue
         typealias Windows = Desktop.WindowEnumerator
         typealias Apps = Desktop.NSRunningApplication
-        enum Scenario: CaseIterable { case created, focused, accessibility, delayedList, cancelled }
+        enum Scenario: CaseIterable {
+            case created, delayedCreation, backgroundCreation, newerAX, unrelatedTermination, observedAX, listedObserved
+            case focused, delayedFocus, consecutiveFocus, embeddedOwner, unrelatedOwner, unrelatedFocus, unresolvedOwner, ownerLaterListed
+            case allApps, allWindows, missingWindow, missingAX, timeout, cancelled
+        }
         _ = NSApplication.shared
         let observed = Desktop.WindowUseTracker.shared
         let tracker = SwitcherRememberedSelectionTests.Tracker.shared
         let previousHistory = tracker.history
-        let previousObserved = observed.focus
+        let previousObserved = observed.focusHistory
         let previousAX = Desktop.WindowActivator.focus
+        let previousAXReads = Desktop.WindowActivator.reads
         let previousApps = Apps.apps
         let previousFront = Desktop.desktop.frontmostApplication
         let editor = Workspace.App(processIdentifier: 10, bundleIdentifier: "test.editor")
-        Apps.apps[editor.processIdentifier] = .init()
-        Desktop.desktop.frontmostApplication = Apps(processIdentifier: editor.processIdentifier)
+        let pid = editor.processIdentifier
+        let helperPID: pid_t = 11
+        let otherPID: pid_t = 12
+        Apps.apps[pid] = .init(bundleIdentifier: editor.bundleIdentifier, bundlePath: "/Applications/Editor.app")
+        Apps.apps[helperPID] = .init(isRegular: false, bundlePath: "/Applications/Editor.app/Contents/Helpers/Renderer.app")
+        Apps.apps[otherPID] = .init(bundleIdentifier: "test.other", bundlePath: "/Applications/Other.app")
+        Desktop.desktop.frontmostApplication = Apps(processIdentifier: pid)
         defer {
             Desktop.desktop.frontmostApplication = previousFront
             Apps.apps = previousApps
             tracker.history = previousHistory
-            observed.focus = previousObserved
+            observed.focusHistory = previousObserved
             Desktop.WindowActivator.focus = previousAX
+            Desktop.WindowActivator.reads = previousAXReads
         }
         for scenario in Scenario.allCases {
             withWindowInventory { service, inventory in
                 var nativeWindows: [NSWindow] = []
                 defer { nativeWindows.forEach { $0.close() } }
-                func makeWindow(_ title: String) -> SwitcherItem? {
+                func makeWindow(_ title: String, app: pid_t, owner: pid_t? = nil) -> SwitcherItem? {
                     let window = NSWindow(contentRect: CGRect(x: -10_000, y: -10_000, width: 400, height: 300),
                                           styleMask: .titled, backing: .buffered, defer: false)
                     window.isReleasedWhenClosed = false
                     window.title = title
                     nativeWindows.append(window)
                     guard window.windowNumber > 0, let id = CGWindowID(exactly: window.windowNumber) else { return nil }
-                    return .window(id: id, title: window.title, appName: "Editor", pid: editor.processIdentifier,
+                    return .window(id: id, title: window.title, appName: "App \(app)", pid: app, windowOwnerPID: owner,
                                    isOnScreen: true, frame: CGRect(x: 40, y: 40, width: 400, height: 300))
                 }
-                guard let a = makeWindow("A"), let b = makeWindow("B") else {
+                func deliverDiscoveries() {
+                    Work.discoveries.drain()
+                    Work.main.deliveries.drain()
+                }
+                func deliverScan() {
+                    Work.scans.drain()
+                    Work.main.deliveries.drain()
+                }
+                guard let a = makeWindow("A", app: pid), let b = makeWindow("B", app: pid),
+                      let aID = a.windowID, let bID = b.windowID else {
                     suite.expect(false, "both initial fixture windows have WindowServer IDs")
                     return
                 }
                 Workspace.shared.frontmostApplication = editor
-                tracker.history = [b, a].compactMap(\.windowID)
-                observed.focus[editor.processIdentifier] = b.windowID
+                SwitcherRememberedSelectionTests.Preferences.standard.values = [DefaultsKey.switcherWindowlessApps: "off"]
+                let known = scenario == .consecutiveFocus ? [a] : [b, a]
+                tracker.history = known.compactMap(\.windowID)
+                observed.focusHistory = WindowFocusHistory()
+                _ = observed.focusHistory.activate(pid)
+                observed.recordObservedFocus(windowID: scenario == .consecutiveFocus ? aID : bID, pid: pid)
                 Desktop.WindowActivator.focus = [:]
-                Windows.items = [b, a]
+                Desktop.WindowActivator.reads = []
+                Windows.items = known
                 inventory.start()
-                Work.scans.drain()
-                Work.main.deliveries.drain()
-                guard let c = makeWindow("C"), let newID = c.windowID else {
+                deliverScan()
+                Windows.reads = []
+                let otherApp = scenario == .unrelatedOwner || scenario == .unrelatedFocus
+                guard let c = makeWindow("C", app: otherApp ? otherPID : pid, owner: scenario == .embeddedOwner ? helperPID : nil),
+                      let cID = c.windowID else {
                     suite.expect(false, "the new fixture window has a WindowServer ID")
                     return
                 }
-                Windows.items = [c, b, a]
+                // A is ahead of B in the raw list. Only observed recency can make B the correct previous window.
+                let current = [c, a, b]
+                Windows.items = current
                 switch scenario {
-                case .created:
-                    Desktop.Events.shared.deliver?(.changed(newID))
-                    Desktop.WindowActivator.focus[editor.processIdentifier] = newID
-                    // Its owner is known, but the debounced window list still has only A and B.
-                    Work.discoveries.drain()
-                    Work.main.deliveries.drain()
-                case .focused, .delayedList, .cancelled:
-                    Desktop.Events.shared.deliver?(.focused(newID))
-                    if scenario == .delayedList { Desktop.WindowActivator.focus[editor.processIdentifier] = b.windowID }
-                case .accessibility:
-                    observed.recordObservedFocus(windowID: newID, pid: editor.processIdentifier)
+                case .consecutiveFocus:
+                    Desktop.Events.shared.deliver?(.focused(bID))
+                    Desktop.Events.shared.deliver?(.focused(cID))
+                case .focused, .delayedFocus, .unrelatedFocus, .allApps, .allWindows, .cancelled:
+                    Desktop.Events.shared.deliver?(.focused(cID))
+                    Desktop.WindowActivator.focus[pid] = bID
+                case .observedAX, .listedObserved:
+                    observed.recordObservedFocus(windowID: cID, pid: pid)
+                    observed.focusHistory.reconcile(windows: [aID, bID], revision: observed.focusHistory.revision)
+                    tracker.history = WindowUseOrder.reconciled(tracker.history, existing: [aID, bID], frontToBack: [bID, aID])
+                    if scenario == .listedObserved {
+                        Desktop.Events.shared.deliver?(.membershipChanged)
+                        Work.main.debounce.drain()
+                        deliverScan()
+                        Windows.reads = []
+                    }
+                case .unresolvedOwner, .ownerLaterListed:
+                    Desktop.Events.shared.deliver?(.changed(cID))
+                    Windows.items = [b, a] // WindowServer cannot yet describe C or report its owner.
+                    Desktop.WindowActivator.focus[pid] = bID
+                default:
+                    Desktop.Events.shared.deliver?(.changed(cID))
+                    if !otherApp { deliverDiscoveries() } // The owner is known before the key, its refresh is still debouncing.
+                    Desktop.WindowActivator.focus[pid] = cID
                 }
-                let priorActivations = Activator.activated
                 let displays = [CGRect(x: 0, y: 0, width: 900, height: 700),
                                 CGRect(x: 900, y: 0, width: 900, height: 700)]
                 service.currentDisplayScope = .init(bounds: displays, targetIndex: 0)
-                let generation = press(service, shortcut: .switcherWindowDefault)
-                service.currentDisplayScope = .init(bounds: displays, targetIndex: 1)
-                if scenario == .cancelled {
-                    let escape = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(KeyCode.escape), keyDown: true)!
-                    escape.flags = GlobalShortcut.switcherWindowDefault.modifiers.cgFlags
-                    _ = service.route(type: .keyDown, event: escape)
+                service.routeAllWindowsShortcut = .switcherAllWindowsDefault
+                let shortcut: GlobalShortcut
+                switch scenario {
+                case .allApps: shortcut = .switcherDefault
+                case .allWindows: shortcut = .switcherAllWindowsDefault
+                default: shortcut = .switcherWindowDefault
                 }
+                let previous = Activator.activated
+                let generation = press(service, shortcut: shortcut)
+                service.currentDisplayScope = .init(bounds: displays, targetIndex: 1)
                 let release = CGEvent(source: nil)!
                 release.type = .flagsChanged
                 release.flags = []
-                _ = service.route(type: .flagsChanged, event: release)
-                suite.expect(Activator.activated == priorActivations,
-                             "releasing before discovery cannot activate A using the old two-window list")
-                if scenario == .delayedList {
-                    // The worker's first list predates the WindowServer description of C.
-                    Windows.items = [b, a]
-                    Work.main.debounce.drain()
-                    Work.scans.drain()
-                    Windows.items = [c, b, a]
-                    Work.main.deliveries.drain()
-                    suite.expect(service.routePendingSessionStart?.generation == generation && Activator.activated == priorActivations,
-                                 "a nonempty confirmation captured before C is listed keeps the original shortcut pending")
-                }
-                Work.discoveries.drain()
-                Work.main.deliveries.drain()
-                Work.main.debounce.drain()
-                Work.scans.drain()
-                Work.main.deliveries.drain()
-                Queue.advance(to: Queue.time)
                 if scenario == .cancelled {
-                    suite.expect(service.startedGenerations.isEmpty && Activator.activated == priorActivations
-                                 && !service.keyboardInputOwnership.isOwned,
-                                 "Escape cancels the quick shortcut even when C's discovery finishes after release")
-                    service.currentDisplayScope = .init(bounds: displays, targetIndex: 0)
-                    Desktop.Events.shared.deliver?(.changed(newID))
-                    let warm = press(service, shortcut: .switcherWindowDefault)
-                    _ = service.route(type: .flagsChanged, event: release)
-                    suite.expect(service.startedGenerations == [warm] && Activator.activated == priorActivations + [b.id]
-                                 && Activator.lastSourceWindowID == newID && Work.scans.pending.isEmpty,
-                                 "with C and its focus known, a fresh shortcut commits immediately during an ordinary update")
+                    let escape = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(KeyCode.escape), keyDown: true)!
+                    escape.flags = shortcut.modifiers.cgFlags
+                    _ = service.route(type: .keyDown, event: escape)
+                }
+                _ = service.route(type: .flagsChanged, event: release)
+                if scenario == .listedObserved || scenario == .allApps || scenario == .allWindows {
+                    let target = scenario == .listedObserved ? b : a
+                    let source = scenario == .listedObserved ? cID : bID
+                    suite.expect(service.startedGenerations == [generation] && Activator.activated == previous + [target.id]
+                                 && Activator.lastSourceWindowID == source
+                                 && Windows.reads.isEmpty && Work.scans.pending.isEmpty && Desktop.WindowActivator.reads.isEmpty,
+                                 "\(scenario) commits from the correct warm source without a scan or AX read")
                     return
                 }
-                suite.expect(service.startedGenerations == [generation] && Activator.activated == priorActivations + [b.id]
-                             && Activator.lastSourceWindowID == newID,
-                             "in the \(scenario) scenario the quick shortcut takes C to B on the original display")
+                suite.expect(Activator.activated == previous, "\(scenario) never commits the stale two-window list on modifier-up")
+                deliverDiscoveries()
+                if otherApp {
+                    suite.expect(service.startedGenerations == [generation] && Activator.activated == previous + [a.id]
+                                 && Windows.reads.isEmpty && Desktop.WindowActivator.reads.isEmpty && Work.scans.pending.isEmpty,
+                                 "the other owner's discovery alone resumes the shortcut without waiting for a scan, debounce or AX")
+                    return
+                }
+                switch scenario {
+                case .ownerLaterListed:
+                    Windows.items = current
+                    Desktop.WindowActivator.focus[pid] = cID
+                case .delayedCreation, .backgroundCreation, .delayedFocus, .missingWindow:
+                    Windows.items = [b, a]
+                    Desktop.WindowActivator.focus[pid] = scenario == .backgroundCreation ? nil : bID
+                case .newerAX: Desktop.WindowActivator.focus[pid] = bID
+                case .missingAX: Desktop.WindowActivator.focus[pid] = nil
+                default: break
+                }
+                if scenario == .timeout {
+                    let previousSpaces = Desktop.SpaceWindowBridge.visibleSpaces
+                    defer { Desktop.SpaceWindowBridge.visibleSpaces = previousSpaces }
+                    Desktop.SpaceWindowBridge.visibleSpaces = [2]
+                    Desktop.Events.shared.deliver?(.spacesChanged)
+                    Work.main.timeouts.drain()
+                    suite.expect(!inventory.isReady && !service.keyboardInputOwnership.isOwned && Activator.activated == previous,
+                                 "a timeout releases the shortcut while both its worker and the new Space's inventory are pending")
+                    deliverScan()
+                    deliverScan()
+                    suite.expect(service.startedGenerations.isEmpty && Activator.activated == previous,
+                                 "late window replies after the Space change cannot commit the expired shortcut")
+                    return
+                }
+                Work.scans.drain() // Keep the worker's answer separate from its main-queue delivery.
+                if scenario == .newerAX { observed.recordObservedFocus(windowID: cID, pid: pid) }
+                if scenario == .unrelatedTermination { observed.focusHistory.terminated(otherPID) }
+                Work.main.deliveries.drain()
+                switch scenario {
+                case .delayedCreation, .backgroundCreation, .delayedFocus, .missingWindow, .missingAX, .unresolvedOwner:
+                    suite.expect(service.routePendingSessionStart?.generation == generation && Activator.activated == previous,
+                                 "\(scenario) keeps the released shortcut pending after an inconclusive first read")
+                    if scenario != .missingWindow && scenario != .unresolvedOwner { Windows.items = current }
+                    if scenario == .delayedCreation { Desktop.WindowActivator.focus[pid] = cID }
+                    if scenario == .backgroundCreation { Desktop.WindowActivator.focus[pid] = bID }
+                default: break
+                }
+                deliverScan()
+                Queue.advance(to: Queue.time)
+                suite.expect(Windows.reads.count <= 2 && Windows.reads.allSatisfy { $0 == pid }
+                             && Desktop.WindowActivator.reads.count <= 2 && Desktop.WindowActivator.reads.allSatisfy { $0 == pid }
+                             && Work.scans.pending.isEmpty, "\(scenario) confines both window and AX reads to two editor-scoped attempts")
+                if scenario == .embeddedOwner {
+                    suite.expect(Windows.helperSearches == [pid], "the editor-scoped confirmation includes its new accessory helper")
+                }
+                switch scenario {
+                case .missingWindow, .missingAX, .unresolvedOwner, .cancelled:
+                    suite.expect(service.startedGenerations.isEmpty && Activator.activated == previous && !service.keyboardInputOwnership.isOwned,
+                                 "\(scenario) releases input without activating a window, including after late worker replies")
+                    if scenario == .cancelled {
+                        Work.main.debounce.drain()
+                        deliverScan()
+                        Desktop.Events.shared.deliver?(.focused(cID))
+                        Desktop.Events.shared.deliver?(.changed(cID))
+                        service.currentDisplayScope = .init(bounds: displays, targetIndex: 0)
+                        let warm = press(service, shortcut: .switcherWindowDefault)
+                        _ = service.route(type: .flagsChanged, event: release)
+                        suite.expect(service.startedGenerations == [warm] && Activator.activated == previous + [b.id]
+                                     && Activator.lastSourceWindowID == cID && Work.scans.pending.isEmpty,
+                                     "with C and its focus known, an ordinary update keeps the next shortcut immediate")
+                    }
+                default:
+                    let target = scenario == .backgroundCreation ? a : b
+                    let source = scenario == .backgroundCreation ? bID : cID
+                    suite.expect(service.startedGenerations == [generation] && Activator.activated == previous + [target.id]
+                                 && Activator.lastSourceWindowID == source && !service.keyboardInputOwnership.isOwned,
+                                 "\(scenario) commits exactly once from the verified source on the original display")
+                    if scenario == .observedAX {
+                        Desktop.Events.shared.deliver?(.destroyed(cID))
+                        suite.expect(observed.focusSnapshot(for: pid).windowID != cID && !inventory.contains(c),
+                                     "confirmed destruction removes C from both the observed focus and the inventory")
+                    }
+                }
             }
         }
     }

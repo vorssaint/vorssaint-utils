@@ -167,6 +167,8 @@ def main():
                         "    static func rememberSwitcherWindows(",
                         "    static func beginSourcePrefetch(",
                         "    private struct WalkApps {",
+                        "    private static func regularBundlePaths(",
+                        "    static func appPID(forWindowOwner",
                         "    private static func walkApps(",
                         "    static func listWindowsForCommandBar(",
                         "    private static func listWindows(appRules:",

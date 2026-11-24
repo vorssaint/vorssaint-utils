@@ -188,5 +188,36 @@ enum SwitcherQuickCommitTests {
                           running: [11], revision: history.focusHistory.revision)
         suite.expect(history.windows == [3, 4] && history.apps == [11],
                      "a current capture still removes closed windows and terminated apps")
+
+        newEmbeddedOwner(suite)
+    }
+
+    private static func newEmbeddedOwner(_ suite: TestSuite) {
+        let host = Enumerator.AppSnapshot(pid: 20, bundleIdentifier: "test.editor", localizedName: "Editor",
+                                          isRegular: true, isHidden: false, bundlePath: "/Applications/Editor.app",
+                                          executablePath: nil)
+        let helper: pid_t = 21
+        let agent: pid_t = 22
+        Enumerator.RunningApplication.apps[helper] = .init(isRegular: false,
+            bundlePath: "/Applications/Editor.app/Contents/Helpers/Renderer.app")
+        Enumerator.RunningApplication.apps[agent] = .init(isRegular: false, bundlePath: "/Applications/Editor.app2/Agent.app")
+        let hostPID = Enumerator.appPID(forWindowOwner: helper, runningApps: [host])
+        suite.expect(hostPID == host.pid && Enumerator.appPID(forWindowOwner: agent, runningApps: [host]) == nil,
+                     "a new embedded owner maps to its running host while an unrelated agent has no host")
+        guard let hostPID else { return }
+
+        let snapshot = Enumerator.Snapshot(accessibilityGranted: true, runningApps: [host],
+                                           ownWindowTitles: [:], screenFrames: [frame], displayIDsByUUID: [:])
+        Enumerator.raw = [surface(id: 31, owner: host.pid), surface(id: 32, owner: helper), surface(id: 34, owner: agent)]
+        Enumerator.answers = [host.pid: described([31]), helper: described([32, 33]), agent: described([34])]
+        let warm = Enumerator.rememberSwitcherWindows(snapshot: snapshot, filterPID: hostPID, isCancelled: { false })
+        suite.expect(warm.items.compactMap(\.windowID) == [31],
+                     "an ordinary host refresh keeps the existing policy for owners missing from the workspace")
+        let windows = Enumerator.rememberSwitcherWindows(snapshot: snapshot, filterPID: hostPID,
+                                                        includingNewHelpers: true, isCancelled: { false }).items
+        suite.expect(Set(windows.compactMap(\.windowID)) == [31, 32, 33]
+                     && windows.allSatisfy { $0.pid == hostPID }
+                     && Set(windows.filter { $0.windowOwnerPID == helper }.compactMap(\.windowID)) == [32, 33],
+                     "a host refresh includes both CG and AX-only windows of a helper missing from the workspace snapshot")
     }
 }

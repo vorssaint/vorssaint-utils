@@ -69,16 +69,26 @@ final class WindowUseTracker {
     var apps: [pid_t] { stateLock.withLock { appHistory } }
 
     var historyRevision: UUID { stateLock.withLock { focusHistory.revision } }
+    var focusRevision: UUID { stateLock.withLock { focusHistory.focusRevision } }
 
-    func focusedWindowID(for pid: pid_t) -> CGWindowID? {
-        stateLock.withLock { focusHistory.focusedWindowID(for: pid) }
+    func focusSnapshot(for pid: pid_t) -> (revision: UUID, windowID: CGWindowID?) {
+        stateLock.withLock { (focusHistory.focusRevision, focusHistory.focusedWindowID(for: pid)) }
     }
 
-    func recordObservedFocus(windowID: CGWindowID, pid: pid_t) {
+    @discardableResult
+    func recordObservedFocus(windowID: CGWindowID, pid: pid_t, ifRevision expected: UUID? = nil) -> UUID? {
         stateLock.withLock {
-            guard recording, let request = focusHistory.current, request.pid == pid,
-                  focusHistory.focus(windowID, for: request) else { return }
+            guard recording,
+                  let revision = focusHistory.focus(windowID, forPID: pid, ifRevision: expected) else { return nil }
             windowHistory = WindowUseOrder.promoting(windowID, in: windowHistory)
+            return revision
+        }
+    }
+
+    func removeWindow(_ windowID: CGWindowID) {
+        stateLock.withLock {
+            windowHistory.removeAll { $0 == windowID }
+            focusHistory.removeWindow(windowID)
         }
     }
 

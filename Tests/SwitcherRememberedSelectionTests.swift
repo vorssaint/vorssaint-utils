@@ -54,9 +54,13 @@ enum SwitcherRememberedSelectionTests {
             struct Main {
                 let deliveries = DeferredQueue()
                 let debounce = DeferredQueue()
+                let timeouts = DeferredQueue()
                 func async(execute work: @escaping () -> Void) { deliveries.async(execute: work) }
                 func asyncAfter(deadline: DispatchTime, execute work: DispatchWorkItem) {
                     debounce.async { work.perform() }
+                }
+                func asyncAfter(deadline: DispatchTime, execute work: @escaping () -> Void) {
+                    timeouts.async(execute: work)
                 }
             }
             static let main = Main()
@@ -80,8 +84,9 @@ enum SwitcherRememberedSelectionTests {
             }
         }
         enum SpaceWindowBridge {
+            static var visibleSpaces: Set<UInt64> = [1]
             static func topology() -> SwitcherFullscreenScopeTests.Bridge.Topology? {
-                .init(visibleSpaces: [1], fullscreenSpaces: [])
+                .init(visibleSpaces: visibleSpaces, fullscreenSpaces: [])
             }
         }
         final class SwitcherWindowTitles {
@@ -92,18 +97,30 @@ enum SwitcherRememberedSelectionTests {
         }
         enum WindowActivator {
             static var focus: [pid_t: CGWindowID] = [:]
-            static func focusedWindowID(for pid: pid_t) -> CGWindowID? { focus[pid] }
+            static var reads: [pid_t] = []
+            static func focusedWindowID(for pid: pid_t) -> CGWindowID? {
+                reads.append(pid)
+                return focus[pid]
+            }
         }
         final class WindowUseTracker {
             static let shared = WindowUseTracker()
-            var focus: [pid_t: CGWindowID] = [:]
-            private(set) var historyRevision = UUID()
+            var focusHistory = WindowFocusHistory()
             var windows: [CGWindowID] { Tracker.shared.history }
-            func focusedWindowID(for pid: pid_t) -> CGWindowID? { focus[pid] }
-            func recordObservedFocus(windowID: CGWindowID, pid: pid_t) {
-                focus[pid] = windowID
-                historyRevision = UUID()
+            var historyRevision: UUID { focusHistory.revision }
+            var focusRevision: UUID { focusHistory.focusRevision }
+            func focusSnapshot(for pid: pid_t) -> (revision: UUID, windowID: CGWindowID?) {
+                (focusHistory.focusRevision, focusHistory.focusedWindowID(for: pid))
+            }
+            @discardableResult
+            func recordObservedFocus(windowID: CGWindowID, pid: pid_t, ifRevision: UUID? = nil) -> UUID? {
+                guard let revision = focusHistory.focus(windowID, forPID: pid, ifRevision: ifRevision) else { return nil }
                 Tracker.shared.history = WindowUseOrder.promoting(windowID, in: windows)
+                return revision
+            }
+            func removeWindow(_ windowID: CGWindowID) {
+                focusHistory.removeWindow(windowID)
+                Tracker.shared.history.removeAll { $0 == windowID }
             }
         }
         enum WindowEnumerator {
@@ -112,22 +129,32 @@ enum SwitcherRememberedSelectionTests {
             typealias DisplayScope = Enumerator.DisplayScope
             static var items: [SwitcherItem] = []
             static var reads: [pid_t?] = []
+            static var helperSearches: [pid_t?] = []
             static func ownWindowID(for window: NSWindow) -> CGWindowID? {
                 Inventory.WindowEnumerator.ownWindowID(for: window)
             }
-            static func runningApplications() -> [Enumerator.AppSnapshot] { [] }
+            static func runningApplications() -> [Enumerator.AppSnapshot] {
+                NSRunningApplication.apps.map { pid, app in
+                    .init(pid: pid, bundleIdentifier: app.bundleIdentifier, localizedName: app.localizedName,
+                          isRegular: app.isRegular, isHidden: app.isHidden, bundlePath: app.bundlePath, executablePath: app.executablePath)
+                }
+            }
+            static func appPID(forWindowOwner owner: pid_t, runningApps: @autoclosure () -> [Enumerator.AppSnapshot]) -> pid_t? {
+                Enumerator.appPID(forWindowOwner: owner, runningApps: runningApps())
+            }
             static func snapshot(includingRunningApps: Bool) -> Snapshot {
                 .init(accessibilityGranted: Permissions.shared.accessibility,
                       runningApps: [], ownWindowTitles: [:], screenFrames: [], displayIDsByUUID: [:])
             }
-            static func rememberSwitcherWindows(snapshot: Snapshot, filterPID: pid_t? = nil,
+            static func rememberSwitcherWindows(snapshot: Snapshot, filterPID: pid_t? = nil, includingNewHelpers: Bool = false,
                                                 isCancelled: () -> Bool) -> WindowList {
                 reads.append(filterPID)
+                if includingNewHelpers { helperSearches.append(filterPID) }
                 return .init(items: items.filter { filterPID == nil || $0.pid == filterPID }, sourceItems: [])
             }
         }
         static func windowInfo(_ options: CGWindowListOption, _ id: CGWindowID) -> CFArray? {
-            guard let owner = WindowEnumerator.items.first(where: { $0.windowID == id })?.pid else { return nil }
+            guard let owner = WindowEnumerator.items.first(where: { $0.windowID == id })?.windowOwnerPID else { return nil }
             return [[kCGWindowOwnerPID as String: NSNumber(value: owner), kCGWindowLayer as String: 0]] as CFArray
         }
     }
@@ -279,9 +306,11 @@ enum SwitcherRememberedSelectionTests {
             inventory.stop()
             Windows.items = []
             Windows.reads = []
+            Windows.helperSearches = []
             Queues.discoveries.reset()
             Queues.scans.reset()
             Queues.main.debounce.reset()
+            Queues.main.timeouts.reset()
             Queues.main.deliveries.reset()
             Enumerator.RunningApplication.apps = previousApps
             Preferences.standard.values = previousPreferences

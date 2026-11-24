@@ -1219,6 +1219,10 @@ final class AppSwitcher: ObservableObject {
             discardPendingSessionStart(generation: generation, reason: "secure_input_guard_unavailable")
             return
         }
+        if windowInventory.sourceCheckExpired(for: generation) {
+            discardPendingSessionStart(generation: generation, reason: "source_confirmation_timed_out")
+            return
+        }
         guard windowInventory.readyForSession(currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)) else { return }
         guard let selection = windowInventory.selection(
             for: generation,

@@ -163,6 +163,23 @@ enum WindowEnumerator {
         let accessibilityPIDs: Set<pid_t>
     }
 
+    private static func regularBundlePaths(in apps: [AppSnapshot]) -> [pid_t: String] {
+        var paths: [pid_t: String] = [:]
+        for app in apps where app.isRegular && app.pid > 0 {
+            if let path = app.bundlePath { paths[app.pid] = path }
+        }
+        return paths
+    }
+
+    /// The first window of an embedded process has no remembered item identifying its host yet.
+    static func appPID(forWindowOwner owner: pid_t, runningApps: @autoclosure () -> [AppSnapshot]) -> pid_t? {
+        guard let app = NSRunningApplication(processIdentifier: owner), !app.isTerminated else { return nil }
+        if app.activationPolicy == .regular { return owner }
+        guard let path = app.bundleURL?.path else { return nil }
+        return SwitcherSupport.embeddedHostPID(helperBundlePath: path,
+                                              regularBundlePaths: regularBundlePaths(in: runningApps()))
+    }
+
     /// The apps of one walk, and the ones it asks through Accessibility.
     ///
     /// The regular process owns the app identity, but an embedded accessory
@@ -171,12 +188,8 @@ enum WindowEnumerator {
                                  ownPID: pid_t,
                                  filterPID: pid_t?) -> WalkApps {
         var regularApps: [pid_t: String] = [:]
-        var regularBundlePaths: [pid_t: String] = [:]
         for app in runningApps where app.isRegular {
             regularApps[app.pid] = app.localizedName ?? ""
-            if let path = app.bundlePath {
-                regularBundlePaths[app.pid] = path
-            }
         }
         regularApps[pid_t(ownPID)] = AppInfo.name
         // Programs hosted by a compatibility layer (bottles) run in bare
@@ -194,11 +207,12 @@ enum WindowEnumerator {
                 regularApps[app.pid] = app.localizedName ?? ""
             }
         }
+        let hostPaths = regularBundlePaths(in: runningApps)
         let embeddedHostPairs: [(pid_t, pid_t)] = runningApps.compactMap { app in
             guard !app.isRegular,
                   let helperPath = app.bundlePath,
                   let hostPID = SwitcherSupport.embeddedHostPID(helperBundlePath: helperPath,
-                                                               regularBundlePaths: regularBundlePaths)
+                                                               regularBundlePaths: hostPaths)
             else { return nil }
             return (app.pid, hostPID)
         }
@@ -337,6 +351,7 @@ enum WindowEnumerator {
     static func rememberSwitcherWindows(
         snapshot: Snapshot,
         filterPID: pid_t? = nil,
+        includingNewHelpers: Bool = false,
         isCancelled: @escaping () -> Bool
     ) -> WindowList {
         listWindows(filterPID: filterPID,
@@ -353,6 +368,7 @@ enum WindowEnumerator {
                     marksHiddenSpaces: true,
                     snapshot: snapshot,
                     remembersWindows: true,
+                    includingNewHelpers: includingNewHelpers,
                     isCancelled: isCancelled)
     }
 
@@ -481,6 +497,7 @@ enum WindowEnumerator {
                                     windowServerCapture: WindowServerWindowList? = nil,
                                     resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                     remembersWindows: Bool = false,
+                                    includingNewHelpers: Bool = false,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         guard !isCancelled() else {
             return WindowList(items: [], sourceItems: [])
@@ -514,13 +531,17 @@ enum WindowEnumerator {
             windowInfo: raw, capturesActivationBaseline: sourcePID != nil || remembersWindows)
         let normalLevelWindowIDs = windowServerSnapshot.normalLevelWindowIDs
         let windowOwnerPIDs = windowServerSnapshot.normalLevelOwnerPIDs
-        // Snapshot apps plus regular owners the window server named and the
-        // snapshot did not. One merge, then one Accessibility batch.
+        // A front-app confirmation can precede workspace registration of that app's new helper.
+        lazy var hostPaths = regularBundlePaths(in: snapshot.runningApps)
         let mergedApps = SwitcherSupport.usableApps(
             snapshot.runningApps,
             windowOwnerPIDs: windowOwnerPIDs,
             pid: \.pid,
             isRegular: \.isRegular,
+            isEmbeddedHelper: { app in
+                guard includingNewHelpers, let filterPID, let path = app.bundlePath else { return false }
+                return SwitcherSupport.embeddedHostPID(helperBundlePath: path, regularBundlePaths: hostPaths) == filterPID
+            },
             // Runs off main; NSRunningApplication(processIdentifier:) is thread-safe.
             resolve: { pid in
                 guard let app = NSRunningApplication(processIdentifier: pid),
