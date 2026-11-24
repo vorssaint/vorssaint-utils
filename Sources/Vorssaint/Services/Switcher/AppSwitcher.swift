@@ -94,11 +94,17 @@ final class AppSwitcher: ObservableObject {
 
     /// Keep the first main-thread sample through inventory callbacks and activation.
     private struct SessionOrigin {
+        struct AnnouncedWindows {
+            let spaceRevision: Int
+            var waiting = true
+            var focusedWindowID: CGWindowID?
+        }
         let generation: UInt64
         let pid: pid_t
         let regularBundleIdentifier: String?
         let displayScope: WindowEnumerator.DisplayScope?
         var readingFrontApp = false
+        var announcedWindows: AnnouncedWindows?
         var removals: Set<SwitcherWindowInventory.Removal> = []
         var environmentStillCurrent: (() -> Bool)?
     }
@@ -1256,18 +1262,63 @@ final class AppSwitcher: ObservableObject {
             readFrontAppWindows(origin: origin)
             return
         }
-        guard windowInventory.readyForSession(currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)) else { return }
+        let ready = windowInventory.readyForSession(currentSpaceOnly: currentSpaceOnly)
+        if requested.scope == .allWindows {
+            if let announced = origin.announcedWindows {
+                guard !currentSpaceOnly || announced.spaceRevision == windowInventory.currentSpaceRevision else {
+                    discardPendingSessionStart(generation: generation, reason: "all_windows_space_changed")
+                    return
+                }
+                guard !announced.waiting else { return }
+            } else if windowInventory.afterAnnouncedWindows(frontmostPID: origin.pid, resume: { [weak self] needsFocus in
+                self?.resumeAllWindows(origin: origin, needsFocus: needsFocus)
+            }) {
+                sessionOrigin?.announcedWindows = .init(spaceRevision: windowInventory.currentSpaceRevision)
+                return
+            }
+        }
+        guard ready else { return }
         guard let selection = windowInventory.selection(
             for: generation,
             scope: requested.scope,
             frontmostPID: origin.pid,
-            displayScope: origin.displayScope) else { return }
+            displayScope: origin.displayScope,
+            confirmedFocus: origin.announcedWindows?.focusedWindowID) else { return }
         finishPendingSession(generation: generation,
                              reportedFrontPID: origin.pid,
                              focusedSourceWindowID: selection.focusedWindowID,
                              windows: selection.list.items,
                              sourceItems: selection.list.sourceItems,
                              windowServerSnapshot: selection.list.activationSnapshot)
+    }
+
+    private func resumeAllWindows(origin: SessionOrigin, needsFocus: Bool) {
+        let isPending = { [weak self] in
+            guard let self else { return false }
+            return self.routeLock.withLock { self.routePendingSessionStart?.generation == origin.generation }
+        }
+        guard isPending() else { return }
+        let tracker = WindowUseTracker.shared
+        let observation = needsFocus ? tracker.frontAppFocus(for: origin.pid).latest?.confirmation : nil
+        let resume = { [weak self] (focus: CGWindowID?) in
+            guard let self, isPending() else { return }
+            let latest = needsFocus ? tracker.frontAppFocus(for: origin.pid).latest : nil
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == origin.pid,
+                  latest?.confirmation == observation || latest?.windowID == focus else {
+                self.discardPendingSessionStart(generation: origin.generation, reason: "all_windows_source_changed")
+                return
+            }
+            self.sessionOrigin?.announcedWindows?.focusedWindowID = focus
+            self.sessionOrigin?.announcedWindows?.waiting = false
+            self.beginPendingSession(generation: origin.generation)
+        }
+        guard needsFocus else { resume(nil); return }
+        // Creation and ordering notifications alone cannot tell whether the new window took focus.
+        frontAppReadQueue.async {
+            guard isPending() else { return }
+            let focus = WindowActivator.focusedWindowID(for: origin.pid)
+            DispatchQueue.main.async { resume(focus) }
+        }
     }
 
     /// The app can focus a new window before either inventory observer catches up.

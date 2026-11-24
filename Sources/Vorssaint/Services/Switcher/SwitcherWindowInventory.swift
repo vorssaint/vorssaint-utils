@@ -34,7 +34,9 @@ final class SwitcherWindowInventory {
     private var needsFullRefresh = false
     private var emptySelectionRefresh: EmptySelectionRefresh?
     private var pendingPIDs: Set<pid_t> = []
-    private var pendingWindowIDs: Set<CGWindowID> = []
+    private var pendingWindowIDs: [CGWindowID: UUID] = [:]
+    private var discoveriesForRefresh: [UUID: CGWindowID] = [:]
+    private var discoveryWait: (tickets: Set<UUID>, resume: () -> Void)?
     private var destroyedDuringRefresh: Set<CGWindowID> = []
     private var terminatedDuringRefresh: Set<pid_t> = []
     private let lifetimeLock = NSLock()
@@ -130,7 +132,9 @@ final class SwitcherWindowInventory {
         needsFullRefresh = false
         emptySelectionRefresh = nil
         pendingPIDs = []
-        pendingWindowIDs = []
+        pendingWindowIDs = [:]
+        discoveriesForRefresh = [:]
+        discoveryWait = nil
         for observer in observers { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
         observers = []
         for observer in screenObservers { NotificationCenter.default.removeObserver(observer) }
@@ -150,12 +154,13 @@ final class SwitcherWindowInventory {
         for generation: UInt64,
         scope: SwitcherSessionScope,
         frontmostPID: pid_t,
-        displayScope: WindowEnumerator.DisplayScope?
+        displayScope: WindowEnumerator.DisplayScope?,
+        confirmedFocus: CGWindowID? = nil
     ) -> (list: WindowEnumerator.WindowList, focusedWindowID: CGWindowID?)? {
         // An older scan may publish while this shortcut's confirmation is queued.
         if let request = emptySelectionRefresh, request.generation == generation, !request.completed { return nil }
         let appPID = SwitcherSupport.appPID(forFrontmost: frontmostPID, items: remembered.items)
-        let focused = WindowUseTracker.shared.windows.first { id in
+        let focused = confirmedFocus ?? WindowUseTracker.shared.windows.first { id in
             remembered.items.contains { $0.windowID == id && $0.pid == appPID && $0.isOnScreen && !$0.isMinimized }
         }
         let list = SwitcherWindowSelection.select(
@@ -180,7 +185,7 @@ final class SwitcherWindowInventory {
             }
         }
         // The shortcut can beat even the notification that introduces a new window.
-        let discoveries = isFollowup ? pendingWindowIDs : []
+        let discoveries = isFollowup ? Set(pendingWindowIDs.keys) : []
         emptySelectionRefresh = EmptySelectionRefresh(generation: generation, isFollowup: isFollowup,
                                                      discoveries: discoveries)
         if discoveries.isEmpty { invalidate() }
@@ -188,6 +193,35 @@ final class SwitcherWindowInventory {
     }
 
     var currentSpaceRevision: Int { spaces.revision }
+
+    /// Wait only for windows already announced at the key press. A later announcement
+    /// (even for the same ID) belongs to its own discovery and cannot extend this wait.
+    func afterAnnouncedWindows(frontmostPID: pid_t, resume: @escaping (_ needsFocus: Bool) -> Void) -> Bool {
+        guard !pendingWindowIDs.isEmpty || !discoveriesForRefresh.isEmpty else { return false }
+        let ids = Set(pendingWindowIDs.keys).union(discoveriesForRefresh.values)
+        let tickets = Set(pendingWindowIDs.values).union(discoveriesForRefresh.keys)
+        discoveryWait = (tickets, { [weak self] in
+            guard let self else { return }
+            let pid = SwitcherSupport.appPID(forFrontmost: frontmostPID, items: self.remembered.items)
+            let newSourceCandidate = self.remembered.items.contains {
+                $0.pid == pid && $0.isOnScreen && !$0.isMinimized && $0.windowID.map(ids.contains) == true
+            }
+            resume(newSourceCandidate && SwitcherSupport.needsFocusedWindowLookup(frontmostPID: frontmostPID,
+                                                                                  items: self.remembered.items))
+        })
+        return true
+    }
+
+    private func finishDiscoveries(_ tickets: Set<UUID>) {
+        guard var wait = discoveryWait else { return }
+        wait.tickets.subtract(tickets)
+        if wait.tickets.isEmpty {
+            discoveryWait = nil
+            wait.resume()
+        } else {
+            discoveryWait = wait
+        }
+    }
 
     var knownWindowIDs: Set<CGWindowID> { Set(remembered.items.compactMap(\.windowID)) }
 
@@ -264,7 +298,9 @@ final class SwitcherWindowInventory {
     }
 
     private func discover(_ windowID: CGWindowID) {
-        guard let generation = lifetime, pendingWindowIDs.insert(windowID).inserted else { return }
+        guard let generation = lifetime, pendingWindowIDs[windowID] == nil else { return }
+        let ticket = UUID()
+        pendingWindowIDs[windowID] = ticket
         discoveryQueue.async { [weak self] in
             guard let self, self.lifetimeLock.withLock({ self.lifetime == generation }) else { return }
             let info = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID) as? [[String: Any]]
@@ -274,12 +310,16 @@ final class SwitcherWindowInventory {
             let regular = owner.flatMap { NSRunningApplication(processIdentifier: $0) }?.activationPolicy == .regular
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.lifetime == generation else { return }
-                self.pendingWindowIDs.remove(windowID)
+                self.pendingWindowIDs.removeValue(forKey: windowID)
                 if self.emptySelectionRefresh?.discoveries.remove(windowID) != nil,
                    self.emptySelectionRefresh?.discoveries.isEmpty == true {
                     self.invalidate()
                 }
-                guard layer == 0, let owner, owner != ProcessInfo.processInfo.processIdentifier else { return }
+                guard layer == 0, let owner, owner != ProcessInfo.processInfo.processIdentifier else {
+                    self.finishDiscoveries([ticket])
+                    return
+                }
+                self.discoveriesForRefresh[ticket] = windowID
                 self.invalidate(pid: regular ? owner : nil)
             }
         }
@@ -316,6 +356,7 @@ final class SwitcherWindowInventory {
         pendingRefresh = nil
         let spaceRevision = spaces.revision
         let sessionRefresh = emptySelectionRefresh
+        let discoveries = Set(discoveriesForRefresh.keys)
         let pids = needsFullRefresh ? nil : pendingPIDs
         needsFullRefresh = false
         pendingPIDs = []
@@ -364,7 +405,10 @@ final class SwitcherWindowInventory {
                    self.emptySelectionRefresh == sessionRefresh {
                     self.emptySelectionRefresh?.completed = true
                 }
+                // onReady can be the shortcut's first turn on main, before its queued key handler.
                 self.adopt(result, replacing: pids)
+                for ticket in discoveries { self.discoveriesForRefresh.removeValue(forKey: ticket) }
+                self.finishDiscoveries(discoveries)
                 if self.needsFullRefresh || !self.pendingPIDs.isEmpty { self.invalidatePendingRefresh() }
             }
         }
