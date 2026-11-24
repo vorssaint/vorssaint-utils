@@ -929,7 +929,22 @@ final class NotchService: ObservableObject {
                                      timerMode: NotchTimerService.shared.session.hasSession
                                         ? NotchTimerService.shared.session.mode : NotchTimerSupport.savedMode(),
                                      agentsHeight: module == .agents && !detail && !panel
-                                        ? agentsContentHeight(width: geometry.contentWidth) : nil)
+                                        ? agentsContentHeight(width: geometry.contentWidth) : nil,
+                                     homeAssistantCount: homeAssistantCount, homeAssistantColumns: homeAssistantColumns,
+                                     homeAssistantPageCount: homeAssistantPageCount)
+    }
+
+    private var homeAssistantCount: Int {
+        HomeAssistantService.current?.visibleEntityIDs.count
+            ?? HomeAssistantPages.selected(in: .standard).entities.count
+    }
+    private var homeAssistantColumns: Int {
+        HomeAssistantService.current?.effectiveColumns
+            ?? HomeAssistantPages.selected(in: .standard).effectiveColumns(default:
+                UserDefaults.standard.integer(forKey: DefaultsKey.notchHomeAssistantColumns))
+    }
+    private var homeAssistantPageCount: Int {
+        HomeAssistantService.current?.pages.count ?? HomeAssistantPages.load(in: .standard).count
     }
 
     /// The AI page is as tall as the cards it shows; nil while the logs are
@@ -1196,6 +1211,7 @@ final class NotchService: ObservableObject {
     }
 
     func syncWithPreferences() {
+        HomeAssistantService.current?.syncWithPreferences()
         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
         guard NotchSupport.isEnabled() else { stop(); return }
         if !running {
@@ -1314,6 +1330,7 @@ final class NotchService: ObservableObject {
     }
 
     func stop(restoreCapture: Bool = true) {
+        HomeAssistantService.current?.stop()
         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
         hotkey.unregister()
         if shortcutRegistrationFailed { shortcutRegistrationFailed = false }
@@ -4263,8 +4280,8 @@ final class NotchService: ObservableObject {
         panel?.handleScroll = { [weak self] event in self?.handleScroll(event) ?? false }
     }
 
-    /// The gallery steps its rows from the wheel; every other scroll over the
-    /// island is a gesture candidate.
+    /// The gallery steps rows; Home keeps native scrolling and momentum in its
+    /// body, while the header remains available for island gestures.
     private func handleScroll(_ event: NSEvent) -> Bool {
         handleConvertSwipe(event) || handleSectionScroll(event) || handleGesture(event)
     }
@@ -4379,6 +4396,20 @@ final class NotchService: ObservableObject {
 
     private func bindEvents() {
         subscriptions.removeAll()
+        if modules.contains(.homeAssistant) {
+            let home = HomeAssistantService.shared
+            Publishers.CombineLatest3(home.$pages, home.$activePageID, home.$columns)
+                .map { pages, id, columns in
+                    let page = pages.first { $0.id == id }
+                    return (page?.entities.count ?? 0, page?.effectiveColumns(default: columns) ?? columns, pages.count)
+                }
+                .removeDuplicates { $0 == $1 }
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.objectWillChange.send()
+                    self?.refreshPresentation()
+                }.store(in: &subscriptions)
+        }
         if modules.contains(.timer) {
             NotchTimerService.shared.$session.removeDuplicates().receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in

@@ -2868,6 +2868,8 @@ def main():
           + "var clamshellSetupRetried = false\nvar passwordlessClamshell = true\n"
           + "var recoveryCompleted = false\nvar launchActivationPending = true\nvar screenLocked = false\nvar assertionsHeld = false\n"
           + "var assertionReleases = 0\nvar automationSuppressedUntilConditionsClear = false\n"
+          + "var agentsIdle = false\nfunc agentWorkHolds() -> Bool { false }\n"
+          + "func syncAgentIdleDisplay(matching matches: Set<KeepAwakeAutomationCondition>) {}\n"
           + "var powerDisconnectGrace = KeepAwakePowerDisconnectGrace()\n"
           + "var powerDisconnectEvaluation: (deadline: ContinuousClock.Instant, task: Task<Void, Never>)?\n"
           + "var endTimer: Timer?\nvar batteryTimer: Timer?\nvar endDate: Date?\nvar sessionTrigger: SessionTrigger?\nvar sessionMinutes: Int?\n"

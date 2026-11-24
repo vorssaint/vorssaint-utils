@@ -602,6 +602,10 @@ enum SettingsBackupSupport {
     /// code that trusts its own settings.
     static func valueLooksRight(_ key: String, _ value: Any) -> Bool {
         switch key {
+        case DefaultsKey.notchHomeAssistantPages:
+            return value is [[String: Any]]
+        case DefaultsKey.notchHomeAssistantSensors:
+            return value is [String: [String]]
         case DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird:
             return value is String
         default: break

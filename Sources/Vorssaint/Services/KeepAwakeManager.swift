@@ -21,6 +21,9 @@ final class KeepAwakeManager: ObservableObject {
     @Published private(set) var isActive = false
     @Published private(set) var endDate: Date? // nil = indefinite
     @Published private(set) var sessionTrigger: SessionTrigger?
+    /// An automatic session held only by the grace period after the AI agents
+    /// stopped. `endDate` then counts down to the end of that period.
+    @Published private(set) var agentsIdle = false
     /// The preset the session started from; nil for an end time or automation.
     @Published private(set) var sessionMinutes: Int?
     @Published private(set) var runningAppBundleIDs: [String] = []
@@ -84,6 +87,12 @@ final class KeepAwakeManager: ObservableObject {
     private var screenLockObservers: [NSObjectProtocol] = []
     private var powerSourceRunLoopSource: CFRunLoopSource?
     private var runningAppsObservation: NSKeyValueObservation?
+    private var agentObservation: AnyCancellable?
+    private var agentGraceWorkItem: DispatchWorkItem?
+    /// When an AI agent last showed as working; nil until one does.
+    private var agentLastWorking: Date?
+    /// When the last agent work ends the grace period; set while it alone holds.
+    private var agentGraceEnd: Date?
     private var automationEvaluationWorkItem: DispatchWorkItem?
     private var powerDisconnectGrace = KeepAwakePowerDisconnectGrace()
     private var powerDisconnectEvaluation: (deadline: ContinuousClock.Instant, task: Task<Void, Never>)?
@@ -284,6 +293,7 @@ final class KeepAwakeManager: ObservableObject {
         sessionMinutes = minutes
         if trigger != .automation {
             activeAutomationConditions.removeAll()
+            agentsIdle = false
         }
         isActive = true
         if let end {
@@ -347,7 +357,7 @@ final class KeepAwakeManager: ObservableObject {
     }
 
     func extend(minutes: Int) {
-        guard isActive, let current = endDate else { return }
+        guard isActive, sessionTrigger == .manual, let current = endDate else { return }
         let newEnd = max(current, Date()).addingTimeInterval(TimeInterval(minutes) * 60)
         endDate = newEnd
         scheduleEnd(at: newEnd)
@@ -378,6 +388,7 @@ final class KeepAwakeManager: ObservableObject {
         releaseAssertions()
         sessionTrigger = nil
         sessionMinutes = nil
+        agentsIdle = false
         activeAutomationConditions.removeAll()
         isActive = false
         sessionPausedForScreenLock = false
@@ -414,6 +425,9 @@ final class KeepAwakeManager: ObservableObject {
         setScreenMonitoringEnabled(observeScreens)
         setPowerMonitoringEnabled(observePower)
         setRunningAppsMonitoringEnabled(observeRunningApps)
+        setAgentMonitoringEnabled(available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeAgentsWorking)
+            && KeepAwakeAgentWork.isAvailable())
         evaluateAutomation()
     }
 
@@ -473,7 +487,7 @@ final class KeepAwakeManager: ObservableObject {
         }
 
         sessionPausedForScreenLock = false
-        if let endDate, endDate <= Date() {
+        if sessionTrigger != .automation, let endDate, endDate <= Date() {
             if !continueAutomaticallyAfterTimerIfNeeded() { deactivate(reason: .timer) }
             return
         }
@@ -547,6 +561,63 @@ final class KeepAwakeManager: ObservableObject {
         }
     }
 
+    private func setAgentMonitoringEnabled(_ enabled: Bool) {
+        if enabled {
+            guard agentObservation == nil else { return }
+            // A paused reader would show nothing new until the island is back.
+            AgentUsageService.shared.syncWithPreferences()
+            agentObservation = AgentUsageService.shared.$snapshot
+                .map(KeepAwakeAgentWork.isWorking)
+                .removeDuplicates()
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] working in
+                    guard let self else { return }
+                    // The grace period runs from when the work ends. A long
+                    // run is evaluated only when it starts, so the last
+                    // evaluation would date it from the start instead.
+                    if working || self.agentLastWorking != nil { self.agentLastWorking = Date() }
+                    self.scheduleAutomationEvaluation(after: 0.1)
+                }
+        } else {
+            agentObservation = nil
+            agentGraceWorkItem?.cancel()
+            agentGraceWorkItem = nil
+            agentLastWorking = nil
+        }
+    }
+
+    /// Whether the AI agents count as working: one does, or one did within the
+    /// grace period the person chose. Asks again when that period ends.
+    private func agentWorkHolds() -> Bool {
+        agentGraceWorkItem?.cancel()
+        agentGraceWorkItem = nil
+        agentGraceEnd = nil
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: DefaultsKey.keepAwakeAgentsWorking),
+              KeepAwakeAgentWork.isAvailable(in: defaults) else { return false }
+
+        let now = Date()
+        let working = KeepAwakeAgentWork.isWorking(in: AgentUsageService.shared.snapshot)
+        if working { agentLastWorking = now }
+
+        let grace = TimeInterval(Defaults.sanitizedKeepAwakeAgentsGrace(
+            defaults.integer(forKey: DefaultsKey.keepAwakeAgentsGrace))) * 60
+        let holds = KeepAwakeAutomationSupport.agentWorkHolds(
+            working: working, lastWorking: agentLastWorking, now: now, grace: grace)
+        agentGraceEnd = holds && !working ? agentLastWorking?.addingTimeInterval(grace) : nil
+
+        if holds, !working, let last = agentLastWorking {
+            let work = DispatchWorkItem { [weak self] in
+                self?.agentGraceWorkItem = nil
+                self?.evaluateAutomation()
+            }
+            agentGraceWorkItem = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + max(last.addingTimeInterval(grace).timeIntervalSince(now), 0) + 0.5,
+                                          execute: work)
+        }
+        return holds
+    }
+
     private func scheduleAutomationEvaluation(after delay: TimeInterval) {
         automationEvaluationWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in
@@ -563,6 +634,7 @@ final class KeepAwakeManager: ObservableObject {
         setScreenMonitoringEnabled(false)
         setPowerMonitoringEnabled(false)
         setRunningAppsMonitoringEnabled(false)
+        setAgentMonitoringEnabled(false)
         let center = DistributedNotificationCenter.default()
         for observer in screenLockObservers { center.removeObserver(observer) }
         screenLockObservers.removeAll()
@@ -622,6 +694,20 @@ final class KeepAwakeManager: ObservableObject {
         case .deactivate:
             deactivate(reason: .manual)
         }
+        syncAgentIdleDisplay(matching: matches)
+    }
+
+    /// Shows the remaining grace period like a timed session while the agents
+    /// alone hold the automatic session and none of them works any more.
+    private func syncAgentIdleDisplay(matching matches: Set<KeepAwakeAutomationCondition>) {
+        guard isActive, sessionTrigger == .automation else { return }
+        if matches == [.agentsWorking], let graceEnd = agentGraceEnd {
+            agentsIdle = true
+            if endDate != graceEnd { endDate = graceEnd }
+        } else if agentsIdle {
+            agentsIdle = false
+            endDate = nil
+        }
     }
 
     private var powerDisconnectDelay: Int {
@@ -671,7 +757,9 @@ final class KeepAwakeManager: ObservableObject {
             externalDisplayEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay),
             powerEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower),
             runningAppsEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps),
-            hasSelectedApps: !runningAppBundleIDs.isEmpty
+            hasSelectedApps: !runningAppBundleIDs.isEmpty,
+            agentWorkEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeAgentsWorking),
+            agentWorkAvailable: KeepAwakeAgentWork.isAvailable()
         )
     }
 
@@ -716,13 +804,18 @@ final class KeepAwakeManager: ObservableObject {
             selectedAppsRunning = false
         }
 
+        let agentWorkEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeAgentsWorking)
+        let agentsWorking = agentWorkEnabled && agentWorkHolds()
+
         return KeepAwakeAutomationSupport.matchingConditions(
             externalDisplayEnabled: externalDisplayEnabled,
             externalDisplayConnected: externalDisplayConnected,
             powerEnabled: powerEnabled,
             connectedToPower: connectedToPower,
             runningAppsEnabled: runningAppsEnabled,
-            selectedAppsRunning: selectedAppsRunning
+            selectedAppsRunning: selectedAppsRunning,
+            agentWorkEnabled: agentWorkEnabled,
+            agentsWorking: agentsWorking
         )
     }
 

@@ -22,3 +22,6 @@
 "NSNetworkVolumesUsageDescription" = "Vorssaint organizza i download WhatsApp confermati in una cartella di destinazione scelta esplicitamente da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint organizza i download WhatsApp confermati in una cartella di destinazione scelta esplicitamente da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui.";
 "NSCalendarsFullAccessUsageDescription" = "Mostra i tuoi prossimi appuntamenti nella parte superiore dello schermo. Gli eventi del calendario restano su questo Mac.";
+
+/* macOS local network permission prompt. */
+"NSLocalNetworkUsageDescription" = "Vorssaint si connette al server Home Assistant che configuri per mostrare gli stati dei dispositivi e inviare i comandi che scegli.";

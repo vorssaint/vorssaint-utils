@@ -32,6 +32,10 @@ enum DefaultsKey {
     static let keepAwakePowerDisconnectDelay = "keepAwakePowerDisconnectDelaySeconds"
     static let keepAwakeRunningApps = "keepAwakeRunningApps"
     static let keepAwakeRunningAppBundleIDs = "keepAwakeRunningAppBundleIDs"
+    // AI agents as an automation condition, and the minutes it keeps
+    // holding after the agents go quiet.
+    static let keepAwakeAgentsWorking = "keepAwakeAgentsWorking"
+    static let keepAwakeAgentsGrace = "keepAwakeAgentsGraceMinutes"
     // Match mode over the automation conditions: false is Any (one matching
     // condition starts a session), true is All (every enabled condition has
     // to match, and losing one ends the session). Issue #1587.
@@ -984,6 +988,14 @@ enum DefaultsKey {
     static let notchDownloadsEnabled = "notchDownloadsEnabled"
     static let notchDownloadsFolderBookmark = "notchDownloadsFolderBookmark"
     // Watch: any part of any window read live in the island.
+    static let notchHomeAssistantEnabled = "notchHomeAssistantEnabled"
+    static let notchHomeAssistantURL = "notchHomeAssistantURL"
+    static let notchHomeAssistantFavorites = "notchHomeAssistantFavorites"
+    static let notchHomeAssistantColumns = "notchHomeAssistantColumns"
+    static let notchHomeAssistantNames = "notchHomeAssistantNames"
+    static let notchHomeAssistantSensors = "notchHomeAssistantSensors"
+    static let notchHomeAssistantPages = "notchHomeAssistantPages"
+    static let notchHomeAssistantActivePage = "notchHomeAssistantActivePage"
     static let notchWatchEnabled = "notchWatchEnabled"
     static let notchWatchSound = "notchWatchSound"
     static let notchWatchCondition = "notchWatchCondition"
@@ -1348,6 +1360,7 @@ enum Defaults {
 
     static let allowedDurations = [0, 15, 30, 60, 120, 240, 480]
     static let allowedKeepAwakeMouseJiggleIntervals = [1, 2, 5, 10, 15]
+    static let allowedKeepAwakeAgentsGraceMinutes = [0, 2, 5, 10, 15, 30]
     static let allowedBatteryLimits = [0, 5, 10, 15, 20]
     static let allowedKeepAwakePowerDisconnectDelays = Array(stride(from: 0, through: 60, by: 5))
     static let allowedMonitorIntervals = [1, 2, 5]
@@ -1398,6 +1411,8 @@ enum Defaults {
         DefaultsKey.keepAwakePowerDisconnectDelay: 0,
         DefaultsKey.keepAwakeRunningApps: false,
         DefaultsKey.keepAwakeRunningAppBundleIDs: [String](),
+        DefaultsKey.keepAwakeAgentsWorking: false,
+        DefaultsKey.keepAwakeAgentsGrace: 5,
         DefaultsKey.keepAwakeAutomationRequireAll: false,
         DefaultsKey.keepAwakePauseWhenLocked: false,
         DefaultsKey.keepAwakeSwitchUsesUntil: false,
@@ -1713,6 +1728,14 @@ enum Defaults {
         DefaultsKey.notchQueueEnabled: true,
         DefaultsKey.notchSpotifyClientID: "",
         DefaultsKey.notchDownloadsEnabled: true,
+        DefaultsKey.notchHomeAssistantEnabled: false,
+        DefaultsKey.notchHomeAssistantURL: "",
+        DefaultsKey.notchHomeAssistantFavorites: [String](),
+        DefaultsKey.notchHomeAssistantColumns: 2,
+        DefaultsKey.notchHomeAssistantNames: [String: String](),
+        DefaultsKey.notchHomeAssistantSensors: [String: [String]](),
+        DefaultsKey.notchHomeAssistantPages: [[String: Any]](),
+        DefaultsKey.notchHomeAssistantActivePage: "",
         DefaultsKey.notchWatchEnabled: true,
         DefaultsKey.notchWatchSound: true,
         DefaultsKey.notchWatchCondition: NotchWatchCondition.changes.rawValue,
@@ -2772,6 +2795,10 @@ enum Defaults {
 
     static func sanitizedKeepAwakePowerDisconnectDelay(_ seconds: Int) -> Int {
         allowedKeepAwakePowerDisconnectDelays.contains(seconds) ? seconds : 0
+    }
+
+    static func sanitizedKeepAwakeAgentsGrace(_ minutes: Int) -> Int {
+        allowedKeepAwakeAgentsGraceMinutes.contains(minutes) ? minutes : 5
     }
 
     static func sanitizedKeepAwakeMouseJiggleInterval(_ minutes: Int) -> Int {
