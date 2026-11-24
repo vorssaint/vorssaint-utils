@@ -110,6 +110,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Maximize windows.** Use the green button to fill the screen without creating another Space.
 - **Fixed Space order.** Keep Spaces in the order you set instead of rearranging them by recent use. Turning it off restores your previous setting.
 - **Quit on close.** Quit selected apps when their last window closes.
+- **Full screen on launch.** Open apps in macOS full screen when they launch, optionally only on the built-in display, with per-app exceptions.
 - **Quit and close protection.** Prevent accidental ⌘Q or ⌘W with a hold, double press or extra modifier, per app.
 
 <p align="center">

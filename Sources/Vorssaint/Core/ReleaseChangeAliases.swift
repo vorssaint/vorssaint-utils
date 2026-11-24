@@ -69,6 +69,8 @@ enum ReleaseChangeAliases {
             "maximize with margin", "window tools", "resizing windows by dragging"]
         case .autoQuit: return ["quit on close", "auto quit", "quit on last window close"]
         case .spacesOrder: return ["spaces order", "keep spaces in a fixed order"]
+        case .autoFullscreen: return ["full screen on launch", "auto fullscreen", "auto full screen",
+            "open apps in full screen"]
         case .scrollInverter: return ["scroll inverter", "invert mouse scrolling", "inverted mouse scrolling",
             "invert scrolling", "inverted scrolling", "scroll inversion"]
         case .scrollHorizontal: return ["scroll sideways", "horizontal scrolling"]
