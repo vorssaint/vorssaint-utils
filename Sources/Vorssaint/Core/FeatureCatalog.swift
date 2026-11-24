@@ -87,7 +87,7 @@ extension AppFeature {
         // Watch asks when an area is chosen and checks on every reading. The
         // companion uses no permission at all.
         case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder, .wallpaper, .notchWatch,
-             .notchMascot:
+             .notchMascot, .notchHomeAssistant:
             return false
         default:
             return true
@@ -204,6 +204,7 @@ extension AppFeature {
         case .notchNotifications: return "bell"
         case .notchCalendar: return "calendar"
         case .notchAgents: return "sparkles"
+        case .notchHomeAssistant: return "house"
         case .notchWatch: return "eye"
         case .notchMascot: return "face.smiling"
         case .notch: return "macbook"
@@ -283,6 +284,7 @@ extension AppFeature {
         case .notchNotifications: return [DefaultsKey.notchNotificationsEnabled]
         case .notchCalendar: return [DefaultsKey.notchCalendarEnabled]
         case .notchAgents: return [DefaultsKey.notchAgentsEnabled]
+        case .notchHomeAssistant: return [DefaultsKey.notchHomeAssistantEnabled]
         case .notchWatch: return [DefaultsKey.notchWatchEnabled]
         case .notchMascot: return [DefaultsKey.notchMascotEnabled]
         case .notch: return [DefaultsKey.notchEnabled]
@@ -357,7 +359,7 @@ extension AppFeature {
         // every protected location, and no sign-in or keychain item is used.
         case .notchAgents: return []
         // It only draws, and hears of what happens from the island itself.
-        case .notchMascot: return []
+        case .notchMascot, .notchHomeAssistant: return []
         // The bars read the player's own audio output, which macOS gates
         // behind the same permission the mixer and the recorder ask for.
         case .notchLiveEqualizer: return [.audioCapture]

@@ -125,7 +125,7 @@ extension AppFeature {
         // Spotify is asked once when the song changes, and again when the music page opens.
         case .notchSpotify: return .idle
         // It reads only while something is being watched, and stops on its own.
-        case .notchWatch: return .idle
+        case .notchWatch, .notchHomeAssistant: return .idle
         // A blink every few seconds and a visit every few minutes, both
         // drawn by Core Animation, with one timer waiting for the next visit.
         case .notchMascot: return .periodic

@@ -70,6 +70,7 @@ struct NotchEditorStrings {
     let scratchpadSummary: String
     let agentsSummary: String
     let watchSummary: String
+    let homeAssistantSummary: String
 
     func enableFeature(_ title: String) -> String { String(format: enableFeatureFormat, title) }
     func enableSetting(_ title: String) -> String { String(format: enableSettingFormat, title) }
@@ -95,6 +96,7 @@ struct NotchEditorStrings {
         case .scratchpad: return scratchpadSummary
         case .agents: return agentsSummary
         case .watch: return watchSummary
+        case .homeAssistant: return homeAssistantSummary
         }
     }
 }

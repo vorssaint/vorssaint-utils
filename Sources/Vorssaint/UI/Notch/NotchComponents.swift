@@ -13,6 +13,7 @@ struct NotchButtonStyle: ButtonStyle {
     var dimsWhenDisabled = true
     /// A light wash under the pointer.
     var highlights = true
+    var disabledOpacity: Double = 0.4
     @State private var hovered = false
     @Environment(\.isEnabled) private var enabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

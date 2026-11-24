@@ -22,3 +22,6 @@
 "NSNetworkVolumesUsageDescription" = "Vorssaint usporadúva potvrdené stiahnuté súbory z WhatsAppu do cieľového priečinka, ktorý výslovne vyberiete. Čistenie tiež hľadá zabudnuté snímky obrazovky, ak ich sem ukladáte.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint usporadúva potvrdené stiahnuté súbory z WhatsAppu do cieľového priečinka, ktorý výslovne vyberiete. Čistenie tiež hľadá zabudnuté snímky obrazovky, ak ich sem ukladáte.";
 "NSCalendarsFullAccessUsageDescription" = "Zobrazte svoje nadchádzajúce udalosti v hornej časti obrazovky. Udalosti kalendára ostávajú na tomto Macu.";
+
+/* macOS local network permission prompt. */
+"NSLocalNetworkUsageDescription" = "Vorssaint sa pripája k serveru Home Assistant, ktorý nastavíte, aby zobrazil stavy zariadení a odoslal príkazy, ktoré zvolíte.";

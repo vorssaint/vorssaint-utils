@@ -1291,6 +1291,7 @@ extension AppFeature {
         case .notchDownloads: return FeatureStrings.notchFiles(L10n.shared.language).downloadsDescription
         case .notchCalendar: return FeatureStrings.notchCalendar(L10n.shared.language).description
         case .notchAgents: return FeatureStrings.notchAgents(L10n.shared.language).hubDescription
+        case .notchHomeAssistant: return HomeAssistantStrings.localized(L10n.shared.language)[.description]
         case .notchWatch: return FeatureStrings.notchWatch(L10n.shared.language).description
         case .notchMascot: return FeatureStrings.notchMascot(L10n.shared.language).hubDescription
         case .notch: return FeatureStrings.notch(L10n.shared.language).description
