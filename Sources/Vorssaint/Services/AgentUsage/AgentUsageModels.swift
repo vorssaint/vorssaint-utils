@@ -68,7 +68,7 @@ struct AgentTokens: Equatable {
 /// One billed model response.
 struct AgentUsageRecord: Equatable {
     let provider: AgentProvider
-    let date: Date
+    var date: Date
     let model: String
     let project: String
     let session: String

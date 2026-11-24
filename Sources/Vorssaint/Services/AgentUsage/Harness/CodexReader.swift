@@ -18,7 +18,7 @@ struct CodexReader: AgentHarnessReader {
         default: return []
         }
         guard let json = AgentLogParser.object(line), let payload = json["payload"] as? [String: Any] else { return [] }
-        let date = AgentLogParser.timestamp(json["timestamp"]) ?? now
+        let eventDate = AgentLogParser.timestamp(json["timestamp"])
         switch json["type"] as? String {
         case "session_meta":
             // History copied from another thread repeats that thread's
@@ -41,7 +41,7 @@ struct CodexReader: AgentHarnessReader {
         case "turn_context":
             if let model = payload["model"] as? String, !model.isEmpty { state.model = AgentLogParser.native(model) }
             if let cwd = payload["cwd"] as? String, !cwd.isEmpty { state.project = AgentLogParser.projectName(cwd) }
-            if let tier = payload["service_tier"] as? String { state.fast = AgentLogParser.fastTier(tier) }
+            if let tier = payload["service_tier"] as? String { state.serviceTier = AgentLogParser.serviceTier(tier) }
             return []
         case "token_usage_record":
             guard let usage = payload["usage"] as? [String: Any] else { return [] }
@@ -50,16 +50,19 @@ struct CodexReader: AgentHarnessReader {
                 state.session = AgentLogParser.native(session)
             }
             let response = payload["response_id"] as? String ?? ""
+            let date = eventDate ?? now
             let key = response.isEmpty ? "codex:\(state.session):\(date.timeIntervalSince1970)" : "codex:\(response)"
-            return [codexUsage(AgentLogParser.codexTokens(usage), key: key, date: date, state: state)]
+            return [codexUsage(AgentLogParser.codexTokens(usage), key: key, date: date, hasEventTimestamp: eventDate != nil,
+                               responseTier: payload["service_tier"] as? String, state: state)]
         case "event_msg":
-            return codexEvent(payload, date: date, state: &state)
+            return codexEvent(payload, eventDate: eventDate, now: now, state: &state)
         default:
             return []
         }
     }
 
-    private func codexEvent(_ payload: [String: Any], date: Date, state: inout AgentLogState) -> [AgentLogEntry] {
+    private func codexEvent(_ payload: [String: Any], eventDate: Date?, now: Date, state: inout AgentLogState) -> [AgentLogEntry] {
+        let date = eventDate ?? now
         switch payload["type"] as? String {
         case "token_count":
             var entries: [AgentLogEntry] = []
@@ -90,14 +93,15 @@ struct CodexReader: AgentHarnessReader {
                                             reasoning: max(0, total.reasoning - previous.reasoning))
                     }
                     let key = "codex:\(state.codexTotalsSession):total:\(total.total)"
-                    entries.append(codexUsage(delta, key: key, date: date, state: state))
+                    entries.append(codexUsage(delta, key: key, date: date, hasEventTimestamp: eventDate != nil,
+                                              responseTier: payload["service_tier"] as? String, state: state))
                 }
                 state.lastTotal = total
             }
             return entries
         case "thread_settings_applied":
             if let tier = (payload["thread_settings"] as? [String: Any])?["service_tier"] as? String {
-                state.fast = AgentLogParser.fastTier(tier)
+                state.serviceTier = AgentLogParser.serviceTier(tier)
             }
             return []
         case "task_started":
@@ -115,10 +119,12 @@ struct CodexReader: AgentHarnessReader {
         }
     }
 
-    private func codexUsage(_ tokens: AgentTokens, key: String, date: Date, state: AgentLogState) -> AgentLogEntry {
-        var billable = AgentBillable(tokens: tokens)
-        billable.fast = state.fast
-        let priced = AgentPricing.cost(billable, model: state.model)
+    private func codexUsage(_ tokens: AgentTokens, key: String, date: Date, hasEventTimestamp: Bool,
+                            responseTier: String?, state: AgentLogState) -> AgentLogEntry {
+        let tier = responseTier.map(AgentLogParser.serviceTier) ?? state.serviceTier
+        let billable = AgentBillable(tokens: tokens, serviceTier: tier ?? .standard, hasEventTimestamp: hasEventTimestamp,
+                                     assumesStandardTier: tier == nil)
+        let priced = AgentPricing.cost(billable, model: state.model, at: hasEventTimestamp ? date : nil)
         return .usage(key: key, record: AgentUsageRecord(
             provider: .codex, date: date, model: state.model, project: state.project, session: state.session,
             tokens: tokens, cost: priced.cost, savings: priced.savings), billable: billable)

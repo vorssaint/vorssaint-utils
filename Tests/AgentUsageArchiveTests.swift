@@ -67,7 +67,7 @@ enum AgentUsageArchiveTests {
         suite.expect(AgentUsageArchive.decode(AgentUsageArchive.encode(sourced, build: build), build: build) == sourced,
                      "limits keep their source and preserve the estimate separately from the expiry deadline")
         suite.expect(!first.saved.records.isEmpty && !first.saved.limits.isEmpty && first.saved.codexPlan != nil
-                        && !first.saved.turns.isEmpty && cursor.state.fast && !cursor.state.model.isEmpty,
+                        && !first.saved.turns.isEmpty && cursor.state.serviceTier == .fast && !cursor.state.model.isEmpty,
                      "the fixture saves records, limits, a plan, an open turn and parser context")
 
         // The next launch picks up there while the agent keeps writing.
@@ -149,6 +149,50 @@ enum AgentUsageArchiveTests {
         }
         func saving(_ read: (store: AgentUsageStore, cursors: [AgentLogCursor])) -> AgentUsageArchive.Contents {
             AgentUsageArchive.Contents(providers: [.codex], store: read.store.saved, cursors: read.cursors.map(\.saved))
+        }
+        let beforeCutoff = "2027-03-01T07:59:59Z"
+        let afterCutoff = "2027-03-01T08:00:00Z"
+        let promotion = [
+            codex(beforeCutoff, #""turn_context","payload":{"model":"gpt-6.2-sol","service_tier":"ultrafast"}"#),
+            codex(beforeCutoff, #""event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10000}}}"#),
+            codex("invalid", #""token_usage_record","payload":{"response_id":"undated","usage":{"input_tokens":10000}}"#)
+        ]
+        write(promotion)
+        let promotionData = AgentUsageArchive.encode(saving(readFresh([log])), build: build)
+        if let saved = AgentUsageArchive.decode(promotionData, build: build) {
+            let resumed = AgentUsageArchive.resume(saved, logs: [log.path], since: .distantPast)
+            if let cursor = resumed.cursors[log.path] {
+                let later = codex(afterCutoff, #""token_usage_record","payload":{"response_id":"later","usage":{"input_tokens":10000}}"#)
+                var copyState = AgentLogState(model: "gpt-6.2-sol")
+                let copy = AgentLogParser.parseCodex(Data(later.utf8), state: &copyState, now: now)
+                resumed.store.apply(copy, file: "copy", provider: .codex, tracksTurns: false, modified: now)
+                // A later copy can carry an earlier valid timestamp across the pricing boundary.
+                // Replaying files in either order must use the first observed response time.
+                let earlierCopy = later.replacingOccurrences(of: afterCutoff, with: beforeCutoff)
+                let fullRate = later.replacingOccurrences(of: "\"later\"", with: "\"full-rate\"")
+                write(promotion + [later, earlierCopy, fullRate])
+                read(cursor, into: resumed.store)
+                resumed.store.reprice()
+                let records = resumed.store.records
+                suite.expect(cursor.state.serviceTier == .ultrafast && records.count == 4,
+                             "resuming preserves the thread tier and counts a duplicate response once")
+                suite.expect(records.map(\.cost) == [0.06, nil, 0.06, 0.12],
+                             "restored 10K Sol requests keep the event-date rate and undated requests stay unpriced")
+                let reversedStore = AgentUsageStore()
+                for event in [earlierCopy, later] {
+                    let parsed = AgentLogParser.parseCodex(Data(event.utf8), state: &copyState, now: now)
+                    reversedStore.apply(parsed, file: "copy", provider: .codex, tracksTurns: false, modified: now)
+                }
+                copyState.serviceTier = .ultrafast
+                let explicit = AgentLogParser.parseCodex(Data(later.utf8), state: &copyState, now: now)
+                reversedStore.apply(explicit, file: "original", provider: .codex, tracksTurns: false, modified: now)
+                suite.expect(reversedStore.records.map(\.cost) == [0.06],
+                             "the original and copied response use the same tariff in either file order")
+            } else {
+                suite.expect(false, "the Ultrafast log resumes from its saved cursor")
+            }
+        } else {
+            suite.expect(false, "the archive preserves Ultrafast responses")
         }
         write(firstHalf + secondHalf)
         let original = saving(readFresh([log]))
@@ -294,7 +338,7 @@ enum AgentUsageArchiveTests {
             ("AgentUsageRecord", labels(sampleRecord.record),
              ["provider", "date", "model", "project", "session", "requests", "tokens", "cost", "savings", "reportedCost"]),
             ("AgentBillable", labels(sampleRecord.billable),
-             ["tokens", "isAggregate", "longCacheWrite", "fast", "domestic", "webSearches"]),
+             ["tokens", "isAggregate", "longCacheWrite", "serviceTier", "hasEventTimestamp", "assumesStandardTier", "domestic", "webSearches"]),
             ("AgentTokens", labels(sampleRecord.record.tokens), ["input", "cacheWrite", "cacheRead", "output", "reasoning"]),
             ("AgentLimits", labels(sampleLimits), ["provider", "windows", "observedAt", "source"]),
             ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt", "estimatedResetsAt"]),
@@ -308,7 +352,7 @@ enum AgentUsageArchiveTests {
              ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint", "cursorSample"]),
             ("CursorUnmeteredResponse", labels(CursorUnmeteredResponse()), ["minute", "model", "undatedThrough"]),
             ("AgentLogState", labels(cursor.state),
-             ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast",
+             ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "serviceTier",
               "codexSubagent", "codexHeaderRead", "codexRoot", "codexTotalsSession",
               "copilotTotals", "copilotRequests", "copilotRequestModels", "copilotReportedRequests",
               "copilotTurnID", "copilotFinalResponse", "cursorPromptCount", "cursorPromptTimestamp", "cursorLastActivity",
