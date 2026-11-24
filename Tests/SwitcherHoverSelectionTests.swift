@@ -1603,10 +1603,13 @@ enum SwitcherHoverSelectionTests {
             case announced, warm, escape, otherDisplay, changedSpace, earlierScan
             case captured, publishedBeforeOpening, backgroundWindow, newerFocus, closedSourceDuringDelivery
             case observedFocus, observedBeforeNotice, windowServerFocus, unlistedInspector, backgroundWithoutAX
+            case unrelatedDiscoveryBeforeNotice, unrelatedDiscoveryAfterNotice
 
             var announcesWindow: Bool { self != .warm && self != .unlistedInspector }
+            var hasUnrelatedDiscovery: Bool { self == .unrelatedDiscoveryBeforeNotice || self == .unrelatedDiscoveryAfterNotice }
+            var observesBeforeNotice: Bool { self == .observedBeforeNotice || hasUnrelatedDiscovery }
             var groupedOnly: Bool {
-                [.observedFocus, .observedBeforeNotice, .windowServerFocus, .unlistedInspector, .backgroundWithoutAX].contains(self)
+                observesBeforeNotice || [.observedFocus, .windowServerFocus, .unlistedInspector, .backgroundWithoutAX].contains(self)
             }
         }
 
@@ -1664,11 +1667,11 @@ enum SwitcherHoverSelectionTests {
         Desktop.NSRunningApplication.apps[pid + 1] = .init()
         let cases = Mode.allCases.flatMap { mode -> [(Mode, Opening, GlobalWindowGesture?)] in
             let openings: [Opening] = mode.showsApps
-                ? [.announced, .observedFocus, .observedBeforeNotice, .windowServerFocus, .backgroundWindow,
-                   .backgroundWithoutAX, .warm, .closedSourceDuringDelivery]
+                ? [.announced, .observedFocus, .observedBeforeNotice, .unrelatedDiscoveryBeforeNotice,
+                   .windowServerFocus, .backgroundWindow, .backgroundWithoutAX, .warm, .closedSourceDuringDelivery]
                 : Opening.allCases.filter { !$0.groupedOnly }
             let gestures: [GlobalWindowGesture] = mode.showsApps ? [] : GlobalWindowGesture.allCases
-            let cases = mode == .groupedSimple ? openings + [.escape, .unlistedInspector] : openings
+            let cases = mode == .groupedSimple ? openings + [.escape, .unlistedInspector, .unrelatedDiscoveryAfterNotice] : openings
             return cases.map { (mode, $0, nil) } + gestures.map { (mode, .announced, $0) }
         }
         for (mode, opening, gesture) in cases {
@@ -1717,7 +1720,7 @@ enum SwitcherHoverSelectionTests {
             if opening.announcesWindow {
                 FrontAppEnumerator.items = [c, opening == .otherDisplay ? window(2, display: 1) : b, a]
                 if mode.showsApps { FrontAppEnumerator.items.append(d) }
-                if opening != .observedBeforeNotice { Desktop.Events.shared.deliver?(.changed(3)) }
+                if !opening.observesBeforeNotice { Desktop.Events.shared.deliver?(.changed(3)) }
                 if opening == .windowServerFocus {
                     Desktop.desktop.frontmostApplication = .init(processIdentifier: pid)
                     suite.expect(WindowUseTracker.confirmedFocus == 2 && !inventory.contains(c),
@@ -1728,7 +1731,7 @@ enum SwitcherHoverSelectionTests {
             if mode.showsApps {
                 service.useTracker = .shared
                 suite.expect(Desktop.WindowActivator.focusReads.isEmpty, "\(mode) stays idle before the grouped shortcut")
-                if [.observedFocus, .observedBeforeNotice, .unlistedInspector].contains(opening) {
+                if opening.observesBeforeNotice || [.observedFocus, .unlistedInspector].contains(opening) {
                     guard let request = history.focusHistory.current else {
                         suite.expect(false, "the source app has a focus observer")
                         continue
@@ -1745,6 +1748,7 @@ enum SwitcherHoverSelectionTests {
                                  "the source observer reports focus before the grouped inventory lists the window")
                     Desktop.WindowActivator.focusReads = []
                 }
+                if opening.hasUnrelatedDiscovery { Desktop.Events.shared.deliver?(.changed(99)) }
             }
             if let gesture {
                 checkGlobalWindowGesture(gesture, suite, mode: String(describing: mode),
@@ -1775,7 +1779,7 @@ enum SwitcherHoverSelectionTests {
             _ = service.route(type: .flagsChanged, event: release)
             if mode.showsApps {
                 let label = "\(mode) \(opening)"
-                let source = [.announced, .observedFocus, .observedBeforeNotice, .windowServerFocus].contains(opening) ? c : b
+                let source = opening.observesBeforeNotice || [.announced, .observedFocus, .windowServerFocus].contains(opening) ? c : b
                 let targets = opening == .escape ? [] : [d.id]
                 suite.expect(Activator.activated == before + targets && service.recordedIDs == targets
                              && service.frontAppReadQueue.pending.isEmpty && FrontAppEnumerator.reads.isEmpty
@@ -1789,12 +1793,16 @@ enum SwitcherHoverSelectionTests {
                 if opening != .escape { Workspace.shared.frontmostApplication = .init(processIdentifier: d.pid) }
                 if opening == .windowServerFocus { Desktop.desktop.frontmostApplication = .init(processIdentifier: d.pid) }
                 // Some apps have no focused AX window once another app owns the keyboard.
-                if [.observedFocus, .observedBeforeNotice, .windowServerFocus, .backgroundWithoutAX].contains(opening) {
+                if opening.observesBeforeNotice || [.observedFocus, .windowServerFocus, .backgroundWithoutAX].contains(opening) {
                     Desktop.WindowActivator.focusedWindow = nil
                 }
-                if opening == .observedBeforeNotice {
-                    suite.expect(Work.discoveries.pending.isEmpty && !inventory.contains(c),
-                                 "\(mode) activates D before the creation of the observed C reaches the inventory")
+                if opening.observesBeforeNotice {
+                    suite.expect(Work.discoveries.pending.count == (opening.hasUnrelatedDiscovery ? 1 : 0) && !inventory.contains(c),
+                                 "\(label) activates D before the creation of the observed C reaches the inventory")
+                    if opening == .unrelatedDiscoveryBeforeNotice {
+                        Work.discoveries.drain()
+                        Work.main.deliveries.drain()
+                    }
                     Desktop.Events.shared.deliver?(.changed(3))
                 }
                 Work.discoveries.drain()
