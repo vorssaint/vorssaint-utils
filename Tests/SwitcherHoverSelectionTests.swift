@@ -998,6 +998,7 @@ enum SwitcherHoverSelectionTests {
         typealias Work = Desktop.DispatchQueue
         enum Case: CaseIterable {
             case front, background, noNotice, retry, omittedFocus, conflictingFocus, escape, timeout, newerFocus
+            case focusWithoutRaise, changingFocusBehindFront
             case unlistedFront, foreignFront, overlayFront, rejectedPanel, focusedInspector, observedInspector, inspectorAfterMove
             case repeatWithInspector, staleInspectorHint, inspectorAfterDocument
             case observedPrevious, onlyPreviousObserved, unknownPrevious
@@ -1151,6 +1152,7 @@ enum SwitcherHoverSelectionTests {
                 FrontAppEnumerator.items.append(.window(id: ids[3], title: "Other window", appName: "Browser", pid: pid + 1,
                                                          isOnScreen: true, frame: frame))
             }
+            if scenario == .changingFocusBehindFront { FrontAppEnumerator.items = [a, b, c] }
             inventory.start()
             Work.scans.drain()
             if scenario == .helperExitedBeforeDelivery {
@@ -1170,6 +1172,14 @@ enum SwitcherHoverSelectionTests {
             }
             if scenario == .omittedFocus { FrontAppEnumerator.items = [b, a] }
             if scenario == .conflictingFocus { Desktop.WindowActivator.focusedWindow = ids[0] }
+            if scenario == .focusWithoutRaise || scenario == .changingFocusBehindFront {
+                FrontAppEnumerator.items = scenario == .focusWithoutRaise ? [a, b] : [a, b, c]
+                Desktop.WindowActivator.focusedWindow = ids[1]
+                if scenario == .changingFocusBehindFront {
+                    Desktop.WindowUseTracker.confirmedFocus = nil
+                    FrontAppEnumerator.focusByRead = [ids[2], ids[1]]
+                }
+            }
             func reconcileHostWindows(_ remaining: [CGWindowID]) {
                 let history = Desktop.WindowUseTracker.history
                 history.windowHistory = tracker.history
@@ -1386,6 +1396,24 @@ enum SwitcherHoverSelectionTests {
                 generation = service.sessionStartGeneration
             } else {
                 generation = press(service, shortcut: shortcut)
+            }
+            if scenario == .focusWithoutRaise || scenario == .changingFocusBehindFront {
+                service.frontAppReadQueue.drain()
+                Queue.advance(to: Queue.time)
+                suite.expect(FrontAppEnumerator.reads == [pid, pid], "a focus behind the front window is checked twice")
+                if scenario == .changingFocusBehindFront {
+                    suite.expect(!service.sessionActive && !service.keyboardInputOwnership.isOwned
+                                 && service.startedGenerations.isEmpty && Activator.activated == before,
+                                 "a focus change between the two reads releases the shortcut without switching")
+                } else {
+                    suite.expect(service.sessionActive && service.sessionStartWindowID == b.windowID
+                                 && service.windows.map(\.id) == [b.id, a.id] && service.selectedIndex == 1,
+                                 "the held shortcut opens on the previous window after a hover focuses B behind A")
+                    _ = service.route(type: .flagsChanged, event: release)
+                    suite.expect(Activator.activated == before + [a.id] && Activator.lastSourceWindowID == b.windowID,
+                                 "releasing the shortcut switches from the keyboard's window B to A")
+                }
+                continue
             }
             func escape(flags: CGEventFlags) -> Bool {
                 let esc = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(KeyCode.escape), keyDown: true)!

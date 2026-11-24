@@ -94,6 +94,7 @@ final class AppVolumeMixer: ObservableObject {
     @Published private(set) var currentSystemSoundOutputDeviceUID: String?
     @Published private(set) var systemOutputVolume: Double?
     @Published private(set) var systemOutputMuted: Bool?
+    @Published private(set) var canToggleOutputMute = false
     /// A USB output can have a working slider with only a virtual main volume.
     private var volumeStepsNeedNativeKeys = false
     /// The output's volume and mute as CoreAudio reports them. The published
@@ -633,6 +634,8 @@ final class AppVolumeMixer: ObservableObject {
         }
         if systemOutputVolume != volume { systemOutputVolume = volume }
         if systemOutputMuted != muted { systemOutputMuted = muted }
+        let canToggle = monitorOutput?.canToggleMute ?? (muted != nil)
+        if canToggleOutputMute != canToggle { canToggleOutputMute = canToggle }
     }
 
     /// UI feedback is immediate; one HAL write runs at a time and a burst
@@ -715,7 +718,7 @@ final class AppVolumeMixer: ObservableObject {
     /// for that toggle and then reads the resulting audible level.
     func requestOutputMuteToggle(completion: @escaping (OutputKeyResult) -> Void = { _ in }) {
         if let monitor = monitorOutput {
-            guard monitor.muted != nil else { completion(.fallback); return }
+            guard monitor.canToggleMute else { completion(.fallback); return }
             BrightnessService.shared.requestSpeakers(.toggleMute, target: monitor.target, requiresKeys: true) {
                 completion($0 ? .applied : .unconfirmed)
             }

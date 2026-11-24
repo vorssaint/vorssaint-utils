@@ -283,7 +283,7 @@ final class PreciseVolumeRollerService: ObservableObject {
             commandOrControl: !flags.isDisjoint(with: [.maskCommand, .maskControl])),
               BrightnessService.shared.wantsMonitorVolumeKeys,
               let output = AppVolumeMixer.shared.monitorOutput,
-              press.action != .toggleMute || output.muted != nil else {
+              press.action != .toggleMute || output.canToggleMute else {
             if !press.isRepeat {
                 DispatchQueue.main.async { BrightnessService.shared.rescanForUnclaimedVolumeKey() }
             }

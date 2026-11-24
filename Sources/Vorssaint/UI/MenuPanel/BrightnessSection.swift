@@ -206,6 +206,7 @@ struct MonitorSpeakerVolumeRow: View {
                         .frame(width: 16)
                 }
                 .buttonStyle(.plain)
+                .disabled(!audio.canToggleMute)
                 .help(muted ? strings.unmute : strings.mute)
                 .accessibilityLabel("\(displayName): \(muted ? strings.unmute : strings.mute)")
             } else {

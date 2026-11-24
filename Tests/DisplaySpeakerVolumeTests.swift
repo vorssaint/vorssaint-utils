@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Combine
 import CoreAudio
 import Darwin
 import Foundation
@@ -11,11 +12,7 @@ enum DisplaySpeakerVolumeTests {
     typealias DispatchQueue = MixerOutputAdjustmentContract.DispatchQueue
     typealias Queue = MixerOutputAdjustmentContract.Queue
     struct BrightnessDisplay {
-        struct Audio: Equatable {
-            let target: BrightnessSupport.SpeakerTarget
-            var volume: Double
-            var muted: Bool?
-        }
+        typealias Audio = BrightnessSupport.MonitorSpeakerOutput
         let id: UInt32
         var name: String
         var isBuiltIn = false
@@ -705,6 +702,25 @@ enum DisplaySpeakerVolumeTests {
         let volume = BrightnessSupport.audioVolumeCode
         let mute = BrightnessSupport.audioMuteCode
         let chip = BrightnessSupport.chipAddress
+        let readOnly = connect(mixer, raw: 40, muted: true, registryEntryID: nil)
+        var muteRequest: Bool?
+        var raiseRequest: Bool?
+        mixer.requestOutputAdjustment(muted: false) { muteRequest = $0 }
+        mixer.requestOutputAdjustment(volume: 0.5) { raiseRequest = $0 }
+        readOnly.finish()
+        let reported = readOnly.displays.first?.audio
+        suite.expect(muteRequest == false && raiseRequest == false && readOnly.writes.isEmpty && readOnly.refreshes == 0
+                     && reported?.muted == true && reported?.canToggleMute == false
+                     && mixer.systemOutputMuted == true && mixer.systemOutputVolume == 0.4 && !mixer.canToggleOutputMute,
+                     "a physically muted monitor keeps its confirmed state and stored level when an unmute is unavailable")
+        var capabilities: [Bool] = []
+        let subscription = mixer.$canToggleOutputMute.dropFirst().sink { capabilities.append($0) }
+        discover(readOnly, chip: chip, registryEntryID: 1)
+        discover(readOnly, chip: chip, registryEntryID: nil)
+        subscription.cancel()
+        suite.expect(capabilities == [true, false] && mixer.systemOutputMuted == true && mixer.systemOutputVolume == 0.4,
+                     "regaining and losing endpoint identity publishes control availability without changing the physical mute")
+
         for (version, maximum): (UInt16, UInt16) in [
             (0x0200, 65535), (0x0201, 100), (0x0201, 65535), (0x0201, 0), (0x0300, 65535)
         ] {

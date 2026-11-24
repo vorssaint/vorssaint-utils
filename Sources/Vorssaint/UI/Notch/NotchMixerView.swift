@@ -223,7 +223,7 @@ private struct NotchMasterFader: View {
                     .contentShape(Circle())
             }
             .buttonStyle(NotchButtonStyle(cornerRadius: 14))
-            .disabled(mixer.systemOutputMuted == nil)
+            .disabled(!mixer.canToggleOutputMute)
             .accessibilityLabel(muted ? l10n.s.actionUnmute : l10n.s.actionMute)
             if let level {
                 NotchLevelSlider(value: Binding(get: { level }, set: { adjustOutput(volume: $0) }),

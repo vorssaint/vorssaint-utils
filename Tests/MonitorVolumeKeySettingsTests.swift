@@ -196,18 +196,46 @@ enum MonitorVolumeKeySettingsTests {
                 let claimed = press(nativeMute ? .mute : .volumeUp)
                 service.finish()
                 let expectedWrites = hasRegistryID ? [Write(volume, nativeMute ? 5 : 1)] : []
-                suite.expect(claimed && service.writes == expectedWrites && service.nativeMuted == true
+                suite.expect(claimed == (hasRegistryID || !nativeMute) && service.writes == expectedWrites && service.nativeMuted == true
                              && (!hasRegistryID || service.connectedSpeakerEndpointID == 2)
                              && Keys.NotchService.shared.shownLevels.isEmpty,
                              "a missing or vanished registry endpoint prevents unmute (native: \(nativeMute), registered: \(hasRegistryID))")
             }
         }
-        service = connect(raw: 2, registryEntryID: nil)
+        service = connect(raw: 1, registryEntryID: nil)
+        let claimedMissingMute = press(.mute)
+        press(.volumeDown)
+        var acceptedMute: Bool?
+        Keys.AppVolumeMixer.shared.requestOutputAdjustment(muted: true) { acceptedMute = $0 }
+        service.finish()
+        suite.expect(!claimedMissingMute && acceptedMute == false && service.writes.isEmpty && service.nativeMuted == false
+                     && service.displays.first?.audio?.muted == false && !Keys.AppVolumeMixer.shared.canToggleOutputMute,
+                     "a monitor without a verifiable endpoint offers no mute and cannot be silenced by a key or mixer")
         press(.volumeUp)
+        service.finish()
+        suite.expect(service.writes == [Write(volume, 2)] && Keys.AppVolumeMixer.shared.systemOutputMuted == false
+                     && !Keys.AppVolumeMixer.shared.canToggleOutputMute,
+                     "changing an audible level preserves the reported mute and disabled control")
+
+        for latches in [false, true] {
+            service = connect(raw: 10, muted: latches ? false : nil, unmutedReads: 0, registryEntryID: nil)
+            guard let target = service.displays.first?.audio?.target else {
+                suite.expect(false, "a monitor without an endpoint ID keeps its panel volume slider")
+                continue
+            }
+            var accepted: Bool?
+            service.requestSpeakers(.set(volume: 0, muted: nil), target: target) { accepted = $0 }
+            service.finish()
+            suite.expect(accepted == true && service.writes == [Write(volume, latches ? 1 : 0)],
+                         "the panel keeps the lowest reversible volume when zero would require a separate unmute")
+        }
+
+        service = connect(raw: 2)
+        service.onSend = { [weak service] in service?.connectedSpeakerEndpointID = 2 }
         press(.mute)
         service.finish()
-        suite.expect(service.writes == [Write(volume, 3), Write(mute, 1)] && service.raw == 3 && service.nativeMuted == true,
-                     "a missing endpoint registry ID still allows level changes to audible speakers and muting them")
+        suite.expect(service.writes.isEmpty && service.nativeMuted == false,
+                     "losing the endpoint while a claimed mute waits for DDC prevents the mute write")
 
         for nativeMute in [true, false] {
             let target: UInt16 = nativeMute ? 5 : 1
@@ -375,7 +403,7 @@ enum MonitorVolumeKeySettingsTests {
                                            service: NSObject(), registryEntryID: 2, chipAddress: BrightnessSupport.chipAddress,
                                            hasNativeMute: true, unmutesLeavingZero: false)
             let otherTarget = BrightnessSupport.SpeakerTarget(displayID: 8, path: "port-b")
-            service.displays.append(.init(id: 8, name: "Monitor B", audio: .init(target: otherTarget, volume: 0.5, muted: false)))
+            service.displays.append(.init(id: 8, name: "Monitor B", audio: .init(target: otherTarget, volume: 0.5, muted: false, canToggleMute: true)))
             service.volumeOnUnmute = 80
             service.ignoreMute = true
             var checkedMute = false
