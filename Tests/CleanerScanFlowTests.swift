@@ -147,7 +147,9 @@ enum CleanerScanFlowTests {
             try? fm.removeItem(at: sandbox)
         }
         let agents = home.appendingPathComponent("Library/LaunchAgents", isDirectory: true)
+        let preferences = home.appendingPathComponent("Library/Preferences", isDirectory: true)
         try fm.createDirectory(at: agents, withIntermediateDirectories: true)
+        try fm.createDirectory(at: preferences, withIntermediateDirectories: true)
         let missing = home.appendingPathComponent("missing").path
         let orphanLabel = "org.orphan.helper"
         let labels = ["app.editor.helper", "audio.synth.helper", orphanLabel]
@@ -155,8 +157,10 @@ enum CleanerScanFlowTests {
             try PropertyListSerialization.data(fromPropertyList: ["Label": label, "Program": missing],
                                                format: .xml, options: 0)
                 .write(to: agents.appendingPathComponent(label + ".plist"))
+            try Data([1]).write(to: preferences.appendingPathComponent(label + ".plist"))
         }
-        let items = scanFixture(installedApps: []).filter { $0.category == .loginItems }
+        let found = scanFixture(installedApps: [])
+        let items = found.filter { $0.category == .loginItems }
         guard Set(items.map(\.detail)) == Set(labels),
               let orphan = items.first(where: { $0.detail == orphanLabel }) else {
             suite.expect(false, "all three unowned agents must be selectable before cleanup")
@@ -183,16 +187,29 @@ enum CleanerScanFlowTests {
                      && afterEmpty.phase == .done(freed: trash.size + orphan.size, failed: 2),
                      "owners installed while the Trash is being emptied protect their agents from the first move")
 
+        let refusedAgents = cleanFixture(items) { _ in false }
+        suite.expect(refusedAgents.actions == directMoves && refusedAgents.phase == .done(freed: 0, failed: items.count),
+                     "failed login item moves count as failures without asking Finder for consent")
+
+        var leftovers = found.filter { $0.category == .leftovers }
+        guard Set(leftovers.map(\.detail)) == Set(labels),
+              let unownedPreference = leftovers.first(where: { $0.detail == orphanLabel }) else {
+            suite.expect(false, "all three unowned preferences must be available for review")
+            return
+        }
+        for index in leftovers.indices { leftovers[index].include = true }
+        let mixed = [orphan] + leftovers
         let consent = CleanupAction.finderConsent("com.apple.finder")
-        let afterConsent = cleanFixture(items) { action in
+        let afterConsent = cleanFixture(mixed) { action in
             if case .trash = action { return false }
             if action == consent { installOwners() }
             return true
         }
-        suite.expect(afterConsent.actions == directMoves + [consent, .finder([orphan.url])]
-                     && afterConsent.phase == .done(freed: 0, failed: 3)
+        let mixedMoves = mixed.map { CleanupAction.trash($0.url) }
+        suite.expect(afterConsent.actions == mixedMoves + [consent, .finder([unownedPreference.url])]
+                     && afterConsent.phase == .done(freed: 0, failed: mixed.count)
                      && afterConsent.appReads == 2 && afterConsent.pluginReads == 2,
-                     "Finder receives only still-orphaned agents after refreshing both inventories once after consent")
+                     "Finder receives only the still-unowned preference after consent, leaving the login item in place")
     }
 
     static func run(_ suite: TestSuite) {

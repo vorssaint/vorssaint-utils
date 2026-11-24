@@ -225,11 +225,9 @@ final class JunkCleaner: ObservableObject {
                 }
             }
 
-            // Root owned files (system LaunchDaemons and friends) go through
-            // Finder, which shows the standard administrator prompt and moves
-            // them to the Trash exactly like a drag would. One batch, one
-            // prompt; a cancel leaves them in place and they count as failed.
-            let candidates = escalate ? stubborn.filter(canRemove) : []
+            // Finder may wait for an administrator password after receiving the URLs.
+            // A login item can regain its owner during that wait, so leave its plist in place.
+            let candidates = escalate ? stubborn.filter { $0.category != .loginItems && canRemove($0) } : []
             if !candidates.isEmpty, AppleScriptRunner.consentToAutomate(bundleID: "com.apple.finder") {
                 // An owner may have been installed while the consent prompt was open.
                 let stillSafe = candidates.filter(Self.removalCheck(for: candidates))
