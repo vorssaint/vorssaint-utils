@@ -1931,10 +1931,8 @@ enum MixerInputVolumeContract {
                 service.setMuted(false)
             }
             service.halQueue.sync {}
-            // Let the call accept the release on main, then stop before the UI publishes it.
-            if call && !UserDefaults.standard.bool(forKey: DefaultsKey.micMuteReleasePending) { DispatchQueue.main.run() }
-            suite.expect(service.isMuted && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteReleasePending),
-                         "the release direction is recorded while the old mute is still published")
+            suite.expect(service.isMuted && service.inputVolumeAdjustmentLifetime != nil,
+                         "the verified release allows mixer edits while the old mute is still published")
             DispatchQueue.main.work.removeAll()
             HAL.levels[channel] = 0.5
             HAL.writes = []
@@ -4174,14 +4172,15 @@ enum MixerInputVolumeContract {
         let edited: [Key: Float] = [master: 0.375, peer: 0.875]
         let silent: [Key: Float] = [master: 0, peer: 0]
         let defaults = UserDefaults.standard
-        enum Reversal { case betweenControls, preference, call, callPreference }
+        enum Reversal { case betweenControls, preference, call, callConfirmation, callPublication }
         for (lastMute, trigger) in [(true, Reversal.betweenControls), (false, .betweenControls),
-                                    (true, .preference), (false, .preference), (true, .call), (true, .callPreference)] {
+                                    (true, .preference), (false, .preference), (true, .call),
+                                    (true, .callConfirmation), (true, .callPublication)] {
             HAL.reset()
             HAL.devices = [10, 20]
             HAL.levels = original
             HAL.mute[10] = 0
-            let call = trigger == .call || trigger == .callPreference
+            let call = trigger == .call || trigger == .callConfirmation || trigger == .callPublication
             if call { defaults.set(true, forKey: DefaultsKey.micMuteFollowCallApps) }
             let userRemuted = lastMute && trigger != .preference
             let releasedLevels = lastMute && trigger == .preference ? original : edited
@@ -4216,19 +4215,26 @@ enum MixerInputVolumeContract {
                 HAL.mute[10] = 1
                 reverse()
             }
-            if userRemuted && trigger != .callPreference { HAL.afterSettableCheck[peer] = reverseBeforeB }
+            if userRemuted && (trigger == .betweenControls || trigger == .call) { HAL.afterSettableCheck[peer] = reverseBeforeB }
+            let publication = service.$isMuted.dropFirst().sink { muted in
+                if trigger == .callPublication && !muted && !reversed {
+                    HAL.levels[master] = edited[master]
+                    HAL.mute[10] = 1
+                    reverse()
+                }
+            }
             defaults.afterChange = { key in
-                let observesIntent = trigger == .preference
-                    || (trigger == .callPreference && defaults.bool(forKey: DefaultsKey.micMuteReleasePending))
-                if observesIntent && !reversed && key == DefaultsKey.micMuteReleasePending {
+                let observesCommand = trigger == .preference && key == DefaultsKey.micMuteReleasePending
+                if !reversed && (observesCommand || trigger == .callConfirmation) {
                     // A synchronous observer may issue a newer command before the superseded one queues its HAL sweep.
                     if service.inputVolumeLock.try() {
                         service.inputVolumeLock.unlock()
-                        if trigger == .callPreference {
+                        if observesCommand { reverse() }
+                        else if service.isMuted && service.inputVolumeAdjustmentLifetime != nil {
                             HAL.levels[master] = edited[master]
                             HAL.mute[10] = 1
+                            reverse()
                         }
-                        reverse()
                     }
                 }
                 capture("preference \(key)")
@@ -4246,6 +4252,7 @@ enum MixerInputVolumeContract {
                 suite.expect(HAL.notifyIfRegistered(master), "the recording app reports its opening before the new shortcut")
             } else { service.toggle() }
             DispatchQueue.drain()
+            publication.cancel()
             defaults.afterChange = nil
             HAL.beforeControlWrite = nil
             HAL.afterControlWrite = nil
@@ -4350,6 +4357,93 @@ enum MixerInputVolumeContract {
             }
         }
         runUnverifiedReleaseCheckpointTests(suite)
+        runAcceptedIntentEquivalenceTests(suite)
+    }
+
+    private static func runAcceptedIntentEquivalenceTests(_ suite: TestSuite) {
+        enum Action { case refusedMute, retryAtRefusal, acceptCall, muteAfterCall }
+        struct Result: Equatable {
+            let muted: Bool, mixerEditable: Bool, hasClaims: Bool
+            let gains: [Key: Float]
+        }
+        let a = HAL.key(10), b = HAL.key(20)
+        let devicesChanged = HAL.key(AudioObjectID(kAudioObjectSystemObject), 0, kAudioHardwarePropertyDevices,
+                                     scope: kAudioObjectPropertyScopeGlobal)
+        for action in [Action.refusedMute, .retryAtRefusal, .acceptCall, .muteAfterCall] {
+            let call = action == .acceptCall || action == .muteAfterCall
+            let lastMute = action == .retryAtRefusal || action == .muteAfterCall
+            var uninterrupted: Result?
+            for relaunch in [false, true] {
+                HAL.reset()
+                HAL.devices = [10, 20]
+                HAL.levels = [a: 0.625, b: 0.875]
+                UserDefaults.standard.set(call, forKey: DefaultsKey.micMuteFollowCallApps)
+                var service = MicMuteService.shared
+                service.toggle()
+                DispatchQueue.drain()
+                HAL.devices = [10] // B will return after the decision, still owing 0.875.
+                if call {
+                    let caller: Int32 = ProcessInfo.processInfo.processIdentifier == 4242 ? 4243 : 4242
+                    HAL.processes = [(100, caller, true, [10])]
+                    HAL.levels[a] = 0.5
+                    suite.expect(HAL.notifyIfRegistered(a), "the recording app opens the registered input")
+                    DispatchQueue.main.run()
+                    service.halQueue.sync {}
+                    suite.expect(service.isMuted && HAL.levels[a] == 0.625,
+                                 "the HAL accepted the call opening while the preceding mute is still published")
+                    if action == .muteAfterCall { service.toggle() }
+                } else {
+                    service.toggle()
+                    DispatchQueue.drain()
+                    HAL.writeFails = [a]
+                    HAL.writes = []
+                    var retried = false
+                    UserDefaults.standard.afterChange = { _ in
+                        guard action == .retryAtRefusal && !retried && HAL.writes.contains(a),
+                              service.inputVolumeLock.try() else { return }
+                        service.inputVolumeLock.unlock()
+                        guard service.inputVolumeAdjustmentLifetime != nil else { return }
+                        retried = true
+                        HAL.writeFails = []
+                        service.toggle()
+                    }
+                    service.toggle()
+                    DispatchQueue.drain()
+                    UserDefaults.standard.afterChange = nil
+                    suite.expect(HAL.writes.contains(a) && retried == lastMute && service.isMuted == lastMute,
+                                 "a wholly refused mute returns to release until the user presses the button again")
+                    HAL.writeFails = []
+                }
+                if relaunch {
+                    // An interrupted process cannot publish its old completion in the new process.
+                    service.halQueue.work.removeAll()
+                    DispatchQueue.main.work.removeAll()
+                    Checkpoint(name: "last accepted action").reopen()
+                    service = MicMuteService.shared
+                    service.syncWithPreferences()
+                }
+                DispatchQueue.drain()
+                let mixer = AudioInputDeviceManager()
+                mixer.start()
+                DispatchQueue.drain()
+                HAL.writes = []
+                mixer.setInputVolume(0.375)
+                DispatchQueue.drain()
+                suite.expect(HAL.writes == (lastMute ? [] : [a]) && HAL.levels[a] == (lastMute ? 0 : 0.375),
+                             "A accepts a mixer adjustment only in the accepted release (\(action), relaunch: \(relaunch))")
+                mixer.stop()
+                HAL.devices = [10, 20]
+                suite.expect(HAL.notifyIfRegistered(devicesChanged), "the service observes B's return")
+                DispatchQueue.drain()
+                let result = Result(muted: service.isMuted, mixerEditable: service.inputVolumeAdjustmentLifetime != nil,
+                                    hasClaims: service.hasOutstandingClaims, gains: HAL.levels)
+                let expected = Result(muted: lastMute, mixerEditable: !lastMute, hasClaims: lastMute,
+                                      gains: lastMute ? [a: 0, b: 0] : [a: 0.375, b: 0.875])
+                suite.expect(result == expected && (uninterrupted == nil || result == uninterrupted),
+                             "continuous and relaunched inputs honor the same accepted action (\(action), relaunch: \(relaunch))")
+                uninterrupted = result
+            }
+        }
     }
 
     private static func runUnverifiedReleaseCheckpointTests(_ suite: TestSuite) {
@@ -4464,6 +4558,18 @@ enum MixerInputVolumeContract {
             for key in controls { watchRead(key) }
             var cuts: [(point: Checkpoint, insidePeerSet: Bool)] = []
             var releaseIntent: Checkpoint?
+            var sawVerifiedCall = false
+            if mode == .followCall {
+                func beforeB() {
+                    guard verified == controls else {
+                        HAL.afterSettableCheck[peer] = beforeB
+                        return
+                    }
+                    sawVerifiedCall = true
+                    cuts.append((Checkpoint(name: "A was verified before B's Set or any main publication"), false))
+                }
+                HAL.afterSettableCheck[peer] = beforeB
+            }
             UserDefaults.standard.afterChange = { key in
                 guard verified == controls else {
                     if key == DefaultsKey.micMuteReleasePending && releaseIntent == nil {
@@ -4502,7 +4608,7 @@ enum MixerInputVolumeContract {
             HAL.afterControlWrite = nil
             let writesToA = HAL.writes.filter { $0.d == 10 }
             let expectedControls = mode == .alreadyRestored ? Set<Key>() : controls
-            suite.expect(verified == controls && !cuts.isEmpty && (mode == .followCall || releaseIntent != nil)
+            suite.expect(verified == controls && !cuts.isEmpty && (mode == .followCall ? sawVerifiedCall : releaseIntent != nil)
                          && Set(writesToA) == expectedControls
                          && writesToA.count == expectedControls.count
                          && HAL.levels[master] == original[master] && HAL.levels[channel] == original[channel]
@@ -4530,22 +4636,6 @@ enum MixerInputVolumeContract {
                 let relaunched = MicMuteService.shared
                 relaunched.syncWithPreferences()
                 DispatchQueue.drain()
-                let pending = point.preferences[DefaultsKey.micMuteReleasePending] as? Bool
-                let storedMute = pending.map { !$0 } ?? (point.preferences[DefaultsKey.micMuteActive] as? Bool == true)
-                if mode == .followCall && storedMute {
-                    suite.expect(relaunched.isMuted && HAL.levels[peer] == 0 && HAL.mute == remuted
-                                 && HAL.writes.allSatisfy { $0 == peer },
-                                 "A's release checkpoint preserves mute until the call release has been accepted")
-                    HAL.writes = []
-                    relaunched.toggle()
-                    DispatchQueue.drain()
-                    suite.expect(!relaunched.isMuted && HAL.mute == remuted && !relaunched.hasOutstandingClaims
-                                 && HAL.levels[peer] == (inPeerSet ? 0 : original[peer])
-                                 && HAL.writes.allSatisfy { $0 == peer && !inPeerSet }
-                                 && relaunched.warning == (inPeerSet ? .manualRestore : nil),
-                                 "releasing after \(point.name) preserves the switch and B's last proven ownership")
-                    continue
-                }
                 if mode == .peerAbsent {
                     suite.expect(HAL.writes.isEmpty && relaunched.hasOutstandingClaims,
                                  "only the disconnected peer waits following interruption at \(point.name)")
@@ -4558,7 +4648,7 @@ enum MixerInputVolumeContract {
                 expected[peer] = inPeerSet ? 0 : original[peer]
                 suite.expect(HAL.writes == expectedWrites && HAL.levels == expected
                              && UserDefaults.standard.object(forKey: DefaultsKey.micMuteReleasedUIDs) == nil
-                             && HAL.mute == remuted && !relaunched.hasOutstandingClaims
+                             && HAL.mute == remuted && !relaunched.isMuted && !relaunched.hasOutstandingClaims
                              && relaunched.warning == (inPeerSet ? .manualRestore : nil),
                              "relaunch preserves the user's re-mute and completes B following interruption at \(point.name) (\(mode))")
             }

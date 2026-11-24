@@ -105,33 +105,54 @@ final class MicMuteService: ObservableObject {
     private var inventoryRetryWork: DispatchWorkItem?
     private var missingInputUIDs: Set<String> = []
     private let uptime: () -> TimeInterval
-    /// A stored true requests release, false requests mute. With no request,
-    /// the published active flag supplies the direction on older installations.
-    private static var releasePending: Bool { UserDefaults.standard.bool(forKey: DefaultsKey.micMuteReleasePending) }
-    private static var storedMuteRequest: Bool {
+    // A call can release only the mute command it observed. Older installations
+    // used a Boolean direction, or just the published active flag.
+    private static var muteRequestID: String? {
         let defaults = UserDefaults.standard
-        if let pending = defaults.object(forKey: DefaultsKey.micMuteReleasePending) as? Bool { return !pending }
-        return defaults.bool(forKey: DefaultsKey.micMuteActive)
+        let direction = defaults.object(forKey: DefaultsKey.micMuteReleasePending)
+        if let id = direction as? String { return id }
+        if let release = direction as? Bool { return release ? nil : "legacy" }
+        return defaults.bool(forKey: DefaultsKey.micMuteActive) ? "legacy" : nil
+    }
+    // Device UIDs are nonempty. This entry records the accepted call in the
+    // same preference write as the first verified device's remaining controls.
+    private static let callReleaseKey = ""
+    private static var releasedRequestID: String? {
+        UserDefaults.standard.dictionary(forKey: DefaultsKey.micMuteSavedControls)?[callReleaseKey] as? String
+    }
+    private static var releasePending: Bool {
+        if let id = muteRequestID { return releasedRequestID == id }
+        return UserDefaults.standard.object(forKey: DefaultsKey.micMuteReleasePending) as? Bool == true
+    }
+    private static var storedMuteRequest: Bool {
+        guard let id = muteRequestID else { return false }
+        return releasedRequestID != id
     }
     /// The direction of a queued request is available before its UI publication.
     private var wantsMute = MicMuteService.storedMuteRequest
 
-    private static func persistRelease(_ pending: Bool?) {
+    private static func setReleasePending(_ pending: Bool) {
         let defaults = UserDefaults.standard
-        guard defaults.object(forKey: DefaultsKey.micMuteReleasePending) as? Bool != pending else { return }
-        if let pending { defaults.set(pending, forKey: DefaultsKey.micMuteReleasePending) }
-        else { defaults.removeObject(forKey: DefaultsKey.micMuteReleasePending) }
+        let direction = defaults.object(forKey: DefaultsKey.micMuteReleasePending)
+        if pending {
+            if direction as? Bool != true { defaults.set(true, forKey: DefaultsKey.micMuteReleasePending) }
+        } else if direction != nil { defaults.removeObject(forKey: DefaultsKey.micMuteReleasePending) }
     }
 
     /// Defaults observers can start a new request while the previous one publishes.
     private func publishActive(_ active: Bool, generation: Int) -> Bool {
         guard generation == applyGeneration else { return false }
         let defaults = UserDefaults.standard
+        // A rejected first mute may still owe a restore from the previous cycle.
+        if !active && (hasOutstandingClaims || defaults.bool(forKey: DefaultsKey.micMuteActive)) {
+            Self.setReleasePending(true)
+            guard generation == applyGeneration else { return false }
+        }
         if defaults.bool(forKey: DefaultsKey.micMuteActive) != active {
             defaults.set(active, forKey: DefaultsKey.micMuteActive)
             guard generation == applyGeneration else { return false }
         }
-        if !active && !hasOutstandingClaims { Self.persistRelease(nil) }
+        if !active && !hasOutstandingClaims { Self.setReleasePending(false) }
         return generation == applyGeneration
     }
 
@@ -179,6 +200,7 @@ final class MicMuteService: ObservableObject {
 
     private init(uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.uptime = uptime
+        if let id = Self.releasedRequestID, Self.muteRequestID == id { Self.setReleasePending(true) }
         Self.recoverControlRecords()
         Self.recoverFirstCaptures()
         if !wantsMute, Self.needsManualCheck {
@@ -400,16 +422,18 @@ final class MicMuteService: ObservableObject {
 
     private static let changingControls = "changing"
 
-    private static func setControlRecord(_ value: Any?, for uid: String) {
+    private static func setControlRecord(_ value: Any?, for uid: String, releasing requestID: String? = nil) {
         let defaults = UserDefaults.standard
         var records = defaults.dictionary(forKey: DefaultsKey.micMuteSavedControls) ?? [:]
         guard value != nil || records[uid] != nil else { return }
         records[uid] = value
+        if let requestID { records[callReleaseKey] = requestID }
         defaults.set(records, forKey: DefaultsKey.micMuteSavedControls)
     }
 
     private static func recoverControlRecords() {
         let defaults = UserDefaults.standard
+        setControlRecord(nil, for: callReleaseKey)
         // Earlier versions kept mixer writes and confirmed releases in separate keys.
         if let uid = defaults.string(forKey: DefaultsKey.micMuteMixerHandoffUID) {
             requireManualRestore(for: uid)
@@ -552,7 +576,7 @@ final class MicMuteService: ObservableObject {
             sweepRequest = request
             inputVolumeLifetime = request
         }
-        Self.persistRelease(true)
+        Self.setReleasePending(true)
         guard generation == applyGeneration else { return }
         halQueue.sync {
             self.attemptedRestores.removeAll()
@@ -657,8 +681,8 @@ final class MicMuteService: ObservableObject {
         wantsMute = muted
         applyGeneration += 1
         let generation = applyGeneration
-        if newMuteRequest { Self.persistRelease(false) }
-        if !requestedMute { Self.persistRelease(true) }
+        if newMuteRequest { UserDefaults.standard.set(request.uuidString, forKey: DefaultsKey.micMuteReleasePending) }
+        if !requestedMute { Self.setReleasePending(true) }
         guard applyGeneration == generation else { return }
         let previouslyMuted = isMuted && AppFeature.micMute.isAvailable
         // A reset between the first mute sweep and publication invalidates
@@ -716,6 +740,7 @@ final class MicMuteService: ObservableObject {
                        canRescan: Bool = true) -> MuteOutcome {
         let serviceRestarted = observationGeneration != audioGeneration
         let defaults = UserDefaults.standard
+        let muteRequestID = followingCallApps ? Self.muteRequestID : nil
         let savedVolumes = defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes) as? [String: Double]
         let savedChannelVolumes = defaults.dictionary(forKey: DefaultsKey.micMuteSavedChannelVolumes)
             as? [String: [String: Double]]
@@ -940,35 +965,30 @@ final class MicMuteService: ObservableObject {
         var callOpenings: Set<DeviceListener> = []
         var committedCallRelease = false
         var checkpointedRelease = false
-        func recordRelease(_ value: Any, for uid: String) {
-            Self.setControlRecord(value, for: uid)
+        func recordRelease(_ value: Any, for uid: String, releasing id: String? = nil) {
+            Self.setControlRecord(value, for: uid, releasing: id)
             checkpointedRelease = true
         }
+        func acceptCallRelease() -> String? {
+            guard follow && !committedCallRelease, let muteRequestID else { return nil }
+            return inputVolumeLock.withLock {
+                guard sweepRequest == request else { return nil }
+                inputVolumeBlocked = false
+                committedCallRelease = true
+                return muteRequestID
+            }
+        }
         func recordReleaseProgress(_ uid: String, _ residual: [String: Double], _ protection: [UInt32]?,
-                                   _ unverified: Set<String>, _ wrote: Bool) {
-            guard wrote || residual != savedControls?[uid] || protection != savedProtection[uid]
+                                   _ unverified: Set<String>, _ wrote: Bool, _ opened: Bool) {
+            let released = opened ? acceptCallRelease() : nil
+            guard released != nil || wrote || residual != savedControls?[uid] || protection != savedProtection[uid]
                     || unverified != (liveCheckpoints[uid]?.unverified ?? [])
                     || (pending?.uid == uid && remaining != pending) else { return }
             let checkpoint = ReleaseCheckpoint(controls: residual, protectedChannels: protection ?? [],
                                                legacy: remaining?.uid == uid ? remaining : nil,
                                                unverified: unverified.isEmpty ? nil : unverified)
             liveCheckpoints[uid] = unverified.isEmpty ? nil : checkpoint
-            recordRelease(checkpoint.storedValue, for: uid)
-        }
-        func commitCallRelease() {
-            guard follow && !committedCallRelease else { return }
-            inputVolumeLock.withLock {
-                guard sweepRequest == request else { return }
-                // A hotkey can arrive before main publishes the verified call opening.
-                inputVolumeBlocked = false
-                committedCallRelease = true
-            }
-            guard committedCallRelease else { return }
-            DispatchQueue.main.async {
-                guard self.inputVolumeLock.withLock({ self.sweepRequest == request }) else { return }
-                self.wantsMute = false
-                Self.persistRelease(true)
-            }
+            recordRelease(checkpoint.storedValue, for: uid, releasing: released)
         }
         var outcome: MuteOutcome
         var persistedControls = savedControls
@@ -982,10 +1002,12 @@ final class MicMuteService: ObservableObject {
         }
         func persistControls(_ targets: [String: [String: Double]]?, replacingCheckpoint: Bool = false) {
             guard replacingCheckpoint || targets != persistedControls else { return }
-            if let targets {
-                var records: [String: Any] = targets
+            let released = Self.releasedRequestID
+            if targets != nil || released != nil {
+                var records: [String: Any] = targets ?? [:]
+                records[Self.callReleaseKey] = released
                 for (uid, var checkpoint) in liveCheckpoints {
-                    guard let current = targets[uid] else { continue }
+                    guard let current = targets?[uid] else { continue }
                     guard let uncertain = checkpoint.unverified?.intersection(current.keys), !uncertain.isEmpty else { continue }
                     checkpoint.unverified = uncertain
                     checkpoint.controls = current
@@ -1084,7 +1106,7 @@ final class MicMuteService: ObservableObject {
                                       now: uptime(), callOpenings: callOpenings,
                                       unverifiedControls: liveCheckpoints.compactMapValues(\.unverified),
                                       willWrite: { recordRelease(Self.changingControls, for: $0) },
-                                      didCheck: recordReleaseProgress, didRestore: commitCallRelease,
+                                      didCheck: recordReleaseProgress,
                                       isCurrent: isCurrent, canVerify: sameConnection)
                 if follow && !outcome.applied && inputVolumeLock.withLock({ sweepRequest == request }) {
                     // A rejected automatic release keeps mute active. A
@@ -1165,7 +1187,9 @@ final class MicMuteService: ObservableObject {
         // preferences changed, and a re-assert usually changes nothing.
         // An automatic release interrupted by a reset must not discard the
         // saved levels needed to reassert the user's original mute.
-        if outcome.applied && !invalidated && audioGeneration == currentAudioGeneration { commitCallRelease() }
+        if outcome.applied && !invalidated && audioGeneration == currentAudioGeneration, let id = acceptCallRelease() {
+            recordRelease(id, for: Self.callReleaseKey)
+        }
         let releaseInterrupted = follow && !committedCallRelease && !outcome.applied
             && (invalidated || audioGeneration != currentAudioGeneration) && inputVolumeLock.withLock({ sweepRequest == request })
         var record = partial
@@ -1345,16 +1369,18 @@ final class MicMuteService: ObservableObject {
             inputVolumeLock.withLock { inputVolumeBlocked = muted }
             if isMuted != muted { isMuted = muted }
             guard publishActive(muted, generation: generation) else { return }
+            if outcome.followedCallApp {
+                halQueue.async { Self.setControlRecord(nil, for: Self.callReleaseKey) }
+            }
             syncListeners()
         } else {
-            // Nothing was reached, so the request is dropped as it always was:
-            // the published state stays what it is, and so does the wanted one.
+            // A failed reassertion or rejected call release keeps the published mute.
             wantsMute = isMuted
             inputVolumeLock.withLock { inputVolumeBlocked = isMuted }
-            if !isMuted && !hasOutstandingClaims {
-                Self.persistRelease(nil)
-                guard generation == applyGeneration else { return }
-                syncSystemListeners(wanted: false)
+            if !isMuted {
+                guard publishActive(false, generation: generation) else { return }
+                if hasOutstandingClaims { reapplyPending = true }
+                else { syncSystemListeners(wanted: false) }
             }
         }
         let nextWarning: Warning?
@@ -1364,7 +1390,7 @@ final class MicMuteService: ObservableObject {
             nextWarning = .manualRestore
         } else if outcome.restoreAttemptsExhausted {
             nextWarning = .restoreExhausted
-        } else if !muted && (outcome.failed || !outcome.mutedDevices.isEmpty) {
+        } else if (!muted && outcome.failed) || hasOutstandingClaims {
             nextWarning = .restoreUnconfirmed
         } else {
             nextWarning = nil
@@ -1631,7 +1657,7 @@ final class MicMuteService: ObservableObject {
                                attempts: inout [InputDevice: [String: RestoreAttempt]], now: TimeInterval,
                                callOpenings: Set<DeviceListener>, unverifiedControls: [String: Set<String>],
                                willWrite: (String) -> Void,
-                               didCheck: (String, [String: Double], [UInt32]?, Set<String>, Bool) -> Void, didRestore: () -> Void,
+                               didCheck: (String, [String: Double], [UInt32]?, Set<String>, Bool, Bool) -> Void,
                                isCurrent: (InputDevice) -> Bool, canVerify: (InputDevice) -> Bool) -> MuteOutcome {
         let present = devices.map(\.uid)
         var outcome = MuteOutcome(applied: false,
@@ -1679,23 +1705,21 @@ final class MicMuteService: ObservableObject {
             }
             let needsMaster = outstanding["0"] != nil || outstanding.keys.compactMap(controlAddress).contains(where: isMasterGain)
             protectedChannels[device.uid] = needsMaster && !channels.isEmpty ? channels.sorted() : nil
-            if sameInput || writing { didCheck(device.uid, outstanding, protectedChannels[device.uid], unverified, writing) }
-            if outstanding.isEmpty && sameInput {
-                outcome.applied = true
+            let complete = outstanding.isEmpty && sameInput
+            // One verified open control is progress even if another is still owed.
+            let opened = complete || openings.contains { key in
+                guard outstanding[key] == nil, let target = saved[key], let address = controlAddress(key) else { return false }
+                return address.mSelector == kAudioDevicePropertyMute ? target == 0 : target > 0
+            }
+            if sameInput || writing {
+                didCheck(device.uid, outstanding, protectedChannels[device.uid], unverified, writing, opened)
+            }
+            if opened { outcome.applied = true }
+            if complete {
                 outcome.savedControls.removeValue(forKey: device.uid)
                 outcome.savedVolumes.removeValue(forKey: device.uid)
                 outcome.savedChannelVolumes.removeValue(forKey: device.uid)
-                didRestore()
             } else {
-                // One verified open control is release progress even when
-                // another control on this same input is still owed.
-                if openings.contains(where: { key in
-                    guard outstanding[key] == nil, let target = saved[key], let address = controlAddress(key) else { return false }
-                    return address.mSelector == kAudioDevicePropertyMute ? target == 0 : target > 0
-                }) {
-                    outcome.applied = true
-                    didRestore()
-                }
                 outcome.failed = true
                 outcome.mutedDevices.append(device.uid)
                 outcome.savedControls[device.uid] = outstanding

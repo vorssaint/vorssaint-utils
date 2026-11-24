@@ -674,7 +674,7 @@ enum DefaultsKey {
     static let scratchpadDocument = "scratchpadDocument"     // Data: ScratchpadDocument JSON, including named tabs
     static let scratchpadTextSize = "scratchpadTextSize"     // pad-wide point size (ScratchpadSupport.textSizeRange)
     static let micMuteActive = "micMuteActive"               // mic muted by the app (survives relaunch)
-    static let micMuteReleasePending = "micMuteReleasePending" // false requests mute, true requests release. Absence uses micMuteActive.
+    static let micMuteReleasePending = "micMuteReleasePending" // Mute request UUID or true for release. Older stores used false or micMuteActive.
     static let micMuteReleasedUIDs = "micMuteReleasedUIDs"   // legacy list of verified releases awaiting cleanup
     static let micMuteSavedVolume = "micMuteSavedVolume"     // input volume to restore on unmute (pre 3.2.0 state)
     static let micMuteSavedVolumes = "micMuteSavedVolumes"   // [device uid: input volume] to restore on unmute
