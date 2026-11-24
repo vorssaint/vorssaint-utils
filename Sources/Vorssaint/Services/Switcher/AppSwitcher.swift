@@ -78,14 +78,14 @@ final class AppSwitcher: ObservableObject {
     /// confirmation cannot survive a switcher session that has already ended.
     var keyboardInputOwnership: (isOwned: Bool, generation: UInt64) {
         routeLock.withLock {
-            (!routeCapturing && !routeTapRecoveryPending && (routeSessionActive
+            (!routeCapturing && !routeTapRecoveryPending && (routeHasInteractiveSession
                 || (routeCanStartSession && (routePendingSessionStart != nil || secureInputReplays.hasPending))),
              sessionStartGeneration)
         }
     }
 
     var scrollNavigationActive: Bool {
-        routeLock.withLock { routeSessionActive && !routeCapturing && !routeTapRecoveryPending }
+        routeLock.withLock { routeHasInteractiveSession && !routeCapturing && !routeTapRecoveryPending }
     }
 
     private var panel: NSPanel?
@@ -94,11 +94,17 @@ final class AppSwitcher: ObservableObject {
 
     /// Keep the first main-thread sample through inventory callbacks and activation.
     private struct SessionOrigin {
+        struct AnnouncedWindows {
+            let spaceRevision: Int
+            var waiting = true
+            var focusedWindowID: CGWindowID?
+        }
         let generation: UInt64
         let pid: pid_t
         let regularBundleIdentifier: String?
         let displayScope: WindowEnumerator.DisplayScope?
         var readingFrontApp = false
+        var announcedWindows: AnnouncedWindows?
         var removals: Set<SwitcherWindowInventory.Removal> = []
         var environmentStillCurrent: (() -> Bool)?
     }
@@ -157,7 +163,11 @@ final class AppSwitcher: ObservableObject {
     private var routeCapturing = false
     private var routeCanStartSession = false
     private var routeYieldsToExclusiveFullscreen = false
-    private var routePendingSessionStart: SwitcherPendingSessionStart?
+    // A released window gesture stays owned until its activation hands off to the next press.
+    private var routeQuickWindowCommit: UInt64?
+    private var routeHasInteractiveSession: Bool { routeSessionActive && routeQuickWindowCommit == nil }
+    private var routePendingStarts: [SwitcherPendingSessionStart] = []
+    private var routePendingSessionStart: SwitcherPendingSessionStart? { routePendingStarts.first }
     private var sessionStartGeneration: UInt64 = 0
     private var secureInputReplays = SwitcherSecureInputReplayState()
 
@@ -335,7 +345,7 @@ final class AppSwitcher: ObservableObject {
         routeLock.withLock {
             routeCapturing = capturing
             if capturing {
-                routePendingSessionStart = nil
+                routePendingStarts.removeAll()
             }
         }
         if capturing { unregisterSecureInputHotKeys() }
@@ -355,7 +365,7 @@ final class AppSwitcher: ObservableObject {
         routeLock.withLock {
             routeYieldsToExclusiveFullscreen = yields
             if yields {
-                routePendingSessionStart = nil
+                routePendingStarts.removeAll()
                 secureInputReplays.invalidate()
             }
         }
@@ -381,7 +391,7 @@ final class AppSwitcher: ObservableObject {
             GlobalShortcut.refreshLayoutLabels()
             // The guarded Q/W positions can change with the keyboard layout.
             guard let self, IsSecureEventInputEnabled(), self.keyboardInputOwnership.isOwned else { return }
-            self.routeLock.withLock { self.routePendingSessionStart = nil }
+            self.routeLock.withLock { self.routePendingStarts.removeAll() }
             self.invalidateSecureInputReplays()
             if self.sessionActive { self.cancelSession() }
             self.unregisterSecureInputActionHotKeys()
@@ -463,7 +473,7 @@ final class AppSwitcher: ObservableObject {
     private func removeTap() {
         if sessionActive { cancelSession() }
         swallowingMiddleMouseUp = false
-        routeLock.withLock { routePendingSessionStart = nil }
+        routeLock.withLock { routePendingStarts.removeAll() }
         invalidateSecureInputReplays()
         unregisterSecureInputActionHotKeys()
         let snapshot = lifecycleLock.withLock {
@@ -615,7 +625,7 @@ final class AppSwitcher: ObservableObject {
 
     private func restoreNativeHotkeys() {
         if IsSecureEventInputEnabled() {
-            routeLock.withLock { routePendingSessionStart = nil }
+            routeLock.withLock { routePendingStarts.removeAll() }
             if sessionActive { cancelSession() }
         }
         unregisterSecureInputHotKeys()
@@ -633,7 +643,7 @@ final class AppSwitcher: ObservableObject {
             return
         }
         routeLock.withLock {
-            routePendingSessionStart = nil
+            routePendingStarts.removeAll()
         }
         if sessionActive { cancelSession() }
         else { releaseSecureInputActionsIfIdle() }
@@ -663,7 +673,7 @@ final class AppSwitcher: ObservableObject {
         if !secureInputHotKeys.isEmpty,
            Set(secureInputHotKeys.values.map(\.shortcut)) == Set(shortcuts) { return }
         if !secureInputHotKeys.isEmpty {
-            routeLock.withLock { routePendingSessionStart = nil }
+            routeLock.withLock { routePendingStarts.removeAll() }
             if sessionActive { cancelSession() }
         }
         unregisterSecureInputHotKeys()
@@ -839,7 +849,7 @@ final class AppSwitcher: ObservableObject {
             let needsRecovery = routeLock.withLock {
                 guard !routeTapRecoveryPending else { return false }
                 routeTapRecoveryPending = true
-                routePendingSessionStart = nil
+                routePendingStarts.removeAll()
                 secureInputReplays.invalidate()
                 return true
             }
@@ -870,7 +880,7 @@ final class AppSwitcher: ObservableObject {
         }
 
         let (active, shortcut, windowShortcut, allWindowsShortcut, canStartSession, hasPendingStart, passThrough) = routeLock.withLock {
-            (routeSessionActive, routeShortcut, routeWindowShortcut, routeAllWindowsShortcut, routeCanStartSession,
+            (routeHasInteractiveSession, routeShortcut, routeWindowShortcut, routeAllWindowsShortcut, routeCanStartSession,
              routePendingSessionStart != nil, routeCapturing || routeYieldsToExclusiveFullscreen || routeTapRecoveryPending)
         }
         if passThrough { return Unmanaged.passUnretained(event) }
@@ -878,20 +888,19 @@ final class AppSwitcher: ObservableObject {
             guard canStartSession else { return Unmanaged.passUnretained(event) }
             if type == .flagsChanged {
                 let stillInactive = routeLock.withLock { () -> Bool in
-                    guard !routeSessionActive else { return false }
-                    if var pending = routePendingSessionStart,
-                       !pending.shortcut.requiredModifiersHeld(in: event.flags) {
-                        if pending.scope == .frontmostApp, pending.isSecureInputReplay {
+                    guard !routeHasInteractiveSession else { return false }
+                    if let last = routePendingStarts.indices.last,
+                       !routePendingStarts[last].shortcut.requiredModifiersHeld(in: event.flags) {
+                        if routePendingStarts[last].cancelsReleasedReplay {
                             // The next typed key is invisible to the tap after modifier-up.
-                            routePendingSessionStart = nil
+                            routePendingStarts.removeAll()
                             secureInputReplays.invalidate()
                             DispatchQueue.main.async { [weak self] in self?.releaseSecureInputActionsIfIdle() }
                             return true
                         }
                         // A quick flick still commits once enumeration finishes,
                         // but can never flash a panel after the key was released.
-                        pending.observeModifiers(event.flags)
-                        routePendingSessionStart = pending
+                        routePendingStarts[last].observeModifiers(event.flags)
                     }
                     return true
                 }
@@ -914,13 +923,13 @@ final class AppSwitcher: ObservableObject {
                 // scan stays off the mouse-down path of everyone who is not
                 // mid-open. Without the keyboard, only the process lookup runs.
                 let startPending = routeLock.withLock {
-                    !routeSessionActive && (routePendingSessionStart != nil || secureInputReplays.hasPending)
+                    !routeHasInteractiveSession && (routePendingSessionStart != nil || secureInputReplays.hasPending)
                 }
                 let clickPressedAKey = startPending && AssistiveKeyboard.ownsPoint(event.location)
                 let stillInactive = routeLock.withLock { () -> Bool in
-                    guard !routeSessionActive else { return false }
+                    guard !routeHasInteractiveSession else { return false }
                     if !clickPressedAKey {
-                        routePendingSessionStart = nil
+                        routePendingStarts.removeAll()
                         secureInputReplays.invalidate()
                     }
                     return true
@@ -944,7 +953,8 @@ final class AppSwitcher: ObservableObject {
                 return Unmanaged.passUnretained(event)
             }
             let isEscape = hasPendingStart && event.getIntegerValueField(.keyboardEventKeycode) == KeyCode.escape
-            guard let claim = claimPendingKey(match: match, isEscape: isEscape, secureInputReplay: secureInputReplay) else {
+            guard let claim = claimPendingKey(match: match, isEscape: isEscape, secureInputReplay: secureInputReplay,
+                                              eventTargetPID: event.getIntegerValueField(.eventTargetUnixProcessID)) else {
                 return Unmanaged.passUnretained(event)
             }
             switch claim.decision {
@@ -977,32 +987,53 @@ final class AppSwitcher: ObservableObject {
     /// a shortcut. Check ownership under the same lock that claims the press.
     private func claimPendingKey(match: (shortcut: GlobalShortcut, scope: SwitcherSessionScope, reversed: Bool)?,
                                  isEscape: Bool = false,
-                                 secureInputReplay: Bool) -> (decision: SwitcherPendingKeyDecision, generation: UInt64?)? {
+                                 secureInputReplay: Bool,
+                                 eventTargetPID: Int64 = 0) -> (decision: SwitcherPendingKeyDecision, generation: UInt64?)? {
         routeLock.withLock {
             guard routeCanStartSession, !routeCapturing, !routeYieldsToExclusiveFullscreen else { return nil }
             let decision = SwitcherSupport.pendingKeyDecision(
-                sessionIsActive: routeSessionActive, hasPendingStart: routePendingSessionStart != nil,
-                commitWhenReady: routePendingSessionStart?.commitWhenReady ?? false, matchesShortcut: match != nil,
+                sessionIsActive: routeHasInteractiveSession, hasPendingStart: routePendingSessionStart != nil,
+                commitWhenReady: routePendingStarts.last?.commitWhenReady ?? false, matchesShortcut: match != nil,
                 isEscape: isEscape)
             if decision == .cancelAndSwallow {
-                routePendingSessionStart = nil
+                if let target = routePendingSessionStart?.activatingWindow {
+                    // The activation has already started. Return the original key only once the
+                    // final destination has observed focus. Keep guarding later keys until then.
+                    if !isEscape, routePendingStarts.count == 1, let id = target.windowID,
+                       let frontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+                       frontPID == target.pid || frontPID == target.windowOwnerPID,
+                       eventTargetPID == 0 || eventTargetPID == Int64(frontPID) {
+                        let focus = WindowUseTracker.shared.frontAppFocus(for: frontPID, appPID: target.pid)
+                        if focus.windowID == id, focus.latest?.wasObserved == true { return nil }
+                    }
+                    routePendingStarts.removeSubrange(1...)
+                    secureInputReplays.invalidate()
+                    return (.swallow, nil)
+                }
+                routePendingStarts.removeAll()
                 secureInputReplays.invalidate()
             }
             guard decision == .routeShortcut else { return (decision, nil) }
             guard let match else { return nil }
-            if var pending = routePendingSessionStart, !pending.commitWhenReady {
-                if pending.scope == match.scope {
-                    let next = pending.additionalNavigation + (match.reversed ? -1 : 1)
-                    pending.additionalNavigation = max(-64, min(64, next))
-                    routePendingSessionStart = pending
+            if let last = routePendingStarts.indices.last, !routePendingStarts[last].commitWhenReady {
+                if routePendingStarts[last].scope == match.scope {
+                    let next = routePendingStarts[last].additionalNavigation + (match.reversed ? -1 : 1)
+                    routePendingStarts[last].additionalNavigation = max(-64, min(64, next))
                 }
                 return (.swallow, nil)
             }
             sessionStartGeneration &+= 1
-            routePendingSessionStart = SwitcherPendingSessionStart(
+            let start = SwitcherPendingSessionStart(
                 generation: sessionStartGeneration, shortcut: match.shortcut, scope: match.scope,
                 reversed: match.reversed, isSecureInputReplay: secureInputReplay)
-            return (.routeShortcut, sessionStartGeneration)
+            if let previous = routePendingStarts.last, !previous.isSecureInputReplay, !secureInputReplay,
+               usesIndividualWindows(previous.scope), usesIndividualWindows(match.scope) {
+                // The previous modifier-up finished a gesture. Its commit supplies the next source.
+                routePendingStarts.append(start)
+                return (.routeShortcut, nil)
+            }
+            routePendingStarts = [start]
+            return (.routeShortcut, start.generation)
         }
     }
 
@@ -1196,7 +1227,7 @@ final class AppSwitcher: ObservableObject {
     /// released during that handoff commits the selection without showing UI.
     private func beginPendingSession(generation: UInt64) {
         guard routeLock.withLock({
-            SwitcherSupport.isCurrentSessionStart(
+            routeQuickWindowCommit != generation && SwitcherSupport.isCurrentSessionStart(
                 generation: generation,
                 pendingGeneration: routePendingSessionStart?.generation
             )
@@ -1256,18 +1287,85 @@ final class AppSwitcher: ObservableObject {
             readFrontAppWindows(origin: origin)
             return
         }
-        guard windowInventory.readyForSession(currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)) else { return }
-        guard let selection = windowInventory.selection(
+        let ready = windowInventory.readyForSession(currentSpaceOnly: currentSpaceOnly)
+        let individual = usesIndividualWindows(requested.scope)
+        if let announced = origin.announcedWindows {
+            guard individual, !currentSpaceOnly || announced.spaceRevision == windowInventory.currentSpaceRevision else {
+                discardPendingSessionStart(generation: generation, reason: "window_scope_changed")
+                return
+            }
+            if let source = announced.focusedWindowID, !windowInventory.knownWindowIDs.contains(source) {
+                discardPendingSessionStart(generation: generation, reason: "source_window_closed")
+                return
+            }
+        } else if individual, windowInventory.afterAnnouncedWindows(
+            frontmostPID: origin.pid,
+            isPending: { [weak self] in self?.isPendingStart(generation) == true },
+            resume: { [weak self] needsFocus in self?.resumeWindowSelection(origin: origin, needsFocus: needsFocus) }
+        ) {
+            sessionOrigin?.announcedWindows = .init(spaceRevision: windowInventory.currentSpaceRevision)
+        }
+        guard ready, sessionOrigin?.announcedWindows?.waiting != true, let selection = windowInventory.selection(
             for: generation,
             scope: requested.scope,
             frontmostPID: origin.pid,
-            displayScope: origin.displayScope) else { return }
+            displayScope: origin.displayScope,
+            confirmedFocus: origin.announcedWindows?.focusedWindowID) else {
+            if individual, requested.isSecureInputReplay {
+                let released = routeLock.withLock {
+                    guard routePendingSessionStart?.generation == generation else { return false }
+                    routePendingStarts[0].awaitsWindowSelection = true
+                    routePendingStarts[0].reconcileReplayedModifiers(CGEventSource.flagsState(.combinedSessionState))
+                    return routePendingStarts[0].commitWhenReady
+                }
+                if released { discardPendingSessionStart(generation: generation, reason: "released_secure_input_shortcut") }
+            }
+            return
+        }
         finishPendingSession(generation: generation,
                              reportedFrontPID: origin.pid,
                              focusedSourceWindowID: selection.focusedWindowID,
                              windows: selection.list.items,
                              sourceItems: selection.list.sourceItems,
                              windowServerSnapshot: selection.list.activationSnapshot)
+    }
+
+    private func usesIndividualWindows(_ scope: SwitcherSessionScope) -> Bool {
+        guard scope == .allApps else { return scope == .allWindows }
+        return !UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs) && (simpleModeEnabled || !iconRowModeEnabled)
+    }
+
+    private func isPendingStart(_ generation: UInt64) -> Bool {
+        routeLock.withLock { routePendingSessionStart?.generation == generation }
+    }
+
+    private func resumeWindowSelection(origin: SessionOrigin, needsFocus: Bool) {
+        guard isPendingStart(origin.generation) else { return }
+        let tracker = WindowUseTracker.shared
+        let knownWindows = needsFocus ? windowInventory.knownWindowIDs : []
+        let observation = needsFocus ? tracker.frontAppFocus(for: origin.pid).latest?.confirmation : nil
+        let resume = { [weak self] (focus: CGWindowID?) in
+            guard let self, self.isPendingStart(origin.generation) else { return }
+            let latest = needsFocus ? tracker.frontAppFocus(for: origin.pid).latest : nil
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == origin.pid,
+                  latest?.confirmation == observation || latest?.windowID == focus else {
+                self.discardPendingSessionStart(generation: origin.generation, reason: "all_windows_source_changed")
+                return
+            }
+            // An unlisted inspector can hold AX focus. Only a listed window can be the switcher's source.
+            self.sessionOrigin?.announcedWindows?.focusedWindowID = focus.flatMap {
+                knownWindows.contains($0) || self.windowInventory.knownWindowIDs.contains($0) ? $0 : nil
+            }
+            self.sessionOrigin?.announcedWindows?.waiting = false
+            self.beginPendingSession(generation: origin.generation)
+        }
+        guard needsFocus else { resume(nil); return }
+        // Creation and ordering notifications alone cannot tell whether the new window took focus.
+        frontAppReadQueue.async { [weak self] in
+            guard self?.isPendingStart(origin.generation) == true else { return }
+            let focus = WindowActivator.focusedWindowID(for: origin.pid)
+            DispatchQueue.main.async { resume(focus) }
+        }
     }
 
     /// The app can focus a new window before either inventory observer catches up.
@@ -1379,16 +1477,20 @@ final class AppSwitcher: ObservableObject {
                       generation: generation,
                       pendingGeneration: routePendingSessionStart?.generation
                   ) else { return nil }
-            var pending = routePendingSessionStart
-            pending?.reconcileReplayedModifiers(CGEventSource.flagsState(.combinedSessionState))
-            routePendingSessionStart = nil
+            var pending = routePendingStarts[0]
+            pending.reconcileReplayedModifiers(CGEventSource.flagsState(.combinedSessionState))
+            if pending.commitWhenReady, !pending.isSecureInputReplay, usesIndividualWindows(pending.scope) {
+                routeQuickWindowCommit = pending.generation
+            } else {
+                routePendingStarts.removeFirst()
+            }
             routeSessionActive = true
             return pending
         })
         guard let pending = handedOverPending else {
             return
         }
-        if pending.scope == .frontmostApp, pending.isSecureInputReplay, pending.commitWhenReady {
+        if pending.cancelsReleasedReplay, pending.commitWhenReady {
             endSession()
             return
         }
@@ -1463,7 +1565,7 @@ final class AppSwitcher: ObservableObject {
             ) else { return }
             windowInventory.onRemoval = nil
             sessionOrigin = nil
-            routePendingSessionStart = nil
+            routePendingStarts.removeAll()
             secureInputReplays.invalidate()
         }
         releaseSecureInputActionsIfIdle()
@@ -2020,9 +2122,20 @@ final class AppSwitcher: ObservableObject {
         let windowServerSnapshot = sessionWindowServerSnapshot
         // The app that held the keyboard can be the source even without a listed window.
         let handoffSourcePID = sessionOrigin?.pid
+        let quickCommit = routeLock.withLock { routeQuickWindowCommit }
         endSession()
-        if let selection {
+        let stillRequested = routeLock.withLock {
+            guard let selection else { return false }
+            if let quickCommit {
+                guard routePendingSessionStart?.generation == quickCommit else { return false }
+                routePendingStarts[0].activatingWindow = selection
+            }
+            // Publish the target and record the switch together. A prior observation of the
+            // same window must not release a key before this activation takes focus.
             recordUse(selection, previous: previousWindowID, focusPID: frontAppSession ? handoffSourcePID : nil)
+            return true
+        }
+        if let selection, stillRequested {
             WindowActivator.activate(selection,
                                      sourceWasFullscreen: source?.isFullscreen ?? false,
                                      sourcePID: source?.pid,
@@ -2031,6 +2144,25 @@ final class AppSwitcher: ObservableObject {
                                      sourceWindowOwnerPID: source?.windowOwnerPID,
                                      windowServerSnapshot: windowServerSnapshot)
         }
+        guard let quickCommit else { return }
+        let next = routeLock.withLock { () -> SwitcherPendingSessionStart? in
+            guard routeQuickWindowCommit == quickCommit else { return nil }
+            routeQuickWindowCommit = nil
+            guard routePendingSessionStart?.generation == quickCommit else { return nil }
+            routePendingStarts.removeFirst()
+            return routePendingSessionStart
+        }
+        guard let next else { return }
+        guard let selection else {
+            discardPendingSessionStart(generation: next.generation, reason: "previous_window_unavailable")
+            return
+        }
+        // The physical focus notification can lag behind our own activation.
+        sessionOrigin = SessionOrigin(generation: next.generation, pid: selection.pid, regularBundleIdentifier: nil,
+                                     displayScope: currentDisplayScope, announcedWindows: .init(
+                                        spaceRevision: windowInventory.currentSpaceRevision, waiting: false,
+                                        focusedWindowID: selection.windowID))
+        DispatchQueue.main.async { [weak self] in self?.beginPendingSession(generation: next.generation) }
     }
 
     private func resumePendingCommitAfterClose() {
