@@ -157,6 +157,9 @@ final class AgentUsageService: ObservableObject {
         // A page torn down with the island never reports leaving, so the
         // minute cadence would outlive it.
         pageVisible = false
+        // Keep Awake follows the AI agents from here while the display is
+        // asleep or the Mac is locked, which is when it matters most.
+        guard !KeepAwakeAgentWork.isWatched() else { return }
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
@@ -693,13 +696,21 @@ final class AgentUsageService: ObservableObject {
         let claudeOrganization: String?
         let claudeIdentity: ClaudeAccountProfile.Identity?
         let claudeApp: [AgentClaudeAppUsage.Sample]
+        let claudeCommandWaiting: Bool
     }
 
     /// Runs on `queue`.
     private var inputs: Inputs {
         Inputs(records: store.records.count, turns: store.turns, limits: store.limits, codexPlan: store.codexPlan,
                claudePlan: claudePlan, claudeOrganization: claudeOrganization, claudeIdentity: claudeIdentity,
-               claudeApp: claudeAppSamples)
+               claudeApp: claudeAppSamples, claudeCommandWaiting: claudeWaitsOnCommand)
+    }
+
+    /// A quiet Claude turn still waits on a shell command of its own. Runs
+    /// on `queue`.
+    private var claudeWaitsOnCommand: Bool {
+        let commands = runningCommands
+        return store.waiting.contains { $0.value.provider == .claude && commands.contains($0.key) }
     }
 
     /// Runs on `queue` and hands the finished snapshot to the main thread.
@@ -711,9 +722,10 @@ final class AgentUsageService: ObservableObject {
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
         let hasCursor = watchedRoots.contains { $0.provider == .cursor }
         let transcripts = hasCursor ? cursors.values.filter { $0.provider == .cursor } : []
-        let next = store.snapshot(plans: plans, providers: enabled, now: Date(), cursorProjectsFound: hasCursor,
+        var next = store.snapshot(plans: plans, providers: enabled, now: Date(), cursorProjectsFound: hasCursor,
                                   cursorActivity: transcripts.map { $0.transcriptActivity(in: store) },
                                   cursorLastActivity: transcripts.compactMap(\.state.cursorLastActivity).max())
+        next.claudeCommandWaiting = enabled.contains(.claude) && claudeWaitsOnCommand
         published = next
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
