@@ -639,7 +639,9 @@ def main():
           + "}\n}\n")
     fan_control = "Sources/Vorssaint/Services/FanControl/FanControlService.swift"
     write("FanControlResume.swift", "import Foundation\n"
-          + "extension FanControlResumeContract {\nfinal class Service: Fixture {\n"
+          + "extension FanControlResumeContract {\n"
+          + declaration(fan_control, "    private enum StopConfirmation").replace("private enum", "enum", 1)
+          + "final class Service: Fixture {\n"
           + "".join(declaration(fan_control, prefix)
                     .replace("@objc private func", "func", 1)
                     .replace("private static var", "static var", 1)
@@ -653,7 +655,8 @@ def main():
                         "    private func beginResume(", "    private func cancelResumeRetry(",
                         "    private func resumeDidFail(", "    private func scheduleResumeRetry(",
                         "    private func retryResume(", "    private func applyStatus(", "    private func apply(_ response:",
-                        "    private func requestStatus(", "    private func beginRequest(", "    private func finishRequest("])
+                        "    private func poll(", "    private func heartbeat(", "    private func requestStatus(",
+                        "    private func beginRequest(", "    private func finishRequest("])
           + "}\n}\n")
     write("FanControlRecovery.swift", "import Foundation\n"
           + "extension FanControlRecoveryContract {\nfinal class Controller: Fixture {\n"

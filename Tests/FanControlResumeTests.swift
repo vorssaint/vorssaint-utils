@@ -34,6 +34,7 @@ enum FanControlResumeContract {
     }
     struct StatusProxy {
         func status(withReply reply: () -> Void) { reply() }
+        func heartbeat(withReply reply: () -> Void) { reply() }
     }
     class Fixture {
         enum AccessState { case notRegistered, requiresApproval, enabled, unavailable }
@@ -47,6 +48,8 @@ enum FanControlResumeContract {
         var requestGeneration = 0
         var requestInFlight = false
         var panelIsVisible = false
+        var tickCount = 0
+        var pendingStop: StopConfirmation?
         var timer: Invalidating?
         var connection: Invalidating?
         var observing = true
@@ -95,6 +98,8 @@ enum FanControlResumeContract {
             service.statusResponse = nil
             service.requestInFlight = false
             service.panelIsVisible = false
+            service.tickCount = 0
+            service.pendingStop = nil
             service.timer = Invalidating()
             service.connection = Invalidating()
             service.observing = true
@@ -356,6 +361,87 @@ enum FanControlResumeContract {
         stopped.stopReason = .heartbeatLost
         service.applyStatus(.success(stopped))
         suite.expect(service.scheduledResumes.isEmpty, "a heartbeat loss only resumes opted-in control")
+
+        let curve = FanControlConfiguration.curve([FanControlConfiguration.defaultCurve])
+        func startRecovery(panelVisible: Bool = false, reason: FanControlStopReason = .heartbeatLost) {
+            reset(stored: curve, recovery: true)
+            defaults.values[DefaultsKey.fanControlMode] = FanControlMode.curve.rawValue
+            service.panelIsVisible = panelVisible
+            var active = FanControlSnapshot.empty
+            active.isCooling = true
+            active.configuration = curve
+            service.statusResponse = .success(active)
+            service.requestStatus()
+
+            var recovering = FanControlSnapshot.empty
+            recovering.stopReason = reason
+            service.statusResponse = .failure(.controlFailed, snapshot: recovering)
+            service.poll()
+            let afterHeartbeat = service.requestGeneration
+            service.workspaceDidWake()
+            service.retryResume()
+            service.poll()
+            service.poll()
+            suite.expect(service.snapshot == recovering && service.error == .controlFailed
+                            && service.requestGeneration > afterHeartbeat
+                            && defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
+                            && service.timer != nil && service.scheduledResumes.isEmpty && service.applied.isEmpty,
+                         "during recovery the timer keeps checking while wake and retry leave the fans alone")
+        }
+
+        func confirmRecovery(_ reason: FanControlStopReason?) {
+            var restored = FanControlSnapshot.empty
+            restored.stopReason = reason
+            service.statusResponse = .success(restored)
+            service.poll()
+            service.poll()
+            suite.expect(service.snapshot == restored && service.error == nil
+                            && !defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
+                            && (service.timer != nil) == service.panelIsVisible,
+                         "the timer observes automatic control and finishes recovery even with the panel closed")
+            service.requestStatus() // A second reader sees the same stopped session.
+        }
+
+        for panelVisible in [false, true] {
+            startRecovery(panelVisible: panelVisible)
+            confirmRecovery(.heartbeatLost)
+            suite.expect(service.scheduledResumes == [FanControlResumePolicy.retryDelays[0]]
+                            && service.applied.isEmpty && !service.resumeFailed,
+                         "confirming heartbeat recovery twice schedules only one resume")
+            service.retryResume()
+            suite.expect(service.applied == [curve], "the confirmed heartbeat retry applies the saved curve")
+        }
+        let protectedStops: [(FanControlStopReason, FanControlStopReason)] = [
+            (.hardwareChanged, .hardwareChanged), (.temperatureUnavailable, .temperatureUnavailable),
+            (.thermalPressure, .thermalPressure), (.heartbeatLost, .hardwareChanged),
+            (.hardwareChanged, .heartbeatLost),
+        ]
+        for (initial, confirmed) in protectedStops {
+            startRecovery(reason: initial)
+            confirmRecovery(confirmed)
+            suite.expect(service.applied.isEmpty && service.scheduledResumes.isEmpty,
+                         "a protection stop during recovery or at confirmation keeps control with the system")
+        }
+
+        for wakesBeforeReply in [false, true] {
+            startRecovery()
+            service.workspaceWillSleep()
+            if wakesBeforeReply { service.workspaceDidWake() }
+            service.applyStatus(.success(stopped), afterRequestedRestore: true)
+            suite.expect(service.applied.isEmpty && service.scheduledResumes.count == (wakesBeforeReply ? 1 : 0),
+                         "the sleep restore can confirm the stop and only schedule a retry after wake")
+            if wakesBeforeReply { service.retryResume() } else { service.workspaceDidWake() }
+            suite.expect(service.applied == [curve], "a wake on either side of the restore reply resumes once")
+        }
+
+        startRecovery()
+        defaults.values[DefaultsKey.fanControlResume] = false
+        service.resumePreferenceDidChange()
+        confirmRecovery(.heartbeatLost)
+        service.retryResume()
+        suite.expect(storedResume == nil && service.scheduledResumes.isEmpty && service.applied.isEmpty,
+                     "disabling resume during recovery leaves control with the system after confirmation")
+
         reset()
         Environment.available = false
         service.syncWithPreferences()
