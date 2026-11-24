@@ -508,12 +508,15 @@ def main():
               "    private func cancelPendingAudio(",
               "    func requestSpeakers(", "    private func acceptsSpeakerTarget(", "    private func drainPendingAudio(",
               "    private func isCurrentSpeakerChange(", "    private func confirmSliderWrite(",
-              "    private func writeSpeakers(", "    func confirmDefaultOutputUID(",
+              "    private func writeSpeakers(", "    var sliderFeedbackOutput:",
+              "    private func readSelectedAudioOutput(", "    private func invalidateSelectedAudioOutput(",
+              "    func confirmDefaultOutputUID(", "    private func confirmOutputUID(",
               "    func monitorSpeakerOutput(", "    private func confirmsZeroUnmute(", "    private func probeAudio("])
           + "}\n}\n"
           + "extension DisplaySpeakerVolumeTests.DDCWriter {\n"
           + declaration(brightness, "    private func ddcSend(").replace("private func", "func", 1)
           + "}\nextension DisplaySpeakerVolumeTests.PreciseVolumeRollerService {\n"
+          + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", "    static var volumeFeedbackEnabled:")
           + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", "    static func playVolumeFeedback(")
           + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", "    private static func playVolumeClick(")
           + "}\n")
