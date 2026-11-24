@@ -1552,6 +1552,19 @@ enum CommandBarFeatureTests {
         expectSplit("1m", [3, 3.370_078_74], units: ["ft", "in"])
         expectSplit("1hr", [60], units: ["min"])
 
+        for (input, whole) in [
+            ("7 ft to feet and inches", "7 ft to ft"),
+            ("-7 ft to feet and inches", "-7 ft to ft"),
+            ("6.9999999999 ft to feet and inches", "7 ft to ft"),
+            ("-0.99999999999 h to hours and minutes", "-1 h to h"),
+        ] {
+            let shown = units(input)
+            suite.expect(shown != nil && shown == units(whole),
+                         "\(input) should match \(whole), got \(shown ?? "nil")")
+        }
+        expectSplit("6.99999998 ft to feet and inches", [6, 11.99999976], units: ["ft", "in"])
+        expectSplit("7 1/32 ft to feet and inches", [7, 0.375], units: ["ft", "in"])
+
         suite.expect(unitValue("100 km to mi").map { abs($0 - 62.1371) < 0.001 } == true,
                "a distance converts")
         suite.expect(unitValue("20 c to f").map { abs($0 - 68) < 0.001 } == true,
