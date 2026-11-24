@@ -891,6 +891,87 @@ enum AgentUsageReadTests {
             } else {
                 suite.expect(false, "encodes and decodes archive after canceled Antigravity batch")
             }
+
+            // Canceling a batch after deferring a second response from a child
+            // whose first response already contributed to the still-open parent
+            // must roll the child cursor back to its committed offset (not drop
+            // it), avoiding record pruning and double-counting on replay.
+            let rollbackHome = folder.appending(path: "agy-cancel-rollback")
+            let rollbackBrain = rollbackHome.appending(path: ".gemini/antigravity-cli/brain")
+            let rpID = "aaaaaaaa-0000-4000-8000-000000000001"
+            let rcID = "bbbbbbbb-0000-4000-8000-000000000002"
+            let rpFile = rollbackBrain.appending(path: "\(rpID)/.system_generated/logs/transcript.jsonl")
+            let rcFile = rollbackBrain.appending(path: "\(rcID)/.system_generated/logs/transcript.jsonl")
+            try FileManager.default.createDirectory(at: rpFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: rcFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(([
+                #"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"\#(tAStart)","content":"<USER_REQUEST>rollback test</USER_REQUEST>"}"#,
+                #"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAWork)","model":"gemini-4-neon-high","input_tokens":100,"output_tokens":40,"tool_calls":[{"id":"tr","name":"invoke_subagent"}]}"#,
+            ].joined(separator: "\n") + "\n").utf8).write(to: rpFile)
+            try Data(([
+                #"{"step_index":0,"type":"SYSTEM_MESSAGE","status":"DONE","created_at":"\#(tAChild)","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=\#(tAChild) sender=\#(rpID)\n</SYSTEM_MESSAGE>"}"#,
+                #"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"\#(tAChild)","content":"<USER_REQUEST>child part 1</USER_REQUEST>"}"#,
+                #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAChild)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"#,
+            ].joined(separator: "\n") + "\n").utf8).write(to: rcFile)
+            let rbHost = Host()
+            rbHost.home = rollbackHome
+            let rbToken = Cancellation()
+            rbHost.start(session: 1, providers: [.antigravity], cancellation: rbToken)
+            let canonRP = AgentLogRoot.canonical(rpFile).path
+            let canonRC = AgentLogRoot.canonical(rcFile).path
+            let committedChildOffset = rbHost.cursors[canonRC]?.offset ?? 0
+            suite.expect(committedChildOffset > 0 && rbHost.store.live.first?.tokens.total == 210,
+                         "rollback fixture commits parent (140) + child response 1 (70) = 210 live tokens")
+            // Append child response 2 (70) and a mid-turn parent step while parent stays open.
+            let rch = try FileHandle(forWritingTo: rcFile)
+            try rch.seekToEnd()
+            try rch.write(contentsOf: Data((#"{"step_index":3,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAEnd)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"# + "\n").utf8))
+            try rch.close()
+            let rph = try FileHandle(forWritingTo: rpFile)
+            try rph.seekToEnd()
+            try rph.write(contentsOf: Data((#"{"step_index":2,"type":"GENERIC","status":"DONE","created_at":"\#(tAEnd)","content":"working"}"# + "\n").utf8))
+            try rph.close()
+            AgentLogReader.beforeLine = { rbToken.isCancelled = true }
+            rbHost.filesChanged([canonRP, canonRC], rescan: false)
+            AgentLogReader.beforeLine = nil
+            suite.expect(rbHost.cursors[canonRC]?.offset == committedChildOffset
+                            && rbHost.antigravityIndex.deferredSourceFiles.isEmpty,
+                         "canceling after deferring response 2 rolls the child cursor back to its committed offset")
+            let rbArchived = AgentUsageReadProductionArchive.Contents(
+                providers: [.antigravity], store: rbHost.store.saved,
+                cursors: rbHost.cursors.values.map(\.saved))
+            let rbEncoded = AgentUsageReadProductionArchive.encode(rbArchived, build: "agy-rollback-roundtrip")
+            let rbDecoded = AgentUsageReadProductionArchive.decode(rbEncoded, build: "agy-rollback-roundtrip")
+            if let rbDecoded {
+                let rbResumed = AgentUsageReadProductionArchive.resume(
+                    rbDecoded, logs: Set([canonRP, canonRC]), since: now.addingTimeInterval(-3600))
+                let restoredHost = Host()
+                restoredHost.home = rollbackHome
+                restoredHost.watchedRoots = rbHost.watchedRoots
+                restoredHost.antigravityIndex.register(roots: rbHost.watchedRoots)
+                restoredHost.store = rbResumed.store
+                restoredHost.store.reportsTransitions = true
+                restoredHost.cursors = rbResumed.cursors
+                _ = restoredHost.read(canonRP, provider: .antigravity)
+                _ = restoredHost.read(canonRC, provider: .antigravity)
+                suite.expect(restoredHost.store.live.count == 1
+                                && restoredHost.store.live.first?.tokens.total == 280,
+                             "restoring and replaying after rollback counts 280 live tokens without duplicating response 1 (got \(restoredHost.store.live.first?.tokens.total ?? -1))")
+                let rphEnd = try FileHandle(forWritingTo: rpFile)
+                try rphEnd.seekToEnd()
+                try rphEnd.write(contentsOf: Data((#"{"step_index":3,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tBStart)","model":"gemini-4-neon-high","input_tokens":20,"output_tokens":10}"# + "\n").utf8))
+                try rphEnd.close()
+                _ = restoredHost.read(canonRP, provider: .antigravity)
+                if case .finished(let provider, _, _, let tokens, _) = restoredHost.events.last {
+                    let historyTotal = restoredHost.store.records.map(\.tokens.total).reduce(0, +)
+                    suite.expect(provider == .antigravity && tokens == 310 && historyTotal == 310,
+                                 "subsequent final response reports 310 finished and history tokens (got finished=\(tokens), history=\(historyTotal))")
+                } else {
+                    suite.expect(false, "subsequent final response after rollback emits finished alert")
+                }
+            } else {
+                suite.expect(false, "encodes and decodes archive after child rollback")
+            }
         } catch {
             suite.expect(false, "Antigravity first-read index fixture failed: \(error)")
         }

@@ -33,6 +33,11 @@ final class AgentAntigravityIndex {
         let modified: Date
     }
 
+    enum DeferredRollback {
+        case remove
+        case restore(AgentLogCursor.Saved)
+    }
+
     private var caches: [String: Cache] = [:]
     /// Maps canonical `brain/` directory paths to their original Antigravity
     /// data directories so symlinked `brain/` folders still locate
@@ -41,9 +46,16 @@ final class AgentAntigravityIndex {
     /// Child usage held until the parent transcript advances across turn
     /// boundaries, keyed by parent transcript path.
     private var deferredUsage: [String: [DeferredUsage]] = [:]
+    /// Last committed cursor progress for each child transcript that currently
+    /// has uncommitted deferred entries, used to roll back safely on cancel.
+    private var deferredRollbacks: [String: DeferredRollback] = [:]
 
     func deferUsage(forParent parentPath: String, file: String, date: Date,
-                    entry: AgentLogEntry, modified: Date) {
+                    entry: AgentLogEntry, modified: Date,
+                    rollback: DeferredRollback) {
+        if deferredRollbacks[file] == nil {
+            deferredRollbacks[file] = rollback
+        }
         deferredUsage[parentPath, default: []].append(
             DeferredUsage(file: file, date: date, entry: entry, modified: modified))
     }
@@ -61,6 +73,12 @@ final class AgentAntigravityIndex {
             remaining = []
         }
         deferredUsage[parentPath] = remaining.isEmpty ? nil : remaining
+        if !matched.isEmpty {
+            let stillPending = deferredSourceFiles
+            for item in matched where !stillPending.contains(item.file) {
+                deferredRollbacks.removeValue(forKey: item.file)
+            }
+        }
         return matched.sorted { $0.date < $1.date }
     }
 
@@ -75,6 +93,7 @@ final class AgentAntigravityIndex {
 
     func clearDeferredUsage() {
         deferredUsage.removeAll()
+        deferredRollbacks.removeAll()
     }
 
     /// Source transcript paths with uncommitted deferred usage waiting on a parent.
@@ -82,13 +101,21 @@ final class AgentAntigravityIndex {
         Set(deferredUsage.values.flatMap { $0.map(\.file) })
     }
 
-    /// Discards all pending deferred child usage and returns the source
-    /// transcript paths whose cursors must replay on the next read.
+    func deferredRollback(for file: String) -> DeferredRollback? {
+        deferredRollbacks[file]
+    }
+
+    /// Discards all pending deferred child usage and returns the rollback
+    /// action for every affected child transcript cursor.
     @discardableResult
-    func discardDeferredUsage() -> Set<String> {
-        let files = deferredSourceFiles
+    func discardDeferredUsage() -> [String: DeferredRollback] {
+        var rollbacks = deferredRollbacks
+        for file in deferredSourceFiles where rollbacks[file] == nil {
+            rollbacks[file] = .remove
+        }
         deferredUsage.removeAll()
-        return files
+        deferredRollbacks.removeAll()
+        return rollbacks
     }
 
     /// Records the data directory for each canonical Antigravity `brain/` root.
@@ -186,6 +213,7 @@ final class AgentAntigravityIndex {
         caches.removeAll()
         dataDirectories.removeAll()
         deferredUsage.removeAll()
+        deferredRollbacks.removeAll()
     }
 
     private func entries(at dbPath: String) -> [String: Entry] {

@@ -344,13 +344,23 @@ final class AgentUsageService: ObservableObject {
             for file in files {
                 // A stop while reading leaves the rest for the next start.
                 guard !cancellation.isCancelled else {
-                    for deferredFile in antigravityIndex.discardDeferredUsage() { cursors[deferredFile] = nil }
+                    for (deferredFile, rollback) in antigravityIndex.discardDeferredUsage() {
+                        switch rollback {
+                        case .remove: cursors[deferredFile] = nil
+                        case .restore(let saved): cursors[deferredFile] = AgentLogCursor(saved: saved)
+                        }
+                    }
                     return
                 }
                 read(file.path, provider: file.provider, cursorRoot: cursorRoot)
             }
             guard !cancellation.isCancelled else {
-                for deferredFile in antigravityIndex.discardDeferredUsage() { cursors[deferredFile] = nil }
+                for (deferredFile, rollback) in antigravityIndex.discardDeferredUsage() {
+                    switch rollback {
+                    case .remove: cursors[deferredFile] = nil
+                    case .restore(let saved): cursors[deferredFile] = AgentLogCursor(saved: saved)
+                    }
+                }
                 return
             }
             let now = Date()
@@ -407,13 +417,20 @@ final class AgentUsageService: ObservableObject {
         // Nothing from OpenCode's database is saved. Its open replies and
         // sessions live only in memory, so each launch reads it again.
         // Antigravity subagents with deferred usage not yet committed to the
-        // store are also omitted so the next launch replays them cleanly.
-        let deferredSources = antigravityIndex.deferredSourceFiles
-        let kept = cursors.values.filter {
-            !deferredSources.contains($0.path)
-                && ($0.provider == .cursor || (!$0.restarted && $0.provider != .opencode))
+        // store are saved at their last committed offset (or omitted if new)
+        // so the next launch replays only the uncommitted tail without pruning
+        // previously committed records.
+        let savedCursors: [AgentLogCursor.Saved] = cursors.values.compactMap { cursor in
+            if let rollback = antigravityIndex.deferredRollback(for: cursor.path) {
+                switch rollback {
+                case .remove: return nil
+                case .restore(let saved): return saved
+                }
+            }
+            guard cursor.provider == .cursor || (!cursor.restarted && cursor.provider != .opencode) else { return nil }
+            return cursor.saved
         }
-        let contents = AgentUsageArchive.Contents(providers: enabled, store: store.saved, cursors: kept.map(\.saved))
+        let contents = AgentUsageArchive.Contents(providers: enabled, store: store.saved, cursors: savedCursors)
         if AgentUsageArchive.save(contents) { savedMark = mark }
     }
 
@@ -611,7 +628,14 @@ final class AgentUsageService: ObservableObject {
             }
             return removed
         }
-        let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
+        let existingCursor = cursors[path]
+        let antigravityRollback: AgentAntigravityIndex.DeferredRollback = {
+            if provider == .antigravity, let existing = existingCursor, existing.offset > 0, !existing.restarted {
+                return .restore(existing.saved)
+            }
+            return .remove
+        }()
+        let cursor = existingCursor ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
         let antigravityDataDir = provider == .antigravity
             ? watchedRoots.first(where: { $0.provider == .antigravity && $0.accepts(path) })?.dataDirectory
@@ -702,7 +726,8 @@ final class AgentUsageService: ObservableObject {
                 for entry in entries {
                     if case .usage(_, let record, _) = entry {
                         antigravityIndex.deferUsage(forParent: parentPath, file: turnFile, date: record.date,
-                                                    entry: entry, modified: cursor.modified)
+                                                    entry: entry, modified: cursor.modified,
+                                                    rollback: antigravityRollback)
                         if deferredTargetSet.insert(parentPath).inserted {
                             deferredTargets.append(parentPath)
                         }
@@ -766,11 +791,15 @@ final class AgentUsageService: ObservableObject {
         }
         if provider == .antigravity {
             // If cancellation interrupted before deferred child usage could be
-            // drained, drop the affected child cursors so the next launch (or
-            // saveProgress checkpoint) replays those records instead of losing them.
+            // drained, roll affected child cursors back to their last committed
+            // progress (or remove new ones) so the next launch replays only the
+            // uncommitted tail without pruning already-counted records.
             if cancellation.isCancelled {
-                for deferredFile in antigravityIndex.discardDeferredUsage() {
-                    cursors[deferredFile] = nil
+                for (deferredFile, rollback) in antigravityIndex.discardDeferredUsage() {
+                    switch rollback {
+                    case .remove: cursors[deferredFile] = nil
+                    case .restore(let saved): cursors[deferredFile] = AgentLogCursor(saved: saved)
+                    }
                 }
                 return changed
             }
@@ -867,8 +896,11 @@ final class AgentUsageService: ObservableObject {
             }
         }
         if readerCancellation?.isCancelled == true {
-            for deferredFile in antigravityIndex.discardDeferredUsage() {
-                cursors[deferredFile] = nil
+            for (deferredFile, rollback) in antigravityIndex.discardDeferredUsage() {
+                switch rollback {
+                case .remove: cursors[deferredFile] = nil
+                case .restore(let saved): cursors[deferredFile] = AgentLogCursor(saved: saved)
+                }
             }
         }
         // Saved tool output and lines with nothing to keep do not change the
