@@ -587,7 +587,7 @@ final class WindowLayoutService: ObservableObject {
                                              current: appKitFrame(fromAX: current),
                                              visibleFrame: visibleFrame,
                                              windowGap: WindowLayoutGaps.windowGap,
-                                             screenGap: WindowLayoutGaps.screenGap,
+                                             screenInsets: WindowLayoutGaps.screenInsets,
                                              marginPercent: WindowLayoutMargin.percent,
                                              resizeStepPercent: WindowLayoutResizeStep.percent)
         let integral = rect.integral

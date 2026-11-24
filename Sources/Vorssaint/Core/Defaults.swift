@@ -537,6 +537,10 @@ enum DefaultsKey {
     static let windowLayoutWindowGap = "windowLayoutWindowGap" // px between adjacent snapped windows
     static let windowLayoutScreenGap = "windowLayoutScreenGap" // px between a snapped window and the visible frame edge
     static let windowReserveStageManagerSpace = "windowReserveStageManagerSpace"
+    static let windowLayoutScreenGapTop = "windowLayoutScreenGapTop" // px override for the top edge, -1 follows the screen gap
+    static let windowLayoutScreenGapBottom = "windowLayoutScreenGapBottom"
+    static let windowLayoutScreenGapLeft = "windowLayoutScreenGapLeft"
+    static let windowLayoutScreenGapRight = "windowLayoutScreenGapRight"
     static let windowLayoutMarginPercent = "windowLayoutMarginPercent" // per-edge percentage for margin maximize
     static let windowLayoutNudgeStep = "windowLayoutNudgeStep" // points one nudge moves the active window
     static let windowLayoutResizeStepPercent = "windowLayoutResizeStepPercent" // display-relative size change per shortcut press
@@ -1771,6 +1775,10 @@ enum Defaults {
         DefaultsKey.windowLayoutWindowGap: 0,
         DefaultsKey.windowLayoutScreenGap: 0,
         DefaultsKey.windowReserveStageManagerSpace: false,
+        DefaultsKey.windowLayoutScreenGapTop: -1,
+        DefaultsKey.windowLayoutScreenGapBottom: -1,
+        DefaultsKey.windowLayoutScreenGapLeft: -1,
+        DefaultsKey.windowLayoutScreenGapRight: -1,
         DefaultsKey.windowLayoutMarginPercent: 5.0,
         DefaultsKey.windowLayoutResizeStepPercent: 5.0,
         DefaultsKey.windowLayoutSideRepeatCyclesThirds: false,
