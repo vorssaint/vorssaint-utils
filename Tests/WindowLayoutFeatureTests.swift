@@ -262,10 +262,10 @@ enum WindowLayoutFeatureTests {
         suite.expect(WindowLayoutAction.previousDisplay.defaultShortcut == nil,
                "previous display does not claim a new system-wide combination")
         suite.expect(WindowLayoutAction.allCases.contains(.decreaseSize)
-                && WindowLayoutAction.decreaseSize.shortcutID == 71
-                && WindowLayoutAction(shortcutID: 71) == .decreaseSize
-                && WindowLayoutAction.increaseSize.shortcutID == 72
-                && WindowLayoutAction(shortcutID: 72) == .increaseSize,
+                && WindowLayoutAction.decreaseSize.shortcutID == 75
+                && WindowLayoutAction(shortcutID: 75) == .decreaseSize
+                && WindowLayoutAction.increaseSize.shortcutID == 76
+                && WindowLayoutAction(shortcutID: 76) == .increaseSize,
                "window resize actions have stable shortcut ids")
         suite.expect(WindowLayoutAction.decreaseSize.defaultShortcut
                     == GlobalShortcut.windowLayoutDecreaseSizeDefault

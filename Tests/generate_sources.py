@@ -1636,6 +1636,7 @@ def main():
               .replace("private struct", "struct", 1)
           + declaration("Sources/Vorssaint/UI/Notch/NotchCalendarView.swift", "private struct NotchCalendarEventMenu:")
               .replace("private struct", "struct", 1)
+              .replace("NotchIslandContextMenu()", "EmptyView()")
           + declaration("Sources/Vorssaint/UI/Notch/NotchCalendarView.swift", "private struct NotchJoinAccessibilityAction:")
               .replace("private struct", "struct", 1)
           + declaration("Sources/Vorssaint/UI/Notch/NotchCalendarView.swift", "private struct NotchCountdownAccessibilityAction:")
