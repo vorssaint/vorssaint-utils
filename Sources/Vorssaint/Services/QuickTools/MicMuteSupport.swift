@@ -137,9 +137,9 @@ enum MicMuteSupport {
         enum Reason { case unconfirmed, smallRebound, idleVirtual }
         let reason: Reason
         let attempts: Int
-        let lastAttempt: TimeInterval
         let deadline: TimeInterval?
-        private let tracksSmallGain: Bool
+        let wasIdleVirtual: Bool
+        private let waitsForStableZero: Bool
         private var zeroSince: TimeInterval?
         private static let settlingInterval: TimeInterval = 0.25
         private static let maximumAttempts = 10
@@ -147,19 +147,22 @@ enum MicMuteSupport {
         /// After the timed attempts, hardware notices can still recheck the
         /// control at the same capped cadence without polling indefinitely.
         var scheduledDeadline: TimeInterval? {
-            if let zeroSince { return zeroSince + Self.settlingInterval }
+            if let zeroSince, reason != .idleVirtual || deadline != nil { return zeroSince + Self.settlingInterval }
             return attempts < Self.maximumAttempts ? deadline : nil
         }
 
-        init(reason: Reason, smallGain: Bool, previous: Retry?, now: TimeInterval) {
+        init(reason: Reason, smallGain: Bool, idleVirtual: Bool, previous: Retry?, now: TimeInterval) {
             self.reason = reason
-            tracksSmallGain = smallGain
-            lastAttempt = now
-            zeroSince = reason == .smallRebound ? now : nil
-            if let previous, previous.continues(reason: reason, smallGain: smallGain, now: now) {
+            wasIdleVirtual = idleVirtual
+            zeroSince = reason == .unconfirmed ? nil : now
+            // The address owns the burst. A different result of the next
+            // setter only changes how its next opening should be handled.
+            if let previous {
                 attempts = min(previous.attempts + 1, Self.maximumAttempts)
+                waitsForStableZero = previous.waitsForStableZero || smallGain || reason == .idleVirtual
             } else {
                 attempts = 1
+                waitsForStableZero = smallGain || reason == .idleVirtual
             }
             // A driver can recover silently even after its very first refusal.
             // Allow a short burst of callbacks before throttling this setter.
@@ -170,27 +173,17 @@ enum MicMuteSupport {
             }
         }
 
-        private func continues(reason next: Reason, smallGain: Bool, now: TimeInterval) -> Bool {
-            // A driver alternating between ignoring and accepting zero on the
-            // same small gain is still in the same sequence of attempts.
-            if tracksSmallGain && smallGain { return true }
-            guard reason == next else { return false }
-            return reason == .unconfirmed || deadline != nil || now - lastAttempt < Self.settlingInterval
-        }
-
         func defers(_ value: Double, idle: Bool, now: TimeInterval) -> Bool {
-            guard attempts >= 3, let deadline, now < deadline else { return false }
+            guard attempts >= 3, let deadline, now < deadline, !wasIdleVirtual || idle else { return false }
             switch reason {
-            case .unconfirmed: return zeroSince == nil || Self.isSmallGain(value)
+            case .unconfirmed: return idle || zeroSince == nil || Self.isSmallGain(value)
             case .smallRebound: return Self.isSmallGain(value)
             case .idleVirtual: return idle
             }
         }
 
         func observingZero(now: TimeInterval) -> Self? {
-            guard tracksSmallGain else {
-                return reason == .idleVirtual && now < (deadline ?? lastAttempt + Self.settlingInterval) ? self : nil
-            }
+            guard waitsForStableZero else { return nil }
             // Repeated reads during one HAL sweep can all see the same brief
             // zero. Clear the history only after a later observation agrees.
             if let zeroSince, now >= zeroSince + Self.settlingInterval { return nil }
@@ -207,10 +200,10 @@ enum MicMuteSupport {
 
         func waitingForReadableControl(now: TimeInterval) -> Self? {
             if zeroSince == nil {
-                guard reason == .unconfirmed || tracksSmallGain else { return nil }
+                guard reason == .unconfirmed || waitsForStableZero else { return nil }
                 if let deadline, now < deadline { return self }
             }
-            return Self(reason: .unconfirmed, smallGain: tracksSmallGain, previous: self, now: now)
+            return Self(reason: .unconfirmed, smallGain: false, idleVirtual: wasIdleVirtual, previous: self, now: now)
         }
 
         static func isSmallGain(_ value: Double) -> Bool {

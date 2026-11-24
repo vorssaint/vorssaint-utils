@@ -148,6 +148,7 @@ enum SettingsBackupSupport {
         DefaultsKey.micMuteSavedVolumes,
         DefaultsKey.micMuteSavedChannelVolumes,
         DefaultsKey.micMuteSavedControls,
+        DefaultsKey.micMutePendingLegacyControls,
         DefaultsKey.micMuteMutedDevices,
         DefaultsKey.cleanerLastAutoRun,
         // When the last check ran and what it found belong to one Mac.
