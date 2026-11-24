@@ -93,6 +93,10 @@ enum StatusItemAnchorSupport {
         return CGRect(origin: .zero, size: lastFrame.size).contains(event.locationInWindow)
     }
 
+    static func isPanelSelfClick(eventWindowNumber: Int, panelWindowNumber: Int?) -> Bool {
+        eventWindowNumber > 0 && eventWindowNumber == panelWindowNumber
+    }
+
     /// Opening the panel activates Vorssaint so its controls take keys, which
     /// makes it the frontmost app for as long as nothing else claims focus.
     /// Once the panel is gone, the app that was in front before it opened gets

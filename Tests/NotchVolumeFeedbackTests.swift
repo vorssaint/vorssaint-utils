@@ -8,6 +8,11 @@ import Foundation
 /// Runs the production subscription and notice selection with real Combine
 /// delivery and a controlled audio source, without changing hardware volume.
 enum NotchVolumeFeedbackTests {
+    struct ProcessInfo {
+        static var processInfo = ProcessInfo()
+        var systemUptime: TimeInterval = 100
+    }
+
     struct OutputDevice {
         let uid: String
         let name: String
@@ -23,6 +28,9 @@ enum NotchVolumeFeedbackTests {
         @Published var currentOutputDeviceUID: String? = "speakers"
         @Published var systemOutputVolume: Double? = 0.3
         @Published var systemOutputMuted: Bool? = false
+        var outputIsMonitorSpeakers = false
+        var currentOutputControlLifetime = UUID()
+        var currentOutputKeyGeneration = 0
 
         func publish(device: String?, volume: Double?, muted: Bool?, identityFirst: Bool = true) {
             if identityFirst { currentOutputDeviceUID = device }
@@ -103,6 +111,26 @@ enum NotchVolumeFeedbackTests {
             service.showCurrentVolume()
             suite.expect(service.notice?.symbol == "speaker.wave.2.fill",
                          "missing output metadata falls back without using another connected device")
+        }
+        let monitor = AppVolumeMixer()
+        monitor.outputIsMonitorSpeakers = true
+        AppVolumeMixer.shared = monitor
+        for muted: Bool? in [nil, false, true] {
+            monitor.systemOutputMuted = muted
+            monitor.systemOutputVolume = muted == true ? 0.6 : 0
+            let service = Service()
+            service.showCurrentVolume()
+            suite.expect(service.notice?.level == 0 && service.notice?.detail == "0%"
+                         && service.notice?.symbol == (muted == true ? "speaker.slash.fill" : "speaker.wave.2.fill"),
+                         "a monitor's HUD shows a muted speaker only for a confirmed audio mute")
+            let spoken = service.notice?.accessibilityText
+            let levelOnly = "\(FeatureStrings.notch(L10n.shared.language).volume), 0%"
+            if muted == true {
+                suite.expect(spoken?.hasSuffix(", 0%") == true && spoken != levelOnly,
+                             "the accessible volume HUD announces confirmed mute alongside the level")
+            } else {
+                suite.expect(spoken == levelOnly, "an unmuted or unknown monitor announces only its reported level")
+            }
         }
         let connection = NotchNotice(event: .accessory, title: "Wireless Headphones",
                                      detail: "Connected", symbol: "headphones")
@@ -298,5 +326,62 @@ enum NotchVolumeFeedbackTests {
         suite.expect(island.presented.count == 2 && island.notice?.level == 0.42 + 1.0 / 16,
                "a key press after the ramp reports from the level the ramp left behind")
         island.subscriptions.removeAll()
+
+        let usb = AppVolumeMixer()
+        AppVolumeMixer.shared = usb
+        usb.systemOutputVolume = 0.43
+        let native = Service()
+        native.bindVolumeEvents()
+        drain()
+        usb.systemOutputVolume = 0.44
+        native.noteNativeVolumeKey(.volumeUp)
+        drain()
+        suite.expect(native.presented.isEmpty, "a previously queued USB reading cannot confirm a new native press")
+        ProcessInfo.processInfo.systemUptime += 0.2
+        usb.systemOutputVolume = 0.45
+        drain()
+        usb.systemOutputVolume = 0.45
+        usb.systemOutputVolume = 0.47
+        drain()
+        suite.expect(native.presented.map(\.level) == [0.45],
+                     "a delayed one-percent key step announces once and the existing adaptive ramp stays quiet")
+        native.presented.removeAll()
+        native.noteNativeVolumeKey(.volumeDown)
+        usb.systemOutputVolume = 0.48
+        drain()
+        usb.systemOutputVolume = 0.47
+        drain()
+        suite.expect(native.presented.isEmpty, "an opposite movement cancels the press before a later correction")
+
+        native.noteNativeVolumeKey(.volumeDown)
+        ProcessInfo.processInfo.systemUptime += 2
+        usb.systemOutputVolume = 0.46
+        drain()
+        native.noteNativeVolumeKey(.volumeUp)
+        usb.currentOutputKeyGeneration += 1
+        usb.systemOutputVolume = 0.47
+        drain()
+        native.noteNativeVolumeKey(.volumeUp)
+        usb.currentOutputControlLifetime = UUID()
+        usb.systemOutputVolume = 0.48
+        drain()
+        suite.expect(native.presented.isEmpty,
+                     "expired keys, superseding slider writes and a reconnected output never claim a fine reading")
+
+        native.noteNativeVolumeKey(.volumeUp)
+        usb.publish(device: "headphones", volume: nil, muted: nil)
+        drain()
+        native.noteNativeVolumeKey(.volumeUp)
+        usb.publish(device: "headphones", volume: 0.31, muted: false)
+        drain()
+        suite.expect(native.presented.isEmpty, "a new device's delayed first reading stays a silent baseline")
+        native.expanded = true
+        native.noteOwnLevelAdjustment(.volume)
+        native.noteNativeVolumeKey(.mute)
+        usb.systemOutputMuted = true
+        drain()
+        suite.expect(native.presented.map(\.level) == [0],
+                     "a confirmed native mute announces once even after an island slider adjustment")
+        native.subscriptions.removeAll()
     }
 }

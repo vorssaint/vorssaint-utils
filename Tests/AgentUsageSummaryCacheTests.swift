@@ -40,7 +40,7 @@ enum AgentUsageSummaryCacheTests {
         plans[.codex] = AgentPlan(name: "Pro", monthlyPrice: 200)
         check("plan and limit changes update independently from historical totals")
         suite.expect(cache.accumulatedRecords == 0, "metadata-only publications accumulate no historical records")
-        let appended = AgentUsageRecord(provider: .codex, date: now, model: "gpt-6-sol", project: "new",
+        let appended = AgentUsageRecord(provider: .cursor, date: now, model: "gpt-6-sol", project: "new",
             session: "s", tokens: AgentTokens(input: 50, output: 10), cost: 0.25, savings: 0.125)
         records.append(appended)
         cache.recordChanged(at: records.count - 1, previous: nil)
@@ -96,20 +96,23 @@ enum AgentUsageSummaryCacheTests {
     private static func storeIntegration(_ suite: TestSuite, now: Date, calendar: Calendar) {
         let store = AgentUsageStore()
         let providers = Set(AgentProvider.allCases)
-        func check(_ message: String) {
-            let actual = store.snapshot(plans: [:], providers: providers, now: now, calendar: calendar)
-            let expected = AgentUsageSummary.snapshot(records: store.records, limits: store.limits, live: store.live,
+        @discardableResult func check(_ message: String, activity: [CursorTranscriptActivity] = []) -> AgentUsageSnapshot {
+            let actual = store.snapshot(plans: [:], providers: providers, now: now, calendar: calendar, cursorActivity: activity)
+            var expected = AgentUsageSummary.snapshot(records: store.records, limits: store.limits, live: store.live,
                                                        plans: [:], providers: providers, now: now, calendar: calendar)
+            expected.includeCursorActivity(activity)
             suite.expect(actual == expected, message)
+            return actual
         }
         check("the store starts with a valid empty summary")
-        func apply(output: Int, key: String, age: TimeInterval = 0) {
+        func apply(output: Int, key: String, age: TimeInterval = 0, provider: AgentProvider = .codex,
+                   project: String = "project") {
             let tokens = AgentTokens(input: 100, output: output)
             let billable = AgentBillable(tokens: tokens)
             let price = AgentPricing.cost(billable, model: "gpt-6-sol")
-            let record = AgentUsageRecord(provider: .codex, date: now.addingTimeInterval(-age), model: "gpt-6-sol",
-                project: "project", session: "s", tokens: tokens, cost: price.cost, savings: price.savings)
-            store.apply([.usage(key: key, record: record, billable: billable)], file: "f", provider: .codex,
+            let record = AgentUsageRecord(provider: provider, date: now.addingTimeInterval(-age), model: "gpt-6-sol",
+                project: project, session: "s", tokens: tokens, cost: price.cost, savings: price.savings)
+            store.apply([.usage(key: key, record: record, billable: billable)], file: provider.rawValue, provider: provider,
                         tracksTurns: false, modified: now, now: now)
         }
         apply(output: 5, key: "first")
@@ -123,5 +126,23 @@ enum AgentUsageSummaryCacheTests {
         check("store repricing invalidates every cached total")
         store.dropRecords(before: now.addingTimeInterval(-86_400))
         check("store pruning invalidates cached record positions")
+        apply(output: 4, key: "other", project: "other")
+        apply(output: 7, key: "cursor-transcript:1:s:one", provider: .cursor)
+        let clean = check("measured Cursor and Codex replies give the same complete costs on both summary paths").usage(.today)
+        suite.expect(!clean.total.hasPartialCost, "measured Cursor usage alone does not imply a missing counter")
+        let minute = Int(now.timeIntervalSince1970 / 60)
+        let source = CursorTranscriptActivity(project: "project", minutes: IndexSet(integer: minute),
+                                              modelMinutes: ["gpt-6-sol": minute])
+        let mixed = check("cached Cursor coverage matches a full summary in every bucket and breakdown", activity: [source]).usage(.today)
+        suite.expect(mixed.fullyPriced && mixed.total.hasPartialCost
+                     && mixed.models.first { $0.provider == .cursor }?.totals.hasPartialCost == true
+                     && mixed.models.first { $0.provider == .codex }?.totals.hasPartialCost == false
+                     && mixed.projects.first { $0.name == "project" }?.totals.hasPartialCost == true
+                     && mixed.projects.first { $0.name == "other" }?.totals.hasPartialCost == false,
+                     "only the Cursor model and the project it shares with Codex show a minimum")
+        store.forgetUsage(files: [AgentProvider.cursor.rawValue])
+        let remaining = check("removing the last Cursor source clears coverage flags in the cache").usage(.today)
+        suite.expect(!remaining.total.hasPartialCost && remaining.projects.allSatisfy { !$0.totals.hasPartialCost },
+                     "the remaining priced projects keep exact costs after the Cursor source disappears")
     }
 }

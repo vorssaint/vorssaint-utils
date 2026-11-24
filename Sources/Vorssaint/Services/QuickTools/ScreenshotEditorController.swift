@@ -28,7 +28,15 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private var expansionStartPoint: CGPoint?
 
     @Published var selectedID: UUID?
-    @Published var editingTextID: UUID?
+    @Published var editingTextID: UUID? {
+        didSet {
+            guard editingTextID != oldValue else { return }
+            editingText = editingTextID.flatMap { id in
+                annotations.first { $0.id == id }?.text
+            } ?? ""
+        }
+    }
+    @Published var editingText = ""
     @Published var tool: ScreenshotSupport.Tool {
         didSet {
             UserDefaults.standard.set(tool.rawValue, forKey: DefaultsKey.screenshotLastTool)
@@ -169,8 +177,14 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// from the visible scale even in fit mode. Plain var on purpose: the
     /// view writes it during layout.
     var currentDisplayZoom: CGFloat = 0.5
-    @Published private(set) var canUndo = false
-    @Published private(set) var canRedo = false
+    // The toolbar commits the active caption before stepping through history.
+    var canUndo: Bool {
+        !undoStack.isEmpty || hasPendingTextChanges
+    }
+
+    var canRedo: Bool {
+        !redoStack.isEmpty && !hasPendingTextChanges
+    }
     /// True while there is work that never left the app: closing then asks.
     @Published private(set) var isDirty = false
 
@@ -195,8 +209,14 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private var undoStack: [(image: CGImage, annotations: [ScreenshotSupport.Annotation])] = []
     private var redoStack: [(image: CGImage, annotations: [ScreenshotSupport.Annotation])] = []
     private static let undoLimit = 60
-    private var cleanImage: CGImage?
-    private var cleanAnnotations: [ScreenshotSupport.Annotation] = []
+    /// Undo also stops by memory, so a few full captures on a 5K or 6K
+    /// display cannot pile up into gigabytes of history.
+    private static let undoByteBudget = 256 << 20
+    /// A mark costs far less than a frame, but a long session adds up and
+    /// should not be free. An estimate, not a measurement.
+    private static let undoAnnotationBytes = 512
+    private weak var cleanImage: CGImage?
+    private var cleanAnnotations: [ScreenshotSupport.SavedAnnotation] = []
     private var cleanBackdropStyle = ScreenshotSupport.BackdropStyle()
     private var cleanWatermarkStyle = ScreenshotSupport.WatermarkStyle()
     private var cleanAnnotationShadowsEnabled = false
@@ -605,25 +625,57 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     // MARK: - Undo
 
-    private func registerUndo() {
-        undoStack.append((baseImage, annotations))
-        if undoStack.count > Self.undoLimit {
-            undoStack.removeFirst()
-        }
+    private func registerUndo(excluding draftID: UUID? = nil) {
+        let previous = draftID.map { id in annotations.filter { $0.id != id } } ?? annotations
+        undoStack.append((baseImage, previous))
         redoStack.removeAll()
-        refreshUndoFlags()
+        trimHistory(afterUndo: false)
         isDirty = true
+    }
+
+    /// Both directions share one budget. Drop the most distant step first,
+    /// preserving the immediate reverse operation even for an oversized image.
+    private func trimHistory(afterUndo: Bool) {
+        var references = [ObjectIdentifier: Int]()
+        var bytes = 0
+        func count(_ image: CGImage, by delta: Int) {
+            let id = ObjectIdentifier(image)
+            let previous = references[id, default: 0]
+            let next = previous + delta
+            references[id] = next
+            if previous == 0 { bytes += image.bytesPerRow * image.height }
+            if next == 0 { bytes -= image.bytesPerRow * image.height }
+        }
+        func count(_ state: (image: CGImage, annotations: [ScreenshotSupport.Annotation]), by delta: Int) {
+            count(state.image, by: delta)
+            bytes += delta * state.annotations.count * Self.undoAnnotationBytes
+            for annotation in state.annotations {
+                if let image = annotation.imageAsset?.image { count(image, by: delta) }
+            }
+        }
+        for state in undoStack { count(state, by: 1) }
+        for state in redoStack { count(state, by: 1) }
+        while undoStack.count + redoStack.count > 1,
+              undoStack.count + redoStack.count > Self.undoLimit || bytes > Self.undoByteBudget {
+            if undoStack.count > redoStack.count || (undoStack.count == redoStack.count && afterUndo) {
+                count(undoStack.removeFirst(), by: -1)
+            } else {
+                count(redoStack.removeFirst(), by: -1)
+            }
+        }
     }
 
     func undo() {
         guard let last = undoStack.popLast() else { return }
         redoStack.append((baseImage, annotations))
+        trimHistory(afterUndo: true)
         restore(last)
     }
 
     func redo() {
         guard let next = redoStack.popLast() else { return }
         undoStack.append((baseImage, annotations))
+        trimHistory(afterUndo: false)
         restore(next)
     }
 
@@ -652,13 +704,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         editingTextID = nil
         newTextID = nil
         cropDraft = nil
-        refreshUndoFlags()
         refreshDirtyState()
-    }
-
-    private func refreshUndoFlags() {
-        canUndo = !undoStack.isEmpty
-        canRedo = !redoStack.isEmpty
     }
 
     func markExported() {
@@ -667,7 +713,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     private func recordCleanState() {
         cleanImage = baseImage
-        cleanAnnotations = annotations
+        cleanAnnotations = annotations.map(ScreenshotSupport.SavedAnnotation.init)
         cleanBackdropStyle = backdropStyle.sanitized()
         cleanWatermarkStyle = watermarkStyle.sanitized()
         cleanAnnotationShadowsEnabled = annotationShadowsEnabled
@@ -676,9 +722,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     }
 
     private func refreshDirtyState() {
-        guard let cleanImage else { return }
         isDirty = baseImage !== cleanImage
-            || annotations != cleanAnnotations
+            || annotations.map(ScreenshotSupport.SavedAnnotation.init) != cleanAnnotations
             || backdropStyle.sanitized() != cleanBackdropStyle
             || watermarkStyle.sanitized() != cleanWatermarkStyle
             || annotationShadowsEnabled != cleanAnnotationShadowsEnabled
@@ -709,7 +754,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 || arrowStyleChanged
                 || textSizeChanged
         else { return }
-        registerUndo()
+        if selectedID != newTextID { registerUndo() }
         annotations[index].color = color
         if usesStroke { annotations[index].stroke = stroke }
         if annotations[index].tool == .arrow {
@@ -815,24 +860,18 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 cropMoveOrigin = draft
             }
         case .arrow, .line:
-            registerUndo()
-            dragRegistered = true
             let annotation = ScreenshotSupport.Annotation(
                 tool: tool, points: [point, point], color: color, stroke: stroke,
                 arrowStyle: arrowStyle)
             annotations.append(annotation)
             draftID = annotation.id
         case .freehand:
-            registerUndo()
-            dragRegistered = true
             let annotation = ScreenshotSupport.Annotation(
                 tool: tool, points: [point], color: color, stroke: stroke)
             annotations.append(annotation)
             draftID = annotation.id
         case .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight:
             if tool == .pixelate { ensureBlurSample(blurStyle, level: blurLevel) }
-            registerUndo()
-            dragRegistered = true
             let annotation = ScreenshotSupport.Annotation(
                 tool: tool, rect: CGRect(origin: point, size: .zero),
                 color: color, stroke: stroke, blurLevel: blurLevel,
@@ -996,7 +1035,6 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         case .text:
             guard isTap else { return }
             if selectExistingAnnotation(at: point) { return }
-            registerUndo()
             var annotation = ScreenshotSupport.Annotation(
                 tool: .text, color: color, stroke: stroke, textSize: textSize)
             annotation.rect = ScreenshotRenderer.textBounds("", at: point, textSize: textSize,
@@ -1033,17 +1071,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             annotations = ScreenshotSupport.renumberingCounters(annotations)
             selectedID = annotation.id
         case .arrow, .line, .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight, .freehand:
-            if isTap {
-                // A tap never leaves a degenerate shape behind; treat it as
-                // picking whatever is under the cursor instead.
-                annotations.removeAll { $0.id == draftID }
-                if !undoStack.isEmpty { undoStack.removeLast() }
-                refreshUndoFlags()
-                refreshDirtyState()
-                _ = selectExistingAnnotation(at: point)
-            } else if let draftID {
-                selectedID = draftID
-            }
+            if let draftID { finishDrawing(draftID, isTap: isTap) }
+            if isTap { _ = selectExistingAnnotation(at: point) }
         case .expandCanvas:
             if expansionRejected {
                 NSSound.beep()
@@ -1059,6 +1088,16 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             if isTap, let origin = cropSelectionOrigin {
                 cropDraft = origin
             }
+        }
+    }
+
+    /// A click only selects. It must leave both directions of history intact.
+    private func finishDrawing(_ id: UUID, isTap: Bool) {
+        if isTap {
+            annotations.removeAll { $0.id == id }
+        } else {
+            registerUndo(excluding: id)
+            selectedID = id
         }
     }
 
@@ -1229,21 +1268,26 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         annotations = ScreenshotSupport.renumberingCounters(reordered)
     }
 
-    func commitText(_ id: UUID, text: String) {
-        guard let index = annotations.firstIndex(where: { $0.id == id }) else { return }
+    private var trimmedEditingText: String {
+        editingText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var hasPendingTextChanges: Bool {
+        guard let editingTextID,
+              let annotation = annotations.first(where: { $0.id == editingTextID }) else { return false }
+        return trimmedEditingText != annotation.text
+    }
+
+    func commitText(_ id: UUID) {
+        guard editingTextID == id,
+              let index = annotations.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = trimmedEditingText
         editingTextID = nil
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let isNew = newTextID == id
         if isNew, trimmed.isEmpty {
             annotations.remove(at: index)
             if selectedID == id { selectedID = nil }
-            while let last = undoStack.last,
-                  last.annotations.contains(where: { $0.id == id }) {
-                undoStack.removeLast()
-            }
-            if !undoStack.isEmpty { undoStack.removeLast() }
             newTextID = nil
-            refreshUndoFlags()
             refreshDirtyState()
             return
         }
@@ -1251,7 +1295,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             newTextID = nil
             return
         }
-        if !isNew { registerUndo() }
+        registerUndo(excluding: isNew ? id : nil)
         guard !trimmed.isEmpty else {
             annotations.remove(at: index)
             if selectedID == id { selectedID = nil }
@@ -1274,12 +1318,15 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         let cropRect = ScreenshotSupport.pixelSnappedCropRect(
             draft,
             within: CGRect(origin: .zero, size: imageSize))
-        guard cropRect.width >= 8, cropRect.height >= 8,
-              let cropped = baseImage.cropping(to: cropRect)
+        guard cropRect != CGRect(origin: .zero, size: imageSize),
+              cropRect.width >= 8, cropRect.height >= 8,
+              let crop = baseImage.cropping(to: cropRect)
         else {
             tool = .select
             return
         }
+        // The crop keeps its own pixels, so the frame it came from can go.
+        let cropped = ScreenshotSupport.independentImage(crop) ?? crop
         registerUndo()
         let previousImage = baseImage
         baseImage = cropped
@@ -1837,7 +1884,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     // MARK: NSWindowDelegate
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        guard model.isDirty else { return true }
+        guard model.isDirty || model.hasPendingTextChanges else { return true }
         let alert = NSAlert()
         alert.messageText = strings.discardTitle
         alert.informativeText = strings.discardMessage

@@ -11,13 +11,25 @@ struct AgentPrice: Equatable {
     /// Short-lived cache writes. Providers that do not bill writes separately
     /// charge the input price.
     let cacheWrite: Double
-    /// One-hour cache writes.
+    /// Long-lived cache writes.
     let cacheWriteLong: Double
     /// Premium for the fast tier, on every token category, where it is sold.
-    var fastMultiplier: Double = 1
+    var fastMultiplier: Double? = 1
+    var ultrafast: AgentUltrafastPrice?
     /// A premium on the whole request once the prompt passes a threshold,
     /// for the models that charge one.
     var longContext: AgentLongContext?
+}
+
+/// Multipliers on Standard rates, chosen using the time of the response.
+struct AgentUltrafastPrice: Equatable {
+    let promotionalMultiplier: Double
+    let listMultiplier: Double
+    let listStartsAt: Date
+}
+
+enum AgentServiceTier: UInt8 {
+    case standard = 0, fast, ultrafast, unknown
 }
 
 /// Past `above` prompt tokens, input and cache rates are multiplied by
@@ -36,7 +48,11 @@ struct AgentBillable: Equatable {
     var isAggregate = false
     /// The part of `tokens.cacheWrite` kept for an hour.
     var longCacheWrite = 0
-    var fast = false
+    var serviceTier: AgentServiceTier = .standard
+    /// Log readers may have substituted a file time for a missing event timestamp.
+    var hasEventTimestamp = true
+    /// Another copy of this response can supply a tier that its log omitted.
+    var assumesStandardTier = false
     /// Inference pinned to the United States.
     var domestic = false
     var webSearches = 0
@@ -64,15 +80,18 @@ struct AgentPriceList: Equatable {
     /// one waits for an app that understands it.
     static let schema = 1
     static let maximumSize = 256 << 10
+    private static let maximumModels = 500
 
     /// The day the list was last reviewed; the newer of two lists wins.
     let updated: Date
     let claude: [Model]
-    let codex: [Model]
+    var codex: [Model]
     let claudePlans: [Plan]
     let codexPlans: [Plan]
     let webSearch: Double
     let usOnlyMultiplier: Double
+    /// These trailing Codex entries carry explicit tier availability. Older lists omit the section.
+    var tieredModelCount: Int?
 
     static let empty = AgentPriceList(updated: .distantPast, claude: [], codex: [], claudePlans: [], codexPlans: [],
                                       webSearch: 0, usOnlyMultiplier: 1)
@@ -84,28 +103,42 @@ struct AgentPriceList: Equatable {
               let updated = (json["updated"] as? String).flatMap(day),
               let claude = json["claude"] as? [String: Any], let codex = json["codex"] as? [String: Any],
               let claudeModels = models(claude["models"], prefix: "claude-"),
-              let codexModels = models(codex["models"], prefix: nil),
+              let regular = codex["models"] as? [[String: Any]], !regular.isEmpty,
               let claudePlans = plans(claude["plans"]), let codexPlans = plans(codex["plans"]),
               let webSearch = number(claude["webSearch"], in: 0...1),
               let usOnly = number(claude["usOnlyMultiplier"], in: 1...3) else { return nil }
+        let tiered = codex["tieredModels"] as? [[String: Any]]
+        guard codex["tieredModels"] == nil || tiered != nil,
+              let codexModels = models(regular, prefix: nil, tiered: tiered ?? []) else { return nil }
         return AgentPriceList(updated: updated, claude: claudeModels, codex: codexModels,
                               claudePlans: claudePlans, codexPlans: codexPlans, webSearch: webSearch,
-                              usOnlyMultiplier: usOnly)
+                              usOnlyMultiplier: usOnly, tieredModelCount: tiered?.count)
     }
 
     /// The newer of the list inside the app and the last one downloaded. On
     /// the same day the download wins, since it may carry a correction.
     static func newer(_ shipped: AgentPriceList?, _ downloaded: AgentPriceList?) -> AgentPriceList? {
-        guard let downloaded else { return shipped }
+        guard var downloaded else { return shipped }
         guard let shipped else { return downloaded }
-        return downloaded.updated >= shipped.updated ? downloaded : shipped
+        guard downloaded.updated >= shipped.updated else { return shipped }
+        // A legacy cache can carry corrections from the same day but lack the
+        // new section. An explicitly empty section withdraws the tiered models.
+        if downloaded.tieredModelCount == nil, let count = shipped.tieredModelCount {
+            let tiered = shipped.codex.suffix(count)
+            let ids = Set(tiered.map(\.id))
+            let regular = downloaded.codex.filter { !ids.contains($0.id) }
+            guard regular.count + count <= maximumModels else { return downloaded }
+            downloaded.codex = regular + tiered
+            downloaded.tieredModelCount = count
+        }
+        return downloaded
     }
 
-    private static func models(_ value: Any?, prefix: String?) -> [Model]? {
-        guard let entries = value as? [[String: Any]], (1...500).contains(entries.count) else { return nil }
+    private static func models(_ value: Any?, prefix: String?, tiered: [[String: Any]] = []) -> [Model]? {
+        guard let regular = value as? [[String: Any]], (1...maximumModels).contains(regular.count + tiered.count) else { return nil }
         var result: [Model] = []
         var seen = Set<String>()
-        for entry in entries {
+        for (index, entry) in (regular + tiered).enumerated() {
             guard let id = entry["id"] as? String, identifier(id, length: 64), seen.insert(id).inserted,
                   prefix.map(id.hasPrefix) ?? !id.hasPrefix("claude-"),
                   let input = number(entry["input"], in: 0...1_000),
@@ -115,8 +148,24 @@ struct AgentPriceList: Equatable {
             // providers without separate cache writes bill them.
             let cacheWrite = entry["cacheWrite"] == nil ? input : number(entry["cacheWrite"], in: 0...1_000)
             let cacheWriteLong = entry["cacheWriteLong"] == nil ? cacheWrite : number(entry["cacheWriteLong"], in: 0...1_000)
-            let fast = entry["fastMultiplier"] == nil ? 1 : number(entry["fastMultiplier"], in: 1...10)
-            guard let cacheWrite, let cacheWriteLong, let fast else { return nil }
+            guard let cacheWrite, let cacheWriteLong else { return nil }
+            // Older model entries use Standard as their fallback for Fast.
+            // Tier-aware entries only offer the tiers with a published rate.
+            var fast: Double? = index < regular.count ? 1 : nil
+            if let value = entry["fastMultiplier"] {
+                guard let rate = number(value, in: 1...10) else { return nil }
+                fast = rate
+            }
+            var ultrafast: AgentUltrafastPrice?
+            if let value = entry["ultrafast"] {
+                let timestamp = ISO8601DateFormatter()
+                guard index >= regular.count, let schedule = value as? [String: Any],
+                      let promo = number(schedule["promotionalMultiplier"], in: 1...10),
+                      let list = number(schedule["listMultiplier"], in: 1...10),
+                      let start = schedule["listStartsAt"] as? String,
+                      let date = timestamp.date(from: start), timestamp.string(from: date) == start else { return nil }
+                ultrafast = AgentUltrafastPrice(promotionalMultiplier: promo, listMultiplier: list, listStartsAt: date)
+            }
             var long: AgentLongContext?
             if let value = entry["longContext"] {
                 guard let object = value as? [String: Any],
@@ -127,7 +176,8 @@ struct AgentPriceList: Equatable {
             }
             result.append(Model(id: id, price: AgentPrice(input: input, output: output, cacheRead: cacheRead,
                                                           cacheWrite: cacheWrite, cacheWriteLong: cacheWriteLong,
-                                                          fastMultiplier: fast, longContext: long)))
+                                                          fastMultiplier: fast, ultrafast: ultrafast,
+                                                          longContext: long)))
         }
         return result
     }
@@ -209,7 +259,7 @@ enum AgentPricing {
 
     /// Words that make a variant a model of its own, with its own price.
     static let siblings = ["mini", "nano", "pro", "lite", "research", "search", "audio", "realtime",
-                           "transcribe", "tts", "cyber", "image"]
+                           "transcribe", "tts", "cyber", "image", "law"]
 
     /// The longest matching family wins, so a point release the list names
     /// never inherits the price of the version it extends.
@@ -238,14 +288,24 @@ enum AgentPricing {
         return number.isEmpty || number.count >= 4
     }
 
-    static func cost(_ billable: AgentBillable, model: String) -> (cost: Double?, savings: Double) {
+    static func cost(_ billable: AgentBillable, model: String, at date: Date? = nil) -> (cost: Double?, savings: Double) {
         // Activity-only records establish a date, not unpriced token usage.
         if billable.isAggregate && billable.tokens.total == 0 { return (0, 0) }
         let list = self.list
         guard let price = price(for: model, in: list) else { return (nil, 0) }
         let tokens = billable.tokens
         let long = min(max(0, billable.longCacheWrite), tokens.cacheWrite)
-        var multiplier = billable.fast ? price.fastMultiplier : 1
+        var multiplier: Double
+        switch billable.serviceTier {
+        case .standard: multiplier = 1
+        case .fast:
+            guard let fast = price.fastMultiplier else { return (nil, 0) }
+            multiplier = fast
+        case .ultrafast:
+            guard billable.hasEventTimestamp, let date, let ultrafast = price.ultrafast else { return (nil, 0) }
+            multiplier = date < ultrafast.listStartsAt ? ultrafast.promotionalMultiplier : ultrafast.listMultiplier
+        case .unknown: return (nil, 0)
+        }
         if billable.domestic { multiplier *= list.usOnlyMultiplier }
         var inputRate = multiplier
         var outputRate = multiplier
