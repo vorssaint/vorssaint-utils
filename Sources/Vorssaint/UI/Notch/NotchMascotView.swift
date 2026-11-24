@@ -36,7 +36,10 @@ final class NotchMascotRig: NSObject {
     private(set) var mood = NotchMascotMood.idle
     /// Whether it blinks now and then and, after a long rest, grows sleepy.
     private(set) var idles = false
-    var reduceMotion = false
+    var reduceMotion = false {
+        // A character plays on, or holds still, as soon as it changes.
+        didSet { if reduceMotion != oldValue { showCharacterBase() } }
+    }
 
     private let hopper = CALayer()
     private let squasher = CALayer()
@@ -54,6 +57,28 @@ final class NotchMascotRig: NSObject {
     private let face = CALayer()
     private let leftEye = CAShapeLayer()
     private let rightEye = CAShapeLayer()
+    /// A character's frames, in place of the drawn body and eyes. Its
+    /// contents change through discrete keyframe animations, as the rest
+    /// of it moves: "base" for the face it keeps, "visit" for a stroll and
+    /// "flash" for a moment's reaction, each over the one before.
+    private let sprite = CALayer()
+    private var sprites: NotchCompanionSprites?
+    /// The character style with a pack that exists: drawn from its frames,
+    /// or blank for the moment they take to read. Otherwise the drawn
+    /// companion stands in.
+    private var drawsCharacter = false
+    private var libraryObserver: NSObjectProtocol?
+    /// The stroll under way, and the moments shown over it by key, so frames
+    /// that finish reading, or another character's, play them too.
+    private var characterVisit: (path: NotchMascotPath, start: CFTimeInterval, holdsEnd: Bool)?
+    private var characterFlashes: [String: (state: NotchCompanionState, duration: TimeInterval, begin: CFTimeInterval)] = [:]
+    /// A face it turns to and keeps, set ahead as for a drop landing.
+    private var characterTurn: (state: NotchCompanionState, time: CFTimeInterval)?
+    private static let overlayKeys = ["visit", "turn", "flash", "flashAfter"]
+    /// Its box's offset from the figure's own middle, in shares of its size.
+    /// A character's face is centred in the box, whatever its frames hold;
+    /// the drawn one standing in for a missing pack is centred as itself.
+    var figureOffset: CGFloat { drawsCharacter ? 0 : NotchMascotGeometry.figureOffset(look) }
     private var blinks = 0
     /// It grew sleepy on its own after a long rest, rather than being shown
     /// so, and anything that happens wakes it.
@@ -72,18 +97,31 @@ final class NotchMascotRig: NSObject {
         root.addSublayer(hopper)
         hopper.addSublayer(squasher)
         squasher.addSublayer(tilter)
-        for layer in [ears, antenna, bulb, fill, visor, shine] { tilter.addSublayer(layer) }
+        for layer in [ears, antenna, bulb, fill, visor, shine, sprite] { tilter.addSublayer(layer) }
         tilter.addSublayer(attention)
         attention.addSublayer(face)
         face.addSublayer(leftEye)
         face.addSublayer(rightEye)
         fill.mask = fillMask
         for layer in [root, hopper, squasher, tilter, attention, face, ears, antenna, bulb, fill, fillMask, visor, shine,
-                      leftEye, rightEye] {
+                      leftEye, rightEye, sprite] {
             layer.actions = Self.noActions
         }
         shine.fillColor = NotchMascotColor.shine.cgColor
         visor.fillColor = NotchMascotColor.visor.cgColor
+        sprite.contentsGravity = .resizeAspect
+        // Frames are finely drawn faces, shown smaller than they were read:
+        // mipmapped, so they stay smooth rather than shimmering.
+        sprite.minificationFilter = .trilinear
+        sprite.isHidden = true
+        libraryObserver = NotificationCenter.default.addObserver(forName: .notchCompanionLoaded, object: nil,
+                                                                 queue: .main) { [weak self] _ in
+            self?.reloadCharacter()
+        }
+    }
+
+    deinit {
+        if let libraryObserver { NotificationCenter.default.removeObserver(libraryObserver) }
     }
 
     private static let noActions: [String: CAAction] = [
@@ -121,6 +159,15 @@ final class NotchMascotRig: NSObject {
         }
         root.contentsScale = scale
         let robot = look.style == .robot
+        let previous = sprites
+        switch look.style == .character ? NotchCompanionLibrary.shared.sprites(for: look.character) : .unavailable {
+        case .ready(let ready): sprites = ready; drawsCharacter = true
+        case .loading: sprites = nil; drawsCharacter = true
+        case .unavailable: sprites = nil; drawsCharacter = false
+        }
+        // Frames of another character, or none yet, leave nothing of theirs on top.
+        let swapped = previous !== sprites
+        if swapped { Self.overlayKeys.forEach { sprite.removeAnimation(forKey: $0) } }
         let palette = look.palette
         fill.colors = [palette.light.cgColor, palette.shade.cgColor]
         fill.startPoint = CGPoint(x: 0.5, y: 0)
@@ -161,7 +208,131 @@ final class NotchMascotRig: NSObject {
         rightEye.frame = CGRect(x: face.rightEye.x * size - side / 2, y: face.rightEye.y * size - side / 2, width: side, height: side)
         leftEye.contentsScale = scale
         rightEye.contentsScale = scale
+        // A character takes the drawn one's place; one whose pack is gone
+        // falls back to the shape and color chosen before it.
+        for layer in [fill, shine, self.face] where drawsCharacter { layer.isHidden = true }
+        if !drawsCharacter { fill.isHidden = false; self.face.isHidden = false }
+        sprite.isHidden = !drawsCharacter
+        if let sprites {
+            // Its canvas fit in a square `scale` times the drawn one's,
+            // about the same middle.
+            let side = size * sprites.pack.scale
+            let width = sprites.aspect >= 1 ? side : side * sprites.aspect
+            let height = sprites.aspect >= 1 ? side / sprites.aspect : side
+            sprite.frame = CGRect(x: (size - width) / 2, y: (size - height) / 2, width: width, height: height)
+            sprite.contentsScale = scale
+        }
         apply(mood.expression, animated: false)
+        showCharacterBase()
+        if swapped { restoreCharacterOverlays() }
+    }
+
+    /// Frames finished reading, or the packs were read again.
+    private func reloadCharacter() {
+        guard configured, look.style == .character else { return }
+        configured = false
+        configure(look: look, size: size, contentsScale: root.contentsScale)
+    }
+
+    /// Plays again, with the frames there are now, the stroll and moments
+    /// still under way.
+    private func restoreCharacterOverlays() {
+        let now = CACurrentMediaTime()
+        characterFlashes = characterFlashes.filter { $0.value.begin + $0.value.duration > now }
+        if let visit = characterVisit, isVisiting || visit.holdsEnd {
+            travelCharacter(visit.path, start: visit.start, holdsEnd: visit.holdsEnd)
+        }
+        if let turn = characterTurn { turnCharacter(to: turn.state, at: turn.time) }
+        for (key, flash) in characterFlashes.sorted(by: { $0.value.begin < $1.value.begin }) {
+            flashCharacter(flash.state, duration: flash.duration, beginTime: flash.begin, key: key)
+        }
+    }
+
+    /// A character looks the way a stroll moves it, under the greeting that
+    /// plays over it.
+    private func travelCharacter(_ path: NotchMascotPath, start: CFTimeInterval, holdsEnd: Bool) {
+        characterVisit = (path, start, holdsEnd)
+        guard drawsCharacter, let sprites else { return }
+        let reel = NotchCompanionReels.visit(path, in: sprites.pack, timing: sprites.timing)
+        let images = sprites.images(reel)
+        guard !images.isEmpty else { return }
+        let frames = contentsAnimation(reel, images: images)
+        frames.beginTime = start
+        if holdsEnd {
+            frames.fillMode = .forwards
+            frames.isRemovedOnCompletion = false
+        }
+        // Under a greeting or reaction already playing.
+        let over = ["flash", "flashAfter"].compactMap { key in sprite.animation(forKey: key).map { (key, $0) } }
+        over.forEach { sprite.removeAnimation(forKey: $0.0) }
+        sprite.add(frames, forKey: "visit")
+        over.forEach { sprite.add($0.1, forKey: $0.0) }
+    }
+
+    // MARK: Character
+
+    private func contentsAnimation(_ reel: NotchCompanionReel, images: [CGImage]) -> CAKeyframeAnimation {
+        let frames = CAKeyframeAnimation(keyPath: "contents")
+        frames.values = images
+        frames.keyTimes = reel.keyTimes.map { NSNumber(value: $0) }
+        frames.calculationMode = .discrete
+        frames.duration = reel.duration
+        return frames
+    }
+
+    /// The character's animation for the face it keeps: round and round, or
+    /// once and held, while it idles in sight, and its still frame otherwise.
+    /// A stroll or a reaction under way stays over it.
+    private func showCharacterBase() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        // Another style shows: the hidden sprite neither plays nor keeps frames.
+        guard drawsCharacter else {
+            sprite.removeAllAnimations()
+            sprite.contents = nil
+            return
+        }
+        let over = Self.overlayKeys.compactMap { key in sprite.animation(forKey: key).map { (key, $0) } }
+        over.forEach { sprite.removeAnimation(forKey: $0.0) }
+        sprite.removeAnimation(forKey: "base")
+        guard let sprites else { sprite.contents = nil; return }
+        let reel = NotchCompanionReels.cycle(of: mood.companionState, in: sprites.pack, timing: sprites.timing)
+        let images = sprites.images(reel)
+        sprite.contents = sprites.image(NotchCompanionReels.still(of: mood.companionState, in: sprites.pack,
+                                                                  timing: sprites.timing))
+        if images.count > 1, idles, !reduceMotion, reel.duration > 0 {
+            let base = contentsAnimation(reel, images: images)
+            base.beginTime = CACurrentMediaTime()
+            if sprites.timing.loops[reel.cels[0].state] ?? true {
+                base.repeatCount = .infinity
+            } else {
+                base.fillMode = .forwards
+                base.isRemovedOnCompletion = false
+            }
+            sprite.add(base, forKey: "base")
+        }
+        over.forEach { sprite.add($0.1, forKey: $0.0) }
+    }
+
+    /// The character acts out `state` for `duration` over what it shows,
+    /// from `beginTime`, or holds its still frame with Reduce Motion.
+    private func flashCharacter(_ state: NotchCompanionState, duration: TimeInterval, beginTime: CFTimeInterval? = nil,
+                                key: String = "flash") {
+        guard drawsCharacter, duration > 0 else { return }
+        let begin = beginTime ?? CACurrentMediaTime()
+        characterFlashes[key] = (state, duration, begin)
+        guard let sprites else { return }
+        var reel = NotchCompanionReels.play(state, for: duration, in: sprites.pack, timing: sprites.timing)
+        if reduceMotion {
+            reel = NotchCompanionReel(cels: [NotchCompanionReels.still(of: state, in: sprites.pack, timing: sprites.timing)],
+                                      starts: [0], duration: duration)
+        }
+        let images = sprites.images(reel)
+        guard !images.isEmpty else { return }
+        let flash = contentsAnimation(reel, images: images)
+        flash.beginTime = begin
+        sprite.add(flash, forKey: key)
     }
 
     // MARK: Faces
@@ -174,6 +345,7 @@ final class NotchMascotRig: NSObject {
         if mood != .sleepy { blinks = 0 }
         apply(mood.expression, animated: animated && !reduceMotion)
         lightBulb(mood != .sleepy, animated: animated && !reduceMotion)
+        showCharacterBase()
         guard animated, !reduceMotion, size > 0 else { syncBlinking(); return }
         switch mood {
         case .surprised: pop()
@@ -263,17 +435,39 @@ final class NotchMascotRig: NSObject {
             move.isRemovedOnCompletion = false
             layer.add(move, forKey: "turn")
         }
+        turnCharacter(to: mood.companionState, at: time)
+    }
+
+    /// The character turns to `state` at `time` and keeps it, as `turn` does;
+    /// frames still reading take it up once they arrive.
+    private func turnCharacter(to state: NotchCompanionState, at time: CFTimeInterval) {
+        guard drawsCharacter else { return }
+        characterTurn = (state, time)
+        guard let sprites else { return }
+        let reel = NotchCompanionReels.cycle(of: state, in: sprites.pack, timing: sprites.timing)
+        let images = sprites.images(reel)
+        guard !images.isEmpty, reel.duration > 0 else { return }
+        let still = sprites.image(NotchCompanionReels.still(of: state, in: sprites.pack, timing: sprites.timing))
+        let frames = contentsAnimation(reel, images: reduceMotion ? [still ?? images[0]] : images)
+        if reduceMotion { frames.keyTimes = [0, 1] }
+        frames.beginTime = time
+        frames.repeatCount = .infinity
+        sprite.add(frames, forKey: "turn")
     }
 
     /// Back to its own face at rest, with every motion taken off.
     func reset(to mood: NotchMascotMood) {
         stopBlinking()
-        for layer in [root, hopper, squasher, tilter, attention, face, leftEye, rightEye] { layer.removeAllAnimations() }
+        for layer in [root, hopper, squasher, tilter, attention, face, leftEye, rightEye, sprite] { layer.removeAllAnimations() }
         attention.transform = CATransform3DIdentity
+        characterVisit = nil
+        characterFlashes = [:]
+        characterTurn = nil
         self.mood = mood
         blinks = 0
         dozed = false
         apply(mood.expression, animated: false)
+        showCharacterBase()
     }
 
     // MARK: Attention
@@ -290,7 +484,8 @@ final class NotchMascotRig: NSObject {
 
     /// Ends a visit under way where it stands, and it blinks again.
     func endVisit() {
-        for layer in [root, squasher, face] { layer.removeAnimation(forKey: "visit") }
+        characterVisit = nil
+        for layer in [root, squasher, face, sprite] { layer.removeAnimation(forKey: "visit") }
         root.removeAnimation(forKey: "visitFade")
         blinksResume = CACurrentMediaTime()
         stopBlinking()
@@ -301,7 +496,8 @@ final class NotchMascotRig: NSObject {
     /// the island has nothing more for it.
     func clearFinishedVisit() {
         guard root.animation(forKey: "visit") != nil, CACurrentMediaTime() >= visitEnds else { return }
-        for layer in [root, squasher, face] { layer.removeAnimation(forKey: "visit") }
+        characterVisit = nil
+        for layer in [root, squasher, face, sprite] { layer.removeAnimation(forKey: "visit") }
         root.removeAnimation(forKey: "visitFade")
     }
     /// It grew sleepy on its own after a long rest.
@@ -501,6 +697,10 @@ final class NotchMascotRig: NSObject {
         blinks = 0
         let now = CACurrentMediaTime()
         glowBulb(for: reaction.length)
+        // A character acts the reaction out with its own animation, over
+        // the face the drawn one would flash. Waking, it shows sleepy then
+        // glad as the drawn one does.
+        defer { if reaction != .wakeUp { flashCharacter(reaction.companionState, duration: reaction.length) } }
         guard !reduceMotion else {
             switch reaction {
             case .celebrate, .wakeUp: flashFace(.happy, duration: 1)
@@ -652,6 +852,7 @@ final class NotchMascotRig: NSObject {
             if reduceMotion { face.calculationMode = .discrete }
             layer.add(face, forKey: key)
         }
+        flashCharacter(mood.companionState, duration: duration, beginTime: beginTime, key: key)
         pauseBlinking(for: duration, from: beginTime)
     }
 
@@ -719,6 +920,7 @@ final class NotchMascotRig: NSObject {
         look.beginTime = start
         look.isAdditive = true
         face.add(look, forKey: "visit")
+        travelCharacter(path, start: start, holdsEnd: holdsEnd)
         // Its eyes are for the way ahead while it walks.
         lookAhead()
         if path.greeting.upperBound > path.greeting.lowerBound {
@@ -740,6 +942,8 @@ final class NotchMascotRig: NSObject {
             stopBlinking()
             if dozed, !idles { setMood(.idle, animated: false) }
         } else { syncBlinking() }
+        // A character only plays on while someone can see it.
+        showCharacterBase()
     }
 
     /// Wakes it from a long rest. A face shown sleepy on purpose stays.
@@ -1116,7 +1320,7 @@ final class NotchMascotHostView: NSView {
 
     /// Its box's offset from the figure's own middle, so that what a caller
     /// centres, at rest or on a visit, is the body that shows.
-    private var figureShift: CGFloat { NotchMascotGeometry.figureOffset(mascot.look) * mascot.size }
+    private var figureShift: CGFloat { mascot.figureOffset * mascot.size }
 
     private func applyPlacement() {
         let placed = placement.center ?? CGPoint(x: bounds.midX, y: bounds.midY)
