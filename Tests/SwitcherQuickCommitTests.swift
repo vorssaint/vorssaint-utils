@@ -24,6 +24,7 @@ enum SwitcherQuickCommitTests {
         var windowHistory: [CGWindowID] = [1, 2]
         var appHistory: [pid_t] = [1]
         var focusHistory = WindowFocusHistory()
+        var readAXFocus: (pid_t) -> CGWindowID? = { _ in nil }
         var windows: [CGWindowID] { windowHistory }
         var apps: [pid_t] { appHistory }
     }

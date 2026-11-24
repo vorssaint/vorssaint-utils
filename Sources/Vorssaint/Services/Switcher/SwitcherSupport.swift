@@ -160,7 +160,8 @@ struct SwitcherWindowServerSnapshot: Sendable {
     let windowIDs: Set<CGWindowID>
     let normalLevelWindowIDs: Set<CGWindowID>
     let normalLevelOwnerPIDs: [pid_t]
-    private let ownerWindowIDs: [pid_t: Set<CGWindowID>]?
+    let windowIDsByOwner: [pid_t: Set<CGWindowID>]
+    private let hasCompleteOwnerBaseline: Bool
 
     init(windowInfo: [[String: Any]], capturesActivationBaseline: Bool) {
         var ids: Set<CGWindowID> = []
@@ -187,15 +188,16 @@ struct SwitcherWindowServerSnapshot: Sendable {
         windowIDs = ids
         normalLevelWindowIDs = normalIDs
         normalLevelOwnerPIDs = normalOwners
-        ownerWindowIDs = capturesActivationBaseline && complete ? owners : nil
+        windowIDsByOwner = owners
+        hasCompleteOwnerBaseline = capturesActivationBaseline && complete
     }
 
     func activationWindowIDs(ownerPID: pid_t, targetWindowID: CGWindowID,
                              currentWindowIDs: Set<CGWindowID>) -> Set<CGWindowID>? {
-        guard let ownerWindowIDs,
+        guard hasCompleteOwnerBaseline,
               currentWindowIDs.contains(targetWindowID),
               currentWindowIDs.isSubset(of: windowIDs),
-              let known = ownerWindowIDs[ownerPID],
+              let known = windowIDsByOwner[ownerPID],
               known.contains(targetWindowID) else { return nil }
         return known.intersection(currentWindowIDs)
     }

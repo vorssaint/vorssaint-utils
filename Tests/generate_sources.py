@@ -202,6 +202,8 @@ def main():
               .replace("focusPID: focusPID)", "focusPID: focusPID, now: SwitcherHoverSelectionTests.Queue.time)", 1)
           + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    func recordObservedFocus(")
           + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    func recordDestroyedWindow(")
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    private func readFocusedWindow(")
+              .replace("private func", "func", 1).replace("WindowActivator.focusedWindowID(for: ", "readAXFocus(")
           + "}\n")
     (OUTPUT / "SwitcherWindowTitles.swift").unlink(missing_ok=True)
     write("SwitcherWindowTitlesContract.swift", "import AppKit\nimport ApplicationServices\n"

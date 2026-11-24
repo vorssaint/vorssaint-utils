@@ -187,6 +187,8 @@ enum SwitcherRememberedSelectionTests {
                     if !focusByRead.isEmpty { WindowActivator.focusedWindow = focusByRead.removeFirst() }
                     result.capturedVisibleSpaces = SessionOpening.SpaceWindowBridge.topology()?.visibleSpaces
                     result.rejectedWindowIDs = rejectedIDs
+                }
+                if forFrontAppSession || capturedRows != nil {
                     let rows = capturedRows ?? captured.filter { $0.windowID != nil }.map { stackRow($0) }
                     result.activationSnapshot = .init(windowInfo: rows, capturesActivationBaseline: true)
                 }

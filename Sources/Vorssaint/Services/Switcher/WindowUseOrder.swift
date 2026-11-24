@@ -49,7 +49,9 @@ struct WindowFocusHistory {
     private var recent: [Use] = []
     private(set) var current: Request?
     private(set) var revision = UUID()
-    private(set) var lastFocus: Observation?
+    private var lastFocus: Observation?
+    // Only the watcher's current AX call needs removals. Its reply may name a window for the first time.
+    private var destroyedDuringFocusRead: Set<CGWindowID>?
 
     func frontAppFocus(for pid: pid_t, appPID: pid_t? = nil,
                        now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> FrontAppFocus {
@@ -87,12 +89,20 @@ struct WindowFocusHistory {
     }
 
     @discardableResult
-    mutating func focus(_ window: CGWindowID, for request: Request, after observed: Observation? = nil) -> Bool {
-        // An AX read can finish after its window was destroyed and a sibling received focus.
-        // If closing the source cleared the whole pair, its predecessor can still take focus.
-        if let observed, observed.confirmation != lastFocus?.confirmation,
-           observed.windowID == window || (lastFocus != nil && observed.previousWindowID == window),
-           lastFocus?.includes(window) != true, index(of: window) == nil { return false }
+    mutating func beginFocusRead(for request: Request) -> Bool {
+        guard current == request, destroyedDuringFocusRead == nil else { return false }
+        destroyedDuringFocusRead = []
+        return true
+    }
+
+    mutating func finishFocusRead(_ window: CGWindowID?, for request: Request) -> Bool {
+        defer { destroyedDuringFocusRead = nil }
+        guard let window, destroyedDuringFocusRead?.contains(window) == false else { return false }
+        return focus(window, for: request)
+    }
+
+    @discardableResult
+    mutating func focus(_ window: CGWindowID, for request: Request) -> Bool {
         if current == request {
             recent.removeAll { use in
                 if case .app(let pending) = use { return pending.pid == request.pid }
@@ -165,6 +175,7 @@ struct WindowFocusHistory {
 
     /// Unlike omission from a scan, destruction also retires the last observation of this ID.
     mutating func destroyed(_ windowID: CGWindowID, wasRanked: Bool = false) {
+        destroyedDuringFocusRead?.insert(windowID)
         let position = index(of: windowID)
         guard wasRanked || position != nil || lastFocus?.includes(windowID) == true else { return }
         if let position { recent.remove(at: position) }

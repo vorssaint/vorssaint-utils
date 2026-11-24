@@ -288,6 +288,7 @@ final class SwitcherWindowInventory {
     private func remove(pid: pid_t) {
         onRemoval?(.process(pid))
         terminatedDuringRefresh.insert(pid)
+        recordTerminatedWindows(of: pid, in: remembered)
         let removed = remembered.items.filter { $0.pid == pid || $0.windowOwnerPID == pid }
         let affectedPIDs = Set(removed.map(\.pid))
         remembered.items.removeAll { $0.pid == pid || $0.windowOwnerPID == pid }
@@ -298,6 +299,15 @@ final class SwitcherWindowInventory {
             }
         }
         for affectedPID in affectedPIDs { invalidate(pid: affectedPID) }
+    }
+
+    private func recordTerminatedWindows(of pid: pid_t, in list: WindowEnumerator.WindowList) {
+        // CG may already know the owner before AX lists its window. AX-only windows live in items.
+        var ids = list.activationSnapshot?.windowIDsByOwner[pid] ?? []
+        for item in list.items where item.windowOwnerPID == pid {
+            if let id = item.windowID { ids.insert(id) }
+        }
+        for id in ids { WindowUseTracker.shared.recordDestroyedWindow(id) }
     }
 
     private func refresh() {
@@ -345,6 +355,7 @@ final class SwitcherWindowInventory {
             DispatchQueue.main.async {
                 guard let self, !isCancelled() else { return }
                 self.refreshInFlight = false
+                for pid in self.terminatedDuringRefresh { self.recordTerminatedWindows(of: pid, in: result) }
                 guard self.spaces.revision == spaceRevision else {
                     self.refresh()
                     return

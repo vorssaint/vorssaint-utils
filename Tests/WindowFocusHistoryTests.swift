@@ -73,15 +73,41 @@ enum WindowFocusHistoryTests {
                 && returned?.confirmation != omitted.latest?.confirmation,
                "returning to a source remembers its omitted predecessor even after repeated AX confirmation")
         var closing = history
-        let readOrigin = closing.lastFocus
+        closing.beginFocusRead(for: afterSwitch)
         closing.reconcile(windows: [10], revision: closing.revision)
         closing.destroyed(10)
-        expect(!closing.focus(10, for: afterSwitch, after: readOrigin),
-               "a delayed AX read cannot restore the focused window after its destruction")
-        expect(closing.focus(11, for: afterSwitch, after: readOrigin)
-                && !closing.focus(10, for: afterSwitch, after: readOrigin)
+        var siblingRead = closing
+        expect(siblingRead.finishFocusRead(11, for: afterSwitch)
+                && siblingRead.frontAppFocus(for: 1).windowID == 11,
+               "AX can confirm the surviving sibling even when the previous scan omitted it")
+        _ = closing.focus(11, for: afterSwitch)
+        expect(!closing.finishFocusRead(10, for: afterSwitch)
                 && closing.frontAppFocus(for: 1).windowID == 11,
-               "AX can confirm the surviving sibling and a late reply for the closed window leaves it focused")
+               "a late AX reply for the closed window leaves the newly focused sibling in front")
+
+        var reading = history
+        let newWindow: UInt32 = 12
+        let previousFocus = reading.frontAppFocus(for: 1).latest?.confirmation
+        reading.beginFocusRead(for: afterSwitch)
+        reading.destroyed(newWindow)
+        reading.destroyed(20)
+        expect(!reading.finishFocusRead(newWindow, for: afterSwitch)
+                && reading.frontAppFocus(for: 1).latest?.confirmation == previousFocus
+                && !reading.frontAppFocus(for: 1).observedWindows.contains(newWindow),
+               "AX cannot introduce an unknown window destroyed during the read, even after another removal")
+
+        reading.beginFocusRead(for: afterSwitch)
+        reading.destroyed(11)
+        expect(reading.finishFocusRead(newWindow, for: afterSwitch)
+                && reading.frontAppFocus(for: 1).latest?.previousWindowID == 10,
+               "a new read can accept a reused ID when only a different window closed during that read")
+
+        reading.beginFocusRead(for: afterSwitch)
+        reading.reconcile(windows: [10], revision: reading.revision)
+        expect(reading.frontAppFocus(for: 1).windowID == nil
+                && reading.finishFocusRead(newWindow, for: afterSwitch)
+                && reading.frontAppFocus(for: 1).windowID == newWindow,
+               "AX can reconfirm a window omitted from a scan during the read")
         _ = history.activate(99, recording: false)
         expect(!history.focus(11, for: afterSwitch) && windows(history) == [10, 11, 20, 30],
                "the app's own activation handoff invalidates callbacks without changing history")
