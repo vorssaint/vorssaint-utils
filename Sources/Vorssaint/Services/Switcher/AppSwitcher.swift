@@ -91,7 +91,7 @@ final class AppSwitcher: ObservableObject {
         let displayScope: WindowEnumerator.DisplayScope?
         var readingFrontApp = false
         var destroyedWindowIDs: Set<CGWindowID> = []
-        var focusStillCurrent: (() -> Bool)?
+        var selectionStillCurrent: (() -> Bool)?
     }
     private let frontAppReadQueue = DispatchQueue(label: "com.vorssaint.switcher.front-app", qos: .userInitiated)
     private var sessionOrigin: SessionOrigin?
@@ -637,8 +637,11 @@ final class AppSwitcher: ObservableObject {
         }
         routeLock.withLock {
             routePendingSessionStart = nil
+            confirmingFrontAppTarget = nil
         }
+        windowInventory.onWindowDestroyed = nil
         if sessionActive { cancelSession() }
+        else { sessionOrigin = nil }
         applyNativeHotkeySuppressionIfTapLive()
         if secureInputHotKeys.isEmpty, !routeLock.withLock({ routeCapturing }) { restoreNativeHotkeys() }
     }
@@ -730,6 +733,11 @@ final class AppSwitcher: ObservableObject {
     private func releaseSecureInputActionsIfIdle() {
         guard !routeLock.withLock({ routeSessionActive || routePendingSessionStart != nil || secureInputReplays.hasPending })
         else { return }
+        if sessionOrigin != nil {
+            // Escape or a click can retire an opening on the tap thread before its worker replies.
+            sessionOrigin = nil
+            windowInventory.onWindowDestroyed = nil
+        }
         unregisterSecureInputActionHotKeys()
     }
 
@@ -1220,6 +1228,7 @@ final class AppSwitcher: ObservableObject {
         if let captured = sessionOrigin, captured.generation == generation {
             origin = captured
         } else {
+            windowInventory.onWindowDestroyed = nil
             guard let app = NSWorkspace.shared.frontmostApplication else {
                 discardPendingSessionStart(generation: generation, reason: "no_frontmost_app")
                 return
@@ -1271,6 +1280,7 @@ final class AppSwitcher: ObservableObject {
             return self.routeLock.withLock { self.routePendingSessionStart?.generation != generation }
         }
         let currentSpaceOnly = UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        let secureInputAtOpening = IsSecureEventInputEnabled()
         let spaceRevision = windowInventory.currentSpaceRevision
         let visibleSpaces = currentSpaceOnly ? SpaceWindowBridge.topology()?.visibleSpaces : nil
         windowInventory.onWindowDestroyed = { [weak self] id in
@@ -1285,8 +1295,12 @@ final class AppSwitcher: ObservableObject {
         let knownIDs = windowInventory.knownWindowIDs
         let appKitSnapshot = WindowEnumerator.snapshot(includingRunningApps: false)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-            guard let self, self.routeLock.withLock({ self.routePendingSessionStart?.generation == generation }) else { return }
-            self.discardPendingSessionStart(generation: generation, reason: "front_app_read_timeout")
+            guard let self, self.sessionOrigin?.generation == generation else { return }
+            if self.routeLock.withLock({ self.routePendingSessionStart?.generation == generation }) {
+                self.discardPendingSessionStart(generation: generation, reason: "front_app_read_timeout")
+            } else {
+                self.releaseSecureInputActionsIfIdle()
+            }
         }
         frontAppReadQueue.async { [weak self] in
             let read = {
@@ -1302,16 +1316,21 @@ final class AppSwitcher: ObservableObject {
             let result = first.list.items.isEmpty && !isCancelled() ? read() : first
             DispatchQueue.main.async { [weak self] in
                 guard let self, !isCancelled() else { return }
-                // A workspace notification can catch up with a Space we already sampled.
-                let currentSpaces = currentSpaceOnly ? SpaceWindowBridge.topology()?.visibleSpaces : nil
-                let sameOriginSpace = visibleSpaces.map { $0 == currentSpaces }
-                    ?? (spaceRevision == self.windowInventory.currentSpaceRevision)
-                let sameReadSpace = result.list.capturedVisibleSpaces.map { $0 == currentSpaces } ?? true
-                guard !currentSpaceOnly || (sameOriginSpace && sameReadSpace), result.focusStillCurrent() else {
+                let readSpaces = result.list.capturedVisibleSpaces
+                let focusStillCurrent = result.focusStillCurrent
+                let selectionStillCurrent = { [weak self] in
+                    guard let self, focusStillCurrent(), IsSecureEventInputEnabled() == secureInputAtOpening else { return false }
+                    guard currentSpaceOnly else { return true }
+                    // A late notification can describe the Space already sampled at the key press.
+                    let current = SpaceWindowBridge.topology()?.visibleSpaces
+                    let sameOrigin = visibleSpaces.map { $0 == current } ?? (spaceRevision == self.windowInventory.currentSpaceRevision)
+                    return sameOrigin && (readSpaces.map { $0 == current } ?? true)
+                }
+                guard selectionStillCurrent() else {
                     self.discardPendingSessionStart(generation: generation, reason: "front_app_source_changed")
                     return
                 }
-                self.sessionOrigin?.focusStillCurrent = result.focusStillCurrent
+                self.sessionOrigin?.selectionStillCurrent = selectionStillCurrent
                 self.finishPendingSession(generation: generation, reportedFrontPID: result.list.items.first?.pid ?? origin.pid,
                                           focusedSourceWindowID: result.focusedWindowID,
                                           windows: result.list.items, sourceItems: result.list.sourceItems,
@@ -1987,9 +2006,9 @@ final class AppSwitcher: ObservableObject {
         let windowServerSnapshot = sessionWindowServerSnapshot
         let handoffSourcePID = sessionOrigin?.pid
         let previousWindowID = sessionStartWindowID
-        let focusStillCurrent = sessionOrigin?.focusStillCurrent
+        let selectionStillCurrent = sessionOrigin?.selectionStillCurrent
         let activate = { [weak self] in
-            guard let self, focusStillCurrent?() != false else { return }
+            guard let self, selectionStillCurrent?() != false else { return }
             self.recordUse(selection, previous: previousWindowID)
             WindowActivator.activate(selection,
                                      sourceWasFullscreen: source?.isFullscreen ?? false,
@@ -2012,6 +2031,7 @@ final class AppSwitcher: ObservableObject {
     private func confirmFrontAppTarget(_ item: SwitcherItem, windowID: CGWindowID, activate: @escaping () -> Void) {
         let request = UUID()
         let sourceID = sessionStartWindowID
+        let frontPIDAtRelease = NSWorkspace.shared.frontmostApplication?.processIdentifier
         let deadline = ProcessInfo.processInfo.systemUptime + 1
         let generation = routeLock.withLock {
             confirmingFrontAppTarget = request
@@ -2040,7 +2060,10 @@ final class AppSwitcher: ObservableObject {
             let live = WindowActivator.confirmsWindow(windowID: windowID, ownerPID: item.windowOwnerPID,
                                                       isCancelled: isCancelled)
             DispatchQueue.main.async {
-                if finish(), live, ProcessInfo.processInfo.systemUptime < deadline { activate() }
+                if finish(), live, ProcessInfo.processInfo.systemUptime < deadline,
+                   NSWorkspace.shared.frontmostApplication?.processIdentifier == frontPIDAtRelease {
+                    activate()
+                }
             }
         }
     }

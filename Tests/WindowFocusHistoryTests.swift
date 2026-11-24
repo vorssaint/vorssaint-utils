@@ -41,12 +41,37 @@ enum WindowFocusHistoryTests {
         expect(history.focus(10, for: againA) && windows(history) == [10, 11, 20, 30],
                "focus changes within one app retain global window recency")
 
-        history.switched(to: 11, pid: 1, previous: 10)
+        history.switched(to: 11, pid: 1, previous: 10, now: 1)
         expect(!history.focus(10, for: againA) && windows(history) == [11, 10, 20, 30],
                "explicit switch rejects a source AX read already in flight")
+        let handoff = history.frontAppFocus(for: 1, now: 1.01)
         let afterSwitch = history.current!
+        _ = history.focus(11, for: afterSwitch)
+        let confirmed = history.frontAppFocus(for: 1, now: 1.02)
+        let expired = history.frontAppFocus(for: 1, now: 1 + WindowFocusHistory.switchConfirmationInterval)
+        expect(handoff.recentSwitch?.windowID == 11 && handoff.recentSwitch?.previousWindowID == 10
+                && confirmed.recentSwitch?.windowID == 11 && confirmed.recentSwitch?.previousWindowID == 10
+                && confirmed.latest?.confirmation != handoff.latest?.confirmation
+                && expired.recentSwitch == nil,
+               "AX reconfirming the switch target preserves the pair until its original deadline")
         expect(history.focus(10, for: afterSwitch) && windows(history) == [10, 11, 20, 30],
                "same-app focus observation continues after an explicit switch")
+        expect(history.frontAppFocus(for: 1, now: 1.03).recentSwitch == nil,
+               "AX observing a different window supersedes the pending switch")
+
+        var omitting = history
+        let beforeOmission = omitting.frontAppFocus(for: 1).latest
+        omitting.reconcile(windows: [11, 20, 30], revision: omitting.revision)
+        let omitted = omitting.frontAppFocus(for: 1)
+        expect(omitted.windowID == nil && !omitted.observedWindows.contains(10)
+                && omitted.latest?.windowID == 10 && omitted.latest?.confirmation == beforeOmission?.confirmation,
+               "a missing focus leaves its observation available for checking an in-flight read")
+        _ = omitting.focus(11, for: afterSwitch)
+        _ = omitting.focus(11, for: afterSwitch)
+        let returned = omitting.frontAppFocus(for: 1).latest
+        expect(returned?.windowID == 11 && returned?.previousWindowID == 10
+                && returned?.confirmation != omitted.latest?.confirmation,
+               "returning to a source remembers its omitted predecessor even after repeated AX confirmation")
         _ = history.activate(99, recording: false)
         expect(!history.focus(11, for: afterSwitch) && windows(history) == [10, 11, 20, 30],
                "the app's own activation handoff invalidates callbacks without changing history")

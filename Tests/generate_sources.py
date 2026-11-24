@@ -198,6 +198,9 @@ def main():
           + "extension SwitcherQuickCommitTests.HistoryFixture {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift",
                         "    func reconcile(")
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    func recordSwitch(")
+              .replace("previous: previous)", "previous: previous, now: SwitcherHoverSelectionTests.Queue.time)", 1)
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    func recordObservedFocus(")
           + "}\n")
     (OUTPUT / "SwitcherWindowTitles.swift").unlink(missing_ok=True)
     write("SwitcherWindowTitlesContract.swift", "import AppKit\nimport ApplicationServices\n"
@@ -2233,6 +2236,7 @@ def main():
                     for prefix in ["    private func handle(type:", "    private func handleKeyDown(",
                                    "    private func installTap(", "    private func finishEventTapThread(", "    func suspend(",
                                    "    private func claimPendingKey(", "    private func setYieldsToExclusiveFullscreen(",
+                                   "    private func secureInputChanged(",
                                    "    private func initialSelectionIndex(", "    private func discardPendingSessionStart(",
                                    "    private func invalidateSecureInputReplays(", "    private func releaseSecureInputActionsIfIdle(",
                                    "    private func applyNativeHotkeySuppressionIfTapLive(",

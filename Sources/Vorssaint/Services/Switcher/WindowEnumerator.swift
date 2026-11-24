@@ -397,13 +397,24 @@ enum WindowEnumerator {
         // The candidate capture can predate the new window while AX still names its predecessor.
         if let top, !visibleIDs.contains(top) { return empty }
         let ax = snapshot.accessibilityGranted ? WindowActivator.focusedWindowID(for: frontmostPID) : nil
-        if let top, let ax, ax != top { return empty }
+        // On an immediate repeat, AX and z-order can be at different stages of our own switch.
+        let laggingSwitch = observed.recentSwitch.flatMap { last in
+            let reports = [ax, top].compactMap { $0 }
+            let matches = visibleIDs.contains(last.windowID) && visibleIDs.contains(last.previousWindowID)
+                && reports.contains(last.previousWindowID)
+                && reports.allSatisfy { $0 == last.windowID || $0 == last.previousWindowID }
+            return matches ? last : nil
+        }
+        if laggingSwitch == nil, let top, let ax, ax != top { return empty }
         // Even matching old history and z-order can describe an inventory that missed a new AX window.
         if let reported = ax ?? observed.windowID, !windows.contains(where: { $0.windowID == reported }) { return empty }
         if let hint = observed.windowID, !visibleIDs.contains(hint), stack.contains(hint) { return empty }
         // A window can be ordered to the front without taking keyboard focus.
-        if ax == nil, let hint = observed.windowID, visibleIDs.contains(hint), let top, top != hint { return empty }
-        let source = (ax ?? top ?? observed.windowID).flatMap { id in visible.first { $0.windowID == id } }
+        if laggingSwitch == nil, ax == nil, let hint = observed.windowID, visibleIDs.contains(hint), let top, top != hint {
+            return empty
+        }
+        let reportedSource = laggingSwitch?.windowID ?? ax ?? top ?? observed.windowID
+        let source = reportedSource.flatMap { id in visible.first { $0.windowID == id } }
         guard !isCancelled(), source != nil || visible.isEmpty else { return empty }
         let sourceID = source?.windowID
         var list = SwitcherWindowSelection.select(remembered: captured, scope: .frontmostApp, frontmostPID: appPID,
@@ -428,7 +439,9 @@ enum WindowEnumerator {
             } : []
             let eligible = primary.isEmpty ? destinations : primary
             previousCandidates = Set(eligible.compactMap(\.windowID))
-            var previousID = observed.observedWindows.first(where: previousCandidates.contains)
+            var previousID = observed.recentSwitch.flatMap { last in
+                sourceID == last.windowID && previousCandidates.contains(last.previousWindowID) ? last.previousWindowID : nil
+            } ?? observed.observedWindows.first(where: previousCandidates.contains)
             if previousID == nil, top == sourceID,
                let next = stack.dropFirst().first(where: { !visibleIDs.contains($0) || previousCandidates.contains($0) }) {
                 previousID = next
@@ -453,13 +466,22 @@ enum WindowEnumerator {
             previousCandidates = []
         }
         let expectedPrevious = list.items.first { $0.windowID != sourceID }?.windowID
+        let capturedIDs = Set(windows.compactMap(\.windowID))
         list.capturedVisibleSpaces = captured.capturedVisibleSpaces
         let focusStillCurrent = {
             // A different app taking focus clears this app's hint (#4393).
             let latest = tracker.frontAppFocus(for: frontmostPID)
-            guard let latestID = latest.windowID, latest.confirmation != observed.confirmation else { return true }
-            guard latestID == sourceID else { return false }
+            guard let change = latest.latest, change.confirmation != observed.latest?.confirmation else {
+                guard let laggingSwitch else { return true }
+                return latest.recentSwitch?.windowID == laggingSwitch.windowID
+                    && latest.recentSwitch?.previousWindowID == laggingSwitch.previousWindowID
+            }
+            guard change.windowID == sourceID else { return false }
             // Returning to the same source can make a different window its predecessor.
+            if let previous = change.previousWindowID {
+                guard capturedIDs.contains(previous) else { return false }
+                if previousCandidates.contains(previous) { return previous == expectedPrevious }
+            }
             let latestPrevious = latest.observedWindows.first(where: previousCandidates.contains)
             return latestPrevious == nil || latestPrevious == expectedPrevious
         }
@@ -480,11 +502,14 @@ enum WindowEnumerator {
                   (row[kCGWindowAlpha as String] as? NSNumber)?.doubleValue != 0,
                   let owner = (row[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
                   let id = (row[kCGWindowNumber as String] as? NSNumber)?.uint32Value else { return nil }
+            // A captured surface that the window walk rejected is not a new window.
+            let isCandidate = candidateIDs.contains(id)
+            if !isCandidate, captured.activationSnapshot?.windowIDs.contains(id) == true { return nil }
             if owners[owner] == nil {
                 owners[owner] = Self.appPID(forWindowOwner: owner, runningApps: snapshot.runningApps) == appPID
             }
             guard owners[owner] == true else { return nil }
-            if candidateIDs.contains(id) { return id }
+            if isCandidate { return id }
             guard let bounds = row[kCGWindowBounds as String] as? [String: Any],
                   let frame = CGRect(dictionaryRepresentation: bounds as CFDictionary), frameIsSwitchable(frame),
                   !SpaceWindowBridge.isExcludedFromWindowCycle(id) else { return nil }

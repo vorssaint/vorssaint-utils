@@ -96,23 +96,32 @@ enum SwitcherRememberedSelectionTests {
             // This desktop models one tracked application. Let the real history distinguish
             // a repeated focus notification from an unchanged observation.
             private static let trackedPID: pid_t = 10
-            private static var focusHistory = WindowFocusHistory()
+            static let history = SwitcherQuickCommitTests.HistoryFixture()
             static var confirmedFocus: CGWindowID? {
-                get { focusHistory.frontAppFocus(for: trackedPID).windowID }
+                get { shared.frontAppFocus(for: trackedPID).windowID }
                 set {
-                    guard let newValue else { focusHistory = WindowFocusHistory(); return }
-                    if focusHistory.current == nil { _ = focusHistory.activate(trackedPID) }
-                    if let request = focusHistory.current {
-                        focusHistory.focus(newValue, for: request)
+                    guard let newValue else { history.focusHistory = WindowFocusHistory(); return }
+                    if history.focusHistory.current == nil { _ = history.focusHistory.activate(trackedPID) }
+                    if let request = history.focusHistory.current {
+                        history.focusHistory.focus(newValue, for: request)
                     }
                 }
             }
             static var physicalOrder: [CGWindowID]?
             var windows: [CGWindowID] { Tracker.shared.history }
-            func frontAppFocus(for pid: pid_t) -> (windowID: CGWindowID?, confirmation: UUID?, observedWindows: [CGWindowID]) {
-                Self.focusHistory.frontAppFocus(for: Self.trackedPID)
+            func frontAppFocus(for pid: pid_t) -> WindowFocusHistory.FrontAppFocus {
+                Self.history.focusHistory.frontAppFocus(for: Self.trackedPID, now: SwitcherHoverSelectionTests.Queue.time)
             }
-            func recordObservedFocus(windowID: CGWindowID, pid: pid_t) { Self.confirmedFocus = windowID }
+            func recordSwitch(to windowID: CGWindowID?, pid: pid_t, from previous: CGWindowID?) {
+                Self.history.windowHistory = windows
+                Self.history.recordSwitch(to: windowID, pid: pid, from: previous)
+                Tracker.shared.history = Self.history.windowHistory
+            }
+            func recordObservedFocus(windowID: CGWindowID, pid: pid_t) {
+                Self.history.windowHistory = windows
+                Self.history.recordObservedFocus(windowID: windowID, pid: pid)
+                Tracker.shared.history = Self.history.windowHistory
+            }
         }
         enum WindowActivator {
             static var focusedWindow: CGWindowID?
@@ -132,6 +141,7 @@ enum SwitcherRememberedSelectionTests {
             static var firstFrontAppItems: [SwitcherItem]?
             static var focusByRead: [CGWindowID?] = []
             static var stackRows: [[String: Any]]?
+            static var capturedRows: [[String: Any]]?
             static var reads: [pid_t?] = []
             static func stackRow(_ item: SwitcherItem, owner: pid_t? = nil, layer: Int = 0) -> [String: Any] {
                 let frame = item.frame.isEmpty ? CGRect(x: 0, y: 0, width: 400, height: 300) : item.frame
@@ -165,7 +175,7 @@ enum SwitcherRememberedSelectionTests {
                     firstFrontAppItems = nil
                     if !focusByRead.isEmpty { WindowActivator.focusedWindow = focusByRead.removeFirst() }
                     result.capturedVisibleSpaces = SessionOpening.SpaceWindowBridge.topology()?.visibleSpaces
-                    let rows = stackRows ?? captured.filter { $0.windowID != nil }.map { stackRow($0) }
+                    let rows = capturedRows ?? captured.filter { $0.windowID != nil }.map { stackRow($0) }
                     result.activationSnapshot = .init(windowInfo: rows, capturesActivationBaseline: true)
                 }
                 return result

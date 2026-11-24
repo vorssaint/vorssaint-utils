@@ -58,7 +58,7 @@ final class SwitcherActivationWriteGuard {
 /// owning app. The initial exact-window path fronts the window synchronously,
 /// then performs remote Accessibility focus off the keyboard callback.
 enum WindowActivator {
-    private static let focusRetryDelay: TimeInterval = 0.12
+    private static let focusRetryDelay = WindowFocusHistory.switchConfirmationInterval
     private static let fullscreenFocusRetryDelays: [TimeInterval] = [0.18, 0.38, 0.68]
     fileprivate static let activationAXQueue = DispatchQueue(label: "com.vorssaint.switcher-activation-ax",
                                                                qos: .userInitiated)

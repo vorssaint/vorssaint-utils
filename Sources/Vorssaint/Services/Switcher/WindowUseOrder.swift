@@ -13,6 +13,23 @@ struct WindowFocusHistory {
         let id = UUID()
     }
 
+    struct Observation {
+        let windowID: CGWindowID
+        let previousWindowID: CGWindowID?
+        let confirmation: UUID
+        fileprivate let switchedAt: TimeInterval?
+    }
+
+    struct FrontAppFocus {
+        let windowID: CGWindowID?
+        let observedWindows: [CGWindowID]
+        let latest: Observation?
+        let recentSwitch: (windowID: CGWindowID, previousWindowID: CGWindowID)?
+    }
+
+    /// The first focus retry marks the end of the immediate switch handoff.
+    static let switchConfirmationInterval: TimeInterval = 0.12
+
     private enum Use: Equatable {
         case app(Request)
         case window(CGWindowID, Request? = nil)
@@ -21,23 +38,36 @@ struct WindowFocusHistory {
     private var recent: [Use] = []
     private(set) var current: Request?
     private(set) var revision = UUID()
-    private var lastFocus: (windowID: CGWindowID, confirmation: UUID)?
+    private var lastFocus: Observation?
 
-    func frontAppFocus(for pid: pid_t) -> (windowID: CGWindowID?, confirmation: UUID?, observedWindows: [CGWindowID]) {
+    func frontAppFocus(for pid: pid_t, now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> FrontAppFocus {
         let observed = recent.compactMap { use -> CGWindowID? in
             if case .window(let id, _) = use { return id }
             return nil
         }
-        guard let current, current.pid == pid, let lastFocus,
-              case let .window(id, request)? = recent.first, request == current,
-              id == lastFocus.windowID else { return (nil, nil, observed) }
-        return (lastFocus.windowID, lastFocus.confirmation, observed)
+        guard let current, current.pid == pid, let lastFocus else {
+            return FrontAppFocus(windowID: nil, observedWindows: observed, latest: nil, recentSwitch: nil)
+        }
+        // Reconciliation can omit a newly focused window. Keep its observation for
+        // invalidating older reads, but only offer a focus hint that is still present.
+        let present = recent.first == .window(lastFocus.windowID, current)
+        let recentSwitch: (CGWindowID, CGWindowID)?
+        if present, let switchedAt = lastFocus.switchedAt,
+           now >= switchedAt, now < switchedAt + Self.switchConfirmationInterval,
+           let previous = lastFocus.previousWindowID {
+            recentSwitch = (lastFocus.windowID, previous)
+        } else {
+            recentSwitch = nil
+        }
+        return FrontAppFocus(windowID: present ? lastFocus.windowID : nil, observedWindows: observed,
+                             latest: lastFocus, recentSwitch: recentSwitch)
     }
 
     mutating func activate(_ pid: pid_t, recording: Bool = true) -> Request? {
         if !recording, let current { invalidate(current.pid, keepingActivation: true) }
         invalidate(pid)
         current = recording ? Request(pid: pid) : nil
+        lastFocus = nil
         if let current {
             promote(.app(current))
         }
@@ -52,7 +82,10 @@ struct WindowFocusHistory {
                 return false
             }
             promote(.window(window, request))
-            lastFocus = (window, revision)
+            let sameWindow = lastFocus?.windowID == window
+            let previous = sameWindow ? lastFocus?.previousWindowID : lastFocus?.windowID
+            lastFocus = Observation(windowID: window, previousWindowID: previous,
+                                    confirmation: revision, switchedAt: sameWindow ? lastFocus?.switchedAt : nil)
             return true
         }
         // Keep the activation identity after its first answer, so an in-flight
@@ -79,7 +112,8 @@ struct WindowFocusHistory {
         return true
     }
 
-    mutating func switched(to window: CGWindowID?, pid: pid_t, previous: CGWindowID?) {
+    mutating func switched(to window: CGWindowID?, pid: pid_t, previous: CGWindowID?,
+                           now: TimeInterval = ProcessInfo.processInfo.systemUptime) {
         // Invalidate an AX read already in flight before the explicit switch.
         if let current { invalidate(current.pid, keepingActivation: previous == nil) }
         invalidate(pid)
@@ -88,9 +122,11 @@ struct WindowFocusHistory {
         if let previous { promote(.window(previous)) }
         if let window {
             promote(.window(window, request))
-            lastFocus = (window, revision)
+            lastFocus = Observation(windowID: window, previousWindowID: previous == window ? nil : previous,
+                                    confirmation: revision, switchedAt: now)
         } else {
             promote(.app(request))
+            lastFocus = nil
         }
     }
 
