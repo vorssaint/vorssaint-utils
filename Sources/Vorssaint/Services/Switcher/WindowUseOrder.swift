@@ -10,7 +10,16 @@ import Foundation
 struct WindowFocusHistory {
     struct Request: Equatable {
         let pid: pid_t
+        // A switch to a host's window may keep the keyboard in its embedded helper.
+        let focusPID: pid_t
         let id = UUID()
+
+        init(pid: pid_t, focusPID: pid_t? = nil) {
+            self.pid = pid
+            self.focusPID = focusPID ?? pid
+        }
+
+        func involves(_ pid: pid_t) -> Bool { self.pid == pid || focusPID == pid }
     }
 
     struct Observation {
@@ -40,12 +49,13 @@ struct WindowFocusHistory {
     private(set) var revision = UUID()
     private var lastFocus: Observation?
 
-    func frontAppFocus(for pid: pid_t, now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> FrontAppFocus {
+    func frontAppFocus(for pid: pid_t, appPID: pid_t? = nil,
+                       now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> FrontAppFocus {
         let observed = recent.compactMap { use -> CGWindowID? in
             if case .window(let id, _) = use { return id }
             return nil
         }
-        guard let current, current.pid == pid, let lastFocus else {
+        guard let current, current.focusPID == pid || current.pid == (appPID ?? pid), let lastFocus else {
             return FrontAppFocus(windowID: nil, observedWindows: observed, latest: nil, recentSwitch: nil)
         }
         // Reconciliation can omit a newly focused window. Keep its observation for
@@ -112,17 +122,20 @@ struct WindowFocusHistory {
         return true
     }
 
-    mutating func switched(to window: CGWindowID?, pid: pid_t, previous: CGWindowID?,
+    mutating func switched(to window: CGWindowID?, pid: pid_t, previous: CGWindowID?, focusPID: pid_t? = nil,
                            now: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        // Cross-app source windows belong in global history, outside the target app's focus pair.
+        let sameApp = focusPID != nil || current?.involves(pid) == true
         // Invalidate an AX read already in flight before the explicit switch.
         if let current { invalidate(current.pid, keepingActivation: previous == nil) }
         invalidate(pid)
-        let request = Request(pid: pid)
+        if let focusPID, focusPID != pid { invalidate(focusPID) }
+        let request = Request(pid: pid, focusPID: focusPID)
         current = request
         if let previous { promote(.window(previous)) }
         if let window {
             promote(.window(window, request))
-            lastFocus = Observation(windowID: window, previousWindowID: previous == window ? nil : previous,
+            lastFocus = Observation(windowID: window, previousWindowID: sameApp && previous != window ? previous : nil,
                                     confirmation: revision, switchedAt: now)
         } else {
             promote(.app(request))
@@ -145,7 +158,7 @@ struct WindowFocusHistory {
 
     mutating func terminated(_ pid: pid_t) {
         invalidate(pid)
-        if current?.pid == pid { current = nil }
+        if current?.involves(pid) == true { current = nil }
         revision = UUID()
     }
 
@@ -172,10 +185,10 @@ struct WindowFocusHistory {
         recent = recent.compactMap { use in
             switch use {
             case .app(let request):
-                guard request.pid == pid else { return use }
-                return keepingActivation ? .app(Request(pid: pid)) : nil
+                guard request.involves(pid) else { return use }
+                return keepingActivation ? .app(Request(pid: request.pid, focusPID: request.focusPID)) : nil
             case .window(let id, let request):
-                return request?.pid == pid ? .window(id) : use
+                return request?.involves(pid) == true ? .window(id) : use
             }
         }
     }

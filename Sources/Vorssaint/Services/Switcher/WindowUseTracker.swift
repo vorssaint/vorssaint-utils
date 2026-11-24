@@ -70,13 +70,13 @@ final class WindowUseTracker {
 
     var historyRevision: UUID { stateLock.withLock { focusHistory.revision } }
 
-    func frontAppFocus(for pid: pid_t) -> WindowFocusHistory.FrontAppFocus {
-        stateLock.withLock { focusHistory.frontAppFocus(for: pid) }
+    func frontAppFocus(for pid: pid_t, appPID: pid_t? = nil) -> WindowFocusHistory.FrontAppFocus {
+        stateLock.withLock { focusHistory.frontAppFocus(for: pid, appPID: appPID) }
     }
 
     func recordObservedFocus(windowID: CGWindowID, pid: pid_t) {
         stateLock.withLock {
-            guard recording, let request = focusHistory.current, request.pid == pid,
+            guard recording, let request = focusHistory.current, request.focusPID == pid,
                   focusHistory.focus(windowID, for: request) else { return }
             windowHistory = WindowUseOrder.promoting(windowID, in: windowHistory)
         }
@@ -91,10 +91,10 @@ final class WindowUseTracker {
     /// second-most-recent window, so a quick repeat toggles straight back.
     /// Applied immediately because the window server's order lags an
     /// activation by a frame or two, and a flick is faster than that.
-    func recordSwitch(to windowID: CGWindowID?, pid: pid_t, from previous: CGWindowID?) {
+    func recordSwitch(to windowID: CGWindowID?, pid: pid_t, from previous: CGWindowID?, focusPID: pid_t? = nil) {
         stateLock.withLock {
             guard recording else { return }
-            focusHistory.switched(to: windowID, pid: pid, previous: previous)
+            focusHistory.switched(to: windowID, pid: pid, previous: previous, focusPID: focusPID)
             windowHistory = WindowUseOrder.promoting(target: windowID,
                                                      previous: previous,
                                                      in: windowHistory)
@@ -373,7 +373,7 @@ final class WindowUseTracker {
         guard trusted else {
             return
         }
-        let pid = request.pid
+        let pid = request.focusPID
 
         var created: AXObserver?
         let application = AXUIElementCreateApplication(pid)
@@ -453,7 +453,7 @@ final class WindowUseTracker {
         guard stateLock.withLock({ recording && focusHistory.current == request }) else {
             return false
         }
-        let application = AXUIElementCreateApplication(request.pid)
+        let application = AXUIElementCreateApplication(request.focusPID)
         AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
         var value: CFTypeRef?
         let result = AXUIElementCopyAttributeValue(application, kAXFocusedWindowAttribute as CFString, &value)
@@ -485,7 +485,7 @@ final class WindowUseTracker {
         let current = (active != nil && observerMatches)
             ? tracker.stateLock.withLock({ tracker.focusHistory.current })
             : nil
-        let pidMatches = current.map { $0.pid == tracker.observedPID } ?? false
+        let pidMatches = current.map { $0.focusPID == tracker.observedPID } ?? false
         guard let request = current, pidMatches else {
             return
         }

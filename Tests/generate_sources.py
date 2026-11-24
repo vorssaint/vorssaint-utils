@@ -199,7 +199,7 @@ def main():
           + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift",
                         "    func reconcile(")
           + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    func recordSwitch(")
-              .replace("previous: previous)", "previous: previous, now: SwitcherHoverSelectionTests.Queue.time)", 1)
+              .replace("focusPID: focusPID)", "focusPID: focusPID, now: SwitcherHoverSelectionTests.Queue.time)", 1)
           + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    func recordObservedFocus(")
           + "}\n")
     (OUTPUT / "SwitcherWindowTitles.swift").unlink(missing_ok=True)
@@ -240,6 +240,7 @@ def main():
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowInventory.swift",
                         "final class SwitcherWindowInventory {")
               .replace("NSWorkspace.shared", "desktop").replace("NSApp.windows", "desktop.windows")
+              .replace("private func remove(pid:", "func remove(pid:")
               .replace("CGWindowListCopyWindowInfo(", "SwitcherRememberedSelectionTests.SessionOpening.windowInfo(")
               .replace("screenObservers = observeScreenChanges()",
                        "screenObservers = observeScreenChanges(in: desktop.notificationCenter)")
@@ -2197,9 +2198,6 @@ def main():
         raise ValueError("Expected one switcher tap publication before the run loop starts")
     publish_tap = worker.split(registration)[1].split(attach_source)[0]
     write("SwitcherHoverSelection.swift", "import AppKit\nimport Combine\n"
-          + "extension SwitcherHoverSelectionTests.Activator {\n"
-          + declaration(activator, "    static func confirmsWindow(")
-          + "}\n"
           + "extension SwitcherHoverSelectionTests {\n"
           + declaration(switcher_service, "private struct SwitcherSourceContext").replace("private struct", "struct", 1)
           + declaration(switcher_service, "    private enum KeyCode {").replace("private enum", "enum", 1)
@@ -2211,16 +2209,17 @@ def main():
           + "}\n"
           + declaration(switcher_service, "    @Published private(set) var selectedIndex").replace("private(set) ", "", 1)
           + declaration(switcher_service, "    private func beginPendingSession(").replace("private func", "func", 1)
+              .replace("CGEventSource.flagsState(.combinedSessionState)", "replayModifiers")
               .replace("UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)", "currentSpaceOnly")
               .replace("AXIsProcessTrusted()", "true")
           + declaration(switcher_service, "    private func readFrontAppWindows(")
               .replace("WindowEnumerator.", "FrontAppEnumerator.")
               .replace("UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)", "self.currentSpaceOnly")
               .replace("ProcessInfo.processInfo.systemUptime", "Queue.time")
-          + declaration(switcher_service, "    private func confirmFrontAppTarget(")
-              .replace("ProcessInfo.processInfo.systemUptime", "Queue.time")
           + declaration(switcher_service, "    private func finishPendingSession(").replace("private func", "func", 1)
-              .replace("CGEventSource.flagsState(.combinedSessionState)", "[]")
+              .replace("CGEventSource.flagsState(.combinedSessionState)", "replayModifiers")
+          + declaration(switcher_service, "    private func routeSecureInputHotKey(").replace("private func", "func", 1)
+              .replace("CFRunLoopPerformBlock(", "performCarbonBlock(").replace("CFRunLoopWakeUp(runLoop)", "")
           + declaration(switcher_service, "    private func route(type:").replace("private func", "func", 1)
               .replace("CGEvent.tapEnable(", "Tap.enable(")
               .replace("CFMachPortIsValid(", "Tap.isValid(")

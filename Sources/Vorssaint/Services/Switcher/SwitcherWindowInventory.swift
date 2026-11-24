@@ -44,7 +44,23 @@ final class SwitcherWindowInventory {
     private let titles = SwitcherWindowTitles()
 
     var onReady: (([SwitcherItem]) -> Void)?
-    var onWindowDestroyed: ((CGWindowID) -> Void)?
+    enum Removal: Hashable {
+        case window(CGWindowID)
+        case process(pid_t)
+
+        func matches(windowID: CGWindowID?, pid: pid_t, ownerPID: pid_t?) -> Bool {
+            switch self {
+            case .window(let id): return windowID == id
+            case .process(let exited): return pid == exited || ownerPID == exited
+            }
+        }
+
+        func removes(_ item: SwitcherItem) -> Bool {
+            matches(windowID: item.windowID, pid: item.pid, ownerPID: item.windowOwnerPID)
+        }
+    }
+
+    var onRemoval: ((Removal) -> Void)?
     private(set) var isReady = false
 
     func start() {
@@ -215,7 +231,7 @@ final class SwitcherWindowInventory {
             invalidate()
             return
         case .destroyed(let id):
-            onWindowDestroyed?(id)
+            onRemoval?(.window(id))
             windowID = id
         case .changed(let id), .focused(let id):
             windowID = id
@@ -269,6 +285,7 @@ final class SwitcherWindowInventory {
     }
 
     private func remove(pid: pid_t) {
+        onRemoval?(.process(pid))
         terminatedDuringRefresh.insert(pid)
         let removed = remembered.items.filter { $0.pid == pid || $0.windowOwnerPID == pid }
         let affectedPIDs = Set(removed.map(\.pid))

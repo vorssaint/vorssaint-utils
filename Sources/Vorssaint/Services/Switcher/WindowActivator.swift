@@ -722,20 +722,6 @@ enum WindowActivator {
         }
     }
 
-    /// Run on the session worker. A window missing from CG can still be published by its AX owner.
-    static func confirmsWindow(windowID: CGWindowID, ownerPID: pid_t, isCancelled: () -> Bool) -> Bool {
-        guard windowID != kCGNullWindowID, ownerPID > 0, !isCancelled() else { return false }
-        if let owner = WindowServerSupport.ownerProcessID(ofWindowID: windowID) {
-            return owner == ownerPID && !isCancelled()
-        }
-        guard !isCancelled(), AXIsProcessTrusted() else { return false }
-        let app = AXUIElementCreateApplication(ownerPID)
-        let deadline = ProcessInfo.processInfo.systemUptime + 0.35
-        guard let window = AXWindowResolver.publishedElement(for: windowID, in: app, deadline: deadline) else { return false }
-        var pid: pid_t = 0
-        return AXUIElementGetPid(window, &pid) == .success && pid == ownerPID && !isCancelled()
-    }
-
     private static func activateOwnWindow(_ item: SwitcherItem) {
         guard let windowID = item.windowID,
               let window = NSApp.windows.first(where: { $0.windowNumber == Int(windowID) }) else { return }
