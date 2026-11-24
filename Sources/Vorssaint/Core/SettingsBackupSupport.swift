@@ -210,6 +210,7 @@ enum SettingsBackupSupport {
         DefaultsKey.recorderSystemAudioTapVerified,
         DefaultsKey.fanControlRecoveryNeeded,
         DefaultsKey.fanControlInterruptedStop,
+        DefaultsKey.fanControlDismissedStop,
         DefaultsKey.fanControlHelperVersion,
         // Control left running on one Mac must not start fans on another.
         DefaultsKey.fanControlResumeConfiguration,

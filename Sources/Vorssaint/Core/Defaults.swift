@@ -469,6 +469,7 @@ enum DefaultsKey {
     // automatic fan control before this marker can be cleared.
     static let fanControlRecoveryNeeded = "fanControlRecoveryNeeded"
     static let fanControlInterruptedStop = "fanControlInterruptedStop"
+    static let fanControlDismissedStop = "fanControlDismissedStop"
     static let fanControlHelperVersion = "fanControlHelperVersion"
     // System monitor — per-metric history graphs (each independently toggleable).
     static let monitorGraphCPU = "monitorGraphCPU"

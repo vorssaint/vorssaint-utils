@@ -676,7 +676,8 @@ def main():
                     .replace("private var", "var", 1)
                     .replace("private func", "func", 1) for prefix in [
                         "    static func recoverIfNeeded(", "    func syncWithPreferences(",
-                        "    func returnToSystem(", "    func forgetResume(", "    func resumePreferenceDidChange(",
+                        "    func returnToSystem(", "    func forgetResume(", "    private func dismissStop(",
+                        "    func resumePreferenceDidChange(",
                         "    private static var resumableConfiguration:", "    private func resume(",
                         "    private static var helperAwaitsRegistration:",
                         "    private func rememberForResume(", "    private func stopIdleWorkIfPossible(",
@@ -694,8 +695,12 @@ def main():
           + "}\n}\n")
     write("FanControlRecovery.swift", "import Foundation\n"
           + "extension FanControlRecoveryContract {\nfinal class Controller: Fixture {\n"
+          + declaration("Sources/FanControlHelper/main.swift", "    private func applyConfiguration(session")
+              .replace("private func", "func", 1)
+              .replace("let control = FanControlHardware()", "let control = hardware", 1)
           + "".join(declaration("Sources/FanControlHelper/main.swift", prefix)
                     .replace("private func", "func", 1) for prefix in [
+                        "    private func updateActiveConfiguration(", "    private func finishFailedStart(",
                         "    private func requestedLevel(", "    private func performRestore(",
                         "    private func watchdogStopReason()",
                         "    private func watchdogTick()", "    private func stopWatchdogIfIdle()",

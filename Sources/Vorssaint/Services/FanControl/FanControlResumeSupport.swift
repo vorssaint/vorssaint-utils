@@ -29,6 +29,7 @@ extension FanControlConfiguration {
 
 enum FanControlInterruption: Equatable {
     case stopped(FanControlStopReason?)
+    case dismissed(FanControlStopReason?)
     case resumeFailed
 }
 

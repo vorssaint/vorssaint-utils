@@ -24,8 +24,18 @@ enum FanControlRecoveryContract {
         var checks = 0
         var isManual = true
         var controlIntact = true
+        var failNextRPMRead = false
         var temperatures = [FanControlTemperatureReading(source: .hottestSoC, celsius: 60)]
         var gpuPoweredDown = false
+
+        func validateAutomaticControl() throws {
+            if isManual { throw FanControlHardwareError.alreadyControlled }
+        }
+
+        func startCooling(level: Int) throws -> [FanControlFanReading] {
+            if writeError == .unsafeControlState { isManual = true }
+            return try updateCooling(level: level)
+        }
 
         func updateCooling(level: Int) throws -> [FanControlFanReading] {
             try holdCooling(level: level)
@@ -57,6 +67,10 @@ enum FanControlRecoveryContract {
 
         func snapshot(isCooling: Bool, endsAt: Date?, stopReason: FanControlStopReason?,
                       coolingLevel: Int?, configuration: FanControlConfiguration?) throws -> FanControlSnapshot {
+            if failNextRPMRead {
+                failNextRPMRead = false
+                throw FanControlHardwareError.operationFailed
+            }
             let fan = FanControlFanReading(index: 0, actualRPM: 1_800, minimumRPM: 1_200,
                                            maximumRPM: 5_800, targetRPM: 1_800, isManuallyControlled: isManual)
             return FanControlSnapshot(fans: [fan], isCooling: isCooling, endsAt: endsAt, stopReason: stopReason,
@@ -71,6 +85,7 @@ enum FanControlRecoveryContract {
         var canRemoveMarker = true
         func acquire() -> Bool { isHeld = true; return true }
         func markerExists() -> Bool { marker }
+        func createMarker() -> Bool { marker = true; return true }
         func removeMarker() -> Bool {
             if canRemoveMarker { marker = false }
             return canRemoveMarker
