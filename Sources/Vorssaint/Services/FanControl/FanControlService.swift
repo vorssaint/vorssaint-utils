@@ -20,9 +20,13 @@ final class FanControlService: ObservableObject {
     @Published private(set) var snapshot: FanControlSnapshot = .empty
     @Published private(set) var error: FanControlErrorCode?
     @Published private(set) var isWorking = false
-    /// Every retry of a kept control failed, so the fans stayed with the
-    /// system even though the card still shows the chosen manual speed or curve.
-    @Published private(set) var resumeFailed = false
+    @Published private(set) var interruption: FanControlInterruption? = {
+        if let dismissed = UserDefaults.standard.string(forKey: DefaultsKey.fanControlDismissedStop) {
+            return .dismissed(FanControlStopReason(rawValue: dismissed))
+        }
+        return UserDefaults.standard.string(forKey: DefaultsKey.fanControlInterruptedStop)
+            .flatMap(FanControlInterruption.init(storedStop:))
+    }()
 
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                     category: "FanControl")
@@ -32,7 +36,7 @@ final class FanControlService: ObservableObject {
     private var connection: NSXPCConnection?
     private var timer: Timer?
     private var panelIsVisible = false
-    private var requestInFlight = false
+    private var requestInFlight: FanControlRequest?
     private var requestGeneration = 0
     private var tickCount = 0
     private var registrationAttemptedVersion: String?
@@ -40,7 +44,6 @@ final class FanControlService: ObservableObject {
     private var resumeAttempt: DispatchWorkItem?
     private var resumeFailures = 0
     private var hadActiveControl = false
-    private var handoffInFlight = false
     private var recoveryPollInterval = 2
 
     // Kept until the next accepted Apply. An empty reason means the handoff
@@ -51,7 +54,7 @@ final class FanControlService: ObservableObject {
 
     // Reconstruct the pending handoff once at launch. A later manual Apply
     // sets the normal recovery marker for its own, separate request.
-    private(set) var awaitingSystemControl: Bool = {
+    @Published private(set) var awaitingSystemControl: Bool = {
         UserDefaults.standard.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
             && UserDefaults.standard.string(forKey: DefaultsKey.fanControlInterruptedStop) != nil
     }()
@@ -154,9 +157,9 @@ final class FanControlService: ObservableObject {
     }
 
     func applyConfiguration(_ configuration: FanControlConfiguration) {
-        guard !awaitingSystemControl else { return }
+        guard !isWorking, !awaitingSystemControl else { return }
         // The user's own choice replaces any resume still waiting to retry.
-        cancelResumeRetry()
+        cancelResumeRetry(keepingInterruption: interruptedStop != nil)
         applyConfiguration(configuration, resuming: false)
     }
 
@@ -177,7 +180,7 @@ final class FanControlService: ObservableObject {
         error = nil
         let retrySnapshot = snapshot
         startObservingSystemState()
-        let generation = beginRequest()
+        let generation = beginRequest(.apply)
         UserDefaults.standard.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
         isWorking = true
         send({ proxy, reply in
@@ -186,22 +189,24 @@ final class FanControlService: ObservableObject {
             guard self.finishRequest(generation, response: response) else { return }
             self.isWorking = false
             guard let response else {
-                self.restoreAutomatic()
-                if resuming { self.resumeDidFail(.helperUnavailable) }
+                // The helper may already have applied the setting. Its watchdog
+                // owns recovery, including when a different client connects.
+                self.observeFailedHandoff(nil)
                 return
             }
-            self.apply(response)
+            self.apply(response, request: .apply)
             if response.succeeded, response.snapshot.isCooling {
                 self.hadActiveControl = true
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlInterruptedStop)
+                UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlDismissedStop)
                 self.resumeFailures = 0
-                self.resumeFailed = false
+                self.interruption = nil
                 self.rememberForResume(configuration)
                 self.startTimerIfNeeded()
             } else {
                 self.restoreAutomatic(supersedingCurrentRequest: false,
                                       preserving: response.error ?? .controlFailed,
-                                      retrySnapshot: retrySnapshot)
+                                      retrySnapshot: retrySnapshot, resuming: resuming)
                 if resuming { self.resumeDidFail(response.error ?? .controlFailed, stopReason: response.snapshot.stopReason) }
             }
         }
@@ -212,8 +217,20 @@ final class FanControlService: ObservableObject {
     }
 
     func forgetResume() {
+        if let reason = snapshot.stopReason {
+            dismissStop(reason)
+        } else if case .stopped(let reason) = interruption {
+            dismissStop(reason)
+        } else if interruption == .applyFailed {
+            dismissStop(nil)
+        }
         UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlResumeConfiguration)
         cancelResumeRetry()
+    }
+
+    private func dismissStop(_ reason: FanControlStopReason?) {
+        interruption = .dismissed(reason)
+        UserDefaults.standard.set(reason?.rawValue ?? "", forKey: DefaultsKey.fanControlDismissedStop)
     }
 
     func returnToSystem() {
@@ -223,29 +240,42 @@ final class FanControlService: ObservableObject {
 
     private func restoreAutomatic(supersedingCurrentRequest: Bool,
                                   preserving failure: FanControlErrorCode? = nil,
-                                  retrySnapshot: FanControlSnapshot? = nil) {
+                                  retrySnapshot: FanControlSnapshot? = nil,
+                                  resuming: Bool = false) {
         if awaitingSystemControl { startTimerIfNeeded(); return }
-        guard !handoffInFlight, supersedingCurrentRequest || !isWorking else { return }
+        guard requestInFlight != .restore, supersedingCurrentRequest || !isWorking else { return }
+        if requestInFlight == .apply {
+            // Disconnect only our session when sleep or disabling the feature
+            // supersedes an Apply whose result is still unknown.
+            requestGeneration += 1
+            requestInFlight = nil
+            observeFailedHandoff(nil)
+            connection?.invalidate()
+            connection = nil
+            return
+        }
         refreshAccessState()
         guard accessState == .enabled else { return }
-        let generation = beginRequest()
-        handoffInFlight = hadActiveControl
+        let generation = beginRequest(.restore)
         isWorking = true
         startTimerIfNeeded()
         send { proxy, reply in proxy.restoreAutomatic(withReply: reply) } completion: { response in
-            self.handoffInFlight = false
             guard self.finishRequest(generation, response: response) else { return }
             self.isWorking = false
             if self.hadActiveControl, response?.succeeded != true || response?.snapshot.isCooling == true {
                 self.observeFailedHandoff(response?.snapshot.stopReason)
             }
             guard let response else { return }
-            self.apply(response)
+            self.apply(response, request: .restore)
             if response.succeeded, !response.snapshot.isCooling {
                 if self.snapshot.fans.isEmpty, let retrySnapshot {
                     self.snapshot.fans = retrySnapshot.fans
                 }
-                if let failure { self.error = failure }
+                if failure == .controlFailed, !resuming {
+                    self.interruption = .applyFailed
+                } else if let failure {
+                    self.error = failure
+                }
                 self.finishSystemHandoff()
             }
         }
@@ -272,14 +302,14 @@ final class FanControlService: ObservableObject {
     }
 
     private func restoreBeforeTermination() {
-        if awaitingSystemControl {
-            // Another connection may own the fans. Leave confirmation to the
-            // next launch, including when a reply from this one is in flight.
-            timer?.invalidate()
-            timer = nil
-            requestGeneration += 1
-            requestInFlight = false
-        } else {
+        if requestInFlight == .apply { observeFailedHandoff(nil) }
+        // Stop monitoring before intentionally closing our own session.
+        timer?.invalidate()
+        timer = nil
+        requestGeneration += 1
+        requestInFlight = nil
+        hadActiveControl = false
+        if !awaitingSystemControl {
             send { proxy, reply in proxy.restoreAutomatic(withReply: reply) } completion: { response in
                 if let response, response.succeeded, !response.snapshot.isCooling {
                     UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
@@ -429,10 +459,11 @@ final class FanControlService: ObservableObject {
         return resume(configuration)
     }
 
-    private func cancelResumeRetry() {
+    private func cancelResumeRetry(keepingInterruption: Bool = false) {
         cancelResumeAttempt()
         resumeFailures = 0
-        resumeFailed = false
+        if case .dismissed = interruption { return }
+        if !keepingInterruption { interruption = nil }
     }
 
     /// One refused resume used to leave the fans on System for good while the
@@ -442,7 +473,7 @@ final class FanControlService: ObservableObject {
         guard (failure == .controlFailed || failure == .helperUnavailable),
               stopReason != .hardwareChanged, stopReason != .temperatureUnavailable,
               stopReason != .thermalPressure else {
-            resumeFailed = true
+            interruption = .resumeFailed
             return
         }
         Self.log.error("Fan control resume attempt \(self.resumeFailures + 1) failed: \(failure.rawValue, privacy: .public)")
@@ -451,7 +482,7 @@ final class FanControlService: ObservableObject {
 
     private func scheduleResumeRetry() {
         guard let delay = FanControlResumePolicy.retryDelay(afterFailures: resumeFailures) else {
-            resumeFailed = true
+            interruption = .resumeFailed
             Self.log.error("Fan control resume gave up; the fans stay with the system")
             return
         }
@@ -467,28 +498,32 @@ final class FanControlService: ObservableObject {
             return
         }
         guard !snapshot.isCooling else { return }
-        if !resume(configuration) { resumeFailed = true }
+        if !resume(configuration) { interruption = .resumeFailed }
     }
 
     /// Both panel refreshes and heartbeats can be the first to see a stopped session.
     private func applyStatus(_ response: FanControlResponse) {
-        let wasCooling = snapshot.isCooling
+        let wasControlling = hadActiveControl
         apply(response)
         guard response.succeeded, !response.snapshot.isCooling else { return }
         if awaitingSystemControl {
+            // Status confirms automatic control. Its last stop is global to all clients.
             isWorking = false
             finishSystemHandoff()
             return
         }
         UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
         stopIdleWorkIfPossible()
-        guard wasCooling, Self.resumableConfiguration != nil else { return }
-        if response.snapshot.stopReason == .heartbeatLost {
+        guard wasControlling else { return }
+        guard Self.resumableConfiguration != nil else {
+            interruption = snapshot.stopReason.map(FanControlInterruption.stopped)
+            return
+        }
+        if snapshot.stopReason == .heartbeatLost {
             scheduleResumeRetry()
         } else {
-            // A protection stop or an unknown reason leaves control with macOS.
             cancelResumeAttempt()
-            resumeFailed = true
+            interruption = .stopped(snapshot.stopReason)
         }
     }
 
@@ -524,7 +559,7 @@ final class FanControlService: ObservableObject {
     // MARK: - Requests
 
     private func requestStatus() {
-        guard !requestInFlight else { return }
+        guard requestInFlight == nil else { return }
         let generation = beginRequest()
         send { proxy, reply in proxy.status(withReply: reply) } completion: { response in
             guard self.finishRequest(generation, response: response), let response else { return }
@@ -552,7 +587,7 @@ final class FanControlService: ObservableObject {
             DispatchQueue.main.async {
                 if self?.connection === failedConnection {
                     failedConnection.invalidate()
-                    self?.connection = nil
+                    self?.connectionLost(failedConnection)
                 }
                 finish(nil)
             }
@@ -575,13 +610,13 @@ final class FanControlService: ObservableObject {
                 DispatchQueue.main.async {
                     guard let connection, self?.connection === connection else { return }
                     connection.invalidate()
-                    self?.connection = nil
+                    self?.connectionLost(connection)
                 }
             }
             connection.invalidationHandler = { [weak self, weak connection] in
                 DispatchQueue.main.async {
                     guard let connection else { return }
-                    if self?.connection === connection { self?.connection = nil }
+                    self?.connectionLost(connection)
                 }
             }
             connection.activate()
@@ -592,8 +627,24 @@ final class FanControlService: ObservableObject {
             as? FanControlXPCProtocol
     }
 
+    private func connectionLost(_ lost: NSXPCConnection) {
+        guard connection === lost else { return }
+        connection = nil
+        let request = requestInFlight
+        guard hadActiveControl || request != nil else { return }
+        // The helper ties ownership to the connection, even between requests.
+        // A replacement can confirm automatic control but cannot identify our stop.
+        _ = finishRequest(requestGeneration, response: nil)
+        requestGeneration += 1
+        if hadActiveControl || request == .apply {
+            observeFailedHandoff(nil)
+        } else if request == .restore {
+            isWorking = false
+        }
+    }
+
     private func heartbeat() {
-        guard snapshot.isCooling, !requestInFlight, !isWorking else { return }
+        guard snapshot.isCooling, requestInFlight == nil, !isWorking else { return }
         let generation = beginRequest()
         send { proxy, reply in proxy.heartbeat(withReply: reply) } completion: { response in
             guard self.finishRequest(generation, response: response), let response else { return }
@@ -601,23 +652,45 @@ final class FanControlService: ObservableObject {
         }
     }
 
-    private func apply(_ response: FanControlResponse) {
-        if hadActiveControl, response.error == .controlFailed, !response.snapshot.isCooling {
-            observeFailedHandoff(response.snapshot.stopReason)
+    private func apply(_ response: FanControlResponse, request: FanControlRequest = .read) {
+        // An idle helper may have lost its history. Rearm the notice only
+        // when a new session or a different reported stop is observed.
+        let reason = response.snapshot.stopReason
+        if !awaitingSystemControl, response.succeeded, case .dismissed(let dismissed) = interruption {
+            if response.snapshot.isCooling || (dismissed != nil && reason != nil && reason != dismissed) {
+                if interruptedStop != nil {
+                    UserDefaults.standard.set(FanControlInterruption.acknowledgedStop,
+                                              forKey: DefaultsKey.fanControlInterruptedStop)
+                }
+                UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlDismissedStop)
+                interruption = nil
+            } else if dismissed == nil, let reason {
+                dismissStop(reason)
+            }
+        }
+        // A first Apply can also leave partially changed hardware with the watchdog.
+        if !awaitingSystemControl, response.error == .controlFailed, !response.snapshot.isCooling,
+           hadActiveControl || (request != .read && reason == .recovery) {
+            // A refused first Apply can echo an old .recovery after rolling back.
+            let manual = response.snapshot.fans.contains(where: \.isManuallyControlled)
+            if hadActiveControl || manual {
+                observeFailedHandoff(reason)
+            } else {
+                observeFailedHandoff(nil, applyFailed: request == .apply)
+            }
         }
         if !response.snapshot.isCooling || response.error == .alreadyControlled { hadActiveControl = false }
         snapshot = response.snapshot
-        if !snapshot.isCooling, let interruptedStop {
-            snapshot.stopReason = FanControlStopReason(rawValue: interruptedStop)
-            resumeFailed = snapshot.stopReason == nil
-        }
         error = response.error
     }
 
-    private func observeFailedHandoff(_ reason: FanControlStopReason?) {
-        hadActiveControl = false
+    private func observeFailedHandoff(_ reason: FanControlStopReason?, applyFailed: Bool = false) {
         awaitingSystemControl = true
-        UserDefaults.standard.set(reason?.rawValue ?? "", forKey: DefaultsKey.fanControlInterruptedStop)
+        interruption = applyFailed ? .applyFailed : .stopped(reason)
+        hadActiveControl = false
+        let stored = applyFailed ? FanControlInterruption.refusedApply : reason?.rawValue ?? ""
+        UserDefaults.standard.set(stored, forKey: DefaultsKey.fanControlInterruptedStop)
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlDismissedStop)
         UserDefaults.standard.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
         UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlResumeConfiguration)
         cancelResumeAttempt()
@@ -626,15 +699,15 @@ final class FanControlService: ObservableObject {
         startTimerIfNeeded()
     }
 
-    private func beginRequest() -> Int {
+    private func beginRequest(_ request: FanControlRequest = .read) -> Int {
         requestGeneration += 1
-        requestInFlight = true
+        requestInFlight = request
         return requestGeneration
     }
 
     private func finishRequest(_ generation: Int, response: FanControlResponse?) -> Bool {
         guard generation == requestGeneration else { return false }
-        requestInFlight = false
+        requestInFlight = nil
         if response == nil {
             var last = snapshot
             last.temperatures = nil
@@ -790,7 +863,7 @@ final class FanControlService: ObservableObject {
     private func poll() {
         tickCount += 1
         if awaitingSystemControl {
-            guard !requestInFlight, tickCount.isMultiple(of: recoveryPollInterval) else { return }
+            guard requestInFlight == nil, tickCount.isMultiple(of: recoveryPollInterval) else { return }
             refreshAccessState()
             if accessState == .enabled { requestStatus() }
             recoveryPollInterval = min(recoveryPollInterval * 2, 60)

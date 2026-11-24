@@ -478,6 +478,7 @@ enum DefaultsKey {
     // automatic fan control before this marker can be cleared.
     static let fanControlRecoveryNeeded = "fanControlRecoveryNeeded"
     static let fanControlInterruptedStop = "fanControlInterruptedStop"
+    static let fanControlDismissedStop = "fanControlDismissedStop"
     static let fanControlHelperVersion = "fanControlHelperVersion"
     // System monitor — per-metric history graphs (each independently toggleable).
     static let monitorGraphCPU = "monitorGraphCPU"
@@ -722,10 +723,19 @@ enum DefaultsKey {
     static let scratchpadDocument = "scratchpadDocument"     // Data: ScratchpadDocument JSON, including named tabs
     static let scratchpadTextSize = "scratchpadTextSize"     // pad-wide point size (ScratchpadSupport.textSizeRange)
     static let micMuteActive = "micMuteActive"               // mic muted by the app (survives relaunch)
+    static let micMuteReleasePending = "micMuteReleasePending" // Mute request UUID or true for release. Older stores used false or micMuteActive.
+    static let micMuteReleasedUIDs = "micMuteReleasedUIDs"   // legacy list of verified releases awaiting cleanup
     static let micMuteSavedVolume = "micMuteSavedVolume"     // input volume to restore on unmute (pre 3.2.0 state)
     static let micMuteSavedVolumes = "micMuteSavedVolumes"   // [device uid: input volume] to restore on unmute
     static let micMuteSavedChannelVolumes = "micMuteSavedChannelVolumes" // [device uid: [channel: input volume]] to restore on unmute
-    static let micMuteSavedControls = "micMuteSavedControls" // [device uid: [selector:element: original value]] pending restoration
+    // Per UID, a dictionary holds restore targets and "changing" marks a write with an unknown result.
+    // A release checkpoint also records which targets still lack a reliable readback.
+    static let micMuteSavedControls = "micMuteSavedControls"
+    // Channel elements to preserve on a pending master restore, by UID.
+    static let micMuteProtectedChannels = "micMuteProtectedChannels"
+    static let micMutePendingLegacyControls = "micMutePendingLegacyControls" // unresolved pre-3.2 default input and its controls
+    static let micMuteMixerHandoffUID = "micMuteMixerHandoffUID" // legacy UID of an interrupted mixer handoff
+    static let micMuteManualCheckNeeded = "micMuteManualCheckNeeded" // previous input settings need a manual check
     static let micMuteMutedDevices = "micMuteMutedDevices"   // uids of the devices this app muted
     static let micMuteMenuBarIndicator = "micMuteMenuBarIndicator" // badge the status icon while muted
     static let quickLauncherShortcutEnabled = "quickLauncherShortcutEnabled"
@@ -2204,7 +2214,6 @@ enum Defaults {
         DefaultsKey.scratchpadBackgroundOpacity: 0.0,
         DefaultsKey.scratchpadTextSize: ScratchpadSupport.defaultTextSize,
         DefaultsKey.micMuteActive: false,
-        DefaultsKey.micMuteSavedVolume: 0.75,
         DefaultsKey.micMuteMenuBarIndicator: true,  // owner's call: on by default in 3.1.8 (badge only shows while muted)
         DefaultsKey.quickLauncherShortcutEnabled: true,
         DefaultsKey.quickLauncherShortcut: GlobalShortcut.quickLauncherDefault.storageValue,

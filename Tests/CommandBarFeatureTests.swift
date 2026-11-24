@@ -168,6 +168,7 @@ enum CommandBarFeatureTests {
     }
 
     static func run(_ suite: TestSuite) {
+        CommandBarMicMuteTests.run(suite)
         CommandBarInputSourceContract.run(suite)
         CommandBarTerminationContract.run(suite)
         CommandBarAppSortContract.run(suite)

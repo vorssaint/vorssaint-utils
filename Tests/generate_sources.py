@@ -688,6 +688,15 @@ def main():
                     .replace("private func", "func", 1) for prefix in ["    private func apply()", "    private func receive("])
           + "}\n}\n")
     fan_control = "Sources/Vorssaint/Services/FanControl/FanControlService.swift"
+    fan_panel = "Sources/Vorssaint/UI/MenuPanel"
+    write("FanControlCard.swift", (ROOT / fan_panel / "FanControlCurveEditor.swift").read_text()
+          + "\nextension FanControlResumeContract {\ntypealias FanControlService = Service\n"
+          + declaration(fan_panel + "/FanControlSection.swift", "struct FanControlCardContent:")
+          + "struct Section {\nlet service: Service\n@Binding var modeRaw: String\n"
+          + declaration(fan_panel + "/FanControlSection.swift", "    private var modeBinding:")
+              .replace("private var modeBinding:", "var modeBinding:", 1)
+          + "}\n"
+          + "}\n")
     write("FanControlResume.swift", "import Foundation\n"
           + "extension FanControlResumeContract {\n"
           + declaration("Sources/Vorssaint/Services/FanControl/FanControlXPC.swift", "enum FanControlIPC {")
@@ -696,14 +705,17 @@ def main():
           .replace("applyConfiguration(configuration, resuming:", "sendConfiguration(configuration, resuming:", 1)
           + declaration(fan_control, "    private func applyConfiguration(_ configuration:")
           .replace("private func applyConfiguration", "func sendConfiguration", 1)
-          + declaration(fan_control, "    private(set) var awaitingSystemControl:", closing="}()")
+          + "".join(declaration(fan_control, prefix, closing="}()").replace("@Published ", "", 1)
+                    for prefix in ["    @Published private(set) var awaitingSystemControl:",
+                                   "    @Published private(set) var interruption:"])
           + "".join(declaration(fan_control, prefix)
                     .replace("@objc private func", "func", 1)
                     .replace("private static var", "static var", 1)
                     .replace("private var", "var", 1)
                     .replace("private func", "func", 1) for prefix in [
                         "    static func recoverIfNeeded(", "    func syncWithPreferences(",
-                        "    func returnToSystem(", "    func forgetResume(", "    func resumePreferenceDidChange(",
+                        "    func returnToSystem(", "    func forgetResume(", "    private func dismissStop(",
+                        "    func resumePreferenceDidChange(",
                         "    private static var resumableConfiguration:", "    private func resume(",
                         "    private static var helperAwaitsRegistration:",
                         "    private func rememberForResume(", "    private func stopIdleWorkIfPossible(",
@@ -717,15 +729,22 @@ def main():
                         "    private func restoreThenUnregister()",
                         "    private func finishSystemHandoff()", "    private func startTimerIfNeeded()",
                         "    private func observeFailedHandoff(", "    private func poll(", "    private func heartbeat(",
-                        "    private func requestStatus(", "    private func beginRequest(", "    private func finishRequest("])
+                        "    private func requestStatus(", "    private func connectionLost(",
+                        "    private func beginRequest(", "    private func finishRequest("])
           + "}\n}\n")
     write("FanControlRecovery.swift", "import Foundation\n"
           + "extension FanControlRecoveryContract {\nfinal class Controller: Fixture {\n"
+          + declaration("Sources/FanControlHelper/main.swift", "    func connectionClosed(")
+          + declaration("Sources/FanControlHelper/main.swift", "    private func applyConfiguration(session")
+              .replace("private func", "func", 1)
+              .replace("let control = FanControlHardware()", "let control = hardware", 1)
           + "".join(declaration("Sources/FanControlHelper/main.swift", prefix)
                     .replace("private func", "func", 1) for prefix in [
+                        "    private func updateActiveConfiguration(", "    private func finishFailedStart(",
                         "    private func requestedLevel(", "    private func performRestore(",
                         "    private func watchdogStopReason()",
-                        "    private func watchdogTick()", "    private func stopWatchdogIfIdle()"])
+                        "    private func watchdogTick()", "    private func stopWatchdogIfIdle()",
+                        "    private func statusResponse()", "    private func currentSnapshot()"])
           + "}\n}\n")
     fan_hardware = "Sources/Vorssaint/Services/FanControl/FanControlHardware.swift"
     write("FanControlHardwareContract.swift", "import Foundation\nextension FanControlHardwareContract {\n"
@@ -952,6 +971,19 @@ def main():
           + "extension CommandBarFeatureTests.CatalogBuildHost {\n"
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
                         "    static func build(")
+          + "}\n")
+    catalog_source = "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift"
+    write("CommandBarMicrophone.swift", "import Foundation\nimport Combine\n"
+          + "extension CommandBarMicMuteTests.CommandBarCatalog {\n"
+          + "static func build(automationDenied: Bool) -> [CommandBarEntry] {\n"
+          + "let s = Strings.enUS\nvar entries: [CommandBarEntry] = []\n"
+          + declaration(catalog_source, "        if AppFeature.micMute.isAvailable {")
+          + "return entries\n}\n}\nextension CommandBarMicMuteTests.Bar {\n"
+          + "".join(declaration(bar, prefix).replace("private ", "", 1) for prefix in [
+              "    private func rebuildCatalog(", "    private func scheduleAnswerRefresh(",
+              "    private func browseGroup("])
+          + declaration("Sources/Vorssaint/UI/CommandBar/CommandBarView.swift", "    private func accessibilityLabel(")
+              .replace("private ", "", 1)
           + "}\n")
     write("CommandBarCatalogSearch.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
@@ -1385,9 +1417,13 @@ def main():
                         "    private func applyMonitorVolumeKey("])
           + "}\n}\n")
     mixer_section = "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift"
-    write("MixerPercentKey.swift", "import Foundation\nextension MixerPercentKeyTests {\nfinal class Coordinator: Fixture {\n"
+    write("MixerPercentKey.swift", "import AppKit\nimport SwiftUI\nextension MixerPercentKeyTests {\nfinal class Coordinator: Fixture {\n"
           + "".join(declaration(mixer_section, prefix).replace("private func", "func", 1) for prefix in [
-              "        private func startMonitoringEscape()", "        private func finish("])
+              "        private func startMonitoringEscape()", "        private func finish(",
+              "        func controlTextDidEndEditing(", "        func control(_ control: NSControl,"])
+          + "}\nfinal class Editor: EditorFixture {\n"
+          + "".join(declaration(mixer_section, prefix).replace("private func", "func", 1) for prefix in [
+              "    private func beginEditing()", "    private func commit() -> Bool"])
           + "}\n}\n")
     cleaner = "Sources/Vorssaint/Services/Cleaner/JunkCleaner.swift"
     write("CleanerEligibilityBodies.swift", "import Foundation\nextension CleanerEligibilityTests {\n"
@@ -2353,7 +2389,8 @@ def main():
           + "}\nstruct Tile {\nvar keepAwake = State()\nvar micMute = State()\nvar recorder = State()\n"
           + declaration(view, "    private func icon(for item: QuickLauncherItem)")
           + declaration(view, "    private func isActive(_ item: QuickLauncherItem)")
-          + "func display(_ item: QuickLauncherItem) -> (String, Bool) { (icon(for: item), isActive(item)) }\n}\n}\n")
+          + "func display(_ item: QuickLauncherItem) -> (String, Bool) { (icon(for: item), isActive(item)) }\n}\n}\n"
+          + "extension QuickLauncherContract.State {\n" + declaration(mute_source, "    var controlSymbol:") + "}\n")
     # The panel's tabs and the rows they hold, as shipped. PanelOrderItem is
     # declared once, in QuickLauncherBodies.swift above.
     menu_panel = "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift"
