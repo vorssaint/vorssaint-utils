@@ -1253,6 +1253,7 @@ extension AppFeature {
         case .superKey: return FeatureStrings.superKey(L10n.shared.language).hubDescription
         case .mouseClickDebounce:
             return FeatureStrings.mouseClickDebounce(L10n.shared.language).caption
+        case .menuBarOrganizer: return MenuBarOrganizerStrings.localized(L10n.shared.language).enabledCaption
         case .clipboardHistory: return hub.descClipboardHistory
         case .pastePlain: return hub.descPastePlain
         case .finderCutPaste: return hub.descFinderCutPaste

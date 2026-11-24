@@ -212,6 +212,7 @@ extension AppFeature {
         case .commandBar: return "command"
         case .killProcess: return "xmark.octagon"
         case .portManager: return "network"
+        case .menuBarOrganizer: return "menubar.rectangle"
         case .monitorCPU: return "cpu"
         case .monitorGPU: return "rectangle.connected.to.line.below"
         case .monitorMemory: return "memorychip"
@@ -288,6 +289,7 @@ extension AppFeature {
         case .notch: return [DefaultsKey.notchEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .clipboardHistory: return [DefaultsKey.clipboardHistoryEnabled]
+        case .menuBarOrganizer: return [DefaultsKey.menuBarOrganizerEnabled]
         case .pastePlain: return [DefaultsKey.pastePlainEnabled]
         case .finderCutPaste: return [DefaultsKey.finderCutPasteEnabled,
                                       DefaultsKey.finderPasteImageAsFile]
@@ -378,6 +380,7 @@ extension AppFeature {
              // caret, all of it through Accessibility.
              .commandBar:
             return [.accessibility]
+        case .menuBarOrganizer: return [.accessibility]
         case .finderCutPaste: return [.accessibility, .automationFinder]
         case .finderRename: return [.accessibility]
         // Only emptying the Trash asks the Finder; every other quick toggle
