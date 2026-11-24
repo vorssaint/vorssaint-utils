@@ -1602,14 +1602,14 @@ enum SwitcherHoverSelectionTests {
         enum Opening: CaseIterable {
             case announced, warm, escape, otherDisplay, changedSpace, earlierScan
             case captured, publishedBeforeOpening, backgroundWindow, newerFocus, closedSourceDuringDelivery
-            case observedFocus, observedBeforeNotice, windowServerFocus, unlistedInspector, backgroundWithoutAX
+            case observedFocus, observedBeforeNotice, escapeBeforeNotice, windowServerFocus, unlistedInspector, backgroundWithoutAX
             case unrelatedDiscoveryBeforeNotice, unrelatedDiscoveryAfterNotice
 
             var announcesWindow: Bool { self != .warm && self != .unlistedInspector }
             var hasUnrelatedDiscovery: Bool { self == .unrelatedDiscoveryBeforeNotice || self == .unrelatedDiscoveryAfterNotice }
-            var observesBeforeNotice: Bool { self == .observedBeforeNotice || hasUnrelatedDiscovery }
+            var observesBeforeNotice: Bool { self == .observedBeforeNotice || self == .escapeBeforeNotice || hasUnrelatedDiscovery }
             var groupedOnly: Bool {
-                observesBeforeNotice || [.observedFocus, .windowServerFocus, .unlistedInspector, .backgroundWithoutAX].contains(self)
+                hasUnrelatedDiscovery || [.observedFocus, .windowServerFocus, .backgroundWithoutAX].contains(self)
             }
         }
 
@@ -1678,8 +1678,10 @@ enum SwitcherHoverSelectionTests {
             let shortcut = mode.shortcut
             let service = Service(), inventory = Desktop.SwitcherWindowInventory()
             let previousInventoryApp = Desktop.desktop.frontmostApplication
+            let previousRows = FrontAppEnumerator.capturedRows
             defer {
                 Desktop.desktop.frontmostApplication = previousInventoryApp
+                FrontAppEnumerator.capturedRows = previousRows
                 inventory.stop()
                 Work.discoveries.reset()
                 Work.scans.reset()
@@ -1728,9 +1730,14 @@ enum SwitcherHoverSelectionTests {
                     Desktop.Events.shared.deliver?(.focused(3))
                 }
             }
-            if mode.showsApps {
+            if !mode.showsApps && opening == .unlistedInspector {
+                // The WindowServer includes the floating inspector. Only B and A are switchable.
+                FrontAppEnumerator.capturedRows = [FrontAppEnumerator.stackRow(window(93), layer: 3),
+                                                   FrontAppEnumerator.stackRow(b), FrontAppEnumerator.stackRow(a)]
+            }
+            if mode.showsApps || opening.observesBeforeNotice || opening == .unlistedInspector {
                 service.useTracker = .shared
-                suite.expect(Desktop.WindowActivator.focusReads.isEmpty, "\(mode) stays idle before the grouped shortcut")
+                suite.expect(Desktop.WindowActivator.focusReads.isEmpty, "\(mode) stays idle before the shortcut")
                 if opening.observesBeforeNotice || [.observedFocus, .unlistedInspector].contains(opening) {
                     guard let request = history.focusHistory.current else {
                         suite.expect(false, "the source app has a focus observer")
@@ -1745,7 +1752,7 @@ enum SwitcherHoverSelectionTests {
                     let accepted = history.readFocusedWindow(for: request)
                     tracker.history = history.windows
                     suite.expect(accepted && tracker.history.first == id && !inventory.knownWindowIDs.contains(id),
-                                 "the source observer reports focus before the grouped inventory lists the window")
+                                 "the source observer reports focus on a window absent from the inventory")
                     Desktop.WindowActivator.focusReads = []
                 }
                 if opening.hasUnrelatedDiscovery { Desktop.Events.shared.deliver?(.changed(99)) }
@@ -1763,6 +1770,15 @@ enum SwitcherHoverSelectionTests {
                              "C was captured for its owner and awaits adoption")
             }
 
+            let historyBeforePress = tracker.history, focusBeforePress = history.focusHistory.revision
+            func deliverWork() {
+                Work.discoveries.drain()
+                Work.main.deliveries.drain()
+                captureRefresh()
+                Work.main.deliveries.drain()
+                service.frontAppReadQueue.drain()
+                Queue.advance(to: Queue.time)
+            }
             _ = service.route(type: .keyDown, event: key(CGKeyCode(shortcut.keyCode), flags: shortcut.modifiers.cgFlags))
             let generation = service.sessionStartGeneration
             if opening == .publishedBeforeOpening {
@@ -1772,7 +1788,55 @@ enum SwitcherHoverSelectionTests {
                 Work.main.deliveries.drain()
             }
             Queue.advance(to: Queue.time)
-            if opening == .escape {
+            if opening == .unlistedInspector && mode == .allWindowsSimple {
+                func press() {
+                    _ = service.route(type: .keyDown, event: key(CGKeyCode(shortcut.keyCode), flags: shortcut.modifiers.cgFlags))
+                    Queue.advance(to: Queue.time)
+                }
+                func cancel() {
+                    _ = service.route(type: .keyDown, event: key(CGKeyCode(KeyCode.escape), flags: shortcut.modifiers.cgFlags))
+                    _ = service.route(type: .flagsChanged, event: release)
+                    deliverWork()
+                }
+                Work.scans.drain()
+                suite.expect(FrontAppEnumerator.reads == [pid] && service.routePendingSessionStart?.generation == generation,
+                             "the inspector scan finishes before Escape cancels its pending shortcut")
+                cancel()
+                press()
+                suite.expect(service.sessionActive && Work.scans.pending.isEmpty,
+                             "the same inspector observation opens the second shortcut without another scan")
+                cancel()
+                suite.expect(FrontAppEnumerator.reads == [pid] && Activator.activated == before && service.recordedIDs.isEmpty
+                             && tracker.history == historyBeforePress && history.focusHistory.revision == focusBeforePress,
+                             "both cancelled shortcuts leave window use and focus history untouched")
+
+                FrontAppEnumerator.items = [c, b, a]
+                FrontAppEnumerator.capturedRows = nil
+                Desktop.WindowActivator.focusedWindow = c.windowID
+                WindowUseTracker.shared.recordObservedFocus(windowID: 3, pid: pid)
+                press()
+                _ = service.route(type: .flagsChanged, event: release)
+                deliverWork()
+                suite.expect(FrontAppEnumerator.reads == [pid, pid] && Activator.activated == before + [b.id]
+                             && Activator.lastSourceWindowID == c.windowID && service.recordedIDs == [b.id],
+                             "a new observation still scans C's app and switches from C to B")
+
+                FrontAppEnumerator.items.append(window(93))
+                Desktop.Events.shared.deliver?(.changed(93))
+                deliverWork()
+                suite.expect(FrontAppEnumerator.reads == [pid, pid, pid] && inventory.knownWindowIDs.contains(93),
+                             "a window notification can admit the formerly excluded ID once it becomes switchable")
+                continue
+            }
+            if opening == .escapeBeforeNotice {
+                Work.discoveries.drain()
+                Work.main.deliveries.drain()
+                Work.scans.drain()
+                suite.expect(FrontAppEnumerator.reads == [pid] && !inventory.contains(c)
+                             && service.routePendingSessionStart?.generation == generation,
+                             "Escape arrives after C's scan, before its result reaches the pending shortcut")
+            }
+            if opening == .escape || opening == .escapeBeforeNotice {
                 suite.expect(service.route(type: .keyDown, event: key(CGKeyCode(KeyCode.escape), flags: shortcut.modifiers.cgFlags)) == nil,
                              "Escape cancels the shortcut while discovery is pending")
             }
@@ -1834,6 +1898,36 @@ enum SwitcherHoverSelectionTests {
                 suite.expect(Activator.activated == before + [d.id, source.id] && service.recordedIDs == [d.id, source.id]
                              && Desktop.WindowActivator.focusReads.isEmpty && !service.keyboardInputOwnership.isOwned,
                              "\(label) returns from D to the original focused window with All Windows")
+                continue
+            }
+            if opening.observesBeforeNotice || opening == .unlistedInspector {
+                let label = "\(mode) \(opening)"
+                let cancelled = opening == .escapeBeforeNotice, inspector = opening == .unlistedInspector
+                let source = inspector ? b : c, target = inspector ? a : b
+                let expectedIDs = cancelled ? [] : [target.id]
+                // Only AX has reported the focus. Deliver worker replies while still withholding the creation notice.
+                deliverWork()
+                let activated = Array(Activator.activated.dropFirst(before.count))
+                suite.expect(activated == expectedIDs && service.recordedIDs == expectedIDs
+                             && service.startedGenerations == (cancelled ? [] : [generation])
+                             && !service.keyboardInputOwnership.isOwned,
+                             "\(label) before the creation notice: expected activations \(expectedIDs), got \(activated)")
+                if cancelled {
+                    suite.expect(tracker.history == historyBeforePress && history.focusHistory.revision == focusBeforePress,
+                                 "Escape cancels the pending switch without recording a new focus or use")
+                } else {
+                    suite.expect(Activator.lastSourceWindowID == source.windowID && FrontAppEnumerator.reads == [pid]
+                                 && tracker.history.starts(with: [target, source].compactMap(\.windowID))
+                                 && inventory.knownWindowIDs == (inspector ? [1, 2] : [1, 2, 3]),
+                                 "\(label) checks only the front app and uses its listed source for activation")
+                }
+                if inspector { continue }
+                let orderBeforeNotice = tracker.history
+                Desktop.Events.shared.deliver?(.changed(3))
+                deliverWork()
+                suite.expect(Activator.activated == before + expectedIDs && service.recordedIDs == expectedIDs
+                             && tracker.history == orderBeforeNotice && !service.sessionActive && !service.keyboardInputOwnership.isOwned,
+                             "\(label) cannot reopen the shortcut or write history again when the notice arrives")
                 continue
             }
             if opening == .warm {
