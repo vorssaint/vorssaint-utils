@@ -364,6 +364,8 @@ struct Strings {
     let micMuteName: String
     let micUnmuteName: String
     let micMuteCaption: String
+    let micMuteFollowCallAppsToggle: String
+    let micMuteFollowCallAppsCaption: String
     let micMutedHUD: String
     let micUnmutedHUD: String
     let micMutePartialHUD: String
@@ -834,6 +836,7 @@ struct Strings {
     let audioPriorityMoveUp: String
     let audioPriorityMoveDown: String
     let audioPriorityUnavailable: String
+    let audioPriorityRemove: String
     let audioPriorityCurrent: String
     let audioPriorityCaption: String
 
@@ -1534,6 +1537,8 @@ extension Strings {
         micMuteName: "Silenciar microfone",
         micUnmuteName: "Reativar microfone",
         micMuteCaption: "Usa os controles de silenciamento ou volume de entrada de cada microfone. A Siri e alguns apps ainda podem ouvir você. Não bloqueia todo acesso ao microfone.",
+        micMuteFollowCallAppsToggle: "Permitir que apps de chamada reativem o microfone",
+        micMuteFollowCallAppsCaption: "Quando um app está gravando e o microfone em uso é reativado, o Vorssaint restaura todos os microfones que silenciou. Um ajuste automático de ganho também pode causar isso.",
         micMutedHUD: "Silenciamento ativado",
         micUnmutedHUD: "Silenciamento desativado",
         micMutePartialHUD: "Alguns microfones não puderam ser silenciados",
@@ -1987,6 +1992,7 @@ extension Strings {
         audioPriorityMoveUp: "Mover para cima",
         audioPriorityMoveDown: "Mover para baixo",
         audioPriorityUnavailable: "Indisponível",
+        audioPriorityRemove: "Remover",
         audioPriorityCurrent: "Em uso",
         audioPriorityCaption: "Os dispositivos são selecionados por ordem de prioridade. Quando um dispositivo de maior prioridade é conectado, ele passa a ser usado. Quando o dispositivo ativo é desconectado, o próximo disponível é selecionado.",
 
@@ -2320,7 +2326,7 @@ extension Strings {
         cleanerCatDeveloper: "Lixo de desenvolvimento",
         cleanerCatTrash: "Lixeira",
         cleanerLeftoversNote: "Encontrados por análise e começam desmarcados. Confira o caminho antes de marcar.",
-        cleanerLoginItemsNote: "A entrada em Itens de Início some depois de reiniciar o Mac.",
+        cleanerLoginItemsNote: "Itens que exigem autorização de administrador ficam no lugar. Depois de remover um item, pode ser preciso reiniciar o Mac para atualizar a lista.",
         cleanerTrashNote: "Esvaziar a Lixeira é permanente.",
         cleanerCatDeviceBackups: "Backups de iPhone",
         cleanerDeviceBackupsCaption: "Backups antigos de iPhone e iPad ocupam boa parte do que o macOS chama de Outros. Remova só os que você não precisa mais; um novo backup é feito quando o aparelho for conectado de novo.",
@@ -2664,6 +2670,8 @@ extension Strings {
         micMuteName: "Mute microphone",
         micUnmuteName: "Unmute microphone",
         micMuteCaption: "Uses each microphone’s mute or input-volume controls. Siri and some apps may still hear you. This is not a privacy lock.",
+        micMuteFollowCallAppsToggle: "Allow call apps to unmute the microphone",
+        micMuteFollowCallAppsCaption: "If a microphone reopens while an app is recording from it, Vorssaint restores all microphones it muted. An automatic gain change can also trigger this.",
         micMutedHUD: "Mic Mute on",
         micUnmutedHUD: "Mic Mute off",
         micMutePartialHUD: "Some microphones could not be muted",
@@ -3117,6 +3125,7 @@ extension Strings {
         audioPriorityMoveUp: "Move up",
         audioPriorityMoveDown: "Move down",
         audioPriorityUnavailable: "Unavailable",
+        audioPriorityRemove: "Remove",
         audioPriorityCurrent: "Current",
         audioPriorityCaption: "Devices are selected in priority order. When a higher-priority device connects, it becomes active. When the active one disconnects, the next available takes over.",
 
@@ -3450,7 +3459,7 @@ extension Strings {
         cleanerCatDeveloper: "Developer junk",
         cleanerCatTrash: "Trash",
         cleanerLeftoversNote: "Found by analysis and left unchecked. Check the path before ticking.",
-        cleanerLoginItemsNote: "The entry under Login Items disappears after restarting the Mac.",
+        cleanerLoginItemsNote: "Items that need administrator approval stay in place. After an item is removed, you may need to restart your Mac to refresh the list.",
         cleanerTrashNote: "Emptying the Trash is permanent.",
         cleanerCatDeviceBackups: "iPhone backups",
         cleanerDeviceBackupsCaption: "Old iPhone and iPad backups take a big slice of the storage macOS calls Other. Remove only the ones you no longer need; a new backup is made when you plug the device in again.",

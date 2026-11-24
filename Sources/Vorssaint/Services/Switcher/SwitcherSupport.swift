@@ -2041,10 +2041,8 @@ enum SwitcherSupport {
         })
     }
 
-    /// Source app for the delayed focus guards only. A session source wins;
-    /// otherwise the app a caller saw in front when the activation began keeps
-    /// the handoff retry settling, without reclaiming focus after a later
-    /// unrelated activation. The target and this process are never a handoff.
+    /// Source app for delayed focus checks. Fall back to the foreground app
+    /// captured by the caller so an unrelated activation can end the retry.
     static func focusRetrySourcePID(sessionSourcePID: pid_t?,
                                     handoffSourcePID: pid_t?,
                                     targetPID: pid_t,
@@ -2123,10 +2121,11 @@ enum SwitcherSupport {
     static func pendingKeyDecision(sessionIsActive: Bool,
                                    hasPendingStart: Bool,
                                    commitWhenReady: Bool,
-                                   matchesShortcut: Bool) -> SwitcherPendingKeyDecision {
+                                   matchesShortcut: Bool,
+                                   isEscape: Bool = false) -> SwitcherPendingKeyDecision {
         if sessionIsActive { return .handleActiveSession }
         guard hasPendingStart, !matchesShortcut else { return .routeShortcut }
-        return commitWhenReady ? .cancelAndSwallow : .swallow
+        return isEscape || commitWhenReady ? .cancelAndSwallow : .swallow
     }
 
     /// The explicit takeover setting is the authority to change WindowServer's
@@ -2155,13 +2154,17 @@ enum SwitcherSupport {
     /// pass true only when no Carbon stand-in is registered, and asking for
     /// nothing then keeps ⌘Tab working instead of leaving it dead until the
     /// app holding it lets go.
+    ///
+    /// Full-screen games that can cover the panel also release the native
+    /// shortcuts so the user can switch apps through macOS.
     static func nativeHotkeyIDs(takeOverSystemShortcuts: Bool,
                                 secureInputEnabled: Bool,
+                                exclusiveFullscreen: Bool = false,
                                 appsShortcut: GlobalShortcut,
                                 windowShortcut: GlobalShortcut,
                                 allWindowsShortcut: GlobalShortcut? = nil,
                                 liveEntries: [LiveSystemShortcut]) -> Set<Int32> {
-        guard !secureInputEnabled else { return [] }
+        guard !secureInputEnabled, !exclusiveFullscreen else { return [] }
         let nativeShortcuts = Dictionary(
             liveEntries.compactMap { entry -> (SwitcherNativeSymbolicHotKey, GlobalShortcut)? in
                 SwitcherNativeSymbolicHotKey(rawValue: entry.id).map { ($0, entry.shortcut) }
@@ -2172,6 +2175,24 @@ enum SwitcherSupport {
                                            windowShortcut: windowShortcut,
                                            allWindowsShortcut: allWindowsShortcut,
                                            nativeShortcuts: nativeShortcuts).map(\.rawValue))
+    }
+
+    /// A frontmost game can cover the switcher with a window at or above its
+    /// status-bar level. An incomplete snapshot leaves the last decision in effect.
+    static func frontmostAppRaisesFullscreen(windows: [NotchAppFullscreen.WindowInfo]?,
+                                             frontmostPID: pid_t?, ownPID: pid_t,
+                                             displays: [CGRect]) -> Bool? {
+        guard let windows, let frontmostPID, !displays.isEmpty,
+              displays.allSatisfy({ frame in
+                  !frame.isInfinite && frame.origin.x.isFinite && frame.origin.y.isFinite
+                      && frame.size.width.isFinite && frame.size.height.isFinite
+                      && frame.size.width > 0 && frame.size.height > 0
+              }) else { return nil }
+        guard frontmostPID != ownPID else { return false }
+        return windows.contains { window in
+            window.ownerPID == frontmostPID && window.layer >= NSWindow.Level.statusBar.rawValue && window.alpha > 0
+                && displays.contains { NotchAppFullscreen.covers(window.bounds, $0) }
+        }
     }
 
     static func secureInputHotKeysWanted(canStartSession: Bool, capturingShortcut: Bool,

@@ -107,11 +107,40 @@ enum UninstallerTrashTests {
             .write(to: contents.appendingPathComponent("Info.plist"), options: .atomic)
     }
 
+    private static func checkSizeBesideSymbolicLink(_ suite: TestSuite, home: URL) throws {
+        let fm = FileManager.default
+        // Foundation does not promise a sibling order. Try both assignments of
+        // the names so that the link actually precedes a populated directory.
+        for (linkName, versionName) in [("Current", "A"), ("A", "Current")] {
+            let versions = home.appendingPathComponent("size-\(linkName)/Versions", isDirectory: true)
+            let link = versions.appendingPathComponent(linkName)
+            let version = versions.appendingPathComponent(versionName, isDirectory: true)
+            try fm.createDirectory(at: versions, withIntermediateDirectories: true)
+            try fm.createSymbolicLink(atPath: link.path, withDestinationPath: versionName)
+            try fm.createDirectory(at: version, withIntermediateDirectories: false)
+            try Data(repeating: 0x5a, count: 8192).write(to: version.appendingPathComponent("payload"))
+
+            let keys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
+            guard let walk = fm.enumerator(at: versions, includingPropertiesForKeys: keys),
+                  let first = walk.nextObject() as? URL, first.lastPathComponent == linkName,
+                  let next = walk.nextObject() as? URL, next.lastPathComponent == versionName else { continue }
+
+            let withLink = AppUninstaller.directorySize(of: versions, fm: fm)
+            try fm.removeItem(at: link)
+            let withoutLink = AppUninstaller.directorySize(of: versions, fm: fm)
+            suite.expect(withoutLink > 0 && withLink == withoutLink,
+                         "a symbolic link does not hide the populated directory enumerated immediately after it")
+            return
+        }
+        suite.expect(false, "the size fixture must exercise a populated directory following a symbolic link")
+    }
+
     static func run(_ suite: TestSuite) {
         let fm = FileManager.default
         let home = fm.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("uninstaller-trash-\(UUID())", isDirectory: true)
         let model = AppUninstaller.shared
+
         let brew = HomebrewManager.shared
         let workspace = NSWorkspace.shared
         fixtureHome = home
@@ -131,6 +160,7 @@ enum UninstallerTrashTests {
             try? fm.removeItem(at: home)
         }
         do {
+            try checkSizeBesideSymbolicLink(suite, home: home)
             let id = "org.fixture.editor"
             let helperID = "org.fixture.editor.extension"
             let groupID = "group.org.fixture.editor"

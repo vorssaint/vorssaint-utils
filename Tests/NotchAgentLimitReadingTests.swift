@@ -4,6 +4,8 @@
 import AppKit
 import SwiftUI
 
+typealias NotchControlSurface = NotchCompactTests.NotchControlSurface
+
 /// The production reading, without the account service or an open island.
 /// Accessibility frames also catch a full label attached to a shorter fallback.
 enum NotchAgentLimitReadingTests {
@@ -75,6 +77,122 @@ enum NotchAgentLimitReadingTests {
                 .filter { $0.accessibilityIdentifier?() == "notch.agentLimitCountdown" }
             suite.expect(countdown.isEmpty != showsCountdown,
                          "a reset countdown gives way only when the complete reading needs its room at \(width) pt")
+        }
+        costReadings(suite, in: window)
+    }
+
+    @MainActor private static func costReadings(_ suite: TestSuite, in window: NSWindow) {
+        let language = AppLanguage.ptBR
+        let text = FeatureStrings.notchAgents(language)
+        let locale = language.formattingLocale()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let today = calendar.startOfDay(for: now)
+        let yesterday = today.addingTimeInterval(-86_400)
+        func reply(_ provider: AgentProvider, _ project: String, _ date: Date, _ cost: Double?) -> AgentUsageRecord {
+            AgentUsageRecord(provider: provider, date: date, model: project, project: project, session: "fixture",
+                             tokens: AgentTokens(output: 100), cost: cost, savings: 0)
+        }
+        func snapshot(_ records: [AgentUsageRecord], missing: [CursorTranscriptActivity] = []) -> AgentUsageSnapshot {
+            var result = AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:],
+                                                    providers: Set(records.map(\.provider)), now: now, calendar: calendar)
+            result.includeCursorActivity(missing)
+            return result
+        }
+        func nodes<V: View>(_ view: V) -> [AnyObject] {
+            let size = CGSize(width: 500, height: 140)
+            let host = NSHostingView(rootView: view.environment(\.locale, locale)
+                .frame(width: size.width, height: size.height))
+            window.contentView = host
+            window.setContentSize(size)
+            settle(host)
+            return elements(host)
+        }
+        func announces(_ nodes: [AnyObject], _ reading: String) -> Bool {
+            nodes.contains { $0.accessibilityLabel?() == reading || readingText($0) == reading }
+        }
+
+        let earlier = today.addingTimeInterval(-4 * 86_400)
+        let earlierReply = reply(.cursor, "fixture", earlier, 1.25)
+        let undated = CursorTranscriptActivity(project: "fixture", undatedThrough: now)
+        let baseline = nodes(NotchAgentActivityCard(snapshot: snapshot([earlierReply], missing: [undated]), text: text))
+        suite.expect(announces(baseline, "1") && !announces(baseline, text.streak),
+                     "an undated reply leaves the activity count at one measured day with no streak")
+        let yesterdayMinute = Int(yesterday.timeIntervalSince1970 / 60)
+        let dated = CursorTranscriptActivity(project: "fixture", minutes: IndexSet([yesterdayMinute - 1440, yesterdayMinute]))
+        let observed = nodes(NotchAgentActivityCard(snapshot: snapshot([earlierReply], missing: [dated, undated]), text: text))
+        suite.expect(announces(observed, "3") && announces(observed, text.streak),
+                     "two consecutive unmetered Cursor days count toward activity and sustain the streak through yesterday")
+        let onlyObserved = nodes(NotchAgentActivityCard(snapshot: snapshot([], missing: [dated]), text: text))
+        suite.expect(!announces(onlyObserved, text.busiestDay) && announces(onlyObserved, "— · " + text.partialCostNote),
+                     "observed days without measured usage supply neither a busiest day nor a cost")
+
+        let metered = reply(.cursor, "partial", yesterday, 1.25)
+        let cursorHistory = snapshot([metered])
+        let idleDay = nodes(NotchAgentTrendCard(snapshot: cursorHistory, providers: [.cursor], period: .today, text: text))
+        suite.expect(announces(idleDay, text.today + " · — · " + text.partialCostNote),
+                     "a Cursor reply yesterday leaves today's Trend cost unknown without a reading today")
+        let cursorOnly = nodes(NotchAgentTrendCard(snapshot: cursorHistory, providers: [.cursor],
+                                                  period: .week, text: text))
+        suite.expect(announces(cursorOnly, text.week + " · " + AgentFormat.cost(1.25)),
+                     "a fully measured Cursor project announces its exact API value, even with no other provider")
+        let records = [metered, reply(.codex, "complete", today, 2)]
+        let missing = CursorTranscriptActivity(project: metered.project,
+                                               minutes: IndexSet(integer: Int(yesterday.timeIntervalSince1970 / 60) + 1))
+        let measuredZero = snapshot([metered, reply(.cursor, "free", today, 0)], missing: [missing])
+        let zeroDay = nodes(NotchAgentTrendCard(snapshot: measuredZero, providers: [.cursor], period: .today, text: text))
+        suite.expect(announces(zeroDay, text.today + " · " + AgentFormat.cost(0)),
+                     "a measured zero today stays exact despite an unmetered Cursor reply yesterday")
+        let history = snapshot(records, missing: [missing])
+        let minimum = "≥ " + AgentFormat.cost(3.25) + " · " + text.partialCostNote
+        let trend = nodes(NotchAgentTrendCard(snapshot: history, providers: [.cursor, .codex], period: .week, text: text))
+        suite.expect(announces(trend, text.week + " · " + minimum),
+                     "Trend announces the week's minimum and explains the missing coverage")
+        let activity = nodes(NotchAgentActivityCard(snapshot: history, text: text))
+        let day = today.formatted(.dateTime.day().month(.abbreviated).locale(locale))
+        suite.expect(announces(activity, minimum) && announces(activity, day + " · " + AgentFormat.cost(2)),
+                     "Activity announces the map's minimum while keeping its fully priced busiest day exact")
+        let tokens = text.tokens(AgentFormat.tokens(100))
+        let missingToday = CursorTranscriptActivity(project: metered.project,
+                                                    minutes: IndexSet(integer: Int(today.timeIntervalSince1970 / 60)))
+        let mixedToday = snapshot(records, missing: [missingToday])
+        for period in AgentPeriod.allCases {
+            let label = period == .today ? today.formatted(.dateTime.hour().locale(locale)) : day
+            for (sample, reading) in [
+                (cursorHistory, "— · " + text.tokens(AgentFormat.tokens(0)) + " · " + text.partialCostNote),
+                (measuredZero, AgentFormat.cost(0) + " · " + tokens),
+                (mixedToday, "≥ " + AgentFormat.cost(2) + " · " + tokens + " · " + text.partialCostNote)
+            ] {
+                let providers = AgentProvider.allCases.filter(sample.seen.contains)
+                let trend = nodes(NotchAgentTrendCard(snapshot: sample, providers: providers, period: period,
+                                                      text: text, hovered: today))
+                suite.expect(announces(trend, label + " · " + reading),
+                             "the selected bar in \(period) announces its own cost and tokens: \(reading)")
+            }
+        }
+        for (date, amount, note) in [(yesterday, "≥ " + AgentFormat.cost(1.25), " · " + text.partialCostNote),
+                                     (today, AgentFormat.cost(2), "")] {
+            let day = date.formatted(.dateTime.day().month(.abbreviated).locale(locale))
+            let trend = nodes(NotchAgentTrendCard(snapshot: history, providers: [.cursor, .codex], period: .week,
+                                                  text: text, hovered: date))
+            suite.expect(announces(trend, day + " · " + amount + " · " + tokens + note),
+                         "the selected Trend day announces its own cost coverage beside its tokens")
+            let activity = nodes(NotchAgentActivityCard(snapshot: history, text: text, hovered: date))
+            suite.expect(announces(activity, day + " · " + amount + note),
+                         "the selected Activity day announces its own cost coverage")
+        }
+
+        let usage = snapshot(records + [reply(.codex, "unpriced", today, nil)], missing: [missing]).usage(.week)
+        let shares = nodes(NotchAgentShareCard(title: text.projectsCard, symbol: NotchAgentCard.projects.symbol,
+                                               shares: usage.projects, byCost: usage.fullyPriced, text: text))
+        let readings = shares.filter { $0.accessibilityRole?() == .staticText }.compactMap { readingText($0) }
+        for (project, value) in [("partial", tokens + " · ≥ " + AgentFormat.cost(1.25) + " · " + text.partialCostNote),
+                                 ("complete", tokens + " · " + AgentFormat.cost(2)),
+                                 ("unpriced", tokens + " · — · " + text.partialCostNote)] {
+            let reading = project + " · " + value
+            suite.expect(readings.filter { $0 == reading }.count == 1,
+                         "a token-ranked project announces its own cost coverage: \(project), got \(readings)")
         }
     }
 

@@ -59,7 +59,7 @@ enum ScreenshotSpotlightEditingTests {
 
         let baseImage: CGImage
         var cleanImage: CGImage?
-        var cleanAnnotations: [ScreenshotSupport.Annotation] = []
+        var cleanAnnotations: [ScreenshotSupport.SavedAnnotation] = []
         var backdropStyle = ScreenshotSupport.BackdropStyle()
         var cleanBackdropStyle = ScreenshotSupport.BackdropStyle().sanitized()
         var watermarkStyle = ScreenshotSupport.WatermarkStyle()
@@ -75,7 +75,8 @@ enum ScreenshotSpotlightEditingTests {
             cleanImage = image
         }
 
-        func registerUndo() {}
+        var registeredUndo = 0
+        func registerUndo() { registeredUndo += 1 }
         func wordIndex(at point: CGPoint) -> Int? { nil }
         func beginSelectDrag(at point: CGPoint) { selectDrags.append(point) }
         @discardableResult
@@ -113,6 +114,7 @@ enum ScreenshotSpotlightEditingTests {
         inside.beginDrag(at: CGPoint(x: rect.midX, y: rect.midY))
         suite.expect(!inside.editingSelectedAnnotation && inside.selectDrags.isEmpty
                 && inside.annotations.count == 2 && inside.selectedID == nil
+                && inside.registeredUndo == 0
                 && inside.annotations.last?.tool == .spotlight
                 && inside.draftID == inside.annotations.last?.id,
                "a drag inside a fresh spotlight region starts another region")
@@ -158,12 +160,25 @@ enum ScreenshotSpotlightEditingTests {
                 && !Bar(model: nothingPicked).showsSpotlightControls,
                "a picked spotlight region shows the dim control instead of color and thickness")
 
+        let saved = Model(image: image)
+        var mark = ScreenshotSupport.Annotation(tool: .image, imageAsset: .init(image: image))
+        weak var originalAsset = mark.imageAsset
+        saved.annotations = [mark]
+        saved.cleanAnnotations = saved.annotations.map(ScreenshotSupport.SavedAnnotation.init)
+        saved.refreshDirtyState()
+        let startsClean = !saved.isDirty
+        mark.imageAsset = .init(image: image)
+        saved.annotations = [mark]
+        saved.refreshDirtyState()
+        suite.expect(startsClean && saved.isDirty && originalAsset == nil,
+                     "replacing an image in the same annotation is dirty without retaining the saved pixels")
+
         let empty = Model(image: image)
         empty.spotlightDimStrength = 0.8
         empty.refreshDirtyState()
         let lit = Model(image: image)
         lit.annotations = [ScreenshotSupport.Annotation(tool: .spotlight, rect: rect)]
-        lit.cleanAnnotations = lit.annotations
+        lit.cleanAnnotations = lit.annotations.map(ScreenshotSupport.SavedAnnotation.init)
         lit.refreshDirtyState()
         let litClean = !lit.isDirty
         lit.spotlightDimStrength = 0.8
