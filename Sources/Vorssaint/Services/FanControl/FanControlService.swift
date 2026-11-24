@@ -46,8 +46,8 @@ final class FanControlService: ObservableObject {
     private var hadActiveControl = false
     private var recoveryPollInterval = 2
 
-    // Kept until the next accepted Apply. An empty reason means the handoff
-    // failed before the helper could report why.
+    // Kept until the next accepted Apply. An empty reason means the client
+    // could not identify why its own control ended.
     private var interruptedStop: String? {
         UserDefaults.standard.string(forKey: DefaultsKey.fanControlInterruptedStop)
     }
@@ -262,8 +262,14 @@ final class FanControlService: ObservableObject {
         send { proxy, reply in proxy.restoreAutomatic(withReply: reply) } completion: { response in
             guard self.finishRequest(generation, response: response) else { return }
             self.isWorking = false
-            if self.hadActiveControl, response?.succeeded != true || response?.snapshot.isCooling == true {
-                self.observeFailedHandoff(response?.snapshot.stopReason)
+            if self.hadActiveControl {
+                if response?.succeeded != true || response?.snapshot.isCooling == true {
+                    self.observeFailedHandoff(nil)
+                } else if response?.snapshot.stopReason != nil {
+                    // Our restore clears the reason when it actually ends control.
+                    // An already idle helper can echo a different client's stop.
+                    self.recordInterruption(nil)
+                }
             }
             guard let response else { return }
             self.apply(response, request: .restore)
@@ -308,10 +314,15 @@ final class FanControlService: ObservableObject {
         timer = nil
         requestGeneration += 1
         requestInFlight = nil
+        let wasControlling = hadActiveControl
         hadActiveControl = false
         if !awaitingSystemControl {
             send { proxy, reply in proxy.restoreAutomatic(withReply: reply) } completion: { response in
-                if let response, response.succeeded, !response.snapshot.isCooling {
+                guard let response else { return }
+                if wasControlling, response.snapshot.stopReason != nil {
+                    self.recordInterruption(nil)
+                }
+                if response.succeeded, !response.snapshot.isCooling {
                     UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
                 }
             }
@@ -502,7 +513,15 @@ final class FanControlService: ObservableObject {
 
     /// Both panel refreshes and heartbeats can be the first to see a stopped session.
     private func applyStatus(_ response: FanControlResponse) {
-        let wasControlling = hadActiveControl
+        if hadActiveControl, !response.snapshot.isCooling || response.error == .alreadyControlled {
+            // Even on the same connection, an idle heartbeat returns global
+            // status. Another client may have started and stopped between reads.
+            if response.succeeded {
+                recordInterruption(nil)
+            } else {
+                observeFailedHandoff(nil)
+            }
+        }
         apply(response)
         guard response.succeeded, !response.snapshot.isCooling else { return }
         if awaitingSystemControl {
@@ -513,17 +532,6 @@ final class FanControlService: ObservableObject {
         }
         UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
         stopIdleWorkIfPossible()
-        guard wasControlling else { return }
-        guard Self.resumableConfiguration != nil else {
-            interruption = snapshot.stopReason.map(FanControlInterruption.stopped)
-            return
-        }
-        if snapshot.stopReason == .heartbeatLost {
-            scheduleResumeRetry()
-        } else {
-            cancelResumeAttempt()
-            interruption = .stopped(snapshot.stopReason)
-        }
     }
 
     private func scheduleResumeAttempt(after delay: TimeInterval) {
@@ -683,16 +691,20 @@ final class FanControlService: ObservableObject {
         error = response.error
     }
 
-    private func observeFailedHandoff(_ reason: FanControlStopReason?, applyFailed: Bool = false) {
-        awaitingSystemControl = true
+    private func recordInterruption(_ reason: FanControlStopReason?, applyFailed: Bool = false) {
         interruption = applyFailed ? .applyFailed : .stopped(reason)
         hadActiveControl = false
         let stored = applyFailed ? FanControlInterruption.refusedApply : reason?.rawValue ?? ""
         UserDefaults.standard.set(stored, forKey: DefaultsKey.fanControlInterruptedStop)
         UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlDismissedStop)
-        UserDefaults.standard.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
         UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlResumeConfiguration)
         cancelResumeAttempt()
+    }
+
+    private func observeFailedHandoff(_ reason: FanControlStopReason?, applyFailed: Bool = false) {
+        recordInterruption(reason, applyFailed: applyFailed)
+        awaitingSystemControl = true
+        UserDefaults.standard.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
         tickCount = 0
         recoveryPollInterval = 2
         startTimerIfNeeded()

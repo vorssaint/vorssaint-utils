@@ -702,13 +702,17 @@ def main():
                         "    static func restoreBeforeTerminationIfNeeded()", "    private func restoreBeforeTermination()",
                         "    private func restoreThenUnregister()",
                         "    private func finishSystemHandoff()", "    private func startTimerIfNeeded()",
-                        "    private func observeFailedHandoff(", "    private func poll(", "    private func heartbeat(",
+                        "    private func recordInterruption(", "    private func observeFailedHandoff(",
+                        "    private func poll(", "    private func heartbeat(",
                         "    private func requestStatus(", "    private func connectionLost(",
                         "    private func beginRequest(", "    private func finishRequest("])
           + "}\n}\n")
     write("FanControlRecovery.swift", "import Foundation\n"
-          + "extension FanControlRecoveryContract {\nfinal class Controller: Fixture {\n"
+          + "extension FanControlRecoveryContract {\ntypealias FanControlIPC = FanControlResumeContract.FanControlIPC\n"
+          + "final class Controller: Fixture {\n"
           + declaration("Sources/FanControlHelper/main.swift", "    func connectionClosed(")
+          + declaration("Sources/FanControlHelper/main.swift", "    func heartbeat(session")
+          + declaration("Sources/FanControlHelper/main.swift", "    func restore(reply:")
           + declaration("Sources/FanControlHelper/main.swift", "    private func applyConfiguration(session")
               .replace("private func", "func", 1)
               .replace("let control = FanControlHardware()", "let control = hardware", 1)
