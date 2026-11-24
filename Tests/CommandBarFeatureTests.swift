@@ -1511,6 +1511,18 @@ enum CommandBarFeatureTests {
         for connector in ["to", "in", "into", "as", "em", "para", "pra", "en", "a",
                           "nach", "zu", "à", "su", "->", ">", "→"] {
             suite.expect(unitValue("2 kg \(connector) g") == 2000, "conversion through \(connector)")
+            suite.expect(unitValue("2 KG \(connector.uppercased()) G") == 2000,
+                         "uppercase conversion through \(connector.uppercased())")
+        }
+        suite.expect(unitValue("2 A A mA") == 2000 && unitValue("2 mA A A") == 0.002,
+                     "A is an ampere at either end and a connector between units")
+        suite.expect(unitValue("2A in mA") == 2000, "A attached to the source number means amperes")
+        for query in ["5 ft 11 in A cm", "5 ft 11 A cm"] {
+            suite.expect(unitValue(query) == 180.34, "\(query) converts feet and inches to centimeters")
+        }
+        suite.expect(unitValue("1 kg 2 A g") == 1002, "a spaced A converts kilograms and grams")
+        for query in ["2 kg ampere g", "2 KG A m", "5 ft 12 A cm", "5 ft 11A cm", "1 kg 2A g"] {
+            suite.expect(calculate(query) == nil, "\(query) stays a search")
         }
         for query in ["1 cm + 1", "1 kg + 1 m", "1 kg / 1 m * 1 s * 1 s to Pa",
                       "20 °C * 2", "1 kg in 2 kg", "20 ms to Hz", "1 / 0 ms to Hz"] {

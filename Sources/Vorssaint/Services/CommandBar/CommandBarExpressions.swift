@@ -245,10 +245,19 @@ enum CommandBarExpressions {
             guard let next = readUnit(at: p) else { return false }
             // In "5 ft 11 in in cm" the second "in" introduces a target.
             // In "5 ft 11 in in" that same word is the target (inches).
-            if asConversionTarget, next.raw != "A", conversionWords.contains(fold(next.raw)) {
+            if asConversionTarget, conversionWords.contains(fold(next.raw)) {
                 return !unitAhead(at: next.end, asConversionTarget: true)
             }
             return true
+        }
+
+        func followsUnitOrMixedRemainder(at start: Int) -> Bool {
+            if case .unit? = tokens.last { return true }
+            // "5 ft 11 A cm" omits inches. In "11A", the A belongs to the number.
+            guard start > 0, characters[start - 1].isWhitespace,
+                  case .number? = tokens.last, case .unit(let larger)? = tokens.dropLast().last
+            else { return false }
+            return CommandBarUnitCatalog.mixedPairs[larger.id] != nil
         }
 
         // A detached negative inch remainder is invalid (5ft -1in). A binary
@@ -367,8 +376,8 @@ enum CommandBarExpressions {
                             continue
                         }
                     }
-                    if matched.unit.id == "a", matched.raw != "A",
-                       case .unit? = tokens.last, unitAhead(at: index) {
+                    if matched.unit.id == "a", fold(matched.raw) == "a",
+                       followsUnitOrMixedRemainder(at: tokenStart), unitAhead(at: index) {
                         tokens.append(.to)
                         continue
                     }
