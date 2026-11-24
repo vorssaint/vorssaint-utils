@@ -143,6 +143,20 @@ enum NotchAgentTests {
                           "a long prompt on the fast tier pays both premiums")
         suite.expectClose(AgentPricing.cost(AgentBillable(tokens: AgentTokens(input: 272_000)), model: "gpt-6-astra").cost ?? -1,
                           2.72, "the long-context premium starts past its threshold")
+        // OpenAI's Standard and Fast tables: https://developers.openai.com/api/docs/pricing.md
+        for (model, shortCost, longCost, hasFast) in [("gpt-6.2-astra", 1.52, 3.010016, true),
+                                                      ("gpt-6.2-sol", 0.38, 0.752504, true),
+                                                      ("gpt-6.2-astra-law", 1.52, 3.010016, false)] {
+            var request = AgentBillable(tokens: AgentTokens(input: 160_000, cacheWrite: 12_000, cacheRead: 100_000, output: 1500))
+            request.longCacheWrite = 2000
+            suite.expectClose(AgentPricing.cost(request, model: model).cost ?? -1, shortCost,
+                              "\(model) bills both cache write durations at 272K prompt tokens", tol: 0.000001)
+            request.tokens.input += 1
+            suite.expectClose(AgentPricing.cost(request, model: model).cost ?? -1, longCost,
+                              "\(model) bills the entire request at long-context rates above 272K", tol: 0.000001)
+            suite.expect(AgentPricing.price(for: model)?.fastMultiplier == (hasFast ? 2 : 1),
+                         "\(model) applies a Fast premium only when the API publishes one")
+        }
         // Global Standard promotional rates: https://developers.openai.com/api/docs/pricing.md
         let rosalind = AgentBillable(tokens: AgentTokens(input: 170_000, cacheWrite: 2_000, cacheRead: 100_000, output: 1_000))
         suite.expectClose(AgentPricing.cost(rosalind, model: "gpt-6-rosalind").cost ?? -1, 1.875,

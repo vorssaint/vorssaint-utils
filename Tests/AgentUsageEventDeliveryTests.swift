@@ -84,6 +84,22 @@ enum AgentUsageEventDeliveryTests {
                          "the budget notice carries the coverage of the daily subtotal that crossed the threshold")
         }
 
+        let repricedHost = Host()
+        repricedHost.store.reportsTransitions = true
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        let tokens = AgentTokens(input: 62_500)
+        for model in ["gpt-6.2-astra", "gpt-6.2-sol", "gpt-6.2-astra-law"] {
+            let record = AgentUsageRecord(provider: .codex, date: now, model: model, project: "", session: "example",
+                                          tokens: tokens, cost: nil, savings: 0)
+            repricedHost.store.apply([.usage(key: model, record: record, billable: AgentBillable(tokens: tokens))],
+                                     file: "example", provider: .codex, tracksTurns: false, modified: now, now: now)
+        }
+        repricedHost.store.reprice()
+        repricedHost.checkBudget(repricedHost.store.snapshot(plans: [:], providers: [.codex], now: now))
+        drain()
+        suite.expect(repricedHost.events.values == [.budgetReached(spent: 1.125, budget: 1, partial: false)],
+                     "repriced GPT-6.2 records count toward the daily budget")
+
         host.events.values.removeAll()
         host.report(finished)
         host.running = false
