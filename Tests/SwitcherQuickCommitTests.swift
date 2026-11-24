@@ -190,6 +190,15 @@ enum SwitcherQuickCommitTests {
         suite.expect(history.windows == [3, 4] && history.apps == [11],
                      "a current capture still removes closed windows and terminated apps")
 
+        let handoff = HistoryFixture()
+        let source = WindowFocusHistory.Request(pid: 10)
+        handoff.recordSwitch(to: 4, pid: 11, from: 2, sourceRequest: source)
+        _ = handoff.focusHistory.activate(10)
+        handoff.recordObservedFocus(windowID: 1, pid: 10)
+        handoff.confirmSwitchSource(3, replacing: 2, for: source)
+        suite.expect(handoff.windows == [1, 4, 2] && handoff.focusHistory.frontAppFocus(for: 10).observedWindows == [1, 4, 2],
+                     "reactivating the source app before its inventory reply protects the newer focus in both histories")
+
         newEmbeddedOwner(suite)
         frontAppSources(suite, snapshot: snapshot)
     }

@@ -106,6 +106,7 @@ enum WindowEnumerator {
         var nativeFullscreenWindowIDs: Set<CGWindowID> = []
         var observedWindowIDs: Set<CGWindowID> = []
         var rejectedWindowIDs: Set<CGWindowID> = []
+        var focusedWindowIDsByOwner: [pid_t: CGWindowID] = [:]
         var accessibilityElements: [CGWindowID: AXUIElement] = [:]
     }
 
@@ -1076,8 +1077,11 @@ enum WindowEnumerator {
             list.bundleIdentifiers = bundleIdentifiers
             list.observedWindowIDs = normalLevelWindowIDs
             for item in list.items {
-                if let id = item.windowID,
-                   let element = accessibilityWindows[item.windowOwnerPID]?.byID[id]?.element {
+                guard let id = item.windowID, let answer = accessibilityWindows[item.windowOwnerPID] else { continue }
+                if id == answer.focusedWindowID {
+                    list.focusedWindowIDsByOwner[item.windowOwnerPID] = id
+                }
+                if let element = answer.byID[id]?.element {
                     list.accessibilityElements[id] = element
                 }
             }
@@ -1216,6 +1220,7 @@ enum WindowEnumerator {
     private struct AccessibilityWindowSnapshotList {
         let ordered: [(id: CGWindowID, snapshot: AccessibilityWindowSnapshot)]
         let byID: [CGWindowID: AccessibilityWindowSnapshot]
+        var focusedWindowID: CGWindowID? = nil
         /// Nonstandard windows whose AX role, subrole and WindowServer ID
         /// were available when they were classified as ineligible.
         var rejectedWindowIDs: Set<CGWindowID> = []
@@ -1490,6 +1495,7 @@ enum WindowEnumerator {
                 }
             }
         }
+        var focusedWindowID: CGWindowID?
         for attribute in [kAXMainWindowAttribute, kAXFocusedWindowAttribute] {
             guard !isCancelled() else { return nil }
             let mainFocusedWindow = accessibilityWindowAttribute(app, attribute as String)
@@ -1501,9 +1507,13 @@ enum WindowEnumerator {
                 // the attribute read contacts the other process to reach a
                 // window we would then drop. Rejected and timed-out windows
                 // must not be read again either.
-                guard !contains(window, in: readWindows) else { continue }
                 if read(window) == .userFacing {
                     axWindows.append(window)
+                }
+                if attribute as String == kAXFocusedWindowAttribute as String {
+                    focusedWindowID = ordered.first { entry in
+                        entry.snapshot.element.map { CFEqual($0, window) } == true
+                    }?.id
                 }
             }
         }
@@ -1511,6 +1521,7 @@ enum WindowEnumerator {
         guard !isCancelled() else { return nil }
         let unansweredIDs = Set(unansweredWindows.compactMap(AXWindowResolver.windowID(for:)))
         var answer = AccessibilityWindowSnapshotList(ordered: ordered, byID: byID,
+                                                     focusedWindowID: focusedWindowID,
                                                      rejectedWindowIDs: rejectedWindowIDs,
                                                      unansweredIDs: unansweredIDs)
         // An app that answers with zero user-facing windows normally vetoes
