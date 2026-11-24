@@ -695,6 +695,7 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.menuBarFanSpeed)
                 && backupKeys.contains(DefaultsKey.fanControlResume)
                 && !backupKeys.contains(DefaultsKey.fanControlRecoveryNeeded)
+                && !backupKeys.contains(DefaultsKey.fanControlUnregisterPending)
                 && !backupKeys.contains(DefaultsKey.fanControlHelperVersion)
                 && !backupKeys.contains(DefaultsKey.fanControlResumeConfiguration),
                "fan display and cooling preferences travel while helper recovery state stays on one Mac")

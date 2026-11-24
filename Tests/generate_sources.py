@@ -698,11 +698,13 @@ def main():
                         "    private func resumeDidFail(", "    private func scheduleResumeRetry(",
                         "    private func retryResume(", "    private func applyStatus(", "    private func apply(_ response:",
                         "    private var interruptedStop:", "    private var hadActiveControl:",
-                        "    func restoreAutomatic()", "    private func restoreAutomatic(supersedingCurrentRequest:",
+                        "    private func restoreAutomatic(supersedingCurrentRequest:",
                         "    private func disconnectForRecovery(",
                         "    static func restoreBeforeTerminationIfNeeded()", "    private func restoreBeforeTermination()",
                         "    private func restoreOwnedBeforeExit()",
-                        "    private func restoreThenUnregister()",
+                        "    private func restoreThenUnregister()", "    private func checkUnregisterStatus(",
+                        "    private func finishUnregisterCheck(",
+                        "    private func cancelUnregisterCheck(", "    private func releaseUnregisterConnection(",
                         "    private func finishSystemHandoff()", "    private func startTimerIfNeeded()",
                         "    private func recordInterruption(", "    private func observeFailedHandoff(",
                         "    private func poll(", "    private func heartbeat(",
@@ -713,6 +715,9 @@ def main():
           + "extension FanControlRecoveryContract {\ntypealias FanControlIPC = FanControlResumeContract.FanControlIPC\n"
           + "final class Controller: Fixture {\n"
           + declaration("Sources/FanControlHelper/main.swift", "    func connectionClosed(")
+          + declaration("Sources/FanControlHelper/main.swift", "    func status(reply:")
+          + declaration("Sources/FanControlHelper/main.swift", "    func prepareForUnregister(session")
+          + declaration("Sources/FanControlHelper/main.swift", "    func startLegacySession(")
           + declaration("Sources/FanControlHelper/main.swift", "    func heartbeat(session")
           + declaration("Sources/FanControlHelper/main.swift", "    func restore(session")
           + declaration("Sources/FanControlHelper/main.swift", "    private func applyConfiguration(session")

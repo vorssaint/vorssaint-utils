@@ -408,7 +408,8 @@ final class FeatureRuntime: ObservableObject {
             let defaults = UserDefaults.standard
             let needsRecovery = defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
             let hasRegisteredHelper = !(defaults.string(forKey: DefaultsKey.fanControlHelperVersion) ?? "").isEmpty
-            if needsRecovery || (!AppFeature.fanControl.isAvailable && hasRegisteredHelper) {
+            if needsRecovery || defaults.bool(forKey: DefaultsKey.fanControlUnregisterPending)
+                || (!AppFeature.fanControl.isAvailable && hasRegisteredHelper) {
                 FanControlService.shared.syncWithPreferences()
             }
         },

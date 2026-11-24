@@ -25,6 +25,7 @@ enum FanControlRecoveryContract {
         var isManual = true
         var controlIntact = true
         var failNextRPMRead = false
+        var snapshotError: FanControlHardwareError?
         var temperatures = [FanControlTemperatureReading(source: .hottestSoC, celsius: 60)]
         var gpuPoweredDown = false
 
@@ -67,6 +68,7 @@ enum FanControlRecoveryContract {
 
         func snapshot(isCooling: Bool, endsAt: Date?, stopReason: FanControlStopReason?,
                       coolingLevel: Int?, configuration: FanControlConfiguration?) throws -> FanControlSnapshot {
+            if let snapshotError { throw snapshotError }
             if failNextRPMRead {
                 failNextRPMRead = false
                 throw FanControlHardwareError.operationFailed
@@ -83,7 +85,12 @@ enum FanControlRecoveryContract {
         var isHeld = true
         var marker = true
         var canRemoveMarker = true
-        func acquire() -> Bool { isHeld = true; return true }
+        var canAcquire = true
+        func acquire() -> Bool {
+            guard canAcquire else { return false }
+            isHeld = true
+            return true
+        }
         func markerExists() -> Bool { marker }
         func createMarker() -> Bool { marker = true; return true }
         func removeMarker() -> Bool {
@@ -134,6 +141,7 @@ enum FanControlRecoveryContract {
         let ownership = Ownership()
         var hardware: FanControlHardware? = FanControlHardware()
         var owner: UUID? = UUID()
+        var unregisterSession: UUID?
         var isCooling = true
         var isRecovering = false
         var endsAt: Date?
@@ -210,6 +218,19 @@ enum FanControlRecoveryContract {
     static func run(_ suite: TestSuite) {
         checkRestoreCapability(suite)
         checkApplyStopReason(suite)
+        for pendingMarker in [false, true] {
+            let idle = Controller()
+            idle.isCooling = false
+            idle.owner = nil
+            idle.ownership.isHeld = false
+            idle.ownership.canAcquire = pendingMarker
+            idle.ownership.marker = pendingMarker
+            var error: FanControlErrorCode?
+            idle.prepareForUnregister(session: UUID()) { error = FanControlIPC.decode($0)?.error }
+            suite.expect(error == (pendingMarker ? .controlFailed : .alreadyControlled) && idle.unregisterSession == nil
+                            && !idle.ownership.isHeld && idle.hardware?.restores == 0,
+                         "a shared lock held elsewhere or an abandoned marker prevents a removal reservation without writes")
+        }
         let healthy = Controller()
         let healthyOwner = healthy.owner
         healthy.watchdogTick()

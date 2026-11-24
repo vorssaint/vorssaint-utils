@@ -86,6 +86,7 @@ private final class FanControlController {
     private let ownership = FanControlOwnership()
     private var hardware: FanControlHardware?
     private var owner: UUID?
+    private var unregisterSession: UUID?
     private var isCooling = false
     private var isRecovering = false
     private var endsAt: Date?
@@ -117,12 +118,37 @@ private final class FanControlController {
             if self.owner == id, self.isCooling {
                 _ = self.performRestore(reason: .appDisconnected)
             }
+            if self.unregisterSession == id { self.unregisterSession = nil }
             self.scheduleExitIfIdle()
         }
     }
 
     func status(reply: @escaping (Data) -> Void) {
-        queue.async { reply(FanControlIPC.encode(self.statusResponse())) }
+        queue.async {
+            var response = self.statusResponse()
+            response.supportsUnregisterPreparation = true
+            reply(FanControlIPC.encode(response))
+        }
+    }
+
+    func prepareForUnregister(session id: UUID, reply: @escaping (Data) -> Void) {
+        queue.async {
+            guard self.unregisterSession == nil || self.unregisterSession == id,
+                  !self.isCooling, !self.isRecovering, self.ownership.acquire() else {
+                reply(FanControlIPC.encode(.failure(.alreadyControlled)))
+                return
+            }
+            let needsRecovery = self.ownership.markerExists()
+            self.ownership.release()
+            guard !needsRecovery else {
+                reply(FanControlIPC.encode(.failure(.controlFailed)))
+                return
+            }
+            // This daemon cannot accept a new owner until the caller either
+            // unregisters it or closes the connection to release the reservation.
+            self.unregisterSession = id
+            reply(FanControlIPC.encode(.success(.empty)))
+        }
     }
 
     func startLegacySession(_ id: UUID, reply: @escaping (Data) -> Void) {
@@ -207,6 +233,7 @@ private final class FanControlController {
                 ? .success(currentSnapshot())
                 : .failure(.controlFailed, snapshot: currentSnapshot())
         }
+        guard unregisterSession == nil else { return .failure(.alreadyControlled) }
         if isCooling {
             guard owner == id else {
                 return .failure(.alreadyControlled, snapshot: currentSnapshot())
@@ -239,13 +266,13 @@ private final class FanControlController {
         }
         guard ownership.createMarker() else {
             ownership.release()
-            return .failure(.controlFailed)
+            return .failure(.controlFailed, retryableApply: true)
         }
 
         do {
             guard let level = requestedLevel(for: configuration, hardware: control) else {
                 finishFailedStart(mayHaveChangedHardware: false)
-                return .failure(.controlFailed)
+                return .failure(.controlFailed, retryableApply: true)
             }
             _ = try control.startCooling(level: level)
             owner = id
@@ -275,7 +302,7 @@ private final class FanControlController {
         } catch {
             finishFailedStart(mayHaveChangedHardware: true)
             return .failure(.controlFailed, snapshot: currentSnapshot(),
-                            localStopReason: isRecovering ? .recovery : nil)
+                            localStopReason: isRecovering ? .recovery : nil, retryableApply: !isRecovering)
         }
     }
 
@@ -575,6 +602,10 @@ private final class FanControlSession: NSObject, FanControlXPCProtocol {
 
     func restoreOwnedControl(withReply reply: @escaping (Data) -> Void) {
         controller.restore(session: id, reply: reply)
+    }
+
+    func prepareForUnregister(withReply reply: @escaping (Data) -> Void) {
+        controller.prepareForUnregister(session: id, reply: reply)
     }
 }
 
