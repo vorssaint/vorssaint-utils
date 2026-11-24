@@ -364,40 +364,20 @@ final class ClipboardHistoryService: ObservableObject {
 
     func togglePin(_ entry: ClipboardHistoryEntry) {
         guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return }
-        let previousEntries = entries
-        // entries.remove(at:) below drops the entry for a moment before it is
-        // reinserted, and entries' own didSet reconciles latestPasteboardEntry
-        // against whatever is there right then — so if this is the entry it
-        // points to, that intermediate absence nils it out and nothing here
-        // sets it back, since a pin change is not a new promoted copy.
-        // Restored by looking it up again once the move actually lands.
-        let previousPasteboardEntry = latestPasteboardEntry
-        var updated = entries.remove(at: index)
-        let pinning = !updated.isPinned
+        var candidates = entries
+        var updated = candidates.remove(at: index)
         if updated.isPinned {
             updated = ClipboardHistoryEditing.unpinned(updated)
-            entries.insert(updated, at: firstRecentIndex)
         } else {
             updated.pinnedAt = Date()
-            entries.insert(updated, at: 0)
         }
-        normalizeEntryOrder()
-        trimToLimit()
-        let reverted: Bool
-        if entries.contains(where: { $0.id == entry.id }),
-           ClipboardHistoryEditing.preservesPinnedEntries(from: previousEntries, in: entries),
-           !pinning || ClipboardHistoryEditing.pinnedEntriesFit(entries, byteLimit: encodedHistoryByteLimit) {
-            reverted = false
-        } else {
-            entries = previousEntries
-            reverted = true
-        }
-        if let current = previousPasteboardEntry, current.id == entry.id {
-            latestPasteboardEntry = entries.first {
-                $0.id == current.id && $0.text == current.text
-            }
-        }
-        guard !reverted else { return }
+        candidates.insert(updated, at: 0)
+        let retained = retainedEntries(candidates)
+        guard retained.contains(where: { $0.id == entry.id }),
+              ClipboardHistoryEditing.preservesPinnedEntries(from: entries, in: retained),
+              !updated.isPinned || ClipboardHistoryEditing.pinnedEntriesFit(retained, byteLimit: encodedHistoryByteLimit)
+        else { return }
+        entries = retained
         save()
     }
 
@@ -493,17 +473,15 @@ final class ClipboardHistoryService: ObservableObject {
               let index = entries.firstIndex(where: { $0.id == entry.id })
         else { return false }
         if entries[index].text == text { return true }
-        let previousEntries = entries
-        entries[index].text = text
-        trimToLimit()
-        guard let edited = entries.first(where: { $0.id == entry.id }),
-              ClipboardHistoryEditing.preservesPinnedEntries(from: previousEntries, in: entries),
+        var candidates = entries
+        candidates[index].text = text
+        let retained = retainedEntries(candidates)
+        guard let edited = retained.first(where: { $0.id == entry.id }),
+              ClipboardHistoryEditing.preservesPinnedEntries(from: entries, in: retained),
               !edited.isPinned
-                || ClipboardHistoryEditing.pinnedEntriesFit(entries, byteLimit: encodedHistoryByteLimit)
-        else {
-            entries = previousEntries
-            return false
-        }
+                || ClipboardHistoryEditing.pinnedEntriesFit(retained, byteLimit: encodedHistoryByteLimit)
+        else { return false }
+        entries = retained
         save()
         return true
     }
@@ -1273,33 +1251,25 @@ final class ClipboardHistoryService: ObservableObject {
                               keepsSource: Bool) {
         let hash = Self.sha256Hex(image.data)
         if let existing = entries.first(where: { $0.kind == .image && $0.imageHash == hash }) {
-            entries.removeAll { $0.id == existing.id }
-            insertPromoted(existing, source: keepsSource ? existing.sourceBundleID : source)
-        } else {
-            guard let name = ClipboardImageStore.store(image.data) else { return }
-            insertPromoted(ClipboardHistoryEntry(text: "",
-                                                 kind: .image,
-                                                 imageFile: name,
-                                                 imageHash: hash,
-                                                 imageWidth: image.width,
-                                                 imageHeight: image.height), source: source)
+            commitPromoted(existing, source: keepsSource ? existing.sourceBundleID : source) { $0.id == existing.id }
+            return
         }
-        normalizeEntryOrder()
-        trimToLimit()
-        save()
+        guard let name = ClipboardImageStore.store(image.data) else { return }
+        let entry = ClipboardHistoryEntry(text: "",
+                                          kind: .image,
+                                          imageFile: name,
+                                          imageHash: hash,
+                                          imageWidth: image.width,
+                                          imageHeight: image.height)
+        commitPromoted(entry, source: source) { _ in false }
     }
 
     private func promoteFiles(_ paths: [String], source: String?, keepsSource: Bool) {
-        let existing = entries.first(where: { $0.kind == .files && $0.filePaths == paths })
-        entries.removeAll { $0.kind == .files && $0.filePaths == paths }
-        if let existing {
-            insertPromoted(existing, source: keepsSource ? existing.sourceBundleID : source)
-        } else {
-            insertPromoted(ClipboardHistoryEntry(text: "", kind: .files, filePaths: paths), source: source)
-        }
-        normalizeEntryOrder()
-        trimToLimit()
-        save()
+        let matches: (ClipboardHistoryEntry) -> Bool = { $0.kind == .files && $0.filePaths == paths }
+        let existing = entries.first(where: matches)
+        let entry = existing ?? ClipboardHistoryEntry(text: "", kind: .files, filePaths: paths)
+        let source = keepsSource && existing != nil ? entry.sourceBundleID : source
+        commitPromoted(entry, source: source, replacing: matches)
     }
 
     private static func sha256Hex(_ data: Data) -> String {
@@ -1336,55 +1306,50 @@ final class ClipboardHistoryService: ObservableObject {
             return
         }
 
-        let existing = entries.first(where: { $0.kind == .text && $0.text == text })
-        entries.removeAll { $0.kind == .text && $0.text == text }
-        if let existing {
-            insertPromoted(existing, source: keepsSource ? existing.sourceBundleID : source)
-        } else {
-            insertPromoted(ClipboardHistoryEntry(text: text), source: source)
-        }
-        normalizeEntryOrder()
-        trimToLimit()
-        save()
+        let matches: (ClipboardHistoryEntry) -> Bool = { $0.kind == .text && $0.text == text }
+        let existing = entries.first(where: matches)
+        let entry = existing ?? ClipboardHistoryEntry(text: text)
+        let source = keepsSource && existing != nil ? entry.sourceBundleID : source
+        commitPromoted(entry, source: source, replacing: matches)
     }
 
     func trimToLimit() {
+        let retained = retainedEntries(entries)
+        guard retained != entries else { return }
+        entries = retained
+        save()
+    }
+
+    private func retainedEntries(_ candidates: [ClipboardHistoryEntry]) -> [ClipboardHistoryEntry] {
         let limit = Defaults.sanitizedClipboardHistoryLimit(
             UserDefaults.standard.integer(forKey: DefaultsKey.clipboardHistoryLimit)
         )
         let retentionDays = Defaults.sanitizedClipboardHistoryRetentionDays(
             UserDefaults.standard.integer(forKey: DefaultsKey.clipboardHistoryRetentionDays)
         )
-        let trimmed = ClipboardHistoryEditing.retainedEntries(entries,
-                                                              recentLimit: limit,
-                                                              retentionDays: retentionDays,
-                                                              ageExemptIDs: Set([editingEntryID].compactMap { $0 }))
-        if trimmed != entries {
-            entries = trimmed
-            save()
-        }
+        return ClipboardHistoryEditing.retainedEntries(candidates,
+                                                       recentLimit: limit,
+                                                       retentionDays: retentionDays,
+                                                       ageExemptIDs: Set([editingEntryID].compactMap { $0 }))
     }
 
     /// The saved file drops whatever it cannot hold, pinned items included, so
     /// a pin or an edit that would push them past it is refused instead.
     private var encodedHistoryByteLimit: Int { ClipboardHistoryEditing.maxEncodedHistoryBytes }
 
-    private var firstRecentIndex: Int {
-        entries.firstIndex { !$0.isPinned } ?? entries.endIndex
-    }
-
-    /// A copy taken again takes the app it came from this time.
-    private func insertPromoted(_ entry: ClipboardHistoryEntry, source: String?) {
-        var entry = entry
-        entry.copiedAt = Date()
-        entry.sourceBundleID = source
-        if entry.isPinned {
-            entries.insert(entry, at: 0)
-        } else {
-            entries.insert(entry, at: firstRecentIndex)
-        }
-        latestPasteboardEntry = entry
-        capturedEntry.send(entry)
+    private func commitPromoted(_ entry: ClipboardHistoryEntry, source: String?,
+                                replacing matches: (ClipboardHistoryEntry) -> Bool) {
+        var promoted = entry
+        promoted.copiedAt = Date()
+        promoted.sourceBundleID = source
+        let candidates = [promoted] + entries.filter { !matches($0) }
+        let retained = retainedEntries(candidates)
+        // Publish the new order once so observers see the clip present
+        // throughout a re-copy unless retention actually removes it.
+        entries = retained
+        latestPasteboardEntry = retained.first { $0.id == promoted.id }
+        capturedEntry.send(promoted)
+        save()
     }
 
     private func normalizeEntryOrder() {
@@ -1654,7 +1619,7 @@ final class ClipboardHistoryService: ObservableObject {
         }
         let frame = quickShelfEdge.previewFrame(beside: shelf.frame, within: screen.visibleFrame, alignedTo: card)
         let pointer = card.flatMap { rect -> CGFloat? in
-            guard !frame.intersects(shelf.frame) else { return nil }
+            guard !frame.intersects(rect) else { return nil }
             return quickShelfEdge.isVertical ? frame.maxY - rect.midY : rect.midX - frame.minX
         }
         let preview = ClipboardShelfPreviewPanel(contentRect: frame,
@@ -2098,7 +2063,8 @@ final class ClipboardHistoryService: ObservableObject {
             }
             let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
 
-            if self.quickLayout == .cards, modifiers == [.command],
+            let editingQuery = textEditor?.isFieldEditor == true && !self.quickQuery.isEmpty
+            if self.quickLayout == .cards, modifiers == [.command], !editingQuery,
                let collection = self.quickFilter.collection.adjacent(for: event.keyCode, boards: self.pinboards) {
                 self.browseQuickCollection(collection)
                 return nil
@@ -2198,6 +2164,8 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func handleShelfPreviewKey(_ event: NSEvent, in preview: ClipboardShelfPreviewPanel) -> NSEvent? {
         let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+        if preview.isEditingText, let editor = preview.firstResponder as? NSTextView,
+           editor.hasMarkedText() { return event }
         // In the link preview, Space activates a button or scrolls the page.
         let dismisses = event.keyCode == UInt16(kVK_Escape)
             || (event.keyCode == UInt16(kVK_Space) && !preview.isLinkPreview && !preview.isEditingText)

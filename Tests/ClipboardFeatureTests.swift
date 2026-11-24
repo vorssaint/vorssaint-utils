@@ -11,6 +11,7 @@ import Foundation
 import ImageIO
 import SwiftUI
 import VMStatisticsCompat
+import os
 
 enum ClipboardFeatureTests {
     /// Runs the production placement and geometry observers on panels that
@@ -2081,7 +2082,9 @@ enum ClipboardPreviewContract {
 
     class Fixture {
         func pruneQuickBatchSelection() {}
-        func prunePasteStack() {}
+        let pasteStack = OSAllocatedUnfairLock(initialState: ClipboardPasteStack())
+        var pasteStackCount = 0
+        var isRunning = true
         var latestPasteboardEntry: ClipboardHistoryEntry?
         var entriesStamp = 0
         var searchCache = ClipboardHistorySearchCache()
@@ -2094,7 +2097,7 @@ enum ClipboardPreviewContract {
             pendingWrite = { copied in completion(copied ? 1 : nil) }
         }
         var encodedHistoryByteLimit = ClipboardHistoryEditing.maxEncodedHistoryBytes
-        func trimToLimit() {}
+        var editingEntryID: UUID?
         func save() {}
         var quickLayout = ClipboardHistoryLayout.list
         var quickSourcePickerPresented = false
@@ -2115,6 +2118,7 @@ enum ClipboardPreviewContract {
                 var includeImages = false
                 var ignoreTransient = true
                 func set(_ value: Data, forKey key: String) {}
+                func integer(forKey key: String) -> Int { Defaults.registeredDefaults[key] as? Int ?? 0 }
                 func bool(forKey key: String) -> Bool {
                     if key == DefaultsKey.clipboardHistoryIgnoreTransient { return ignoreTransient }
                     if key == DefaultsKey.clipboardHistoryFilterSensitiveText { return skipSensitive }
@@ -2130,7 +2134,34 @@ enum ClipboardPreviewContract {
         }
     }
 
+    private static func stackSurvivesHistoryChanges(_ suite: TestSuite) {
+        let recent = ClipboardHistoryEntry(text: "First queued clip")
+        let pinned = ClipboardHistoryEntry(text: "Second queued clip", pinnedAt: Date())
+        let service = Service()
+        service.quickLayout = .cards
+        service.setEntries([pinned, recent, ClipboardHistoryEntry(text: "Unqueued clip")])
+        service.addToPasteStack(recent)
+        service.addToPasteStack(pinned)
+
+        service.promote(recent.text, source: "com.example.editor", keepsSource: false)
+        suite.expect(service.pasteStackCount == 2 && service.latestPasteboardEntry?.id == recent.id,
+                     "recopying a queued clip preserves its identity and keeps it queued")
+        service.togglePin(pinned)
+        suite.expect(service.pasteStackCount == 2 && service.entries.first?.id == pinned.id
+                     && service.entries.first?.isPinned == false,
+                     "unpinning changes history order and keeps the clip queued")
+
+        let queued = service.pasteStack.withLock { stack -> [UUID] in
+            guard let first = stack.beginPaste(), stack.post(first, shortcut: { true }),
+                  let second = stack.beginPaste() else { return [] }
+            return [first.entryID, second.entryID]
+        }
+        suite.expect(queued == [recent.id, pinned.id],
+                     "recopying and unpinning preserve the original stack order")
+    }
+
     static func run(_ suite: TestSuite) {
+        stackSurvivesHistoryChanges(suite)
         let current = ClipboardHistoryEntry(text: "Actual clipboard text")
         let other = ClipboardHistoryEntry(text: "Another saved copy")
         let service = Service()
@@ -2566,7 +2597,14 @@ enum ClipboardPreviewContract {
             let card = CGRect(x: shelf.minX + 24, y: shelf.minY + 24, width: 80, height: 80)
             let anchored = edge.previewFrame(beside: shelf, within: screen, alignedTo: card)
             let movesTowardCard = edge.isVertical ? anchored.midY < preview.midY : anchored.midX < preview.midX
-            suite.expect(movesTowardCard && screen.contains(anchored) && !shelf.intersects(anchored),
+            let cardGap: CGFloat
+            switch edge {
+            case .top: cardGap = card.minY - anchored.maxY
+            case .bottom: cardGap = anchored.minY - card.maxY
+            case .left: cardGap = anchored.minX - card.maxX
+            case .right: cardGap = card.minX - anchored.maxX
+            }
+            suite.expect(movesTowardCard && screen.contains(anchored) && (0...3).contains(cardGap),
                          "the \(edge.rawValue) preview moves toward the card along the shelf")
             suite.expect(edge.cornerRadii(22) == innerCorners[edge],
                          "only the \(edge.rawValue) shelf corners that face the desktop are rounded")

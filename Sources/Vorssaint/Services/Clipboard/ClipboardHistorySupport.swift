@@ -46,12 +46,16 @@ enum ClipboardShelfEdge: String, CaseIterable {
     }
 
     func previewFrame(beside shelf: CGRect, within screen: CGRect, alignedTo card: CGRect? = nil) -> CGRect {
+        // A visible card is the attachment point. The preview can cover the
+        // toolbar so its tail reaches the card, including on side shelves.
+        let visibleCard = card.map { $0.intersection(shelf) }.flatMap { $0.isEmpty ? nil : $0 }
+        let anchor = visibleCard ?? shelf
         let available: CGRect
         switch self {
-        case .top: available = screen.divided(atDistance: max(0, shelf.minY - screen.minY), from: .minYEdge).slice
-        case .bottom: available = screen.divided(atDistance: max(0, shelf.maxY - screen.minY), from: .minYEdge).remainder
-        case .left: available = screen.divided(atDistance: max(0, shelf.maxX - screen.minX), from: .minXEdge).remainder
-        case .right: available = screen.divided(atDistance: max(0, shelf.minX - screen.minX), from: .minXEdge).slice
+        case .top: available = screen.divided(atDistance: max(0, anchor.minY - screen.minY), from: .minYEdge).slice
+        case .bottom: available = screen.divided(atDistance: max(0, anchor.maxY - screen.minY), from: .minYEdge).remainder
+        case .left: available = screen.divided(atDistance: max(0, anchor.maxX - screen.minX), from: .minXEdge).remainder
+        case .right: available = screen.divided(atDistance: max(0, anchor.minX - screen.minX), from: .minXEdge).slice
         }
         let area = available.width >= 280 && available.height >= 200 ? available : screen
         let width = area.width * 0.94
@@ -62,15 +66,16 @@ enum ClipboardShelfEdge: String, CaseIterable {
             let horizontalGap = min(12, (area.width - width) / 2)
             let verticalGap = min(12, (area.height - height) / 2)
             let inset = area.insetBy(dx: horizontalGap, dy: verticalGap)
-            if let card {
+            if let card = visibleCard {
                 x = min(max(card.midX - width / 2, inset.minX), inset.maxX - width)
                 y = min(max(card.midY - height / 2, inset.minY), inset.maxY - height)
             }
+            let gap = visibleCard == nil ? 12.0 : 3.0
             switch self {
-            case .top: y = area.maxY - height - verticalGap
-            case .bottom: y = area.minY + verticalGap
-            case .left: x = area.minX + horizontalGap
-            case .right: x = area.maxX - width - horizontalGap
+            case .top: y = area.maxY - height - min(gap, verticalGap)
+            case .bottom: y = area.minY + min(gap, verticalGap)
+            case .left: x = area.minX + min(gap, horizontalGap)
+            case .right: x = area.maxX - width - min(gap, horizontalGap)
             }
         }
         return CGRect(x: x, y: y, width: width, height: height)
@@ -1218,8 +1223,8 @@ enum ClipboardHistoryNavigation {
     /// How far a key moves the highlight, or nil when it is not a move.
     /// Down and Control-N go forward and up and Control-P back in both
     /// layouts. The cards run left to right, so a plain side arrow walks
-    /// them too; with a modifier, or in the list, it stays with the search
-    /// field's caret.
+    /// them too. The shelf handles Command-arrows separately for pinboard
+    /// navigation when the user is not editing a query.
     static func step(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, key: String?,
                      layout: ClipboardHistoryLayout) -> Int? {
         let sideArrowsMove = modifiers.isEmpty && layout.sideArrowsMoveSelection

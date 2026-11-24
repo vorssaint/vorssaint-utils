@@ -136,6 +136,11 @@ struct ClipboardQuickPanelView: View {
         .onChange(of: boardEditorTargetAvailable) { _, available in
             if !available { closeBoardEditor() }
         }
+        .onChange(of: history.quickFilter.collection) { _, _ in
+            guard layout == .cards, boardEditor == nil else { return }
+            filterChoiceFocus = nil
+            searchFocused = true
+        }
         .onChange(of: filterChoiceFocus) { _, choice in
             history.quickFilterChoiceIsFocused = choice != nil
         }

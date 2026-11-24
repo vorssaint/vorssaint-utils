@@ -773,8 +773,7 @@ def main():
               "    private enum CapturedContent", "    private func captureIfChanged(",
               "    private static func readPasteboard(", "    private func matchingEntry(",
               "    private func stop()", "    private func promote(", "    private func touch(",
-              "    private var firstRecentIndex:", "    private func normalizeEntryOrder(",
-              "    private func insertPromoted("])
+              "    private func retainedEntries(", "    private func commitPromoted("])
           + "func setEntries(_ values: [ClipboardHistoryEntry]) { entries = values }\n"
           + "}\n}\n")
     write("ClipboardCommandBarUpdates.swift", "import Combine\nimport Foundation\nextension ClipboardPreviewContract {\n"
@@ -798,7 +797,8 @@ def main():
               "    var quickShelfSearchIsActive:", "    private func isQuickShelfSearchActive(",
               "    private func quickSearchSurface(", "    func beginQuickShelfSearch(",
               "    func clearQuickShelfSearch(",
-              "    private var firstRecentIndex:", "    private func normalizeEntryOrder(",
+              "    private func retainedEntries(", "    func addToPasteStack(",
+              "    private func prunePasteStack(", "    private func syncPasteStackCount(",
               "    func cancelSearch(", "    func filteredEntries(", "    var filteredQuickEntries:", "    var selectedQuickEntry:",
               "    private var quickSearchSurface:", "    func setQuickSourceApp(",
               "    func setQuickContentType(", "    func setQuickCollection(", "    private func setQuickFilter(",
@@ -810,7 +810,7 @@ def main():
               "    func moveQuickSelection(", "    func removeSelectedQuickEntries(",
               "    private var quickBatchEntries:", "    private func quickEntriesForPrimaryAction(",
               "    private func selectedQuickIndex(", "    private func promote(",
-              "    private func insertPromoted("])
+              "    private func commitPromoted("])
           + "func setEntries(_ values: [ClipboardHistoryEntry]) { entries = values }\n"
           + "}\n}\n")
     write("CommandBarInputSource.swift", "import Foundation\n"
