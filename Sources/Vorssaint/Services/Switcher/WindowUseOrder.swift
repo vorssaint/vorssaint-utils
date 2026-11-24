@@ -26,6 +26,7 @@ struct WindowFocusHistory {
         let windowID: CGWindowID
         let previousWindowID: CGWindowID?
         let confirmation: UUID
+        let wasObserved: Bool
         fileprivate let switchedAt: TimeInterval?
 
         fileprivate func includes(_ id: CGWindowID) -> Bool { windowID == id || previousWindowID == id }
@@ -112,7 +113,7 @@ struct WindowFocusHistory {
             let sameWindow = lastFocus?.windowID == window
             let previous = sameWindow ? lastFocus?.previousWindowID : lastFocus?.windowID
             lastFocus = Observation(windowID: window, previousWindowID: previous,
-                                    confirmation: revision, switchedAt: sameWindow ? lastFocus?.switchedAt : nil)
+                                    confirmation: revision, wasObserved: true, switchedAt: sameWindow ? lastFocus?.switchedAt : nil)
             return true
         }
         // Keep the activation identity after its first answer, so an in-flight
@@ -153,7 +154,7 @@ struct WindowFocusHistory {
         if let window {
             promote(.window(window, request))
             lastFocus = Observation(windowID: window, previousWindowID: sameApp && previous != window ? previous : nil,
-                                    confirmation: revision, switchedAt: now)
+                                    confirmation: revision, wasObserved: false, switchedAt: now)
         } else {
             promote(.app(request))
             lastFocus = nil
@@ -184,7 +185,7 @@ struct WindowFocusHistory {
             lastFocus = nil
         } else if let focus = lastFocus, focus.previousWindowID == windowID {
             lastFocus = Observation(windowID: focus.windowID, previousWindowID: nil,
-                                    confirmation: revision, switchedAt: nil)
+                                    confirmation: revision, wasObserved: focus.wasObserved, switchedAt: nil)
         }
     }
 

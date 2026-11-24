@@ -48,6 +48,7 @@ struct SwitcherPendingSessionStart {
     var commitWhenReady = false
     var isSecureInputReplay = false
     var awaitsWindowSelection = false
+    var activatingWindow: SwitcherItem?
 
     var cancelsReleasedReplay: Bool {
         isSecureInputReplay && (scope == .frontmostApp || awaitsWindowSelection)

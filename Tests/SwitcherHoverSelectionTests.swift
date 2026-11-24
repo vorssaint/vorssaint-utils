@@ -1815,6 +1815,8 @@ enum SwitcherHoverSelectionTests {
 
     private enum GlobalWindowGesture: CaseIterable {
         case repeatBeforeRefresh, repeatBeforeMain, repeatDuringActivation, typeDuringWait, typeAfterTwoReleases
+        case repeatWithOtherShortcut, typeOnConfirmedTarget, typeOnUnfocusedTarget, typeInOtherApp
+        case typeWithoutEventPID, typeWithForeignEventPID
         case hold, heldEscape, closedWindow
         case carbonHeld, carbonReleased, carbonReleasedBeforeReplay, carbonReleasedBeforeDelivery
 
@@ -1838,7 +1840,10 @@ enum SwitcherHoverSelectionTests {
             event.flags = flags
             return event
         }
-        func keyDown() { _ = service.route(type: .keyDown, event: key(CGKeyCode(shortcut.keyCode), flags: shortcut.modifiers.cgFlags)) }
+        func sendShortcut(_ chord: GlobalShortcut) {
+            _ = service.route(type: .keyDown, event: key(CGKeyCode(chord.keyCode), flags: chord.modifiers.cgFlags))
+        }
+        func keyDown() { sendShortcut(shortcut) }
         func modifierUp() { _ = service.route(type: .flagsChanged, event: release) }
         func settleFocus() {
             // A queued gesture can start a second focus read after the first reached main.
@@ -1858,15 +1863,67 @@ enum SwitcherHoverSelectionTests {
         var delivered: [String] = []
         var commands: [SwitcherLetterAction] = []
         service.runProtectedLetterAction = { commands.append($0) }
-        func typeLetter() {
-            let letter = key(13, flags: [])
-            letter.keyboardSetUnicodeString(stringLength: 1, unicodeString: Array("w".utf16))
-            if service.route(type: .keyDown, event: letter)?.takeUnretainedValue() === letter {
-                delivered.append(Activator.activated.dropFirst(before.count).last ?? c.id)
-            }
+        func typeLetter(_ text: String = "w", code: CGKeyCode = 13, eventPID: pid_t = 0, recipient: String? = nil) {
+            let letter = key(code, flags: [])
+            let characters = Array(text.utf16)
+            letter.keyboardSetUnicodeString(stringLength: characters.count, unicodeString: characters)
+            letter.setIntegerValueField(.eventTargetUnixProcessID, value: Int64(eventPID))
+            guard let routed = service.route(type: .keyDown, event: letter)?.takeUnretainedValue() else { return }
+            suite.expect(routed === letter, "\(label) returns the original typed event")
+            delivered.append(recipient ?? Activator.activated.dropFirst(before.count).last ?? c.id)
         }
         service.useTracker = .shared
-        if [.repeatBeforeRefresh, .repeatBeforeMain, .repeatDuringActivation].contains(gesture) {
+        if [.typeOnConfirmedTarget, .typeOnUnfocusedTarget, .typeInOtherApp, .typeWithoutEventPID, .typeWithForeignEventPID].contains(gesture) {
+            let previousActivation = Activator.onActivation, previousApp = Workspace.shared.frontmostApplication
+            defer {
+                Activator.onActivation = previousActivation
+                Workspace.shared.frontmostApplication = previousApp
+            }
+            var attempts = 0
+            Activator.onActivation = { selected in
+                attempts += 1
+                suite.expect(selected.id == b.id, "\(label) requests B before the letter arrives")
+                // recordSwitch already names B. Only a subsequent focus observation confirms that B has the keyboard.
+                if gesture != .typeOnUnfocusedTarget {
+                    Desktop.WindowActivator.focusedWindow = b.windowID
+                    WindowUseTracker.shared.recordObservedFocus(windowID: 2, pid: b.pid)
+                }
+                let frontPID = gesture == .typeInOtherApp ? b.pid + 1 : b.pid
+                Workspace.shared.frontmostApplication = .init(processIdentifier: frontPID)
+                let eventPID: pid_t
+                switch gesture {
+                case .typeWithoutEventPID, .typeInOtherApp: eventPID = 0
+                case .typeWithForeignEventPID: eventPID = b.pid + 1
+                default: eventPID = b.pid
+                }
+                let wasBusy = Queue.mainIsBusy, waits = Queue.waitsWhileBusy
+                defer { Queue.mainIsBusy = wasBusy; Queue.waitsWhileBusy = waits }
+                Queue.mainIsBusy = true
+                let recipientPID = eventPID == 0 ? frontPID : eventPID
+                let focused = Desktop.WindowActivator.focusedWindow == b.windowID ? b : c
+                typeLetter(eventPID: eventPID, recipient: recipientPID == b.pid ? focused.id : "other app")
+                if gesture == .typeOnUnfocusedTarget {
+                    let previous = WindowUseTracker.history.focusHistory.revision
+                    Desktop.Events.shared.deliver?(.destroyed(3))
+                    Desktop.WindowActivator.focusedWindow = a.windowID
+                    suite.expect(WindowUseTracker.history.focusHistory.revision != previous && !inventory.contains(c),
+                                 "\(label) removes predecessor C without observing focus on B")
+                    typeLetter("q", code: 12, eventPID: eventPID, recipient: a.id)
+                }
+                suite.expect(Queue.waitsWhileBusy == waits, "\(label) resolves the letter while main is activating B")
+            }
+            keyDown()
+            modifierUp()
+            settleFocus()
+            captureInventory()
+            settleFocus()
+            let expected = gesture == .typeOnConfirmedTarget || gesture == .typeWithoutEventPID ? [b.id] : []
+            suite.expect(attempts == 1 && delivered == expected && commands.isEmpty && Activator.activated == before + [b.id]
+                         && service.recordedIDs == [b.id] && !service.keyboardInputOwnership.isOwned,
+                         "\(label) gives the original W only to the selected window that has keyboard focus")
+            return
+        }
+        if [.repeatBeforeRefresh, .repeatBeforeMain, .repeatDuringActivation, .repeatWithOtherShortcut].contains(gesture) {
             Desktop.WindowActivator.focusedWindow = b.windowID
             let previousActivation = Activator.onActivation
             defer { Activator.onActivation = previousActivation }
@@ -1884,9 +1941,13 @@ enum SwitcherHoverSelectionTests {
             }
             keyDown()
             modifierUp()
-            if gesture == .repeatBeforeRefresh { Queue.advance(to: Queue.time) }
+            if gesture == .repeatBeforeRefresh || gesture == .repeatWithOtherShortcut { Queue.advance(to: Queue.time) }
             if gesture != .repeatDuringActivation {
-                keyDown()
+                if gesture == .repeatWithOtherShortcut {
+                    sendShortcut(shortcut == .switcherDefault ? .switcherAllWindowsDefault : .switcherDefault)
+                } else {
+                    keyDown()
+                }
                 modifierUp()
             }
             settleFocus()
