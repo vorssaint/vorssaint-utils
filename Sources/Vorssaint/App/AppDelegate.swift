@@ -71,6 +71,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        if Permissions.launchDumpsPermissions {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { Permissions.shared.dumpPermissions() }
+        }
         if Permissions.launchRequestsEverything {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { Permissions.shared.requestEverything() }
         }

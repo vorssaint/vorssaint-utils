@@ -16,6 +16,40 @@ extension Permissions {
         CommandLine.arguments.contains("--grant-permissions")
     }
 
+    /// Launch with `--dump-permissions` to write what is allowed to
+    /// /tmp/vorssaint-permissions.txt, then quit. Never prompts.
+    static var launchDumpsPermissions: Bool {
+        CommandLine.arguments.contains("--dump-permissions")
+    }
+
+    func dumpPermissions() {
+        refresh()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [self] in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let finder = Self.automationStatus(for: .finder)
+                DispatchQueue.main.async {
+                    var lines = [
+                        "accessibility: \(self.accessibility)",
+                        "screenRecording: \(self.screenRecording)",
+                        "fullDiskAccess: \(self.fullDiskAccess)",
+                        "microphone: \(self.microphone)",
+                        "camera: \(self.camera)",
+                        "notifications: \(self.notifications)",
+                        "calendar: \(self.calendarAccess == .fullAccess ? "fullAccess" : "\(self.calendarAccess.rawValue)")",
+                        "automationFinder: \(finder)",
+                    ]
+                    let fm = FileManager.default, home = NSHomeDirectory()
+                    for folder in ["Desktop", "Documents", "Downloads"] {
+                        let ok = (try? fm.contentsOfDirectory(atPath: (home as NSString).appendingPathComponent(folder))) != nil
+                        lines.append("folder \(folder): \(ok)")
+                    }
+                    try? lines.joined(separator: "\n").write(toFile: "/tmp/vorssaint-permissions.txt", atomically: true, encoding: .utf8)
+                    NSApp.terminate(nil)
+                }
+            }
+        }
+    }
+
     func requestEverything() {
         guard !Self.walkingThroughPermissions else { return }
         Self.walkingThroughPermissions = true
