@@ -251,10 +251,11 @@ enum CommandBarExpressions {
             return true
         }
 
-        func followsUnitOrMixedRemainder() -> Bool {
+        func followsUnitOrMixedRemainder(at start: Int) -> Bool {
             if case .unit? = tokens.last { return true }
-            // A mixed measurement can omit its smaller unit: "5 ft 11 A cm".
-            guard case .number? = tokens.last, case .unit(let larger)? = tokens.dropLast().last
+            // "5 ft 11 A cm" omits inches. In "11A", the A belongs to the number.
+            guard start > 0, characters[start - 1].isWhitespace,
+                  case .number? = tokens.last, case .unit(let larger)? = tokens.dropLast().last
             else { return false }
             return CommandBarUnitCatalog.mixedPairs[larger.id] != nil
         }
@@ -376,7 +377,7 @@ enum CommandBarExpressions {
                         }
                     }
                     if matched.unit.id == "a", fold(matched.raw) == "a",
-                       followsUnitOrMixedRemainder(), unitAhead(at: index) {
+                       followsUnitOrMixedRemainder(at: tokenStart), unitAhead(at: index) {
                         tokens.append(.to)
                         continue
                     }
