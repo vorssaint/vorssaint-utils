@@ -570,6 +570,8 @@ struct NotchSettings: View {
             }
         case .scratchpad:
             destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad)
+        case .themes:
+            EmptyView()
         case .dictation:
             Button(DictationStrings.localized(l10n.language).title) {
                 SettingsRouter.shared.request(FeatureSettingsDestination(.dictation))
@@ -917,6 +919,7 @@ struct NotchSettings: View {
         case .mixer: return .mixer
         case .clipboard: return .clipboardHistory
         case .dictation: return .dictation
+        case .themes: return nil
         case .files: return .shelf
         case .tools: return .quickLauncher
         case .calendar: return .notchCalendar

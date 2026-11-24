@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, weather, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch, homeAssistant, dictation
+    case controls, mixer, music, clipboard, captures, files, system, weather, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch, homeAssistant, dictation, themes
     var id: String { rawValue }
 
     var symbol: String {
@@ -24,6 +24,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .calendar: return "calendar"
         case .clipboard: return "doc.on.clipboard"
         case .dictation: return "waveform"
+        case .themes: return "paintpalette"
         case .captures: return "camera.viewfinder"
         case .files: return "tray.full"
         case .system: return "gauge.with.dots.needle.50percent"
@@ -45,6 +46,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .music: return "m"
         case .clipboard: return "b"
         case .dictation: return "k"
+        case .themes: return "z"
         case .captures: return "s"
         case .files: return "f"
         case .system: return "i"
@@ -74,6 +76,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .tools: return AppFeature.quickLauncher.isAvailable(in: defaults)
         case .clipboard: return AppFeature.clipboardHistory.isAvailable(in: defaults)
         case .dictation: return AppFeature.dictation.isAvailable(in: defaults)
+        case .themes: return true
         case .captures:
             return AppFeature.screenshot.isAvailable(in: defaults)
                 || AppFeature.screenRecorder.isAvailable(in: defaults)
@@ -2924,7 +2927,7 @@ struct NotchGeometry: Equatable {
                 contentHeight = home.rows == 0 ? min(budget, home.contentHeight) : home.contentHeight
             // Lists and previews fill the chosen content budget.
             case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera,
-                 .scratchpad, .watch, .weather, .dictation:
+                 .scratchpad, .watch, .weather, .dictation, .themes:
                 contentHeight = budget
             }
         }

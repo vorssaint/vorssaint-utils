@@ -580,6 +580,7 @@ struct NotchView: View {
             case .music: NotchMusicView(size: pageSize, extrasHeight: service.geometry.musicExtrasHeight)
             case .clipboard: NotchClipboardView(service: service, size: pageSize)
             case .dictation: DictationHistoryView(compact: true)
+            case .themes: NotchThemesView(size: pageSize)
             case .captures:
                 if let capture = service.captureContent {
                     // The capture's own toolbar takes a full row, below a camera.
@@ -829,6 +830,7 @@ extension NotchModule: PanelOrderItem {
         case .music: return FeatureStrings.radialMenu(language).mediaNowPlaying
         case .clipboard: return FeatureStrings.clipboard(language).title
         case .dictation: return DictationStrings.localized(language).title
+        case .themes: return "Themes"
         case .captures: return FeatureStrings.recentCaptures(language).title
         case .files: return FeatureStrings.notch(language).files
         case .system: return FeatureStrings.notch(language).system
