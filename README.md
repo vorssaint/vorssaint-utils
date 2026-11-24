@@ -158,6 +158,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Quit apps.** See every open app in one list and quit them one by one, all at once or all but the one in front.
 - **Radial menu.** Open a customizable wheel of apps, files, shortcuts and tools around the pointer, with profiles and submenus.
 - **Scratchpad.** Keep autosaved notes in tabs, with Markdown preview and export, in a floating window or Dynamic Island.
+- **Pomodoro media control.** Optionally play the current system media during focus and pause it during breaks. Automatic phase transitions are a separate opt-in. See [Pomodoro settings](docs/pomodoro-media-control.md).
 - **Cleaning Mode.** Lock keyboard input while cleaning, with a black screen or a small visible indicator.
 
 ### Capture and create
