@@ -370,6 +370,7 @@ struct Strings {
     let micUnmutedHUD: String
     let micMutePartialHUD: String
     let micUnmutePartialHUD: String
+    let micRestoreExhaustedHUD: String
     let micManualRestore: String
     let micManualRestoreChecked: String
     let micMuteMenuBarToggle: String
@@ -1545,6 +1546,7 @@ extension Strings {
         micUnmutedHUD: "Silenciamento desativado",
         micMutePartialHUD: "Não foi possível confirmar o silenciamento em todos os microfones",
         micUnmutePartialHUD: "Não foi possível confirmar a restauração de todos os microfones",
+        micRestoreExhaustedHUD: "Não foi possível confirmar a restauração automática. Confira se o microfone está mudo e ajuste o volume de entrada no mixer.",
         micManualRestore: "Não foi possível verificar os ajustes anteriores do microfone. Confira se ele está mudo e verifique o volume no mixer ou nos ajustes de Som.",
         micManualRestoreChecked: "Já conferi o microfone",
         micMuteMenuBarToggle: "Mostrar na barra de menus enquanto ativo",
@@ -2680,6 +2682,7 @@ extension Strings {
         micUnmutedHUD: "Mic Mute off",
         micMutePartialHUD: "Couldn’t confirm mute on every microphone",
         micUnmutePartialHUD: "Couldn’t confirm every microphone was restored",
+        micRestoreExhaustedHUD: "Automatic restore could not be confirmed. Check the microphone’s mute switch and adjust its input volume in the mixer.",
         micManualRestore: "The previous microphone settings could not be verified. Check its mute switch and its input level in the mixer or Sound settings.",
         micManualRestoreChecked: "I’ve checked the microphone",
         micMuteMenuBarToggle: "Show in the menu bar while Mic Mute is on",

@@ -206,6 +206,7 @@ extension Strings {
         micUnmutedHUD: "Silencio del micrófono desactivado",
         micMutePartialHUD: "No se pudo confirmar el silencio en todos los micrófonos",
         micUnmutePartialHUD: "No se pudo confirmar la restauración de todos los micrófonos",
+        micRestoreExhaustedHUD: "No se pudo confirmar la restauración automática. Comprueba el botón de silencio del micrófono y ajusta el volumen de entrada en el mezclador.",
         micManualRestore: "No se pudieron verificar los ajustes anteriores del micrófono. Comprueba su botón de silencio y el volumen de entrada en el mezclador o en los ajustes de Sonido.",
         micManualRestoreChecked: "Ya he comprobado el micrófono",
         micMuteMenuBarToggle: "Mostrar en la barra de menús mientras esté activo",

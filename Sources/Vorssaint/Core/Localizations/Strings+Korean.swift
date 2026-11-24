@@ -206,6 +206,7 @@ extension Strings {
         micUnmutedHUD: "마이크 음소거 기능 꺼짐",
         micMutePartialHUD: "일부 마이크의 음소거 상태를 확인할 수 없습니다",
         micUnmutePartialHUD: "일부 마이크의 설정이 복원되었는지 확인할 수 없습니다",
+        micRestoreExhaustedHUD: "자동 복원을 확인할 수 없습니다. 마이크의 음소거 스위치를 확인하고 믹서에서 입력 음량을 조절하세요.",
         micManualRestore: "이전 마이크 설정을 확인할 수 없습니다. 해당 마이크의 음소거 스위치와 믹서 또는 사운드 설정의 입력 음량을 확인하세요.",
         micManualRestoreChecked: "마이크를 확인했습니다",
         micMuteMenuBarToggle: "기능이 켜져 있을 때 메뉴 막대에 표시",

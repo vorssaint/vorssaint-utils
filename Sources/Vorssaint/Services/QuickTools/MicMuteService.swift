@@ -23,12 +23,13 @@ final class MicMuteService: ObservableObject {
     @Published private(set) var isMuted = false
 
     enum Warning {
-        case muteUnconfirmed, restoreUnconfirmed, manualRestore
+        case muteUnconfirmed, restoreUnconfirmed, restoreExhausted, manualRestore
 
         var message: String {
             switch self {
             case .muteUnconfirmed: L10n.shared.s.micMutePartialHUD
             case .restoreUnconfirmed: L10n.shared.s.micUnmutePartialHUD
+            case .restoreExhausted: L10n.shared.s.micRestoreExhaustedHUD
             case .manualRestore: L10n.shared.s.micManualRestore
             }
         }
@@ -73,8 +74,24 @@ final class MicMuteService: ObservableObject {
     /// Only the serial audio queue updates retry state or runs the timer.
     private typealias ControlRetries = [InputDevice: [String: MicMuteSupport.Retry]]
     private var retries: ControlRetries = [:]
-    /// Submitted restore targets that still need verification on this connection.
-    private var attemptedRestores: [InputDevice: [String: Double]] = [:]
+    /// An unverified setter gets two spaced retries on this connection.
+    private struct RestoreAttempt {
+        let target: Double
+        let writes: Int
+        let deadline: TimeInterval?
+
+        init(target: Double, previous: Self?, now: TimeInterval) {
+            self.target = target
+            writes = (previous?.writes ?? 0) + 1
+            deadline = writes < 3 ? now + MicMuteService.recoveryDelays[writes - 1] : nil
+        }
+
+        func defersWrite(at now: TimeInterval) -> Bool {
+            guard let deadline else { return true }
+            return now < deadline
+        }
+    }
+    private var attemptedRestores: [InputDevice: [String: RestoreAttempt]] = [:]
     private var retryWork: DispatchWorkItem?
     private var retryDeadline: TimeInterval?
     /// Backoff for temporary Core Audio registration and discovery failures.
@@ -303,6 +320,21 @@ final class MicMuteService: ObservableObject {
         }
     }
 
+    /// On the mute queue, a mixer edit supersedes the saved target for the
+    /// same control. The normal release sweep still verifies the driver's response.
+    func didAdjustInput(uid: String, device: AudioDeviceID, at address: AudioObjectPropertyAddress, to gain: Float) {
+        guard Self.releasePending else { return }
+        let defaults = UserDefaults.standard
+        let key = Self.controlKey(address)
+        guard var saved = defaults.dictionary(forKey: DefaultsKey.micMuteSavedControls) as? [String: [String: Double]],
+              let previous = saved[uid]?[key], Self.inputUID(of: device) == uid else { return }
+        if previous != Double(gain) {
+            saved[uid]?[key] = Double(gain)
+            defaults.set(saved, forKey: DefaultsKey.micMuteSavedControls)
+        }
+        scheduleReapply()
+    }
+
     /// Unmute for a caller that is about to tear the app down. The queue that
     /// carries a normal sweep may never be drained once the app is going away,
     /// and a microphone left cut by an app that no longer exists is the one
@@ -314,6 +346,7 @@ final class MicMuteService: ObservableObject {
         let mustRestore = wantsMute || defaults.bool(forKey: DefaultsKey.micMuteActive) || hasOutstandingClaims
         guard mustRestore || applyInFlight else {
             halQueue.sync {
+                self.updateRetries([:])
                 self.cancelInventoryRecovery()
                 self.syncDeviceListeners(.stopped)
             }
@@ -336,6 +369,7 @@ final class MicMuteService: ObservableObject {
             if mustRestore || self.hasOutstandingClaims {
                 _ = self.sweep(muted: false, audioGeneration: self.currentAudioGeneration, request: request)
             }
+            self.updateRetries([:])
             self.cancelInventoryRecovery()
             self.syncDeviceListeners(.stopped)
         }
@@ -499,7 +533,7 @@ final class MicMuteService: ObservableObject {
         // owning nothing, and the sweep must keep those two apart.
         let mutedDevices = defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices)
         if serviceRestarted {
-            attemptedRestores.removeAll()
+            if observationGeneration < callbackLock.withLock({ lastConfirmedReset }) { attemptedRestores.removeAll() }
             quietInputs.removeAll()
             unverifiedWrites.removeAll()
             observedInputs = []
@@ -739,9 +773,15 @@ final class MicMuteService: ObservableObject {
                 let targets = remaining.map { pending in
                     devices.filter { $0.uid != pending.uid || controls[$0.uid] != nil }
                 } ?? devices
+                if let inventory {
+                    // A global list echo can renew subscriptions on the same
+                    // input. Only confirmed removal retires its write budget.
+                    let connected = Set(inventory.devices)
+                    attemptedRestores = attemptedRestores.filter { connected.contains($0.key) || inventory.unresolvedIDs.contains($0.key.id) }
+                }
                 outcome = Self.unmute(targets, savedVolumes: levels, savedChannelVolumes: channels, savedControls: controls,
                                       mutedDevices: claims, protectedChannels: &protectedChannels, attempts: &attemptedRestores,
-                                      callOpenings: callOpenings,
+                                      now: uptime(), callOpenings: callOpenings,
                                       didRestore: commitCallRelease, isCurrent: isCurrent)
                 if follow && !outcome.applied {
                     // A rejected automatic release keeps mute active. A
@@ -890,7 +930,8 @@ final class MicMuteService: ObservableObject {
         }
         // Only a wholly rejected call release can retain the active mute's retry.
         if muted || outcome.applied || !keepRetriesIfUnmuteFails {
-            updateRetries(outcome.applied || keepRetriesIfUnmuteFails ? outcome.retries : [:])
+            updateRetries(outcome.applied || keepRetriesIfUnmuteFails ? outcome.retries : [:],
+                          restoreDeadline: outcome.restoreRetryDeadline)
         } else if follow {
             // A retry may have fired to discover this opening. Reassert the
             // still-active mute and let the refusing driver resume its backoff.
@@ -940,9 +981,9 @@ final class MicMuteService: ObservableObject {
 
     /// A driver may become writable without another notification. Retry on
     /// the audio queue, keeping a single timer for the earliest due device.
-    private func updateRetries(_ updated: ControlRetries) {
+    private func updateRetries(_ updated: ControlRetries, restoreDeadline: TimeInterval? = nil) {
         retries = updated
-        let next = updated.values.compactMap { $0.values.compactMap(\.scheduledDeadline).min() }.min()
+        let next = restoreDeadline ?? updated.values.compactMap { $0.values.compactMap(\.scheduledDeadline).min() }.min()
         guard next != retryDeadline else { return }
         retryWork?.cancel()
         retryWork = nil
@@ -1010,6 +1051,8 @@ final class MicMuteService: ObservableObject {
             nextWarning = controlsConfirmed ? nil : .muteUnconfirmed
         } else if outcome.requiresManualLegacyRestore {
             nextWarning = .manualRestore
+        } else if outcome.restoreAttemptsExhausted {
+            nextWarning = .restoreExhausted
         } else if !muted && (outcome.failed || !outcome.mutedDevices.isEmpty) {
             nextWarning = .restoreUnconfirmed
         } else {
@@ -1020,12 +1063,12 @@ final class MicMuteService: ObservableObject {
         if (changedWarning && warning != nil) || (failure && (announce || outcome.followedCallApp)) {
             NotchService.shared.retractMicrophoneNotice()
         }
-        guard announce || outcome.followedCallApp || (changedWarning && warning == .manualRestore) else { return }
+        let manualNotice = warning == .manualRestore || warning == .restoreExhausted ? warning : nil
+        guard announce || outcome.followedCallApp || (changedWarning && manualNotice != nil) else { return }
         // Report a known failure even when no device could be changed. The
         // whole sentence matters, and it is longer than the island's wings.
         if failure || warning != nil {
-            let requestedWarning: Warning = muted ? .muteUnconfirmed : .restoreUnconfirmed
-            let notice = !muted && outcome.requiresManualLegacyRestore ? Warning.manualRestore : requestedWarning
+            let notice: Warning = muted ? .muteUnconfirmed : (manualNotice ?? .restoreUnconfirmed)
             notice.showHUD()
             return
         }
@@ -1060,6 +1103,8 @@ final class MicMuteService: ObservableObject {
         /// A device this sweep had to reach and could not, next to ones it did.
         var failed = false
         var requiresManualLegacyRestore = false
+        var restoreRetryDeadline: TimeInterval?
+        var restoreAttemptsExhausted = false
         var confirmedInputs: Set<InputDevice> = []
         /// A mute reading is valid only for the topology it covered.
         var confirmedInputRevision: UInt64?
@@ -1269,7 +1314,7 @@ final class MicMuteService: ObservableObject {
                                savedChannelVolumes: [String: [String: Double]],
                                savedControls: [String: [String: Double]],
                                mutedDevices: [String], protectedChannels: inout [String: [UInt32]],
-                               attempts: inout [InputDevice: [String: Double]],
+                               attempts: inout [InputDevice: [String: RestoreAttempt]], now: TimeInterval,
                                callOpenings: Set<DeviceListener>, didRestore: () -> Void,
                                isCurrent: (InputDevice) -> Bool) -> MuteOutcome {
         let present = devices.map(\.uid)
@@ -1280,8 +1325,7 @@ final class MicMuteService: ObservableObject {
                                   mutedDevices: MicMuteSupport.absentClaims(recorded: mutedDevices,
                                                                             present: present))
         let targets = Set(MicMuteSupport.restoreTargets(recorded: mutedDevices, present: present))
-        let connected = Set(devices)
-        attempts = attempts.filter { connected.contains($0.key) && targets.contains($0.key.uid) }
+        attempts = attempts.filter { mutedDevices.contains($0.key.uid) }
         var attempted = false
         for device in devices where targets.contains(device.uid) {
             // A later input can reset the audio server after this one has
@@ -1324,10 +1368,22 @@ final class MicMuteService: ObservableObject {
             attempted = true
             var openings = Set(callOpenings.filter { $0.device == device.id }.map { controlKey($0.address) })
             var attemptedTargets = attempts[device] ?? [:]
-            let outstanding = restoreControls(saved, on: device, protecting: &channels, openings: &openings, attempts: &attemptedTargets,
-                                              recordedLevels: savedChannelVolumes[device.uid], isCurrent: isCurrent)
-            attemptedTargets = attemptedTargets.filter { outstanding[$0.key] != nil }
+            let outstanding = restoreControls(saved, on: device, protecting: &channels, openings: &openings,
+                                              attempts: &attemptedTargets, now: now, recordedLevels: savedChannelVolumes[device.uid],
+                                              isCurrent: isCurrent)
+            attemptedTargets = attemptedTargets.filter { outstanding[$0.key] == $0.value.target }
             attempts[device] = attemptedTargets.isEmpty ? nil : attemptedTargets
+            for attempt in attemptedTargets.values {
+                if let deadline = attempt.deadline {
+                    // If a due setter couldn't run (e.g. a missing sibling),
+                    // its next topology event can retry without a timer loop.
+                    if deadline > now {
+                        outcome.restoreRetryDeadline = min(outcome.restoreRetryDeadline ?? deadline, deadline)
+                    }
+                } else {
+                    outcome.restoreAttemptsExhausted = true
+                }
+            }
             let needsMaster = outstanding["0"] != nil || outstanding.keys.compactMap(controlAddress).contains(where: isMasterGain)
             protectedChannels[device.uid] = needsMaster && !channels.isEmpty ? channels.sorted() : nil
             if outstanding.isEmpty && (!saved.isEmpty || isCurrent(device)) {
@@ -1794,19 +1850,26 @@ final class MicMuteService: ObservableObject {
     /// across attempts, and capture its live value only when writing a master.
     private static func restoreControls(_ saved: [String: Double], on device: InputDevice,
                                         protecting channels: inout Set<UInt32>, openings: inout Set<String>,
-                                        attempts: inout [String: Double],
+                                        attempts: inout [String: RestoreAttempt], now: TimeInterval,
                                         recordedLevels: [String: Double]?,
                                         isCurrent: (InputDevice) -> Bool) -> [String: Double] {
         func restore(_ target: Double, at address: AudioObjectPropertyAddress, prepare: () -> Bool = { true }) -> Bool {
             let key = controlKey(address)
+            let previous = attempts[key].flatMap { $0.target == target ? $0 : nil }
             switch writeControl(target, of: device, at: address, isCurrent: isCurrent, prepare: prepare,
-                                attemptedRestore: attempts[key]) {
+                                deferRestore: previous?.defersWrite(at: now) == true) {
             case .submitted:
-                attempts[key] = target
+                attempts[key] = RestoreAttempt(target: target, previous: previous, now: now)
                 openings.insert(key)
                 return true
             case .unavailable:
-                attempts[key] = nil
+                // A failed read alone cannot prove a new control appeared.
+                var address = address
+                var settable = DarwinBoolean(false)
+                if previous != nil, !AudioObjectHasProperty(device.id, &address)
+                    || (AudioObjectIsPropertySettable(device.id, &address, &settable) == noErr && !settable.boolValue) {
+                    attempts[key] = nil
+                }
             case .unchanged, .interrupted: break
             }
             return false
@@ -1816,6 +1879,7 @@ final class MicMuteService: ObservableObject {
         let masters = savedAddresses.filter(isMasterGain).sorted { controlRestoreOrder($0) < controlRestoreOrder($1) }
         let previousChannels = channels
         var wroteMaster = false
+        var beforeMaster: [String: Double] = [:]
         if !masters.isEmpty || saved["0"] != nil {
             for address in savedAddresses where address.mElement != 0 && address.mSelector == kAudioDevicePropertyVolumeScalar {
                 channels.insert(address.mElement)
@@ -1829,7 +1893,12 @@ final class MicMuteService: ObservableObject {
                     var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
                                                              mScope: kAudioDevicePropertyScopeInput, mElement: element)
                     let key = controlKey(address)
-                    guard targets[key] == nil else { continue }
+                    if targets[key] != nil {
+                        if attempts[key] != nil && beforeMaster[key] == nil {
+                            beforeMaster[key] = controlValue(of: device.id, at: address)
+                        }
+                        continue
+                    }
                     var settable = DarwinBoolean(false)
                     guard AudioObjectHasProperty(device.id, &address) else {
                         if channels.contains(element) { return false }
@@ -1861,10 +1930,13 @@ final class MicMuteService: ObservableObject {
             return left == right ? $0.mElement < $1.mElement : left < right
         }
         for address in addresses where !isMasterGain(address) {
-            if let value = targets[controlKey(address)] {
-                // A submitted master can move channel gains. Give each its
-                // compensation even if it refused that target before the master.
-                if wroteMaster && address.mSelector == kAudioDevicePropertyVolumeScalar { attempts[controlKey(address)] = nil }
+            let key = controlKey(address)
+            if let value = targets[key] {
+                // Re-enable compensation only for a channel the master moved.
+                if wroteMaster, let before = beforeMaster[key], let current = controlValue(of: device.id, at: address),
+                   current != before {
+                    attempts[key] = nil
+                }
                 _ = restore(value, at: address)
             }
         }
@@ -1923,7 +1995,7 @@ final class MicMuteService: ObservableObject {
                                       at address: AudioObjectPropertyAddress,
                                       isCurrent: (InputDevice) -> Bool,
                                       prepare: () -> Bool = { true },
-                                      attemptedRestore: Double? = nil,
+                                      deferRestore: Bool = false,
                                       quietBeforeWrite: Set<DeviceListener>? = nil,
                                       read: ControlReader = MicMuteService.controlValue,
                                       authorize: MuteAuthorization? = nil) -> ControlWrite {
@@ -1938,7 +2010,7 @@ final class MicMuteService: ObservableObject {
               settable.boolValue else { return .unavailable }
         // A ControlList echo wakes verification. The same writable address
         // still owes the same target, even if its driver varies the readback.
-        if attemptedRestore == value { return .unchanged }
+        if deferRestore { return .unchanged }
         // This is the last software decision before either HAL setter. The
         // callback lock is released before calling a potentially reentrant driver.
         let listener = DeviceListener(device: device, selector: address.mSelector, scope: address.mScope, element: address.mElement)
@@ -2408,9 +2480,6 @@ final class MicMuteService: ObservableObject {
                 || listenersToRenew.contains(listener) else { continue }
             var address = listener.address
             if retireListener(registration.lifetime, on: listener.device, at: &address) {
-                if listener.selector == kAudioObjectPropertyControlList {
-                    attemptedRestores.removeValue(forKey: InputDevice(id: listener.device, uid: registration.uid))
-                }
                 deviceListeners.removeValue(forKey: listener)
                 listenersToRenew.remove(listener)
             }

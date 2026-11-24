@@ -127,6 +127,7 @@ enum MixerInputVolumeContract {
             let micUnmutedHUD = "unmuted"
             let micMutePartialHUD = "mute partial"
             let micUnmutePartialHUD = "unmute partial"
+            let micRestoreExhaustedHUD = "adjust microphone in mixer"
             let micManualRestore = "check original microphone"
         }
     }
@@ -1679,14 +1680,15 @@ enum MixerInputVolumeContract {
         HAL.levels[HAL.key(10)] = 0.2
         MicMuteService.shared.setMuted(false)
         DispatchQueue.drain()
-        check(!MicMuteService.shared.isMuted && MicMuteService.shared.retryDeadline == nil && MicMuteService.shared.hasOutstandingClaims,
-              "a wholly failed manual release cancels mute retries and keeps the restore claim")
+        check(!MicMuteService.shared.isMuted && MicMuteService.shared.retries.isEmpty
+                && MicMuteService.shared.retryDeadline != nil && MicMuteService.shared.hasOutstandingClaims,
+              "a wholly failed manual release cancels mute retries and schedules recovery of the saved gain")
         AppFeature.micMuteAvailable = false
         MicMuteService.shared.syncWithPreferences()
         DispatchQueue.drain()
-        check(!MicMuteService.shared.isMuted && MicMuteService.shared.retryDeadline == nil
+        check(!MicMuteService.shared.isMuted && MicMuteService.shared.retries.isEmpty && MicMuteService.shared.retryDeadline != nil
                 && !UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive),
-              "disabling the feature cancels mute retries even if unmute fails")
+              "disabling the feature retains only the pending release's retry")
         MicMuteService.shared.unmuteForTeardown()
         HAL.ignoredWrites = []
         now += 1
@@ -1824,6 +1826,7 @@ enum MixerInputVolumeContract {
         runPendingRestoreDeviceChangeTests(suite)
         runPendingControlListTests(suite)
         runRestoreControlListEchoTests(suite)
+        runRestoreRetryLimitTests(suite)
         runMuteRecoveryTests(suite)
         runLowGainMuteTests(suite)
         runProtectedChannelRestoreTests(suite)
@@ -3659,6 +3662,109 @@ enum MixerInputVolumeContract {
         suite.expect(HAL.writes == [master, left] && HAL.levels[master] == 0.625 && HAL.levels[left] == 0.375
                      && HAL.levels[other] == 0.75 && !service.hasOutstandingClaims && HAL.listeners.isEmpty,
                      "the system change restores the returning master without losing the user's latest channel mix")
+    }
+
+    private static func runRestoreRetryLimitTests(_ suite: TestSuite) {
+        let master = HAL.key(10)
+        let channel = HAL.key(10, 1)
+        let other = HAL.key(20)
+        let local = HAL.key(10, 0, kAudioObjectPropertyControlList, scope: kAudioObjectPropertyScopeGlobal)
+        let system = HAL.key(AudioObjectID(kAudioObjectSystemObject), 0, kAudioHardwarePropertyDevices,
+                             scope: kAudioObjectPropertyScopeGlobal)
+        let cases: [(permanent: Bool, events: [Key])] = [
+            (false, []), (false, [local, system]),
+            (true, []), (true, [local]), (true, [system]), (true, [local, system]),
+        ]
+        for (permanent, events) in cases {
+            HAL.reset()
+            var now: TimeInterval = 10
+            let service = MicMuteService(uptime: { now })
+            MicMuteService.shared = service
+            HAL.devices = [10, 20]
+            HAL.levels = [master: 0.625, other: 0.875]
+            let paired = permanent && events.isEmpty
+            if paired { HAL.levels[channel] = 0.25 }
+            service.toggle()
+            DispatchQueue.drain()
+            var attempts = 0
+            var delivered: Set<Key> = []
+            HAL.writes = []
+            HAL.beforeControlWrite = { key, target in
+                if key == channel { HAL.ignoredWrites.insert(channel) }
+                guard key == master, target == 0.625 else { return }
+                attempts += 1
+                if permanent || attempts == 1 { HAL.ignoredWrites.insert(master) }
+                else { HAL.ignoredWrites.remove(master) }
+                // A broken driver can echo every Set. Bound only the fake's
+                // deliveries so a write loop on the old build fails by assertion.
+                if attempts <= 4 {
+                    for event in events where HAL.notifyIfRegistered(event) { delivered.insert(event) }
+                }
+            }
+            func tick() {
+                now += 2
+                service.halQueue.runTimers()
+                DispatchQueue.main.runTimers()
+                DispatchQueue.drain()
+            }
+            service.toggle()
+            DispatchQueue.drain()
+            let context = "\(permanent ? "permanent" : "transient") refusal, events \(events.map { $0 == local ? "local" : "global" })"
+            suite.expect(attempts == 1 && HAL.levels[master] == 0 && delivered == Set(events)
+                         && !service.isMuted && !service.wantsMute && service.hasOutstandingClaims && service.warning == .restoreUnconfirmed,
+                         "a refused restore waits for its retry without reentering from the driver: \(context)")
+            for _ in 0..<4 { tick() }
+            suite.expect(attempts == (permanent ? 3 : 2) && HAL.levels[master] == (permanent ? 0 : 0.625)
+                         && (!paired || (HAL.writes.filter { $0 == channel }.count == 3 && HAL.levels[channel] == 0))
+                         && HAL.levels[other] == 0.875 && HAL.writes.filter { $0 == other }.count == 1
+                         && service.hasOutstandingClaims == permanent
+                         && service.warning?.message == (permanent ? L10n.shared.s.micRestoreExhaustedHUD : nil),
+                         "the clock restores a transient failure and bounds a permanent one per input: \(context)")
+            let settled = HAL.writes
+            for event in events { _ = HAL.notifyIfRegistered(event) }
+            DispatchQueue.drain()
+            for _ in 0..<4 { tick() }
+            suite.expect(HAL.writes == settled && service.retryDeadline == nil,
+                         "additional echoes and timer ticks leave the settled restore alone: \(context)")
+            guard permanent else { continue }
+            HAL.beforeControlWrite = nil
+            HAL.ignoredWrites = []
+            if events.count == 2 {
+                suite.expect(HAL.restartAudioService(), "the pending input receives a real HAL restart")
+                DispatchQueue.drain()
+                suite.expect(HAL.levels == [master: 0.625, other: 0.875] && !service.hasOutstandingClaims
+                             && service.warning == nil, "a real HAL restart can recover the previously exhausted input")
+            } else {
+                let mixer = AudioInputDeviceManager()
+                mixer.start()
+                DispatchQueue.drain()
+                let manualGain = events == [system] ? 0.625 : 0.375
+                mixer.setInputVolume(manualGain)
+                DispatchQueue.drain()
+                suite.expect(service.hasOutstandingClaims == paired,
+                             "the mixer write itself verifies the chosen gain, including the original target: \(context)")
+                for event in events { _ = HAL.notifyIfRegistered(event) }
+                DispatchQueue.drain()
+                tick()
+                suite.expect(service.inputVolumeAdjustmentLifetime != nil && mixer.inputVolume == manualGain
+                             && HAL.levels[master] == Float(manualGain) && HAL.writes == settled + [master],
+                             "the mixer permits manual gain adjustment after automatic recovery stops: \(context)")
+                mixer.stop()
+                HAL.relaunchClient()
+                let restarted = MicMuteService.shared
+                restarted.syncWithPreferences()
+                DispatchQueue.drain()
+                suite.expect(HAL.levels[master] == Float(manualGain) && !restarted.hasOutstandingClaims
+                             && (!paired || HAL.levels[channel] == 0.25),
+                             "relaunch preserves the user's gain and restores any independently pending channel: \(context)")
+                restarted.toggle()
+                DispatchQueue.drain()
+                restarted.toggle()
+                DispatchQueue.drain()
+                suite.expect(!restarted.isMuted && restarted.warning == nil && HAL.levels[master] == Float(manualGain),
+                             "the next mute cycle restores the user's adjustment: \(context)")
+            }
+        }
     }
 
     private static func runRestoreControlListEchoTests(_ suite: TestSuite) {
@@ -5829,6 +5935,8 @@ enum MixerInputVolumeContract {
 
         for reconnect in [false, true] {
             prepare()
+            var releaseTime: TimeInterval = 0
+            MicMuteService.shared = MicMuteService(uptime: { releaseTime })
             mute()
             HAL.devices.append(20)
             HAL.levels[secondInput] = 0.75
@@ -5859,6 +5967,9 @@ enum MixerInputVolumeContract {
                          "a delayed headset event during a call cannot reassert mute after a refused manual release")
             HAL.writeFails = []
             notifyRegistered(devicesChanged)
+            releaseTime += 2
+            service.halQueue.runTimers()
+            DispatchQueue.drain()
             suite.expect(!service.isMuted && !service.hasOutstandingClaims && HAL.levels[microphone] == 0.5
                          && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages.isEmpty,
                          "recovery retries the manual release of both original gains while the call records")

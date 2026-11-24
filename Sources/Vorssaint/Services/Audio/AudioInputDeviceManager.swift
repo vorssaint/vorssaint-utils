@@ -200,7 +200,10 @@ final class AudioInputDeviceManager: ObservableObject {
                 guard Self.read(device.audioObjectID, kAudioDevicePropertyDeviceUID, &deviceUID),
                       deviceUID as String == uid,
                       self.volumeWriteLock.withLock({ self.volumeWriteLifetime == lifetime }) else { return }
-                _ = Self.setInputVolume(Float32(clamped), for: device.audioObjectID)
+                let gain = Float32(clamped)
+                Self.setInputVolume(gain, for: device.audioObjectID) { address in
+                    MicMuteService.shared.didAdjustInput(uid: uid, device: device.audioObjectID, at: address, to: gain)
+                }
             }
             DispatchQueue.main.async {
                 guard self.volumeWriteLock.withLock({ self.volumeWriteLifetime == lifetime }) else { return }
@@ -635,7 +638,8 @@ final class AudioInputDeviceManager: ObservableObject {
         return min(max(channelVolumes.reduce(0, +) / Float32(channelVolumes.count), 0), 1)
     }
 
-    private static func setInputVolume(_ volume: Float32, for deviceID: AudioObjectID) -> Bool {
+    private static func setInputVolume(_ volume: Float32, for deviceID: AudioObjectID,
+                                       didSet: (AudioObjectPropertyAddress) -> Void) {
         let clamped = min(max(volume, 0), 1)
         // Prefer a master control and stop at the first successful selector so
         // devices exposing both master and channels keep their channel balance.
@@ -644,22 +648,21 @@ final class AudioInputDeviceManager: ObservableObject {
             if AudioObjectSetPropertyData(deviceID, &address, 0, nil,
                                           UInt32(MemoryLayout<Float32>.size),
                                           &nextVolume) == noErr {
-                return true
+                didSet(address)
+                return
             }
         }
 
         // With no usable master, every writable channel must be updated or a
         // channel-only microphone would remain partially unchanged.
-        var applied = false
         for var address in channelInputVolumeAddresses(for: deviceID) where isSettable(deviceID, &address) {
             var nextVolume = clamped
             if AudioObjectSetPropertyData(deviceID, &address, 0, nil,
                                           UInt32(MemoryLayout<Float32>.size),
                                           &nextVolume) == noErr {
-                applied = true
+                didSet(address)
             }
         }
-        return applied
     }
 
     private static func inputDevices(defaultUID: String?) -> [MixerInputDevice] {

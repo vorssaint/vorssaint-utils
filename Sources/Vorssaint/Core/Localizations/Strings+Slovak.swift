@@ -206,6 +206,7 @@ extension Strings {
         micUnmutedHUD: "Stlmenie mikrofónu vypnuté",
         micMutePartialHUD: "Stlmenie sa nepodarilo potvrdiť na všetkých mikrofónoch",
         micUnmutePartialHUD: "Obnovenie nastavení sa nepodarilo potvrdiť na všetkých mikrofónoch",
+        micRestoreExhaustedHUD: "Automatické obnovenie sa nepodarilo potvrdiť. Skontrolujte prepínač stlmenia mikrofónu a nastavte vstupnú hlasitosť v mixéri.",
         micManualRestore: "Predchádzajúce nastavenia mikrofónu sa nepodarilo overiť. Skontrolujte jeho prepínač stlmenia a vstupnú hlasitosť v mixéri alebo v nastaveniach zvuku.",
         micManualRestoreChecked: "Mikrofón je skontrolovaný",
         micMuteMenuBarToggle: "Zobraziť v lište s ponukami, keď je funkcia zapnutá",

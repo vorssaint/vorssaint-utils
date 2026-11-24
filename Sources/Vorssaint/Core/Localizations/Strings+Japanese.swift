@@ -206,6 +206,7 @@ extension Strings {
         micUnmutedHUD: "マイク消音機能がオフ",
         micMutePartialHUD: "一部のマイクで消音を確認できませんでした",
         micUnmutePartialHUD: "一部のマイクで設定の復元を確認できませんでした",
+        micRestoreExhaustedHUD: "自動復元を確認できませんでした。マイクの消音スイッチを確認し、ミキサーで入力音量を調整してください。",
         micManualRestore: "マイクの以前の設定を確認できません。そのマイクの消音スイッチと、ミキサーまたは「サウンド」設定の入力音量を確認してください。",
         micManualRestoreChecked: "マイクを確認しました",
         micMuteMenuBarToggle: "機能がオンの間はメニューバーに表示",

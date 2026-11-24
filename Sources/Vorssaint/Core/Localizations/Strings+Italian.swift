@@ -206,6 +206,7 @@ extension Strings {
         micUnmutedHUD: "Silenziamento disattivato",
         micMutePartialHUD: "Impossibile confermare il silenziamento di tutti i microfoni",
         micUnmutePartialHUD: "Impossibile confermare il ripristino di tutti i microfoni",
+        micRestoreExhaustedHUD: "Impossibile confermare il ripristino automatico. Controlla il tasto muto del microfono e regola il volume di ingresso nel mixer.",
         micManualRestore: "Impossibile verificare le impostazioni precedenti del microfono. Controlla il tasto muto e il livello di ingresso nel mixer o nelle impostazioni Suono.",
         micManualRestoreChecked: "Ho controllato il microfono",
         micMuteMenuBarToggle: "Mostra nella barra dei menu quando attivo",
