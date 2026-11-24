@@ -170,7 +170,7 @@ struct ClipboardQuickPanelView: View {
             .allowsHitTesting(boardEditor == nil)
             .accessibilityHidden(boardEditor != nil)
             .overlay(alignment: .top) {
-                if !vertical { shelfFilters(maxHeight: 260) }
+                if !vertical { shelfFilters(maxHeight: 205) }
             }
             .overlay(alignment: .topTrailing) {
                 if let mode = boardEditor, usesBoardEditorFlyout {
@@ -783,7 +783,7 @@ struct ClipboardQuickPanelView: View {
             // large history goes lazy, where building every entry (and
             // decoding every thumbnail) on open would cost more than the
             // placement work a lazy stack does per tick.
-            resultsScroll
+            resultsScroll(with: proxy)
             .background(ScrollBounceDisabler())
             .onChange(of: history.quickSelectionID) { _, _ in
                 scrollSelectedEntry(with: proxy)
@@ -822,11 +822,11 @@ struct ClipboardQuickPanelView: View {
     }
 
     @ViewBuilder
-    private var resultsScroll: some View {
+    private func resultsScroll(with proxy: ScrollViewProxy) -> some View {
         if layout == .list {
             listScroll
         } else {
-            cardStrip
+            cardStrip(with: proxy)
         }
     }
 
@@ -845,7 +845,7 @@ struct ClipboardQuickPanelView: View {
         }
     }
 
-    private var cardStrip: some View {
+    private func cardStrip(with proxy: ScrollViewProxy) -> some View {
         GeometryReader { geometry in
             let entries = filtered
             let size = ClipboardShelfCardLayout.cardSize(in: geometry.size, entryCount: entries.count,
@@ -858,6 +858,9 @@ struct ClipboardQuickPanelView: View {
                     .padding(vertical ? .horizontal : .vertical, inset)
                     .padding(vertical ? .top : .leading, inset - ClipboardShelfCardLayout.spacing)
                     .padding(vertical ? .bottom : .trailing, inset)
+            }
+            .onChange(of: geometry.size.height) { oldHeight, newHeight in
+                if vertical && newHeight < oldHeight { scrollSelectedEntry(with: proxy) }
             }
             .coordinateSpace(name: Self.cardViewport)
             .onPreferenceChange(VisibleCardFrames.self) { history.quickCardFrames = $0 }
