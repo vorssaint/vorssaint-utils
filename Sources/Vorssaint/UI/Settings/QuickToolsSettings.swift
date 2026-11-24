@@ -104,6 +104,10 @@ struct QuickToolsSettings: View {
                 .onAppear { brightness.refreshKeyboardLight() }
             }
 
+            if AppFeature.quickToggles.isAvailable {
+                PasswordLengthSettings()
+            }
+
             if AppFeature.quitApps.isAvailable {
                 Section {
                     Button {
