@@ -219,8 +219,13 @@ final class AgentUsageStore {
             let assumesStandardTier = previous.assumesStandardTier && billable.assumesStandardTier
             let hasEventTimestamp = previous.hasEventTimestamp || billable.hasEventTimestamp
             var date = old.date
-            if record.provider == .codex && !previous.hasEventTimestamp && billable.hasEventTimestamp {
-                date = record.date
+            if record.provider == .codex && billable.hasEventTimestamp {
+                if !previous.hasEventTimestamp {
+                    date = record.date
+                } else if record.date < date, tier == .ultrafast || AgentPricing.price(for: old.model)?.ultrafast != nil {
+                    // Copies of a response can arrive out of order across a rate change.
+                    date = record.date
+                }
             }
             let pricingChanged = record.provider == .codex && (tier != previous.serviceTier || date != old.date
                 || assumesStandardTier != previous.assumesStandardTier || hasEventTimestamp != previous.hasEventTimestamp)

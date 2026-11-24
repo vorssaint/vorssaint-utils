@@ -167,16 +167,27 @@ enum AgentUsageArchiveTests {
                 let copy = AgentLogParser.parseCodex(Data(later.utf8), state: &copyState, now: now)
                 resumed.store.apply(copy, file: "copy", provider: .codex, tracksTurns: false, modified: now)
                 // A later copy can carry an earlier valid timestamp across the pricing boundary.
-                // Keep the date already attributed to this response.
+                // Replaying files in either order must use the first observed response time.
                 let earlierCopy = later.replacingOccurrences(of: afterCutoff, with: beforeCutoff)
-                write(promotion + [later, earlierCopy])
+                let fullRate = later.replacingOccurrences(of: "\"later\"", with: "\"full-rate\"")
+                write(promotion + [later, earlierCopy, fullRate])
                 read(cursor, into: resumed.store)
                 resumed.store.reprice()
                 let records = resumed.store.records
-                suite.expect(cursor.state.serviceTier == .ultrafast && records.count == 3,
+                suite.expect(cursor.state.serviceTier == .ultrafast && records.count == 4,
                              "resuming preserves the thread tier and counts a duplicate response once")
-                suite.expect(records.map(\.cost) == [0.06, nil, 0.12],
+                suite.expect(records.map(\.cost) == [0.06, nil, 0.06, 0.12],
                              "restored 10K Sol requests keep the event-date rate and undated requests stay unpriced")
+                let reversedStore = AgentUsageStore()
+                for event in [earlierCopy, later] {
+                    let parsed = AgentLogParser.parseCodex(Data(event.utf8), state: &copyState, now: now)
+                    reversedStore.apply(parsed, file: "copy", provider: .codex, tracksTurns: false, modified: now)
+                }
+                copyState.serviceTier = .ultrafast
+                let explicit = AgentLogParser.parseCodex(Data(later.utf8), state: &copyState, now: now)
+                reversedStore.apply(explicit, file: "original", provider: .codex, tracksTurns: false, modified: now)
+                suite.expect(reversedStore.records.map(\.cost) == [0.06],
+                             "the original and copied response use the same tariff in either file order")
             } else {
                 suite.expect(false, "the Ultrafast log resumes from its saved cursor")
             }
