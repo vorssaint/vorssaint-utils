@@ -680,6 +680,7 @@ enum DefaultsKey {
     static let micMuteSavedChannelVolumes = "micMuteSavedChannelVolumes" // [device uid: [channel: input volume]] to restore on unmute
     static let micMuteSavedControls = "micMuteSavedControls" // [device uid: [selector:element: original value]] pending restoration
     static let micMuteMutedDevices = "micMuteMutedDevices"   // uids of the devices this app muted
+    static let micMuteSavedDefaultInput = "micMuteSavedDefaultInput" // system default input UID to restore on unmute
     static let micMuteMenuBarIndicator = "micMuteMenuBarIndicator" // badge the status icon while muted
     static let quickLauncherShortcutEnabled = "quickLauncherShortcutEnabled"
     static let quickLauncherShortcut = "quickLauncherShortcut"

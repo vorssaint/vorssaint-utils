@@ -199,7 +199,7 @@ extension Strings {
         colorPickerPickNow: "Preleva colore",
         micMuteName: "Silenzia microfono",
         micUnmuteName: "Riattiva microfono",
-        micMuteCaption: "Usa i controlli di silenziamento o del volume in ingresso di ogni microfono. Siri e alcune app potrebbero ancora sentirti. Non blocca ogni accesso al microfono.",
+        micMuteCaption: "Usa i controlli di silenziamento o del volume in ingresso di ogni microfono. Siri, la dettatura e alcune app potrebbero ancora sentirti. Non blocca ogni accesso al microfono.",
         micMuteFollowCallAppsToggle: "Consenti alle app per le chiamate di riattivare il microfono",
         micMuteFollowCallAppsCaption: "Se un microfono si riattiva mentre un’app lo usa per registrare, Vorssaint ripristina tutti i microfoni che aveva disattivato. Anche una regolazione automatica del guadagno può causare questo effetto.",
         micMutedHUD: "Silenziamento attivato",

@@ -21,15 +21,27 @@ enum MicMuteSupport {
     /// Below this, a level is treated as silence. Matching the older volume
     /// save check keeps unmute from restoring a zero it never meant to keep.
     static let silenceThreshold: Float = 0.01
+    /// Drivers often nudge a restored master a hair off the saved scalar.
+    /// Mute switches stay exact; only gain uses this slack.
+    static let volumeMatchTolerance: Double = 0.05
     /// Devices without a readable stream layout still get the stereo pair
     /// tried, the way the mute used to.
     static let minimumChannelCount = 2
     /// CoreAudio's master element. Kept as a number so this file stays
     /// free of the HAL import the tests do not need.
     static let masterElement: UInt32 = 0
+    /// `kAudioDeviceTransportTypeBuiltIn` ('bltn'). Built-in mics honor mute
+    /// and input volume; many USB camera mics report those controls at zero
+    /// while still delivering live samples to every app.
+    static let builtInTransport: UInt32 = 0x626C746E
 
     static func isOwnDevice(name: String) -> Bool {
         ownDeviceNames.contains(name)
+    }
+
+    /// Whether device-level mute/volume can be trusted to silence capture.
+    static func honorsDeviceMute(transport: UInt32?) -> Bool {
+        transport == builtInTransport
     }
 
     /// A level worth remembering. Saving a zero would make the unmute restore
@@ -109,6 +121,19 @@ enum MicMuteSupport {
         if let value = saved[uid], value > Double(silenceThreshold) { return Float(value) }
         if legacy > Double(silenceThreshold) { return Float(legacy) }
         return fallbackVolume
+    }
+
+    /// Mute is on or off; gain may settle a little away from the saved value
+    /// after a master/channel write. Slack only applies between audible
+    /// levels — a near-zero residual must still be written down to mute.
+    static func controlValuesMatch(_ left: Double, _ right: Double, isMute: Bool) -> Bool {
+        guard left.isFinite && right.isFinite else { return false }
+        if isMute { return abs(left - right) <= 0.0001 }
+        let delta = abs(left - right)
+        if delta <= 0.0001 { return true }
+        let audible = Double(silenceThreshold)
+        guard left > audible, right > audible else { return false }
+        return delta <= volumeMatchTolerance
     }
 
     /// Master first, then every channel the stream layout named, never fewer
