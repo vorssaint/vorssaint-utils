@@ -124,6 +124,11 @@ final class SwitcherWindowInventory {
         isReady = false
     }
 
+    func excludesFrontmostApp(pid: pid_t, regularBundleIdentifier: String?) -> Bool {
+        SwitcherWindowSelection.excludesFrontmostApp(pid: pid, regularBundleIdentifier: regularBundleIdentifier,
+                                                     remembered: remembered)
+    }
+
     func selection(
         for generation: UInt64,
         scope: SwitcherSessionScope,

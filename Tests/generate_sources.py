@@ -214,6 +214,8 @@ def main():
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowSelection.swift",
                         "    static func contains(")
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowSelection.swift",
+                        "    static func excludesFrontmostApp(")
+          + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowSelection.swift",
                         "    static func select(")
           + "}\nextension SwitcherRememberedSelectionTests.WindowEvents {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowEvents.swift",
@@ -230,7 +232,7 @@ def main():
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowInventory.swift",
                         "final class SwitcherWindowInventory {")
               .replace("NSWorkspace.shared", "desktop").replace("NSApp.windows", "desktop.windows")
-              .replace("CGWindowListCopyWindowInfo(", "SessionOpening.windowInfo(")
+              .replace("CGWindowListCopyWindowInfo(", "SwitcherRememberedSelectionTests.SessionOpening.windowInfo(")
               .replace("screenObservers = observeScreenChanges()",
                        "screenObservers = observeScreenChanges(in: desktop.notificationCenter)")
               .replace("NotificationCenter.default.removeObserver", "desktop.notificationCenter.removeObserver")
@@ -2154,6 +2156,8 @@ def main():
           + declaration(switcher_service, "private struct SwitcherSourceContext").replace("private struct", "struct", 1)
           + declaration(switcher_service, "    private enum KeyCode {").replace("private enum", "enum", 1)
           + "final class Service: Fixture, ObservableObject {\n"
+          + declaration(switcher_service, "    private struct SessionOrigin {")
+          + "private var sessionOrigin: SessionOrigin?\n"
           + "override init() {\nsuper.init()\n"
           + declaration(switcher_service, "        windowInventory.onReady = {")
           + "}\n"

@@ -144,6 +144,7 @@ enum SwitcherRememberedSelectionTests {
     static func run(_ suite: TestSuite) {
         ownWindowScreenChanges(suite)
         openingDuringDiscovery(suite)
+        frontmostHelperRules(suite)
         let lifetime = SwitcherNotificationLifetime()
         lifetime.start()
         let queued = lifetime.current
@@ -273,7 +274,8 @@ enum SwitcherRememberedSelectionTests {
             Enumerator.RunningApplication.apps = previousApps
             Preferences.standard.values = previousPreferences
         }
-        Preferences.standard.values = [DefaultsKey.switcherWindowlessApps: "off"]
+        Preferences.standard.values = [DefaultsKey.switcherWindowlessApps: "off",
+                                       DefaultsKey.switcherAppRules: ["test.excluded": "hidden"]]
         Enumerator.RunningApplication.apps[10] = .init()
         Windows.items = [other]
         func finishScan() {
@@ -281,6 +283,10 @@ enum SwitcherRememberedSelectionTests {
             Queues.main.deliveries.drain()
         }
         inventory.start()
+        suite.expect(inventory.excludesFrontmostApp(pid: new.pid, regularBundleIdentifier: "test.excluded")
+                     && !inventory.isReady && Windows.reads.isEmpty && Queues.main.debounce.pending.isEmpty
+                     && Queues.scans.pending.count == 1,
+                     "Never show resolves a regular front app before the startup scan without requesting another read")
         finishScan()
 
         var pending: UInt64?
@@ -391,6 +397,31 @@ enum SwitcherRememberedSelectionTests {
         finishScan()
         suite.expect(Array(Windows.reads.dropFirst(previousReads)) == [nil, nil, other.pid] && Queues.main.debounce.pending.isEmpty,
                      "only the other app is refreshed after the shortcut has finished")
+    }
+
+    private static func frontmostHelperRules(_ suite: TestSuite) {
+        let previous = Preferences.standard.values
+        defer { Preferences.standard.values = previous }
+        let hosted = SwitcherItem.window(id: 5, title: "Document", appName: "Editor",
+                                        pid: 10, windowOwnerPID: 11, isOnScreen: true, frame: .zero)
+        var remembered = Enumerator.WindowList(items: [hosted], sourceItems: [])
+        remembered.bundleIdentifiers = [10: "test.editor", 11: "test.helper", 12: "test.helper"]
+        func excluded(_ pid: pid_t, regularBundleIdentifier: String? = nil) -> Bool {
+            Selection.excludesFrontmostApp(pid: pid, regularBundleIdentifier: regularBundleIdentifier,
+                                          remembered: remembered)
+        }
+
+        Preferences.standard.values = [DefaultsKey.switcherAppRules: ["test.editor": "hidden"]]
+        suite.expect(excluded(10) && excluded(11), "the host and its known helper both use the host's Never show rule")
+        Preferences.standard.values = [DefaultsKey.switcherAppRules: ["test.helper": "hidden",
+                                                                     "test.editor": "windowsOnly"]]
+        suite.expect(!excluded(11) && !excluded(12),
+                     "a helper's own rule cannot hide its allowed host or preempt discovery of an unknown host")
+        suite.expect(!excluded(10, regularBundleIdentifier: "test.editor"),
+                     "a Windows only app can still gain its first window")
+        Preferences.standard.values = [DefaultsKey.switcherAppRules: ["test.editor": "showWithoutWindows"]]
+        suite.expect(!excluded(10, regularBundleIdentifier: "test.editor"),
+                     "Show without windows leaves the front-app shortcut available")
     }
 
     private static func ownWindowScreenChanges(_ suite: TestSuite) {
