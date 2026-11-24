@@ -1253,6 +1253,8 @@ enum BrightnessSupport {
 /// Each mounted slider waits for both the end of its edit and the monitor's
 /// confirmation of its last request. Either can arrive first.
 final class SpeakerSliderFeedback {
+    typealias Output = (id: AudioObjectID, uid: String)
+
     struct Endpoint {
         let registryEntryID: UInt64?
         let fallbackService: CFTypeRef?
@@ -1289,11 +1291,14 @@ final class SpeakerSliderFeedback {
     final class Request {
         private weak var owner: SpeakerSliderFeedback?
         private(set) weak var previous: Request?
+        let output: Output?
         var writes = Writes()
+        var isCurrent: Bool { owner?.latest === self }
 
-        fileprivate init(owner: SpeakerSliderFeedback, previous: Request?) {
+        fileprivate init(owner: SpeakerSliderFeedback, previous: Request?, output: Output?) {
             self.owner = owner
             self.previous = previous
+            self.output = output
         }
 
         func confirmed(_ play: @escaping () -> Void) {
@@ -1303,33 +1308,45 @@ final class SpeakerSliderFeedback {
         }
     }
 
+    private let currentOutput: () -> Output?
+    private var editingOutput: Output?
     private var editing = false
     private var latest: Request?
     private var playOnRelease: (() -> Void)?
 
+    init(currentOutput: @escaping () -> Output?) {
+        self.currentOutput = currentOutput
+    }
+
     func request() -> Request {
         // Arrow keys and accessibility actions may send a single value write.
-        let request = Request(owner: self, previous: editing ? latest : nil)
+        let request = Request(owner: self, previous: editing ? latest : nil,
+                              output: editing ? editingOutput : currentOutput())
         latest = request
         playOnRelease = nil
         return request
     }
 
     func editingChanged(_ editing: Bool) {
-        if editing { cancel() }
+        if editing {
+            cancel()
+            editingOutput = currentOutput()
+        }
         self.editing = editing
         playIfReady()
     }
 
     func cancel() {
         editing = false
+        editingOutput = nil
         latest = nil
         playOnRelease = nil
     }
 
     private func playIfReady() {
         guard !editing, let play = playOnRelease else { return }
-        cancel()
+        // The queued output check still belongs to this request until the next edit or cancellation.
+        playOnRelease = nil
         play()
     }
 }

@@ -2788,6 +2788,11 @@ final class AppVolumeMixer: ObservableObject {
         return uidRef as String
     }
 
+    static func isOutputDeviceAlive(_ device: AudioObjectID) -> Bool {
+        var alive: UInt32 = 0
+        return read(device, kAudioDevicePropertyDeviceIsAlive, &alive) && alive == 1
+    }
+
     private static func setDefaultDevice(_ deviceID: AudioObjectID,
                                          selector: AudioObjectPropertySelector) -> OSStatus {
         var nextDeviceID = deviceID

@@ -444,9 +444,13 @@ final class PreciseVolumeRollerService: ObservableObject {
 
     /// The click macOS plays after a volume change, under its "Play feedback
     /// when volume is changed" setting.
-    static func playVolumeFeedback() {
-        guard UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback") else { return }
-        playVolumeClick()
+    static var volumeFeedbackEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback")
+    }
+
+    static func playVolumeFeedback(on deviceUID: String? = nil) {
+        guard volumeFeedbackEnabled else { return }
+        playVolumeClick(on: deviceUID)
     }
 
     private static func playVolumeClick(on deviceUID: String? = nil) {

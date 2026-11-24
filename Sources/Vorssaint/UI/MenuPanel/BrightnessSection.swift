@@ -192,7 +192,7 @@ struct MonitorSpeakerVolumeRow: View {
     let audio: BrightnessDisplay.Audio
     let strings: BrightnessFeatureStrings
     let compact: Bool
-    @State private var feedback = SpeakerSliderFeedback()
+    @State private var feedback = SpeakerSliderFeedback { BrightnessService.shared.sliderFeedbackOutput }
 
     var body: some View {
         HStack(spacing: compact ? 6 : 12) {
