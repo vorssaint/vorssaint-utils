@@ -434,6 +434,7 @@ extension AppFeature {
             return FeatureSettingsDestination(notch: .module(.music))
         case .notchDownloads: return FeatureSettingsDestination(notch: .module(.downloads))
         case .notchAgents: return FeatureSettingsDestination(notch: .module(.agents))
+        case .notchHomeAssistant: return FeatureSettingsDestination(notch: .module(.homeAssistant))
         case .notchWatch: return FeatureSettingsDestination(notch: .module(.watch))
         case .notchMascot: return FeatureSettingsDestination(.notchMascot)
         case .radialMenu: return FeatureSettingsDestination(.radialMenu)
