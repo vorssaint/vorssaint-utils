@@ -52,6 +52,16 @@ enum NotchAgentLimitFocus: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+struct NotchAgentLimitGroup: Identifiable, Equatable {
+    let id: String
+    let label: String
+    let windows: [AgentLimitWindow]
+
+    var peakUsedFraction: Double {
+        windows.map(\.usedFraction).max() ?? 0
+    }
+}
+
 struct NotchAgentTile: Identifiable, Equatable {
     let card: NotchAgentCard
     /// The account a limits card belongs to.
@@ -108,6 +118,7 @@ enum NotchAgentSupport {
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
         case .cursor: return DefaultsKey.notchAgentsCursor
+        case .antigravity: return DefaultsKey.notchAgentsAntigravity
         }
     }
 
@@ -154,7 +165,9 @@ enum NotchAgentSupport {
     }
 
     /// The plan-wide window of the chosen kind; nil for the most used one or
-    /// while the account reports no such window.
+    /// while the account reports no such window. Providers whose allowances are
+    /// partitioned exclusively into model pools (such as Antigravity) pick the
+    /// most constrained pool of the chosen kind.
     private static func chosenLimit(_ limits: AgentLimits?, focus: NotchAgentLimitFocus, now: Date) -> AgentLimitWindow? {
         let kind: AgentLimitWindow.Kind
         switch focus {
@@ -162,7 +175,83 @@ enum NotchAgentSupport {
         case .session: kind = .session
         case .weekly: kind = .weekly
         }
-        return limits?.windows.first { $0.kind == kind && $0.scope == nil }.map { AgentLimitSupport.current($0, at: now) }
+        guard let limits, !limits.windows.isEmpty else { return nil }
+        if let unscoped = limits.windows.first(where: { $0.kind == kind && $0.scope == nil }) {
+            return AgentLimitSupport.current(unscoped, at: now)
+        }
+        if limits.windows.allSatisfy({ $0.scope != nil }) {
+            return limits.windows.filter { $0.kind == kind }
+                .map { AgentLimitSupport.current($0, at: now) }
+                .max {
+                    $0.usedPercent != $1.usedPercent ? $0.usedPercent < $1.usedPercent
+                        : ($0.resetsAt ?? .distantPast) < ($1.resetsAt ?? .distantPast)
+                }
+        }
+        return nil
+    }
+
+    /// Two rows fit on a limits card: the most constrained session window and
+    /// whichever longer window binds first.
+    static func cardWindows(in limits: AgentLimits?, now: Date) -> [AgentLimitWindow] {
+        let all = (limits?.windows ?? []).map { AgentLimitSupport.current($0, at: now) }
+        let session = all.filter { $0.kind == .session }.max {
+            $0.usedPercent != $1.usedPercent ? $0.usedPercent < $1.usedPercent
+                : ($0.resetsAt ?? .distantPast) < ($1.resetsAt ?? .distantPast)
+        }
+        let longer = all.filter { $0.kind != .session }.max {
+            $0.usedPercent != $1.usedPercent ? $0.usedPercent < $1.usedPercent
+                : ($0.resetsAt ?? .distantPast) < ($1.resetsAt ?? .distantPast)
+        }
+        return [session, longer].compactMap { $0 }
+    }
+
+    /// Splits a multi-pool provider's limits (such as Antigravity's Gemini and
+    /// Claude/GPT pools) into ordered groups when every window carries a scope
+    /// and at least two pools are present.
+    static func limitGroups(in limits: AgentLimits?, now: Date) -> [NotchAgentLimitGroup] {
+        guard let limits, !limits.windows.isEmpty,
+              limits.windows.allSatisfy({ !($0.scope ?? "").isEmpty }) else { return [] }
+        var order: [String] = []
+        var grouped: [String: [AgentLimitWindow]] = [:]
+        for window in limits.windows {
+            guard let scope = window.scope, !scope.isEmpty else { continue }
+            if grouped[scope] == nil { order.append(scope) }
+            grouped[scope, default: []].append(AgentLimitSupport.current(window, at: now))
+        }
+        guard order.count >= 2 else { return [] }
+        return order.compactMap { scope in
+            let all = grouped[scope] ?? []
+            let session = all.filter { $0.kind == .session }.max { $0.usedPercent < $1.usedPercent }
+            let longer = all.filter { $0.kind != .session }.max { $0.usedPercent < $1.usedPercent }
+            let windows = [session, longer].compactMap { $0 }
+            guard !windows.isEmpty else { return nil }
+            return NotchAgentLimitGroup(id: scope, label: scope, windows: windows)
+        }
+    }
+
+    /// Selects the pool matching an active live model unless another pool is
+    /// critically low (>= 95%); when idle, selects the pool closest to running
+    /// out (ties stay on the first pool).
+    static func defaultLimitGroup(in groups: [NotchAgentLimitGroup], activeModel: String? = nil) -> NotchAgentLimitGroup? {
+        guard var best = groups.first else { return nil }
+        for candidate in groups.dropFirst() where candidate.peakUsedFraction > best.peakUsedFraction + 0.0001 {
+            best = candidate
+        }
+        if best.peakUsedFraction < 0.95, let model = activeModel?.lowercased(), !model.isEmpty {
+            let preferredScope: String?
+            if model.contains("gemini") {
+                preferredScope = "gemini"
+            } else if model.contains("claude") || model.contains("gpt") {
+                preferredScope = "claude/gpt"
+            } else {
+                preferredScope = nil
+            }
+            if let preferredScope,
+               let match = groups.first(where: { $0.label.lowercased() == preferredScope }) {
+                return match
+            }
+        }
+        return best
     }
 
     /// The resting island's allowance across every account: the most spent
@@ -383,7 +472,7 @@ enum NotchAgentSupport {
     static func limitsAreStale(_ limits: AgentLimits?, provider: AgentProvider, account: Bool, now: Date) -> Bool {
         guard let limits else { return false }
         let age = now.timeIntervalSince(limits.observedAt)
-        if account { return age >= accountStaleness }
+        if account || provider == .antigravity { return age >= accountStaleness }
         return provider == .claude && age >= AgentClaudeAppUsage.freshness
     }
 

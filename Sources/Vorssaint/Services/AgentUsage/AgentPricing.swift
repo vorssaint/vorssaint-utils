@@ -209,7 +209,7 @@ enum AgentPricing {
 
     /// Words that make a variant a model of its own, with its own price.
     static let siblings = ["mini", "nano", "pro", "lite", "research", "search", "audio", "realtime",
-                           "transcribe", "tts", "cyber", "image"]
+                           "transcribe", "tts", "cyber", "image", "preview", "experimental"]
 
     /// The longest matching family wins, so a point release the list names
     /// never inherits the price of the version it extends.
@@ -222,7 +222,8 @@ enum AgentPricing {
         // priced very differently from its family; better no figure than a
         // wrong one.
         let rest = id.dropFirst(match.id.count)
-        if siblings.contains(where: { rest.contains($0) }) { return nil }
+        let restTokens = rest.split { $0 == "-" || $0 == "_" || $0 == ":" }
+        if siblings.contains(where: { rest.contains($0) }) || restTokens.contains("exp") { return nil }
         return match.price
     }
 
@@ -282,6 +283,20 @@ enum AgentPricing {
             let version = versions.joined(separator: ".")
             let name = [words.first?.capitalized ?? "", version] + words.dropFirst().map(\.capitalized)
             return name.filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        if id.hasPrefix("gemini-") {
+            var parts = id.dropFirst(7).split(separator: "-").map(String.init)
+            // Reasoning effort tags and dated snapshots belong to the same model.
+            if let last = parts.last, ["low", "medium", "high", "xhigh", "max", "latest"].contains(last) {
+                parts.removeLast()
+            }
+            parts.removeAll { $0.count >= 6 && $0.allSatisfy(\.isNumber) }
+            if parts.first == "pro", parts.dropFirst().first == "orchestrator" {
+                let tail = parts.dropFirst(2).map(\.capitalized)
+                return (["Orchestrator"] + tail).joined(separator: " ")
+            }
+            if parts.last == "agy" { parts.removeLast() }
+            return (["Gemini"] + parts.map { $0.first?.isNumber == true ? $0 : $0.capitalized }).joined(separator: " ")
         }
         guard id.hasPrefix("gpt-") else { return id }
         var parts = id.dropFirst(4).split(separator: "-").map(String.init)

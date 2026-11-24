@@ -4358,10 +4358,10 @@ final class NotchService: ObservableObject {
         let locale = L10n.shared.language.formattingLocale()
         func window(_ window: AgentLimitWindow) -> String {
             switch window.kind {
-            case .session: return text.session
+            case .session: return window.scope.map { "\(text.session) · \($0)" } ?? text.session
             case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
             case .other: return window.minutes.map { AgentFormat.duration(TimeInterval($0) * 60, locale: locale, units: 1) }
-                ?? text.readoutLimit
+                ?? window.scope ?? text.readoutLimit
             }
         }
         switch event {

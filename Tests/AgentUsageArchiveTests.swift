@@ -303,7 +303,8 @@ enum AgentUsageArchiveTests {
             ("AgentLogCursor", labels(cursor),
              ["path", "provider", "cursorAccess", "parent", "openCode", "offset", "identity", "pending", "discarding",
               "state", "cursorPromptFingerprint", "cursorPrefix", "coverageStore", "cachedCoverage", "needsUsageReplay",
-              "modified", "restarted", "codexParentLog", "codexParentSearch", "fingerprinted"]),
+              "modified", "restarted", "codexParentLog", "codexParentSearch",
+              "antigravityParentLog", "antigravityParentSearch", "fingerprinted"]),
             ("AgentLogCursor.Saved", labels(cursor.saved),
              ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint", "cursorSample"]),
             ("CursorUnmeteredResponse", labels(CursorUnmeteredResponse()), ["minute", "model", "undatedThrough"]),
@@ -314,7 +315,8 @@ enum AgentUsageArchiveTests {
               "copilotTurnID", "copilotFinalResponse", "cursorPromptCount", "cursorPromptTimestamp", "cursorLastActivity",
               "cursorUnmeteredMinutes", "cursorUnmeteredModelMinutes", "cursorUndatedResponseThrough",
               "cursorUnmeteredResponses", "cursorEarliestUnmeteredResponse",
-              "parentSession", "openCodeSessions", "runningCommands"])
+              "parentSession", "openCodeSessions", "runningCommands",
+              "antigravitySubagent", "antigravityParent"])
         ]
         for layout in layouts {
             suite.expect(layout.stored == layout.written,
@@ -446,6 +448,7 @@ enum AgentUsageArchiveSaveTests {
         var enabled: Set<AgentProvider> = [.claude]
         var store = AgentUsageStore()
         var cursors: [String: AgentLogCursor] = [:]
+        var antigravityIndex = AgentAntigravityIndex()
     }
 
     static func run(_ suite: TestSuite) {

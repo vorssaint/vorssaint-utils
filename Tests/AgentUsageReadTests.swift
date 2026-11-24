@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import SQLite3
 
 typealias AgentUsageProductionLogReader = AgentLogReader
 typealias AgentUsageReadProductionArchive = AgentUsageArchive
@@ -76,6 +77,7 @@ enum AgentUsageReadTests {
         var store = AgentUsageStore()
         var enabled: Set<AgentProvider> = []
         var readerClaudeProfile = ClaudeAccountProfile()
+        var antigravityIndex = AgentAntigravityIndex()
         var previousLimits: [AgentProvider: AgentLimits] = [:]
         var budgetDay: Date?
         var snapshot = AgentUsageSnapshot()
@@ -88,6 +90,7 @@ enum AgentUsageReadTests {
         func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool) {}
         func readClaudePlan() {}
         func readClaudeApp(now: Date) {}
+        func refreshStoredAntigravityLimits(now: Date) {}
         func watch(_ roots: [AgentLogRoot]) { watchedRoots = roots }
         func startPolling() {}
         func syncPolling() {}
@@ -135,6 +138,12 @@ enum AgentUsageReadTests {
                 #"{"id":"end","timestamp":\#(timestamp),"type":"assistant.turn_end","data":{"turnId":"0"}}"#,
                 #"{"id":"usage","timestamp":\#(timestamp),"type":"session.shutdown","data":{"modelMetrics":{"gpt-6-sol":{"requests":{"count":1},"tokenDetails":{"input":{"tokenCount":10},"cache_read":{"tokenCount":20},"cache_write":{"tokenCount":0},"output":{"tokenCount":5}},"usage":{"reasoningTokens":2}}}}}"#,
                 #"{"id":"final-checkpoint","timestamp":\#(timestamp),"type":"session.usage_checkpoint","data":{}}"#
+            ]),
+            (.antigravity, [
+                #"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"\#(ISO8601DateFormatter().string(from: now))","content":"<USER_REQUEST>work</USER_REQUEST>"}"#,
+                #"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ISO8601DateFormatter().string(from: now))","model":"gemini-4-neon-high","input_tokens":100,"cache_read_tokens":50,"output_tokens":20,"tool_calls":[{"id":"c1","name":"run_command"}]}"#,
+                #"{"step_index":2,"type":"CHECKPOINT","status":"DONE","created_at":"\#(ISO8601DateFormatter().string(from: now))","input_tokens":80,"cache_read_tokens":40,"output_tokens":10}"#,
+                #"{"step_index":3,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ISO8601DateFormatter().string(from: now))","model":"gemini-4-neon-high","input_tokens":120,"cache_read_tokens":60,"output_tokens":30}"#
             ])
         ]
         for (provider, lines) in cases {
@@ -152,6 +161,7 @@ enum AgentUsageReadTests {
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
                 case .cursor: entries += AgentLogParser.parseCursor(line, state: &cursor.state, now: now)
+                case .antigravity: entries += AgentLogParser.parseAntigravity(line, state: &cursor.state, now: now)
                 }
             }
             if provider == .copilot {
@@ -187,6 +197,7 @@ enum AgentUsageReadTests {
         startup(suite, folder: folder.appending(path: "home"), cases: cases)
         codexThreads(suite, folder: folder)
         cursorPolling(suite, folder: folder, now: now)
+        antigravityIndexOnFirstRead(suite, folder: folder, now: now)
 
         let openFile = folder.appending(path: "copilot-open.jsonl")
         let openLines = [
@@ -453,7 +464,8 @@ enum AgentUsageReadTests {
                 suite.expect(false, "the startup fixture has a root for \(provider)")
                 return
             }
-            let file = root.url.appending(path: "session/events.jsonl")
+            let relative = provider == .antigravity ? "session/.system_generated/logs/transcript.jsonl" : "session/events.jsonl"
+            let file = root.url.appending(path: relative)
             do {
                 try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)
@@ -506,5 +518,462 @@ enum AgentUsageReadTests {
         empty.start(session: 1, providers: Set(AgentProvider.allCases), cancellation: Cancellation())
         suite.expect(empty.publications.count == 1 && empty.snapshot.loaded && empty.snapshot.seen.isEmpty,
                      "a completed pass with genuinely no history leaves the loading state")
+    }
+
+    /// Index metadata (workspace project and parent conversation) must survive
+    /// `cursor.startOver` on the very first read of an Antigravity transcript.
+    private static func antigravityIndexOnFirstRead(_ suite: TestSuite, folder: URL, now: Date) {
+        let dataDir = folder.appending(path: "agy-first-read/.gemini/antigravity-cli")
+        let brain = dataDir.appending(path: "brain")
+        let parentID = "11111111-1111-4111-8111-111111111111"
+        let childID = "22222222-2222-4222-8222-222222222222"
+        let parentFile = brain.appending(path: "\(parentID)/.system_generated/logs/transcript.jsonl")
+        let childFile = brain.appending(path: "\(childID)/.system_generated/logs/transcript.jsonl")
+        do {
+            try FileManager.default.createDirectory(at: parentFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: childFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let dbPath = dataDir.appending(path: "conversation_summaries.db").path
+            var db: OpaquePointer?
+            guard sqlite3_open(dbPath, &db) == SQLITE_OK, let db else {
+                suite.expect(false, "opens temporary Antigravity index DB")
+                return
+            }
+            defer { sqlite3_close(db) }
+            let sql = """
+            CREATE TABLE conversation_summaries (conversation_id TEXT PRIMARY KEY, workspace_uris TEXT, parent_conversation_id TEXT);
+            INSERT INTO conversation_summaries VALUES
+              ('\(parentID)', '["file:///Users/me/code/live-proj"]', ''),
+              ('\(childID)', '["file:///Users/me/code/live-proj"]', '\(parentID)');
+            """
+            suite.expect(sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK, "seeds Antigravity index fixture")
+            let ts = ISO8601DateFormatter().string(from: now)
+            let parentLines = [
+                #"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"\#(ts)","content":"<USER_REQUEST>go</USER_REQUEST>"}"#,
+                #"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":100,"output_tokens":40,"tool_calls":[{"id":"t1","name":"invoke_subagent"}]}"#,
+            ]
+            let childLines = [
+                #"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"\#(ts)","content":"<USER_REQUEST>subtask</USER_REQUEST>"}"#,
+                #"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"#,
+            ]
+            try Data((parentLines.joined(separator: "\n") + "\n").utf8).write(to: parentFile)
+            try Data((childLines.joined(separator: "\n") + "\n").utf8).write(to: childFile)
+            let host = Host()
+            suite.expect(host.read(parentFile.path, provider: .antigravity)
+                            && host.read(childFile.path, provider: .antigravity),
+                         "first-read Antigravity transcripts parse cleanly")
+            suite.expect(host.store.records.allSatisfy { $0.project == "live-proj" }
+                            && host.store.live.count == 1
+                            && host.store.live.first?.id == parentFile.path
+                            && host.store.live.first?.project == "live-proj"
+                            && host.store.live.first?.tokens.total == 210,
+                         "index project and DB-only subagent parent survive initial cursor startOver and roll up into parent turn")
+
+            // Reverse order: reading the subagent before its parent establishes the
+            // parent turn first so subagent tokens still roll up into live totals.
+            let reverse = Host()
+            suite.expect(reverse.read(childFile.path, provider: .antigravity),
+                         "reverse-order Antigravity subagent read establishes its parent first")
+            _ = reverse.read(parentFile.path, provider: .antigravity)
+            suite.expect(reverse.store.records.allSatisfy { $0.project == "live-proj" }
+                            && reverse.store.live.count == 1
+                            && reverse.store.live.first?.id == parentFile.path
+                            && reverse.store.live.first?.tokens.total == 210,
+                         "reverse-order Antigravity subagent read rolls all 210 tokens into the parent live turn")
+
+            // Cold start with subagent mtimes earlier than the still-running parent
+            // (both DB-only and step-0 SYSTEM_MESSAGE sender= subagents).
+            let senderChildID = "33333333-3333-4333-8333-333333333333"
+            let senderChildFile = brain.appending(path: "\(senderChildID)/.system_generated/logs/transcript.jsonl")
+            try FileManager.default.createDirectory(at: senderChildFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let senderChildLines = [
+                #"{"step_index":0,"type":"SYSTEM_MESSAGE","status":"DONE","created_at":"\#(ts)","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=\#(ts) sender=\#(parentID)\n</SYSTEM_MESSAGE>"}"#,
+                #"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"\#(ts)","content":"<USER_REQUEST>sender child</USER_REQUEST>"}"#,
+                #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":30,"output_tokens":10}"#,
+            ]
+            try Data((senderChildLines.joined(separator: "\n") + "\n").utf8).write(to: senderChildFile)
+            try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-30)], ofItemAtPath: childFile.path)
+            try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-20)], ofItemAtPath: senderChildFile.path)
+            try FileManager.default.setAttributes([.modificationDate: now], ofItemAtPath: parentFile.path)
+
+            let homeDir = folder.appending(path: "agy-first-read")
+            let discovered = AgentLogReader.discover(AgentLogRoot.all(home: homeDir, providers: [.antigravity]),
+                                                     since: now.addingTimeInterval(-3600))
+            let canonicalParent = AgentLogRoot.canonical(parentFile).path
+            let canonicalChild = AgentLogRoot.canonical(childFile).path
+            if let parentIndex = discovered.firstIndex(where: { $0.path == canonicalParent }),
+               let childIndex = discovered.firstIndex(where: { $0.path == canonicalChild }) {
+                suite.expect(parentIndex < childIndex,
+                             "discover orders known Antigravity DB subagents after their parent even when modified earlier")
+            } else {
+                suite.expect(false, "discover finds both parent and DB subagent Antigravity transcripts")
+            }
+
+            let cold = Host()
+            cold.home = homeDir
+            cold.start(session: 1, providers: [.antigravity], cancellation: Cancellation())
+            suite.expect(cold.store.live.count == 1
+                            && cold.store.live.first?.id == canonicalParent
+                            && cold.store.live.first?.tokens.total == 250,
+                         "cold start attaches both DB-only and step-0 sender Antigravity subagents modified earlier than their parent")
+            // Finish the parent turn and verify the completion alert carries the combined tokens.
+            let finalLine = #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":20,"output_tokens":10}"#
+            let handle = try FileHandle(forWritingTo: parentFile)
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data((finalLine + "\n").utf8))
+            try handle.close()
+            _ = cold.read(canonicalParent, provider: .antigravity)
+            if case .finished(let provider, _, _, let tokens, let project) = cold.events.last {
+                suite.expect(provider == .antigravity && tokens == 280 && project == "live-proj",
+                             "parent finish alert includes tokens from subagents discovered earlier than the parent")
+            } else {
+                suite.expect(false, "parent completion emits a finished alert with combined subagent tokens")
+            }
+
+            // Same-batch watcher completion: running parent finishes in the same
+            // filesChanged batch as a brand-new step-0 sender child (parent path first).
+            let batchHome = folder.appending(path: "agy-batch-complete")
+            let batchBrain = batchHome.appending(path: ".gemini/antigravity-cli/brain")
+            let batchParentID = "44444444-4444-4444-8444-444444444444"
+            let batchChildID = "55555555-5555-4555-8555-555555555555"
+            let batchParentFile = batchBrain.appending(path: "\(batchParentID)/.system_generated/logs/transcript.jsonl")
+            let batchChildFile = batchBrain.appending(path: "\(batchChildID)/.system_generated/logs/transcript.jsonl")
+            try FileManager.default.createDirectory(at: batchParentFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: batchChildFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data((parentLines.joined(separator: "\n") + "\n").utf8).write(to: batchParentFile)
+            let batchHost = Host()
+            batchHost.home = batchHome
+            batchHost.start(session: 1, providers: [.antigravity], cancellation: Cancellation())
+            let canonicalBatchParent = AgentLogRoot.canonical(batchParentFile).path
+            suite.expect(batchHost.store.live.count == 1 && batchHost.store.live.first?.tokens.total == 140,
+                         "batch completion fixture opens parent turn with 140 tokens")
+            let batchChildLines = [
+                #"{"step_index":0,"type":"SYSTEM_MESSAGE","status":"DONE","created_at":"\#(ts)","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=\#(ts) sender=\#(batchParentID)\n</SYSTEM_MESSAGE>"}"#,
+                #"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"\#(ts)","content":"<USER_REQUEST>last child</USER_REQUEST>"}"#,
+                #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"#,
+            ]
+            try Data((batchChildLines.joined(separator: "\n") + "\n").utf8).write(to: batchChildFile)
+            let batchParentHandle = try FileHandle(forWritingTo: batchParentFile)
+            try batchParentHandle.seekToEnd()
+            try batchParentHandle.write(contentsOf: Data((finalLine + "\n").utf8))
+            try batchParentHandle.close()
+            let canonicalBatchChild = AgentLogRoot.canonical(batchChildFile).path
+            // Deliver parent BEFORE child in the same watcher batch.
+            batchHost.filesChanged([canonicalBatchParent, canonicalBatchChild], rescan: false)
+            if case .finished(let provider, _, _, let tokens, _) = batchHost.events.last {
+                suite.expect(provider == .antigravity && tokens == 240
+                                && batchHost.store.records.map(\.tokens.total).reduce(0, +) == 240,
+                             "same-batch watcher completion applies pending child usage before closing the parent turn")
+            } else {
+                suite.expect(false, "same-batch completion emits a finished alert carrying child usage")
+            }
+
+            // Direct parent read (e.g. pollOpenLogs hitting parent before a known child)
+            // also flushes unread child usage before emitting `.finished`.
+            let pollHandleParent = try FileHandle(forWritingTo: batchParentFile)
+            try pollHandleParent.seekToEnd()
+            try pollHandleParent.write(contentsOf: Data(([
+                #"{"step_index":3,"type":"USER_INPUT","status":"DONE","created_at":"\#(ts)","content":"<USER_REQUEST>turn 2</USER_REQUEST>"}"#,
+                #"{"step_index":4,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":100,"output_tokens":40,"tool_calls":[{"id":"t2","name":"invoke_subagent"}]}"#,
+            ].joined(separator: "\n") + "\n").utf8))
+            try pollHandleParent.close()
+            _ = batchHost.read(canonicalBatchParent, provider: .antigravity)
+            let pollHandleChild = try FileHandle(forWritingTo: batchChildFile)
+            try pollHandleChild.seekToEnd()
+            try pollHandleChild.write(contentsOf: Data((#"{"step_index":3,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"# + "\n").utf8))
+            try pollHandleChild.close()
+            let pollHandleParentEnd = try FileHandle(forWritingTo: batchParentFile)
+            try pollHandleParentEnd.seekToEnd()
+            try pollHandleParentEnd.write(contentsOf: Data((#"{"step_index":5,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":20,"output_tokens":10}"# + "\n").utf8))
+            try pollHandleParentEnd.close()
+            batchHost.events.removeAll()
+            _ = batchHost.read(canonicalBatchParent, provider: .antigravity)
+            if case .finished(let provider, _, _, let tokens, _) = batchHost.events.last {
+                suite.expect(provider == .antigravity && tokens == 240,
+                             "direct parent read flushes unread child subagent tokens before closing the parent turn")
+            } else {
+                suite.expect(false, "direct parent read emits a finished alert carrying flushed child tokens")
+            }
+
+            // Symlinked brain/ outside Antigravity data directory: start() preserves
+            // the original data directory so DB project and parent rollup work end to end.
+            let symHome = folder.appending(path: "agy-sym-home")
+            let symDataDir = symHome.appending(path: ".gemini/antigravity-cli")
+            let externalBrain = folder.appending(path: "agy-external-brain")
+            let symParentFile = externalBrain.appending(path: "\(parentID)/.system_generated/logs/transcript.jsonl")
+            let symChildFile = externalBrain.appending(path: "\(childID)/.system_generated/logs/transcript.jsonl")
+            try FileManager.default.createDirectory(at: symParentFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: symChildFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: symDataDir, withIntermediateDirectories: true)
+            try FileManager.default.createSymbolicLink(at: symDataDir.appending(path: "brain"), withDestinationURL: externalBrain)
+            try Data((parentLines.joined(separator: "\n") + "\n").utf8).write(to: symParentFile)
+            try Data((childLines.joined(separator: "\n") + "\n").utf8).write(to: symChildFile)
+            try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-30)], ofItemAtPath: symChildFile.path)
+            try FileManager.default.setAttributes([.modificationDate: now], ofItemAtPath: symParentFile.path)
+            let symDBPath = symDataDir.appending(path: "conversation_summaries.db").path
+            var symDB: OpaquePointer?
+            guard sqlite3_open(symDBPath, &symDB) == SQLITE_OK, let symDB else {
+                suite.expect(false, "opens symlinked brain fixture DB")
+                return
+            }
+            defer { sqlite3_close(symDB) }
+            let symSQL = """
+            CREATE TABLE conversation_summaries (conversation_id TEXT PRIMARY KEY, workspace_uris TEXT, parent_conversation_id TEXT);
+            INSERT INTO conversation_summaries VALUES
+              ('\(parentID)', '["file:///Users/me/code/symlink-proj"]', ''),
+              ('\(childID)', '["file:///Users/me/code/symlink-proj"]', '\(parentID)');
+            """
+            suite.expect(sqlite3_exec(symDB, symSQL, nil, nil, nil) == SQLITE_OK, "seeds symlinked Antigravity DB")
+            let symHost = Host()
+            symHost.home = symHome
+            symHost.start(session: 1, providers: [.antigravity], cancellation: Cancellation())
+            let canonicalSymParent = AgentLogRoot.canonical(symParentFile).path
+            suite.expect(symHost.store.records.allSatisfy { $0.project == "symlink-proj" }
+                            && symHost.store.live.count == 1
+                            && symHost.store.live.first?.id == canonicalSymParent
+                            && symHost.store.live.first?.project == "symlink-proj"
+                            && symHost.store.live.first?.tokens.total == 210,
+                         "symlinked brain preserves data directory for project attribution and DB-only subagent rollup")
+
+            // Turn-boundary isolation across pause/resume: Turn A closes and Turn B
+            // opens between reads while Turn B's child already has usage. Turn A
+            // must finish with 170 tokens and Turn B must keep all 210 live tokens
+            // in incremental watcher batches, rescans, and direct completion reads.
+            let iso = ISO8601DateFormatter()
+            let tAStart = iso.string(from: now.addingTimeInterval(-60))
+            let tAWork = iso.string(from: now.addingTimeInterval(-55))
+            let tAChild = iso.string(from: now.addingTimeInterval(-50))
+            let tAEnd = iso.string(from: now.addingTimeInterval(-40))
+            let tBStart = iso.string(from: now.addingTimeInterval(-30))
+            let tBWork = iso.string(from: now.addingTimeInterval(-25))
+            let tBChild = iso.string(from: now.addingTimeInterval(-20))
+
+            for mode in ["incremental", "rescan", "direct"] {
+                let boundHome = folder.appending(path: "agy-turn-bound-\(mode)")
+                let boundBrain = boundHome.appending(path: ".gemini/antigravity-cli/brain")
+                let pID = "66666666-6666-4666-8666-666666666666"
+                let cID = "77777777-7777-4777-8777-777777777777"
+                let pFile = boundBrain.appending(path: "\(pID)/.system_generated/logs/transcript.jsonl")
+                let cFile = boundBrain.appending(path: "\(cID)/.system_generated/logs/transcript.jsonl")
+                try FileManager.default.createDirectory(at: pFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try FileManager.default.createDirectory(at: cFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+                let turnAOpen = [
+                    #"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"\#(tAStart)","content":"<USER_REQUEST>turn A</USER_REQUEST>"}"#,
+                    #"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAWork)","model":"gemini-4-neon-high","input_tokens":100,"output_tokens":40,"tool_calls":[{"id":"ta","name":"run_command"}]}"#,
+                ]
+                try Data((turnAOpen.joined(separator: "\n") + "\n").utf8).write(to: pFile)
+                let boundHost = Host()
+                boundHost.home = boundHome
+                boundHost.start(session: 1, providers: [.antigravity], cancellation: Cancellation())
+                let canonP = AgentLogRoot.canonical(pFile).path
+
+                // For the direct-read mode, seed the child cursor before turn A ends
+                // and append BOTH a turn-A step (tAChild) and a turn-B step (tBChild)
+                // into the same child transcript to verify split-by-boundary flushing.
+                let turnAChildTokens: Int
+                if mode == "direct" {
+                    let seedChild = [
+                        #"{"step_index":0,"type":"SYSTEM_MESSAGE","status":"DONE","created_at":"\#(tAWork)","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=\#(tAWork) sender=\#(pID)\n</SYSTEM_MESSAGE>"}"#,
+                    ]
+                    try Data((seedChild.joined(separator: "\n") + "\n").utf8).write(to: cFile)
+                    let canonCSeed = AgentLogRoot.canonical(cFile).path
+                    _ = boundHost.read(canonCSeed, provider: .antigravity)
+                    let ch = try FileHandle(forWritingTo: cFile)
+                    try ch.seekToEnd()
+                    try ch.write(contentsOf: Data(([
+                        #"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAChild)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"#,
+                        #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tBChild)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"#,
+                    ].joined(separator: "\n") + "\n").utf8))
+                    try ch.close()
+                    turnAChildTokens = 70
+                } else {
+                    let childBOnly = [
+                        #"{"step_index":0,"type":"SYSTEM_MESSAGE","status":"DONE","created_at":"\#(tBStart)","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=\#(tBStart) sender=\#(pID)\n</SYSTEM_MESSAGE>"}"#,
+                        #"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"\#(tBStart)","content":"<USER_REQUEST>turn B child</USER_REQUEST>"}"#,
+                        #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tBChild)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"#,
+                    ]
+                    try Data((childBOnly.joined(separator: "\n") + "\n").utf8).write(to: cFile)
+                    turnAChildTokens = 0
+                }
+                let ph = try FileHandle(forWritingTo: pFile)
+                try ph.seekToEnd()
+                try ph.write(contentsOf: Data(([
+                    #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAEnd)","model":"gemini-4-neon-high","input_tokens":20,"output_tokens":10}"#,
+                    #"{"step_index":3,"type":"USER_INPUT","status":"DONE","created_at":"\#(tBStart)","content":"<USER_REQUEST>turn B</USER_REQUEST>"}"#,
+                    #"{"step_index":4,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tBWork)","model":"gemini-4-neon-high","input_tokens":100,"output_tokens":40,"tool_calls":[{"id":"tb","name":"invoke_subagent"}]}"#,
+                ].joined(separator: "\n") + "\n").utf8))
+                try ph.close()
+
+                let canonC = AgentLogRoot.canonical(cFile).path
+                boundHost.events.removeAll()
+                switch mode {
+                case "incremental":
+                    boundHost.filesChanged([canonP, canonC], rescan: false)
+                case "rescan":
+                    boundHost.filesChanged([], rescan: true)
+                default:
+                    _ = boundHost.read(canonP, provider: .antigravity)
+                }
+
+                let expectedA = 170 + turnAChildTokens
+                let expectedB = 210
+                if case .finished(let provider, _, _, let tokens, _) = boundHost.events.last {
+                    suite.expect(provider == .antigravity && tokens == expectedA
+                                    && boundHost.store.live.count == 1
+                                    && boundHost.store.live.first?.id == canonP
+                                    && boundHost.store.live.first?.tokens.total == expectedB,
+                                 "Antigravity \(mode) keeps Turn B child usage out of closing Turn A (\(tokens) vs \(expectedA), live \(boundHost.store.live.first?.tokens.total ?? -1) vs \(expectedB))")
+                } else {
+                    suite.expect(false, "Antigravity \(mode) emits finished for Turn A while keeping Turn B open")
+                }
+            }
+
+            // Canceling a watcher batch after child usage is deferred (as stop(keepingProgress: true)
+            // does) drops the affected child cursor so an archive round-trip replays those records
+            // cleanly rather than losing them behind an advanced saved offset.
+            let cancelHome = folder.appending(path: "agy-cancel-archive")
+            let cancelBrain = cancelHome.appending(path: ".gemini/antigravity-cli/brain")
+            let cpID = "88888888-8888-4888-8888-888888888888"
+            let ccID = "99999999-9999-4999-8999-999999999999"
+            let cpFile = cancelBrain.appending(path: "\(cpID)/.system_generated/logs/transcript.jsonl")
+            let ccFile = cancelBrain.appending(path: "\(ccID)/.system_generated/logs/transcript.jsonl")
+            try FileManager.default.createDirectory(at: cpFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: ccFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(([
+                #"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"\#(tAStart)","content":"<USER_REQUEST>cancel test</USER_REQUEST>"}"#,
+                #"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAWork)","model":"gemini-4-neon-high","input_tokens":100,"output_tokens":40,"tool_calls":[{"id":"tc","name":"invoke_subagent"}]}"#,
+            ].joined(separator: "\n") + "\n").utf8).write(to: cpFile)
+            let cancelHost = Host()
+            cancelHost.home = cancelHome
+            let cancelToken = Cancellation()
+            cancelHost.start(session: 1, providers: [.antigravity], cancellation: cancelToken)
+            try Data(([
+                #"{"step_index":0,"type":"SYSTEM_MESSAGE","status":"DONE","created_at":"\#(tAChild)","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=\#(tAChild) sender=\#(cpID)\n</SYSTEM_MESSAGE>"}"#,
+                #"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"\#(tAChild)","content":"<USER_REQUEST>child work</USER_REQUEST>"}"#,
+                #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAChild)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"#,
+            ].joined(separator: "\n") + "\n").utf8).write(to: ccFile)
+            let cph = try FileHandle(forWritingTo: cpFile)
+            try cph.seekToEnd()
+            try cph.write(contentsOf: Data((#"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAEnd)","model":"gemini-4-neon-high","input_tokens":20,"output_tokens":10}"# + "\n").utf8))
+            try cph.close()
+            let canonCP = AgentLogRoot.canonical(cpFile).path
+            let canonCC = AgentLogRoot.canonical(ccFile).path
+            var childLinesSeen = 0
+            AgentLogReader.beforeLine = {
+                childLinesSeen += 1
+                // Cancel after the child's 3 lines have been read and deferred,
+                // before the queued parent transcript in the same batch runs.
+                if childLinesSeen >= 3 { cancelToken.isCancelled = true }
+            }
+            cancelHost.filesChanged([canonCP, canonCC], rescan: false)
+            AgentLogReader.beforeLine = nil
+            suite.expect(cancelHost.cursors[canonCC] == nil && cancelHost.antigravityIndex.deferredSourceFiles.isEmpty,
+                         "canceling a batch after deferring child usage clears the deferred queue and drops the child cursor for replay")
+            // Archive round-trip: restore saved progress and replay remaining logs.
+            let archived = AgentUsageReadProductionArchive.Contents(
+                providers: [.antigravity], store: cancelHost.store.saved,
+                cursors: cancelHost.cursors.values.map(\.saved))
+            let encoded = AgentUsageReadProductionArchive.encode(archived, build: "agy-cancel-roundtrip")
+            let decoded = AgentUsageReadProductionArchive.decode(encoded, build: "agy-cancel-roundtrip")
+            if let decoded {
+                let resumed = AgentUsageReadProductionArchive.resume(
+                    decoded, logs: Set([canonCP, canonCC]), since: now.addingTimeInterval(-3600))
+                let nextHost = Host()
+                nextHost.home = cancelHome
+                nextHost.watchedRoots = cancelHost.watchedRoots
+                nextHost.antigravityIndex.register(roots: cancelHost.watchedRoots)
+                nextHost.store = resumed.store
+                nextHost.cursors = resumed.cursors
+                _ = nextHost.read(canonCP, provider: .antigravity)
+                _ = nextHost.read(canonCC, provider: .antigravity)
+                let totalHistory = nextHost.store.records.map(\.tokens.total).reduce(0, +)
+                suite.expect(totalHistory == 240,
+                             "archive round-trip after a canceled Antigravity batch replays deferred child usage (total \(totalHistory) vs 240)")
+            } else {
+                suite.expect(false, "encodes and decodes archive after canceled Antigravity batch")
+            }
+
+            // Canceling a batch after deferring a second response from a child
+            // whose first response already contributed to the still-open parent
+            // must roll the child cursor back to its committed offset (not drop
+            // it), avoiding record pruning and double-counting on replay.
+            let rollbackHome = folder.appending(path: "agy-cancel-rollback")
+            let rollbackBrain = rollbackHome.appending(path: ".gemini/antigravity-cli/brain")
+            let rpID = "aaaaaaaa-0000-4000-8000-000000000001"
+            let rcID = "bbbbbbbb-0000-4000-8000-000000000002"
+            let rpFile = rollbackBrain.appending(path: "\(rpID)/.system_generated/logs/transcript.jsonl")
+            let rcFile = rollbackBrain.appending(path: "\(rcID)/.system_generated/logs/transcript.jsonl")
+            try FileManager.default.createDirectory(at: rpFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: rcFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(([
+                #"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"\#(tAStart)","content":"<USER_REQUEST>rollback test</USER_REQUEST>"}"#,
+                #"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAWork)","model":"gemini-4-neon-high","input_tokens":100,"output_tokens":40,"tool_calls":[{"id":"tr","name":"invoke_subagent"}]}"#,
+            ].joined(separator: "\n") + "\n").utf8).write(to: rpFile)
+            try Data(([
+                #"{"step_index":0,"type":"SYSTEM_MESSAGE","status":"DONE","created_at":"\#(tAChild)","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=\#(tAChild) sender=\#(rpID)\n</SYSTEM_MESSAGE>"}"#,
+                #"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"\#(tAChild)","content":"<USER_REQUEST>child part 1</USER_REQUEST>"}"#,
+                #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAChild)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"#,
+            ].joined(separator: "\n") + "\n").utf8).write(to: rcFile)
+            let rbHost = Host()
+            rbHost.home = rollbackHome
+            let rbToken = Cancellation()
+            rbHost.start(session: 1, providers: [.antigravity], cancellation: rbToken)
+            let canonRP = AgentLogRoot.canonical(rpFile).path
+            let canonRC = AgentLogRoot.canonical(rcFile).path
+            let committedChildOffset = rbHost.cursors[canonRC]?.offset ?? 0
+            suite.expect(committedChildOffset > 0 && rbHost.store.live.first?.tokens.total == 210,
+                         "rollback fixture commits parent (140) + child response 1 (70) = 210 live tokens")
+            // Append child response 2 (70) and a mid-turn parent step while parent stays open.
+            let rch = try FileHandle(forWritingTo: rcFile)
+            try rch.seekToEnd()
+            try rch.write(contentsOf: Data((#"{"step_index":3,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAEnd)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"# + "\n").utf8))
+            try rch.close()
+            let rph = try FileHandle(forWritingTo: rpFile)
+            try rph.seekToEnd()
+            try rph.write(contentsOf: Data((#"{"step_index":2,"type":"GENERIC","status":"DONE","created_at":"\#(tAEnd)","content":"working"}"# + "\n").utf8))
+            try rph.close()
+            AgentLogReader.beforeLine = { rbToken.isCancelled = true }
+            rbHost.filesChanged([canonRP, canonRC], rescan: false)
+            AgentLogReader.beforeLine = nil
+            suite.expect(rbHost.cursors[canonRC]?.offset == committedChildOffset
+                            && rbHost.antigravityIndex.deferredSourceFiles.isEmpty,
+                         "canceling after deferring response 2 rolls the child cursor back to its committed offset")
+            let rbArchived = AgentUsageReadProductionArchive.Contents(
+                providers: [.antigravity], store: rbHost.store.saved,
+                cursors: rbHost.cursors.values.map(\.saved))
+            let rbEncoded = AgentUsageReadProductionArchive.encode(rbArchived, build: "agy-rollback-roundtrip")
+            let rbDecoded = AgentUsageReadProductionArchive.decode(rbEncoded, build: "agy-rollback-roundtrip")
+            if let rbDecoded {
+                let rbResumed = AgentUsageReadProductionArchive.resume(
+                    rbDecoded, logs: Set([canonRP, canonRC]), since: now.addingTimeInterval(-3600))
+                let restoredHost = Host()
+                restoredHost.home = rollbackHome
+                restoredHost.watchedRoots = rbHost.watchedRoots
+                restoredHost.antigravityIndex.register(roots: rbHost.watchedRoots)
+                restoredHost.store = rbResumed.store
+                restoredHost.store.reportsTransitions = true
+                restoredHost.cursors = rbResumed.cursors
+                _ = restoredHost.read(canonRP, provider: .antigravity)
+                _ = restoredHost.read(canonRC, provider: .antigravity)
+                suite.expect(restoredHost.store.live.count == 1
+                                && restoredHost.store.live.first?.tokens.total == 280,
+                             "restoring and replaying after rollback counts 280 live tokens without duplicating response 1 (got \(restoredHost.store.live.first?.tokens.total ?? -1))")
+                let rphEnd = try FileHandle(forWritingTo: rpFile)
+                try rphEnd.seekToEnd()
+                try rphEnd.write(contentsOf: Data((#"{"step_index":3,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tBStart)","model":"gemini-4-neon-high","input_tokens":20,"output_tokens":10}"# + "\n").utf8))
+                try rphEnd.close()
+                _ = restoredHost.read(canonRP, provider: .antigravity)
+                if case .finished(let provider, _, _, let tokens, _) = restoredHost.events.last {
+                    let historyTotal = restoredHost.store.records.map(\.tokens.total).reduce(0, +)
+                    suite.expect(provider == .antigravity && tokens == 310 && historyTotal == 310,
+                                 "subsequent final response reports 310 finished and history tokens (got finished=\(tokens), history=\(historyTotal))")
+                } else {
+                    suite.expect(false, "subsequent final response after rollback emits finished alert")
+                }
+            } else {
+                suite.expect(false, "encodes and decodes archive after child rollback")
+            }
+        } catch {
+            suite.expect(false, "Antigravity first-read index fixture failed: \(error)")
+        }
     }
 }

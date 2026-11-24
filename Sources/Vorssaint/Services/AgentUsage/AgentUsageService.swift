@@ -26,6 +26,8 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAppChecked: Date?
     @Published private(set) var claudeAccountChecking = false
     @Published private(set) var claudeAccountFailure: AgentClaudeServer.Failure?
+    @Published private(set) var antigravityAccountChecking = false
+    @Published private(set) var antigravityAccountFailure: AgentAntigravityServer.Failure?
     @Published private(set) var claudeProfile = ClaudeAccountProfile()
     @Published private(set) var claudeAccountIdentity: ClaudeAccountProfile.Identity?
     /// The day of the price list in use.
@@ -76,6 +78,10 @@ final class AgentUsageService: ObservableObject {
     /// Checks in a row that Claude Code did not answer, counted again from
     /// zero once the Mac is back online.
     private var claudeAccountUnreachable = 0
+    private let antigravityAccountQueue = DispatchQueue(label: "com.vorssaint.antigravity-limits", qos: .utility)
+    private var antigravityAccountRequest: AgentAntigravityServer.Request?
+    private var antigravityAccountAttempted = Date.distantPast
+    private var antigravityAccountUnreachable = 0
     /// Whether the Mac has a network, as the reading queue last heard.
     private var online = true
     /// The AI page is on the island, which asks Claude Code more often.
@@ -107,6 +113,8 @@ final class AgentUsageService: ObservableObject {
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
     private var claudeAccountLimits: AgentLimits?
+    private var antigravityAccountLimits: AgentLimits?
+    private var antigravityIndex = AgentAntigravityIndex()
     private var shippedPrices: AgentPriceList?
     private var previousLimits: [AgentProvider: AgentLimits] = [:]
     /// Warned windows, each waiting for its renewal.
@@ -147,6 +155,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        refreshAntigravityLimits()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -160,6 +169,7 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
+        cancelAntigravityLimits()
         timer?.invalidate()
         timer = nil
         queue.async { [self] in
@@ -194,9 +204,13 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         running = false
         cancelClaudeLimits()
+        cancelAntigravityLimits()
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
         claudeAccountUnreachable = 0
+        antigravityAccountAttempted = .distantPast
+        antigravityAccountFailure = nil
+        antigravityAccountUnreachable = 0
         online = true
         paused = false
         session += 1
@@ -232,6 +246,8 @@ final class AgentUsageService: ObservableObject {
             claudeAppModified = nil
             claudeAppSamples = []
             claudeAccountLimits = nil
+            antigravityAccountLimits = nil
+            antigravityIndex.clear()
             savedMark = nil
             lastSave = .distantPast
         }
@@ -255,10 +271,13 @@ final class AgentUsageService: ObservableObject {
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
+        refreshAntigravityLimits(pageShows: true)
         queue.async { [self] in
             guard readerSession >= 0 else { return }
+            let now = Date()
             readClaudePlan()
-            readClaudeApp(now: Date())
+            readClaudeApp(now: now)
+            refreshStoredAntigravityLimits(now: now)
             checkLimits()
             publish()
         }
@@ -273,6 +292,13 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused, claudeAccountRequest == nil else { return }
         claudeAccountAttempted = .distantPast
         refreshClaudeLimits(pageShows: true)
+    }
+
+    /// A deliberate retry for Antigravity quota checks after installing or signing in to `agy`.
+    func checkAntigravityAccount() {
+        guard running, !paused, antigravityAccountRequest == nil else { return }
+        antigravityAccountAttempted = .distantPast
+        refreshAntigravityLimits(pageShows: true)
     }
 
     // MARK: Reading
@@ -299,6 +325,8 @@ final class AgentUsageService: ObservableObject {
             // Keep the loading state until all initial history has been read.
             let horizon = Date().addingTimeInterval(-Self.horizon)
             let roots = AgentLogRoot.all(home: home, claudeProfile: claudeProfile, providers: providers)
+            antigravityIndex.clearDeferredUsage()
+            antigravityIndex.register(roots: roots)
             let cursorRoot = roots.first { $0.provider == .cursor }?.url
             let files = AgentLogReader.discover(roots, since: horizon)
             // Resumes where the last launch stopped, among the logs there now.
@@ -315,10 +343,26 @@ final class AgentUsageService: ObservableObject {
             }
             for file in files {
                 // A stop while reading leaves the rest for the next start.
-                guard !cancellation.isCancelled else { return }
+                guard !cancellation.isCancelled else {
+                    for (deferredFile, rollback) in antigravityIndex.discardDeferredUsage() {
+                        switch rollback {
+                        case .remove: cursors[deferredFile] = nil
+                        case .restore(let saved): cursors[deferredFile] = AgentLogCursor(saved: saved)
+                        }
+                    }
+                    return
+                }
                 read(file.path, provider: file.provider, cursorRoot: cursorRoot)
             }
-            guard !cancellation.isCancelled else { return }
+            guard !cancellation.isCancelled else {
+                for (deferredFile, rollback) in antigravityIndex.discardDeferredUsage() {
+                    switch rollback {
+                    case .remove: cursors[deferredFile] = nil
+                    case .restore(let saved): cursors[deferredFile] = AgentLogCursor(saved: saved)
+                    }
+                }
+                return
+            }
             let now = Date()
             // A turn left open by a crash would otherwise stay working.
             store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
@@ -326,6 +370,7 @@ final class AgentUsageService: ObservableObject {
             // The account Claude Code uses picks the Claude app's readings.
             readClaudePlan()
             readClaudeApp(now: now)
+            refreshStoredAntigravityLimits(now: now)
             store.reportsTransitions = true
             previousLimits = store.limits
             // A budget already passed before launch is history, not news.
@@ -371,8 +416,21 @@ final class AgentUsageService: ObservableObject {
         // Cursor retracts the old readings when it replays a transcript.
         // Nothing from OpenCode's database is saved. Its open replies and
         // sessions live only in memory, so each launch reads it again.
-        let kept = cursors.values.filter { $0.provider == .cursor || (!$0.restarted && $0.provider != .opencode) }
-        let contents = AgentUsageArchive.Contents(providers: enabled, store: store.saved, cursors: kept.map(\.saved))
+        // Antigravity subagents with deferred usage not yet committed to the
+        // store are saved at their last committed offset (or omitted if new)
+        // so the next launch replays only the uncommitted tail without pruning
+        // previously committed records.
+        let savedCursors: [AgentLogCursor.Saved] = cursors.values.compactMap { cursor in
+            if let rollback = antigravityIndex.deferredRollback(for: cursor.path) {
+                switch rollback {
+                case .remove: return nil
+                case .restore(let saved): return saved
+                }
+            }
+            guard cursor.provider == .cursor || (!cursor.restarted && cursor.provider != .opencode) else { return nil }
+            return cursor.saved
+        }
+        let contents = AgentUsageArchive.Contents(providers: enabled, store: store.saved, cursors: savedCursors)
         if AgentUsageArchive.save(contents) { savedMark = mark }
     }
 
@@ -541,7 +599,9 @@ final class AgentUsageService: ObservableObject {
     /// True when the log had entries to apply, or was gone and took a
     /// working turn with it.
     @discardableResult
-    private func read(_ changedPath: String, provider: AgentProvider, cursorRoot: URL? = nil) -> Bool {
+    private func read(_ changedPath: String, provider: AgentProvider, cursorRoot: URL? = nil,
+                      antigravityStack: Set<String> = [],
+                      deferredAntigravityParents: Set<String> = []) -> Bool {
         guard let cancellation = readerCancellation, !cancellation.isCancelled else { return false }
         if provider == .cursor {
             guard let root = cursorRoot ?? watchedRoots.first(where: { $0.provider == .cursor })?.url,
@@ -555,15 +615,96 @@ final class AgentUsageService: ObservableObject {
                                              shouldContinue: { !cancellation.isCancelled }, report: report) || selection.changed
         }
         let path = changedPath
+        let now = Date()
         guard FileManager.default.fileExists(atPath: path) else {
             cursors[path] = nil
-            return store.forget(file: path)
+            var removed = store.forget(file: path)
+            if provider == .antigravity {
+                for item in antigravityIndex.drainDeferredUsage(forParent: path) {
+                    removed = true
+                    store.apply([item.entry], file: item.file, provider: .antigravity, tracksTurns: false,
+                                parent: nil, modified: item.modified, now: now).forEach(report)
+                }
+            }
+            return removed
         }
-        let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
+        let existingCursor = cursors[path]
+        let antigravityRollback: AgentAntigravityIndex.DeferredRollback = {
+            if provider == .antigravity, let existing = existingCursor, existing.offset > 0, !existing.restarted {
+                return .restore(existing.saved)
+            }
+            return .remove
+        }()
+        let cursor = existingCursor ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
-        let now = Date()
+        let antigravityDataDir = provider == .antigravity
+            ? watchedRoots.first(where: { $0.provider == .antigravity && $0.accepts(path) })?.dataDirectory
+            : nil
+        let antigravityMetadata = provider == .antigravity
+            ? antigravityIndex.entry(forSession: AgentLogParser.antigravitySession(from: path),
+                                     transcriptPath: path, dataDirectory: antigravityDataDir)
+            : nil
         var changed = false
+        let cutoff = now.addingTimeInterval(-Self.horizon)
+        var deferredTargets: [String] = []
+        var deferredTargetSet: Set<String> = []
+        func resolveAntigravityParentPath(forSession initialSession: String) -> String? {
+            if let existing = cursor.antigravityParent(among: cursors) { return existing }
+            var targetSession = initialSession
+            var targetSibling = path
+            var visited: Set<String> = [cursor.state.session]
+            var resolved: String?
+            var hops = 0
+            while !targetSession.isEmpty, hops < 8, visited.insert(targetSession).inserted,
+                  let candidate = AgentAntigravityIndex.transcriptPath(forSession: targetSession, siblingOf: targetSibling),
+                  candidate != path {
+                hops += 1
+                resolved = candidate
+                if let known = cursors[candidate] {
+                    guard known.state.antigravitySubagent, !known.state.antigravityParent.isEmpty else { break }
+                    targetSession = known.state.antigravityParent
+                    targetSibling = candidate
+                    continue
+                }
+                if let next = antigravityIndex.entry(forSession: targetSession, transcriptPath: candidate,
+                                                     dataDirectory: antigravityDataDir)?.parentSession,
+                   !next.isEmpty {
+                    targetSession = next
+                    targetSibling = candidate
+                    continue
+                }
+                break
+            }
+            return resolved
+        }
+        func antigravityHasUnreadBytes(_ candidatePath: String) -> Bool {
+            var info = stat()
+            guard stat(candidatePath, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG,
+                  AgentLogCursor.modificationDate(info) >= cutoff else { return false }
+            guard let existing = cursors[candidatePath] else { return true }
+            return UInt64(max(0, info.st_size)) != existing.offset || UInt64(info.st_ino) != existing.identity
+        }
+        func drainAntigravityDeferred(forParent parentPath: String, through boundary: Date? = nil,
+                                      inclusive: Bool = true, targetParent: String?) {
+            for item in antigravityIndex.drainDeferredUsage(forParent: parentPath, through: boundary,
+                                                            inclusive: inclusive) {
+                changed = true
+                store.apply([item.entry], file: item.file, provider: .antigravity, tracksTurns: false,
+                            parent: targetParent, modified: item.modified, now: now).forEach(report)
+            }
+        }
         let consume: (Data) -> Void = { [self] line in
+            // Re-apply index metadata inside the line handler so it survives
+            // `cursor.startOver` on the first read or after a file replacement.
+            if let metadata = antigravityMetadata {
+                if cursor.state.project.isEmpty && !metadata.project.isEmpty {
+                    cursor.state.project = metadata.project
+                }
+                if cursor.state.antigravityParent.isEmpty && !metadata.parentSession.isEmpty {
+                    cursor.state.antigravityParent = metadata.parentSession
+                    cursor.state.antigravitySubagent = true
+                }
+            }
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.
             let entries = provider.reader.parse(line, state: &cursor.state, now: now)
@@ -572,8 +713,72 @@ final class AgentUsageService: ObservableObject {
             let isSubagent = provider == .opencode && !cursor.state.parentSession.isEmpty
             let turnFile = provider == .opencode && !cursor.state.session.isEmpty ? "\(path)#\(cursor.state.session)" : path
             let tracksTurns = isSubagent ? false : cursor.tracksTurns
+            // Defer Antigravity subagent usage whenever the parent transcript is
+            // currently mid-read, scheduled later in the same batch, or has
+            // unread bytes on disk so parent turn boundaries decide which turn
+            // receives each timestamped child response.
+            if provider == .antigravity && !cursor.state.antigravityParent.isEmpty,
+               let parentPath = resolveAntigravityParentPath(forSession: cursor.state.antigravityParent),
+               antigravityStack.contains(parentPath)
+                   || deferredAntigravityParents.contains(parentPath)
+                   || antigravityHasUnreadBytes(parentPath) {
+                var immediate: [AgentLogEntry] = []
+                for entry in entries {
+                    if case .usage(_, let record, _) = entry {
+                        antigravityIndex.deferUsage(forParent: parentPath, file: turnFile, date: record.date,
+                                                    entry: entry, modified: cursor.modified,
+                                                    rollback: antigravityRollback)
+                        if deferredTargetSet.insert(parentPath).inserted {
+                            deferredTargets.append(parentPath)
+                        }
+                    } else {
+                        immediate.append(entry)
+                    }
+                }
+                guard !immediate.isEmpty else { return }
+                let parent = cursor.antigravityParent(among: cursors)
+                store.apply(immediate, file: turnFile, provider: provider, tracksTurns: tracksTurns,
+                            parent: parent, modified: cursor.modified, now: now).forEach(report)
+                return
+            }
+            // Before closing an Antigravity parent turn, flush unread child
+            // transcripts into the deferred queue and apply only child records
+            // up to this turn's boundary so later-turn child usage stays for
+            // the subsequent turn.
+            if provider == .antigravity && tracksTurns,
+               let closing = entries.compactMap({ entry -> (date: Date, completed: Bool)? in
+                   if case .turnEnded(let date, let completed, _) = entry {
+                       return (date ?? cursor.modified, completed)
+                   }
+                   return nil
+               }).first {
+                if closing.completed && store.reportsTransitions
+                    && (store.turns[turnFile] != nil || store.waiting[turnFile] != nil) {
+                    var childPaths: [String] = []
+                    var seenChildren: Set<String> = [path]
+                    for child in cursors.values where child.provider == .antigravity
+                        && child.antigravityParent(among: cursors) == path
+                        && seenChildren.insert(child.path).inserted {
+                        childPaths.append(child.path)
+                    }
+                    for childSession in antigravityIndex.childSessions(forParent: cursor.state.session,
+                                                                       transcriptPath: path,
+                                                                       dataDirectory: antigravityDataDir) {
+                        if let childPath = AgentAntigravityIndex.transcriptPath(forSession: childSession, siblingOf: path),
+                           seenChildren.insert(childPath).inserted {
+                            childPaths.append(childPath)
+                        }
+                    }
+                    let nextStack = antigravityStack.union([path])
+                    for childPath in childPaths where !nextStack.contains(childPath) && antigravityHasUnreadBytes(childPath) {
+                        _ = read(childPath, provider: .antigravity, antigravityStack: nextStack)
+                    }
+                }
+                drainAntigravityDeferred(forParent: path, through: closing.date,
+                                         inclusive: closing.completed, targetParent: turnFile)
+            }
             let parent = isSubagent ? "\(path)#\(cursor.state.parentSession)"
-                : cursor.parent ?? cursor.codexParent(among: cursors)
+                : cursor.parent ?? cursor.codexParent(among: cursors) ?? cursor.antigravityParent(among: cursors)
             let finished = store.apply(entries, file: turnFile, provider: provider, tracksTurns: tracksTurns,
                                        parent: parent, modified: cursor.modified, now: now)
             finished.forEach(report)
@@ -581,8 +786,48 @@ final class AgentUsageService: ObservableObject {
         if provider.reader.readsFullHistoryFirst && cursor.offset == 0 {
             AgentLogReader.readCopilotHistory(cursor, shouldContinue: { !cancellation.isCancelled }, line: consume)
         } else {
-            AgentLogReader.readAppended(cursor, since: now.addingTimeInterval(-Self.horizon),
+            AgentLogReader.readAppended(cursor, since: cutoff,
                                         shouldContinue: { !cancellation.isCancelled }, line: consume)
+        }
+        if provider == .antigravity {
+            // If cancellation interrupted before deferred child usage could be
+            // drained, roll affected child cursors back to their last committed
+            // progress (or remove new ones) so the next launch replays only the
+            // uncommitted tail without pruning already-counted records.
+            if cancellation.isCancelled {
+                for (deferredFile, rollback) in antigravityIndex.discardDeferredUsage() {
+                    switch rollback {
+                    case .remove: cursors[deferredFile] = nil
+                    case .restore(let saved): cursors[deferredFile] = AgentLogCursor(saved: saved)
+                    }
+                }
+                return changed
+            }
+            // If this file turned out to be an intermediate subagent, forward
+            // any child usage queued against it up to its own parent.
+            if cursor.state.antigravitySubagent, !cursor.state.antigravityParent.isEmpty,
+               let parentPath = resolveAntigravityParentPath(forSession: cursor.state.antigravityParent),
+               antigravityIndex.forwardDeferredUsage(from: path, to: parentPath),
+               deferredTargetSet.insert(parentPath).inserted {
+                deferredTargets.append(parentPath)
+            }
+            // Apply any remaining deferred child usage for this parent now that
+            // its own unread lines have settled on the current live turn.
+            if cursor.tracksTurns && !antigravityStack.contains(path) {
+                drainAntigravityDeferred(forParent: path, targetParent: path)
+            }
+            // Drive unread parent transcripts not already queued later in the
+            // same watcher batch so deferred child usage resolves immediately.
+            let nextStack = antigravityStack.union([path])
+            for parentPath in deferredTargets where !nextStack.contains(parentPath)
+                && !deferredAntigravityParents.contains(parentPath) {
+                if antigravityHasUnreadBytes(parentPath) {
+                    if read(parentPath, provider: .antigravity, antigravityStack: nextStack) { changed = true }
+                }
+                let owner = cursors[parentPath]?.tracksTurns == true ? parentPath
+                    : cursors[parentPath]?.antigravityParent(among: cursors)
+                drainAntigravityDeferred(forParent: parentPath, targetParent: owner)
+            }
         }
         return changed
     }
@@ -595,6 +840,7 @@ final class AgentUsageService: ObservableObject {
             store.forget(files: [path])
         }
         watchedRoots = existing
+        antigravityIndex.register(roots: existing)
         lastRootCheck = Date()
         if watcher == nil {
             watcher = AgentLogWatcher(queue: queue) { [weak self] paths, rescan in
@@ -616,14 +862,45 @@ final class AgentUsageService: ObservableObject {
                 store.forget(files: [path])
                 changed = true
             }
-            for file in files {
-                if read(file.path, provider: file.provider) { changed = true }
+            let ordered = files.filter {
+                $0.provider != .antigravity || (store.turns[$0.path] == nil && store.waiting[$0.path] == nil)
+            } + files.filter {
+                $0.provider == .antigravity && (store.turns[$0.path] != nil || store.waiting[$0.path] != nil)
+            }
+            var remainingAntigravity = Set(ordered.lazy.filter { $0.provider == .antigravity }.map(\.path))
+            for file in ordered {
+                if file.provider == .antigravity { remainingAntigravity.remove(file.path) }
+                if read(file.path, provider: file.provider,
+                        deferredAntigravityParents: remainingAntigravity) { changed = true }
             }
         } else {
-            for path in Set(paths) where AgentLogReader.isLog(path) {
+            var pending: [(path: String, provider: AgentProvider, openAntigravityTurn: Bool)] = []
+            var seen: Set<String> = []
+            for path in paths where AgentLogReader.isLog(path) {
                 let actualPath = path.hasSuffix("-wal") ? String(path.dropLast(4)) : path
-                guard let root = watchedRoots.first(where: { $0.accepts(actualPath) }) else { continue }
-                if read(actualPath, provider: root.provider) { changed = true }
+                guard seen.insert(actualPath).inserted,
+                      let root = watchedRoots.first(where: { $0.accepts(actualPath) }) else { continue }
+                let openTurn = root.provider == .antigravity
+                    && (store.turns[actualPath] != nil || store.waiting[actualPath] != nil)
+                pending.append((actualPath, root.provider, openTurn))
+            }
+            // Read non-owning Antigravity logs before already-open parent turns
+            // while holding child records for any parent still ahead in the
+            // batch, so each parent drains child usage at its exact turn bounds.
+            pending.sort { !$0.openAntigravityTurn && $1.openAntigravityTurn }
+            var remainingAntigravity = Set(pending.lazy.filter { $0.provider == .antigravity }.map(\.path))
+            for item in pending {
+                if item.provider == .antigravity { remainingAntigravity.remove(item.path) }
+                if read(item.path, provider: item.provider,
+                        deferredAntigravityParents: remainingAntigravity) { changed = true }
+            }
+        }
+        if readerCancellation?.isCancelled == true {
+            for (deferredFile, rollback) in antigravityIndex.discardDeferredUsage() {
+                switch rollback {
+                case .remove: cursors[deferredFile] = nil
+                case .restore(let saved): cursors[deferredFile] = AgentLogCursor(saved: saved)
+                }
             }
         }
         // Saved tool output and lines with nothing to keep do not change the
@@ -647,6 +924,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         syncPrices()
         refreshClaudeLimits()
+        refreshAntigravityLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -663,6 +941,7 @@ final class AgentUsageService: ObservableObject {
                 let roots = AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile, providers: enabled)
                 if roots.filter(\.exists) != watchedRoots {
                     changed = true
+                    antigravityIndex.register(roots: roots)
                     let cursorRoot = roots.first { $0.provider == .cursor }?.url
                     for file in AgentLogReader.discover(roots, since: now.addingTimeInterval(-Self.horizon)) {
                         if read(file.path, provider: file.provider, cursorRoot: cursorRoot) { changed = true }
@@ -673,6 +952,7 @@ final class AgentUsageService: ObservableObject {
             }
             readClaudePlan()
             readClaudeApp(now: now)
+            refreshStoredAntigravityLimits(now: now)
             checkLimits()
             reportRenewals(now: now)
             if now.timeIntervalSince(lastSave) >= Self.saveInterval { saveProgress(now: now) }
@@ -943,7 +1223,87 @@ final class AgentUsageService: ObservableObject {
     private func networkChanged(online: Bool) {
         guard online != self.online else { return }
         self.online = online
-        if online { claudeAccountUnreachable = 0 }
+        if online {
+            claudeAccountUnreachable = 0
+            antigravityAccountUnreachable = 0
+        }
+    }
+
+    // MARK: Antigravity limits
+
+    /// Keeps only unexpired Antigravity quota windows. Runs on `queue`.
+    private func refreshStoredAntigravityLimits(now: Date) {
+        guard enabled.contains(.antigravity) else {
+            store.clearLimits(.antigravity)
+            antigravityAccountLimits = nil
+            return
+        }
+        let candidate = antigravityAccountLimits ?? store.limits[.antigravity]
+        if let active = AgentAntigravityServer.current(candidate, now: now) {
+            store.setLimits(active)
+        } else {
+            store.clearLimits(.antigravity)
+        }
+    }
+
+    // Main thread. Polls `agy --output-format json --print /usage` on the same
+    // cadence and backoff policy as Claude Code.
+    func refreshAntigravityLimits(now: Date = Date(), pageShows: Bool = false) {
+        guard antigravityLimitsDue(at: now, pageShows: pageShows) else { return }
+        antigravityAccountAttempted = now
+        antigravityAccountChecking = true
+        let request = AgentAntigravityServer.Request()
+        antigravityAccountRequest = request
+        let session = self.session
+        let home = self.home
+        antigravityAccountQueue.async { [weak self] in
+            let result: Result<AgentLimits, AgentAntigravityServer.Failure>
+            if let executable = AgentAntigravityServer.executable(home: home,
+                                                                  searchPath: ProcessInfo.processInfo.environment["PATH"]) {
+                result = request.run(executable, home: home, environment: ProcessInfo.processInfo.environment)
+            } else {
+                result = .failure(.missing)
+            }
+            DispatchQueue.main.async {
+                guard let self, self.running, !self.paused, self.session == session,
+                      self.antigravityAccountRequest === request else { return }
+                self.antigravityAccountRequest = nil
+                self.antigravityAccountChecking = false
+                switch result {
+                case .failure(let failure):
+                    self.noteAntigravityCheck(failure)
+                case .success(let limits):
+                    self.noteAntigravityCheck(nil)
+                    self.queue.async {
+                        guard self.readerSession == session, self.enabled.contains(.antigravity) else { return }
+                        self.antigravityAccountLimits = limits
+                        self.refreshStoredAntigravityLimits(now: Date())
+                        self.checkLimits()
+                        self.schedulePublish()
+                    }
+                }
+            }
+        }
+    }
+
+    private func cancelAntigravityLimits() {
+        guard let request = antigravityAccountRequest else { return }
+        request.cancel()
+        antigravityAccountRequest = nil
+        antigravityAccountChecking = false
+        antigravityAccountAttempted = .distantPast
+    }
+
+    private func antigravityLimitsDue(at now: Date, pageShows: Bool) -> Bool {
+        guard running, !paused, online, providers.contains(.antigravity), antigravityAccountRequest == nil,
+              NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows) else { return false }
+        return now.timeIntervalSince(antigravityAccountAttempted) >= AgentAntigravityServer.interval(
+            after: antigravityAccountFailure, repeated: antigravityAccountUnreachable, pageVisible: pageVisible)
+    }
+
+    private func noteAntigravityCheck(_ failure: AgentAntigravityServer.Failure?) {
+        antigravityAccountFailure = failure
+        antigravityAccountUnreachable = failure == .unreachable ? antigravityAccountUnreachable + 1 : 0
     }
 
     // MARK: Prices

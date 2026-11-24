@@ -13,6 +13,7 @@ extension AgentProvider {
         case .opencode: return Color(red: 0.06, green: 0.73, blue: 0.51)
         case .copilot: return Color(red: 0.30, green: 0.78, blue: 0.68)
         case .cursor: return Color(red: 0.42, green: 0.48, blue: 0.78)
+        case .antigravity: return Color(red: 0.78, green: 0.44, blue: 0.96)
         }
     }
 }
@@ -62,6 +63,8 @@ struct NotchAgentCardHeader<Accessory: View>: View {
                 .font(.system(size: 10.5, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.9))
                 .lineLimit(1)
+                .minimumScaleFactor(0.88)
+                .layoutPriority(1)
             Spacer(minLength: 4)
             accessory
         }
@@ -229,7 +232,7 @@ struct NotchAgentBars: View {
                                     if parts[slot] > 0 {
                                         Rectangle()
                                             .fill(providers[slot].tint.opacity(hovered == nil || hovered == bucket.start ? 0.95 : 0.5))
-                                            .frame(height: max(1, proxy.size.height * parts[slot] / peak))
+                                            .frame(height: max(2, proxy.size.height * parts[slot] / peak))
                                     }
                                 }
                             }
@@ -377,6 +380,7 @@ private extension AgentProvider {
         case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
         case .copilot: return ["com.github.githubapp"]
         case .cursor: return ["com.todesktop.230313mzl4w4u92"]
+        case .antigravity: return ["com.google.antigravity", "com.google.antigravity.ide"]
         }
     }
 
@@ -393,6 +397,7 @@ private extension AgentProvider {
         case .opencode: return []
         case .copilot: return []
         case .cursor: return []
+        case .antigravity: return []
         }
     }
 }

@@ -21,6 +21,7 @@ enum NotchAgentTests {
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
         CursorAgentTests.run(suite)
+        AntigravityAgentTests.run(suite)
         HarnessReaderContractTests.run(suite)
         timestamps(suite)
         summary(suite)
@@ -182,8 +183,24 @@ enum NotchAgentTests {
                         && AgentPricing.displayName("gpt-daybreak-red-latest") == "GPT Daybreak Red",
                      "model names read the way people say them, without snapshot dates")
         suite.expect(AgentPricing.displayName("gpt-7") == "GPT-7" && AgentPricing.displayName("claude-opus-6") == "Opus 6"
-                        && AgentPricing.displayName("gpt-7-codex") == "GPT-7 Codex",
-                     "a model no list knows yet still reads well")
+                        && AgentPricing.displayName("gpt-7-codex") == "GPT-7 Codex"
+                        && AgentPricing.displayName("gemini-4-neon-high") == "Gemini 4 Neon"
+                        && AgentPricing.displayName("gemini-3.8-flash-medium") == "Gemini 3.8 Flash"
+                        && AgentPricing.displayName("gemini-pro-orchestrator-neon-high") == "Orchestrator Neon",
+                     "a model no list knows yet still reads well, including Gemini effort suffixes")
+        let gemini = AgentBillable(tokens: AgentTokens(input: 100_000, cacheRead: 200_000, output: 10_000))
+        suite.expectClose(AgentPricing.cost(gemini, model: "gemini-4-neon-high").cost ?? -1,
+                          (100_000 * 3 + 200_000 * 0.15 + 10_000 * 15) / 1_000_000,
+                          "Gemini 4 Neon bills verified input, cache reads and output across effort suffixes", tol: 0.000001)
+        let geminiLong = AgentBillable(tokens: AgentTokens(input: 250_000, output: 10_000))
+        suite.expectClose(AgentPricing.cost(geminiLong, model: "gemini-2.5-pro").cost ?? -1,
+                          (250_000 * 2.5 + 10_000 * 15) / 1_000_000,
+                          "Gemini 2.5 Pro applies its >200K long-context multiplier", tol: 0.000001)
+        suite.expect(AgentPricing.price(for: "gemini-4-neon-preview") == nil
+                        && AgentPricing.price(for: "gemini-2.5-pro-exp-03-25") == nil
+                        && AgentPricing.price(for: "gemini-2.5-flash-experimental") == nil
+                        && AgentPricing.price(for: "gemini-pro-orchestrator-neon-high") == nil,
+                     "unlisted Gemini preview, experimental and internal orchestrator models remain unpriced")
         // Max 20x subscribers moved to Ultra: https://support.claude.com/en/articles/17728952-what-is-the-ultra-plan
         suite.expect(AgentPlans.claude(organizationType: "claude_max", rateLimitTier: "default_claude_max_20x")
                         == AgentPlan(name: "Ultra", monthlyPrice: 200)
@@ -3200,11 +3217,13 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor, .antigravity], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .cursor], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .cursor, .antigravity], "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor], "Copilot keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor, .antigravity], "Copilot keeps its own preference")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsAntigravity)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor], "Antigravity keeps its own preference")
         var installed = AgentUsageSnapshot(loaded: true)
         installed.cursorProjectsFound = true
         suite.expect(NotchAgentSupport.pageProviders(snapshot: installed, hasCodexAccounts: false, hasClaudeAccount: false,
@@ -3212,9 +3231,10 @@ enum NotchAgentTests {
                      "the grid and its window can show Cursor before the first recorded turn")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCursor)
         installed.seen.insert(.cursor)
+        installed.seen.insert(.antigravity)
         suite.expect(NotchAgentSupport.pageProviders(snapshot: installed, hasCodexAccounts: false, hasClaudeAccount: true,
                                                      in: defaults) == [.claude],
-                     "an existing directory or prior activity cannot bring a disabled Cursor back onto the page")
+                     "an existing directory or prior activity cannot bring a disabled Cursor or Antigravity back onto the page")
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
@@ -3229,6 +3249,7 @@ enum NotchAgentTests {
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
                     DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsCursor,
+                    DefaultsKey.notchAgentsAntigravity,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
@@ -3246,13 +3267,15 @@ enum NotchAgentTests {
 
         let limits = NotchAgentTile(card: .limits, provider: .claude)
         let codex = NotchAgentTile(card: .limits, provider: .codex)
+        let antigravity = NotchAgentTile(card: .limits, provider: .antigravity)
         let copilot = NotchAgentTile(card: .limits, provider: .copilot)
         let spend = NotchAgentTile(card: .spend, provider: nil)
         let trend = NotchAgentTile(card: .trend, provider: nil)
-        suite.expect(NotchAgentSupport.tiles(cards: [.limits, .trend], providers: [.claude, .codex, .copilot])
-                        == [limits, codex, trend] && !AgentProvider.copilot.reportsLimits
+        suite.expect(NotchAgentSupport.tiles(cards: [.limits, .trend], providers: [.claude, .codex, .antigravity, .copilot])
+                        == [limits, codex, antigravity, trend] && !AgentProvider.copilot.reportsLimits
+                        && AgentProvider.antigravity.reportsLimits
                         && !NotchAgentSupport.tiles(cards: [.limits], providers: [.copilot]).contains(copilot),
-                     "only agents whose local logs report plan allowances get a limits card")
+                     "only agents that report plan allowances get a limits card")
         let resets = NotchAgentTile(card: .resets, provider: .codex)
         suite.expect(NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .codex, .copilot]) == [resets, spend]
                         && NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .copilot]) == [spend],
@@ -3275,7 +3298,7 @@ enum NotchAgentTests {
         let allProviders = AgentProvider.allCases
         let active = AgentLiveSession(id: "active", provider: .cursor, started: .now, lastActivity: .now,
                                       model: "", project: "demo", tokens: AgentTokens(), cost: 0)
-        for count in 4...5 {
+        for count in 4...6 {
             let providers = Array(allProviders.suffix(count))
             let idle = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers)
             let live = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers, snapshot: AgentUsageSnapshot(live: [active]))
@@ -3314,6 +3337,8 @@ enum NotchAgentTests {
             let lists = [copy.hubDescription, copy.settingsDescription, copy.empty, FeatureStrings.notchEditor(language).agentsSummary]
             suite.expect(lists.allSatisfy { $0.components(separatedBy: "Cursor").count == 2 },
                          "each provider list names Cursor once in \(language.rawValue)")
+            suite.expect(lists.allSatisfy { $0.components(separatedBy: "Antigravity").count == 2 },
+                         "each provider list names Antigravity once in \(language.rawValue)")
         }
         let english = Locale(identifier: "en_US")
         let portuguese = Locale(identifier: "pt_BR")

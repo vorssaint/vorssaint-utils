@@ -93,6 +93,10 @@ struct AgentLogState: Equatable {
     /// Claude's shell commands still waiting for their result, by tool call.
     /// They run on the Mac, so the turn goes on without the network.
     var runningCommands: Set<String> = []
+    /// An Antigravity subagent rolls usage into its parent turn instead of
+    /// opening a root turn of its own.
+    var antigravitySubagent = false
+    var antigravityParent = ""
 
     mutating func setUnmeteredResponse(_ response: CursorUnmeteredResponse?, id: String) {
         let previous = cursorUnmeteredResponses[id]
@@ -245,6 +249,26 @@ enum AgentLogParser {
     /// and the project folder name are taken; prompts and replies are not.
     static func parseCursor(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         CursorReader().parse(line, state: &state, now: now)
+    }
+
+    // MARK: Antigravity
+
+    /// Antigravity transcripts under `~/.gemini/antigravity*/brain`. Only
+    /// measured counters, model names, timestamps and turn boundaries are kept.
+    static func parseAntigravity(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        AntigravityReader().parse(line, state: &state, now: now)
+    }
+
+    /// Extracts `<conversation-id>` from
+    /// `<root>/<conversation-id>/.system_generated/logs/transcript.jsonl`.
+    static func antigravitySession(from path: String) -> String {
+        let file = URL(fileURLWithPath: path, isDirectory: false)
+        let logs = file.deletingLastPathComponent()
+        let sys = logs.deletingLastPathComponent()
+        guard logs.lastPathComponent == "logs", sys.lastPathComponent == ".system_generated" else { return "" }
+        let session = sys.deletingLastPathComponent().lastPathComponent
+        guard !session.isEmpty, !session.hasPrefix("."), session != "/" else { return "" }
+        return native(session)
     }
 
     /// The workspace folder Cursor encodes in

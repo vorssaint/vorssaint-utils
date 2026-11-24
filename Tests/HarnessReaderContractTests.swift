@@ -13,6 +13,7 @@ enum HarnessReaderContractTests {
         openCodeGolden(suite)
         copilotGolden(suite)
         cursorGolden(suite)
+        antigravityGolden(suite)
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
@@ -166,5 +167,36 @@ enum HarnessReaderContractTests {
         suite.expect(reader.parse(end, state: &state, now: now)
                         == [.turnEnded(now, completed: true, duration: nil)] && !state.turnOpen,
                      "a Cursor turn_ended finishes its turn")
+    }
+
+    private static func antigravityGolden(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 1_790_088_000)
+        var state = AgentLogState()
+        AntigravityReader.adopt(
+            path: "/Users/me/.gemini/antigravity-cli/brain/conv-1/.system_generated/logs/transcript.jsonl",
+            into: &state)
+        let reader = AgentProvider.antigravity.reader
+        suite.expect(state.session == "conv-1", "an Antigravity transcript path names the conversation session")
+        let prompt = line(#"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"2026-11-24T10:00:00Z","content":"<USER_REQUEST>ship it</USER_REQUEST>"}"#)
+        let t0 = AgentTimestamp.parse("2026-11-24T10:00:00Z")!
+        suite.expect(reader.parse(prompt, state: &state, now: now) == [.turnBegan(t0), .turnContext(model: "", project: "")]
+                        && state.turnOpen,
+                     "an Antigravity USER_INPUT opens its turn")
+        let toolStep = line(#"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-24T10:00:05Z","model":"gemini-4-neon-high","input_tokens":100,"cache_read_tokens":200,"output_tokens":40,"tool_calls":[{"id":"t1","name":"run_command"}]}"#)
+        let stepEntries = reader.parse(toolStep, state: &state, now: now)
+        suite.expect(stepEntries.contains(where: { if case .usage = $0 { return true }; return false })
+                        && state.turnOpen && state.model == "gemini-4-neon-high",
+                     "an Antigravity tool-calling response counts tokens and keeps the turn open")
+        let finalReply = line(#"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-24T10:00:25Z","model":"gemini-4-neon-high","input_tokens":50,"cache_read_tokens":100,"output_tokens":30}"#)
+        let finalEntries = reader.parse(finalReply, state: &state, now: now)
+        suite.expect(finalEntries.last == .turnEnded(AgentTimestamp.parse("2026-11-24T10:00:25Z")!, completed: true, duration: nil)
+                        && !state.turnOpen,
+                     "a final Antigravity response without tool calls completes its turn")
+        _ = reader.parse(prompt, state: &state, now: now)
+        let failed = line(#"{"step_index":3,"type":"ERROR_MESSAGE","status":"ERROR","created_at":"2026-11-24T10:00:30Z","content":"failed"}"#)
+        suite.expect(reader.parse(failed, state: &state, now: now)
+                        == [.turnEnded(AgentTimestamp.parse("2026-11-24T10:00:30Z")!, completed: false, duration: nil)]
+                        && !state.turnOpen,
+                     "an Antigravity ERROR_MESSAGE closes the turn unfinished")
     }
 }
