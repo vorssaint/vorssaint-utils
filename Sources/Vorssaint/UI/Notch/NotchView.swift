@@ -111,12 +111,23 @@ struct NotchView: View {
             } else {
                 expanded
             }
-        } else if service.dragPlaceholder, UserDefaults.standard.bool(forKey: DefaultsKey.convertEnabled) {
-            // A drag has started somewhere on the screen: the island already offers both choices.
-            HStack(spacing: NotchFileToolsSupport.dropSpacing) {
-                ConvertDropZone(title: text.dropHint, symbol: "tray.and.arrow.down", selected: false, tint: .white, compact: true)
-                ConvertDropZone(title: "Convert here", symbol: "arrow.triangle.2.circlepath", selected: false,
-                                tint: Color(red: 1, green: 0.62, blue: 0.3), compact: true)
+        } else if service.dragPlaceholder,
+                  UserDefaults.standard.bool(forKey: DefaultsKey.convertEnabled) || service.dragOffersAirDrop {
+            // A drag has started somewhere on the screen: the island already offers every choice,
+            // in the same order the open island lays them out.
+            let converts = UserDefaults.standard.bool(forKey: DefaultsKey.convertEnabled)
+            let three = converts && service.dragOffersAirDrop
+            HStack(spacing: three ? 8 : NotchFileToolsSupport.dropSpacing) {
+                ConvertDropZone(title: three ? "Shelf" : text.dropHint, symbol: "tray.and.arrow.down",
+                                selected: false, tint: .white, compact: true)
+                if converts {
+                    ConvertDropZone(title: three ? "Convert" : "Convert here", symbol: "arrow.triangle.2.circlepath",
+                                    selected: false, tint: Color(red: 1, green: 0.62, blue: 0.3), compact: true)
+                }
+                if service.dragOffersAirDrop {
+                    ConvertDropZone(title: "AirDrop", symbol: "dot.radiowaves.left.and.right",
+                                    selected: false, tint: .blue, compact: true)
+                }
             }
             // Rounded boxes that run nearly end to end and use the whole height. Their corners are wide
             // enough to follow the island's round bottom, so the dotted edge stays inside the shape.

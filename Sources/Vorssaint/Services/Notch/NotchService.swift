@@ -138,6 +138,8 @@ final class NotchService: ObservableObject {
     private let hotkey = QuickToolHotkey(id: 81)
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
+    /// The file being dragged can be sent with AirDrop, so the drag preview offers that box too.
+    @Published private(set) var dragOffersAirDrop = false
     weak var directMediaDropWorkspace: MediaWorkspaceSelection?
     @Published private(set) var choosingFileDropDestination = false
     @Published private(set) var fileDropZones: [NotchFileToolsSupport.DropZone] = [.shelf]
@@ -2160,7 +2162,10 @@ final class NotchService: ObservableObject {
         if !heldDrag { shelfDragExitWork?.cancel(); shelfDragExitWork = nil }
         if active, !internalDrag, NotchSupport.revealsShelfDrag(), !expanded {
             // Reported on every move of the drag: lay the island out once, not on each event.
-            if !dragPlaceholder || peeking { mutatePresentation { dragPlaceholder = true; peeking = false } }
+            if !dragPlaceholder || peeking {
+                let airDrop = NotchAirDrop.shared.canSend(NSPasteboard(name: .drag))
+                mutatePresentation { dragOffersAirDrop = airDrop; dragPlaceholder = true; peeking = false }
+            }
         } else if !active {
             if dragPlaceholder { mutatePresentation { dragPlaceholder = false } }
             inside = windowHost?.containsHover(NSEvent.mouseLocation) == true
@@ -4334,7 +4339,9 @@ final class NotchService: ObservableObject {
     private var convertSwipe = ConvertSwipe()
 
     /// The taller pair of drop boxes shows while a drag is up and the converter is on.
-    private var convertDragHint: Bool { UserDefaults.standard.bool(forKey: DefaultsKey.convertEnabled) }
+    private var convertDragHint: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.convertEnabled) || dragOffersAirDrop
+    }
 
     /// Two fingers swiping sideways over the converter's tiles move between Convert, Tools and Actions.
     private func handleConvertSwipe(_ event: NSEvent) -> Bool {

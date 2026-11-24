@@ -28,13 +28,15 @@ struct ConvertDropZone: View {
                 .strokeBorder(tint.opacity(selected ? 0.95 : compact ? 0.4 : 0.28),
                               style: StrokeStyle(lineWidth: selected ? 1.6 : 0.9, dash: [5, 6]))
             if compact {
-                HStack(spacing: 7) {
+                // Icon over title: three boxes share the island's width, and a side-by-side
+                // icon and word would clip in each.
+                VStack(spacing: 3) {
                     Image(systemName: symbol).font(.system(size: 15, weight: .medium))
                         .foregroundStyle(tint == .white ? .white.opacity(0.85) : tint)
-                    Text(title).font(.system(size: 12, weight: .medium)).lineLimit(1).minimumScaleFactor(0.8)
+                    Text(title).font(.system(size: 11, weight: .medium)).lineLimit(1).minimumScaleFactor(0.7)
                         .foregroundStyle(.white.opacity(0.85))
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 6)
             } else {
                 VStack(spacing: 10) {
                     Image(systemName: symbol)
