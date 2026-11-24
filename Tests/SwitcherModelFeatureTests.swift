@@ -503,7 +503,7 @@ enum SwitcherModelFeatureTests {
             .contains("releaseSecureInputActionsIfIdle()")
             && source.contains("if startPending, !clickPressedAKey {\n                    DispatchQueue.main.async { [weak self] in self?.releaseSecureInputActionsIfIdle() }"),
             "failed enumeration and a cancelling click release guards without disturbing a newer session")
-        suite.expect(source.contains("pending?.reconcileReplayedModifiers(CGEventSource.flagsState(.combinedSessionState))"),
+        suite.expect(body("private func finishPendingSession(generation: UInt64,").contains("pending.reconcileReplayedModifiers(CGEventSource.flagsState(.combinedSessionState))"),
             "the pending replay reconciles current modifiers before presenting the session")
         suite.expect(source.contains("secureInputReplays.invalidate()")
             && source.contains("self.secureInputReplays.contains(generation)"),

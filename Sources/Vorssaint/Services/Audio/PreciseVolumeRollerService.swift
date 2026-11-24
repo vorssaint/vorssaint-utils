@@ -27,7 +27,8 @@ final class PreciseVolumeRollerService: ObservableObject {
     /// Island steps bypass the system, so its volume click plays on release here.
     /// Waits for both the release and the last step's adjustment, so a failed
     /// step forwarded to macOS never plays a second click.
-    private var feedback: (key: Int32, step: Int, applied: Bool, released: Bool)?
+    private var feedback: (key: Int32, step: Int, monitorTarget: BrightnessSupport.SpeakerTarget?,
+                           applied: Bool, released: Bool)?
     private var feedbackStep = 0
     private static let volumeFeedback = NSSound(
         contentsOfFile: "/System/Library/LoginPlugins/BezelServices.loginPlugin/Contents/Resources/volume.aiff",
@@ -271,7 +272,11 @@ final class PreciseVolumeRollerService: ObservableObject {
             return true
         }
         let held = monitorVolumeKeysHeld[press.action]
-        if !press.isRepeat { monitorVolumeKeysHeld[press.action] = nil }
+        if !press.isRepeat {
+            monitorVolumeKeysHeld[press.action] = nil
+            // A new gesture supersedes a pending monitor click, even when macOS owns it.
+            if feedback?.monitorTarget != nil { feedback = nil }
+        }
         if press.isRepeat && held == nil { return false }
         guard let fine = BrightnessSupport.volumeKeyFineness(
             option: flags.contains(.maskAlternate), shift: flags.contains(.maskShift),
@@ -304,7 +309,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         feedback = NotchVolumeKeyGate.playsFeedback(
             setting: UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback"),
             option: flags.contains(.maskAlternate), shift: flags.contains(.maskShift))
-            ? (code, step, false, false) : nil
+            ? (code, step, target, false, false) : nil
         DispatchQueue.main.async { [weak self] in
             self?.applyMonitorVolumeKey(action, target: target, fine: fine || precise, step: step)
         }
@@ -383,7 +388,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         feedback = NotchVolumeKeyGate.playsFeedback(
             setting: UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback"),
             option: event.flags.contains(.maskAlternate), shift: event.flags.contains(.maskShift))
-            ? (code, step, false, false) : nil
+            ? (code, step, nil, false, false) : nil
         let fine = precise || (event.flags.contains(.maskAlternate) && event.flags.contains(.maskShift))
         let fallback = event.copy()
         let lifetime = mixer.currentOutputControlLifetime
@@ -439,17 +444,41 @@ final class PreciseVolumeRollerService: ObservableObject {
 
     /// The click macOS plays after a volume change, under its "Play feedback
     /// when volume is changed" setting.
-    static func playVolumeFeedback() {
-        guard UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback") else { return }
-        volumeFeedback?.stop()
-        volumeFeedback?.play()
+    static var volumeFeedbackEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback")
+    }
+
+    static func playVolumeFeedback(on deviceUID: String? = nil) {
+        guard volumeFeedbackEnabled else { return }
+        playVolumeClick(on: deviceUID)
+    }
+
+    private static func playVolumeClick(on deviceUID: String? = nil) {
+        guard let sound = volumeFeedback else { return }
+        sound.stop()
+        sound.playbackDeviceIdentifier = deviceUID
+        guard sound.playbackDeviceIdentifier == deviceUID else { return }
+        sound.play()
     }
 
     private func playFeedbackIfReady() {
         guard let feedback, feedback.applied, feedback.released else { return }
-        self.feedback = nil
-        Self.volumeFeedback?.stop()
-        Self.volumeFeedback?.play()
+        guard let target = feedback.monitorTarget else {
+            self.feedback = nil
+            Self.playVolumeClick()
+            return
+        }
+        guard let device = target.deviceID, AppVolumeMixer.shared.monitorOutput?.target == target else {
+            self.feedback = nil
+            return
+        }
+        BrightnessService.shared.confirmDefaultOutputUID(for: device) { [weak self] uid in
+            guard let self, self.feedback?.step == feedback.step else { return }
+            self.feedback = nil
+            guard let uid, AppVolumeMixer.shared.monitorOutput?.target == target else { return }
+            // Keep playback on the confirmed device if the default changes again.
+            Self.playVolumeClick(on: uid)
+        }
     }
 
     private static func postForwardedRelease(_ code: Int32, flags: CGEventFlags) {

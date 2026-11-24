@@ -277,10 +277,10 @@ final class BrightnessService: ObservableObject {
     private var ddcRetry: DispatchWorkItem?
     /// Uptime of the last rescan a volume key started. Main thread only.
     private var lastVolumeKeyRescan: TimeInterval?
-    /// The tap is on the main run loop. All HAL reads run off that loop.
+    /// The key tap uses the observer's snapshot. Its HAL checks run off the main loop.
     private let audioOutputQueue = DispatchQueue(label: "com.vorssaint.utils.display-audio")
     private var audioOutputGeneration = 0
-    private var selectedAudioOutput: (id: AudioObjectID, name: String)?
+    private var selectedAudioOutput: (id: AudioObjectID, monitorName: String?, uid: String?)?
     private var audioOutputListener: AudioObjectPropertyListenerBlock?
     private var writeSequence: UInt64 = 0
     /// Keeps fast system-key repeats based on the newest requested value while
@@ -3186,17 +3186,20 @@ final class BrightnessService: ObservableObject {
     private func confirmSliderWrite(_ request: SpeakerSliderFeedback.Request, target: BrightnessSupport.SpeakerTarget,
                                     requiresKeys: Bool, confirmation: SpeakerSliderFeedback.Confirmation) {
         request.confirmed { [weak self] in
-            let id = target.displayID
-            guard let self, self.acceptsSpeakerTarget(target, requiresKeys: requiresKeys),
-                  let route = self.stateLock.withLock({
-                      self.speakerSliderIntents[target.path] === request ? self.audioRoutes[id] : nil
-                  }), route.path == target.path,
-                  confirmation.endpoint.matches(route.sliderEndpoint, confirmedOwnWrite: confirmation.wrote),
-                  Self.restorationDisplayFingerprint(id) == route.fingerprint,
-                  CGDisplayIsActive(id) != 0, CGDisplayIsAsleep(id) == 0 else { return }
-            if let entryID = route.sliderEndpoint.registryEntryID ?? confirmation.endpoint.registryEntryID,
-               !Self.speakerEndpointIsConnected(entryID) { return }
-            PreciseVolumeRollerService.playVolumeFeedback()
+            guard let self, let output = request.output, PreciseVolumeRollerService.volumeFeedbackEnabled else { return }
+            self.confirmOutputUID(output.uid, for: output.id, requiresDefault: false) { uid in
+                let id = target.displayID
+                guard let uid, request.isCurrent, self.acceptsSpeakerTarget(target, requiresKeys: requiresKeys),
+                      let route = self.stateLock.withLock({
+                          self.speakerSliderIntents[target.path] === request ? self.audioRoutes[id] : nil
+                      }), route.path == target.path,
+                      confirmation.endpoint.matches(route.sliderEndpoint, confirmedOwnWrite: confirmation.wrote),
+                      Self.restorationDisplayFingerprint(id) == route.fingerprint,
+                      CGDisplayIsActive(id) != 0, CGDisplayIsAsleep(id) == 0 else { return }
+                if let entryID = route.sliderEndpoint.registryEntryID ?? confirmation.endpoint.registryEntryID,
+                   !Self.speakerEndpointIsConnected(entryID) { return }
+                PreciseVolumeRollerService.playVolumeFeedback(on: uid)
+            }
         }
     }
 
@@ -3290,10 +3293,9 @@ final class BrightnessService: ObservableObject {
                   isCurrentSpeakerChange(pending), originalMonitorIsConnected() else { return false }
             guard let device = target.deviceID else { return true }
             guard let output = Self.defaultOutputDevice(), output.id == device,
-                  BrightnessSupport.isDisplayAudioTransport(output.transport),
-                  !AppVolumeMixer.hasSettableOutputVolume(for: device) else { return false }
+                  let name = output.monitorName else { return false }
             return stateLock.withLock {
-                BrightnessSupport.displayForAudioOutput(deviceName: output.name, candidates: audioDisplayNames) == id
+                BrightnessSupport.displayForAudioOutput(deviceName: name, candidates: audioDisplayNames) == id
             }
         }
         guard current() else { return nil }
@@ -3374,19 +3376,27 @@ final class BrightnessService: ObservableObject {
         guard wantsMonitorVolumeKeys, !displayPowerIsSuspended else { return }
         let now = ProcessInfo.processInfo.systemUptime
         guard BrightnessSupport.rescansForVolumeKey(
-            hasTarget: monitorSpeakerOutput() != nil, displayOwnsOutput: selectedAudioOutput != nil,
+            hasTarget: monitorSpeakerOutput() != nil, displayOwnsOutput: selectedAudioOutput?.monitorName != nil,
             now: now, lastRescan: lastVolumeKeyRescan) else { return }
         lastVolumeKeyRescan = now
         workQueue.async { [weak self] in self?.recheckedWriteOnlyPaths = [] }
         refresh(force: true)
     }
 
-    /// Main-thread snapshot. HAL only runs on an output change or during
-    /// final validation on the DDC queue, never during a slider update.
+    /// Sample once at the start of a panel edit. The default can change before
+    /// its notification arrives or before a queued read gets to run.
+    var sliderFeedbackOutput: SpeakerSliderFeedback.Output? {
+        guard let device = AppVolumeMixer.defaultOutputDeviceID(),
+              let uid = AppVolumeMixer.outputDeviceUID(for: device), !uid.isEmpty else { return nil }
+        return (device, uid)
+    }
+
+    /// Main-thread snapshot used to route volume keys without querying HAL.
     func monitorSpeakerOutput() -> BrightnessSupport.MonitorSpeakerOutput? {
-        guard running, !displayPowerIsSuspended, wantsMonitorVolume, let output = selectedAudioOutput else { return nil }
+        guard running, !displayPowerIsSuspended, wantsMonitorVolume,
+              let output = selectedAudioOutput, let name = output.monitorName else { return nil }
         guard let id = stateLock.withLock({ BrightnessSupport.displayForAudioOutput(
-            deviceName: output.name, candidates: audioDisplayNames) }),
+            deviceName: name, candidates: audioDisplayNames) }),
               let audio = displays.first(where: { $0.id == id && $0.isActive })?.audio else { return nil }
         var target = audio.target
         target.deviceID = output.id
@@ -3451,10 +3461,8 @@ final class BrightnessService: ObservableObject {
         invalidateSelectedAudioOutput()
         let generation = audioOutputGeneration
         audioOutputQueue.async {
-            let selected = Self.defaultOutputDevice().flatMap { output -> (id: AudioObjectID, name: String)? in
-                guard BrightnessSupport.isDisplayAudioTransport(output.transport),
-                      !AppVolumeMixer.hasSettableOutputVolume(for: output.id) else { return nil }
-                return (output.id, output.name)
+            let selected = Self.defaultOutputDevice().map { output in
+                (id: output.id, monitorName: output.monitorName, uid: AppVolumeMixer.outputDeviceUID(for: output.id))
             }
             DispatchQueue.main.async {
                 guard self.audioOutputListener != nil, self.audioOutputGeneration == generation else { return }
@@ -3464,11 +3472,28 @@ final class BrightnessService: ObservableObject {
         }
     }
 
-    /// The device the Mac plays through, with its name and how it is wired.
-    /// A device with no readable name cannot identify a monitor.
-    private static func defaultOutputDevice() -> (id: AudioObjectID,
-                                                  name: String,
-                                                  transport: UInt32)? {
+    /// A key release can precede the default-output notification on the main queue.
+    func confirmDefaultOutputUID(for device: AudioObjectID, completion: @escaping (String?) -> Void) {
+        guard let selected = selectedAudioOutput, selected.monitorName != nil, selected.id == device,
+              let expectedUID = selected.uid, !expectedUID.isEmpty else { completion(nil); return }
+        confirmOutputUID(expectedUID, for: device, requiresDefault: true, completion: completion)
+    }
+
+    /// Keys follow the default. A panel drag keeps its original playback device while it is available.
+    private func confirmOutputUID(_ expectedUID: String, for device: AudioObjectID, requiresDefault: Bool,
+                                  completion: @escaping (String?) -> Void) {
+        audioOutputQueue.async {
+            let uid = AppVolumeMixer.outputDeviceUID(for: device)
+            let available = requiresDefault ? AppVolumeMixer.defaultOutputDeviceID() == device
+                                            : AppVolumeMixer.isOutputDeviceAlive(device)
+            let confirmedUID = available && uid == expectedUID ? uid : nil
+            DispatchQueue.main.async { completion(confirmedUID) }
+        }
+    }
+
+    /// Only a display output controlled through DDC needs a name. An empty
+    /// name keeps it eligible for a rescan without identifying a monitor.
+    private static func defaultOutputDevice() -> (id: AudioObjectID, monitorName: String?)? {
         guard let deviceID = AppVolumeMixer.defaultOutputDeviceID() else { return nil }
         var transport: UInt32 = 0
         var size = UInt32(MemoryLayout<UInt32>.size)
@@ -3476,8 +3501,10 @@ final class BrightnessService: ObservableObject {
             mSelector: kAudioDevicePropertyTransportType,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain)
-        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &transport) == noErr else {
-            return nil
+        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &transport) == noErr,
+              BrightnessSupport.isDisplayAudioTransport(transport),
+              !AppVolumeMixer.hasSettableOutputVolume(for: deviceID) else {
+            return (deviceID, nil)
         }
         // CoreAudio hands the name over already retained, so it is taken as
         // such rather than read into a bridged CFString and leaked.
@@ -3485,8 +3512,8 @@ final class BrightnessService: ObservableObject {
         size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
         address.mSelector = kAudioObjectPropertyName
         guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &name) == noErr,
-              let name else { return (deviceID, "", transport) }
-        return (deviceID, name.takeRetainedValue() as String, transport)
+              let name else { return (deviceID, "") }
+        return (deviceID, name.takeRetainedValue() as String)
     }
 
     // MARK: - Speaker probing (work queue)

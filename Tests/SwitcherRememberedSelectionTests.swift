@@ -43,10 +43,10 @@ enum SwitcherRememberedSelectionTests {
         typealias NSWindow = OwnWindow
         typealias Permissions = SwitcherHoverSelectionTests.Permissions
 
-        struct Desktop {
+        final class Desktop {
             let notificationCenter = NotificationCenter()
             let windows: [NSWindow] = []
-            let frontmostApplication: NSRunningApplication? = nil
+            var frontmostApplication: NSRunningApplication?
         }
         static let desktop = Desktop()
 
@@ -80,8 +80,9 @@ enum SwitcherRememberedSelectionTests {
             }
         }
         enum SpaceWindowBridge {
+            static var visibleSpaces: Set<UInt64> = [1]
             static func topology() -> SwitcherFullscreenScopeTests.Bridge.Topology? {
-                .init(visibleSpaces: [1], fullscreenSpaces: [])
+                .init(visibleSpaces: visibleSpaces, fullscreenSpaces: [])
             }
         }
         final class SwitcherWindowTitles {
@@ -92,26 +93,120 @@ enum SwitcherRememberedSelectionTests {
         }
         struct WindowUseTracker {
             static let shared = WindowUseTracker()
-            let windows: [CGWindowID] = []
-            func recordObservedFocus(windowID: CGWindowID, pid: pid_t) {}
+            static var seedPID: pid_t?
+            private static var trackedPID: pid_t { seedPID ?? WindowEnumerator.items.first?.pid ?? 10 }
+            static let history = SwitcherQuickCommitTests.HistoryFixture()
+            static var confirmedFocus: CGWindowID? {
+                get { shared.frontAppFocus(for: trackedPID).windowID }
+                set {
+                    guard let newValue else { history.focusHistory = WindowFocusHistory(); return }
+                    if history.focusHistory.current?.pid != trackedPID { _ = history.focusHistory.activate(trackedPID) }
+                    if let request = history.focusHistory.current {
+                        history.focusHistory.focus(newValue, for: request)
+                    }
+                }
+            }
+            static var physicalOrder: [CGWindowID]?
+            var windows: [CGWindowID] { Tracker.shared.history }
+            func frontAppFocus(for pid: pid_t, appPID: pid_t? = nil) -> WindowFocusHistory.FrontAppFocus {
+                Self.history.focusHistory.frontAppFocus(for: pid, appPID: appPID, now: SwitcherHoverSelectionTests.Queue.time)
+            }
+            func recordSwitch(to windowID: CGWindowID?, pid: pid_t, from previous: CGWindowID?, focusPID: pid_t? = nil,
+                              sourceRequest: WindowFocusHistory.Request? = nil) {
+                Self.history.windowHistory = windows
+                Self.history.recordSwitch(to: windowID, pid: pid, from: previous, focusPID: focusPID, sourceRequest: sourceRequest)
+                Tracker.shared.history = Self.history.windowHistory
+            }
+            func confirmSwitchSource(_ window: CGWindowID, replacing previous: CGWindowID, for request: WindowFocusHistory.Request) {
+                Self.history.windowHistory = windows
+                Self.history.confirmSwitchSource(window, replacing: previous, for: request)
+                Tracker.shared.history = Self.history.windowHistory
+            }
+            func recordObservedFocus(windowID: CGWindowID, pid: pid_t) {
+                Self.history.windowHistory = windows
+                Self.history.recordObservedFocus(windowID: windowID, pid: pid)
+                Tracker.shared.history = Self.history.windowHistory
+            }
+            func recordDestroyedWindow(_ windowID: CGWindowID) {
+                Self.history.windowHistory = windows
+                Self.history.recordDestroyedWindow(windowID)
+                Tracker.shared.history = Self.history.windowHistory
+            }
+        }
+        enum WindowActivator {
+            static var focusedWindow: CGWindowID?
+            static var responderPID: pid_t?
+            static var focusReads: [pid_t] = []
+            static func focusedWindowID(for pid: pid_t) -> CGWindowID? {
+                focusReads.append(pid)
+                return pid == (responderPID ?? WindowEnumerator.items.first?.pid) ? focusedWindow : nil
+            }
         }
         enum WindowEnumerator {
+            typealias WindowUseTracker = SessionOpening.WindowUseTracker
+            typealias WindowActivator = SessionOpening.WindowActivator
+            typealias SpaceWindowBridge = SwitcherFullscreenScopeTests.Bridge
+            typealias UserDefaults = Preferences
+            typealias SwitcherWindowSelection = Selection
             typealias WindowList = Enumerator.WindowList
+            typealias AppSnapshot = Enumerator.AppSnapshot
             typealias Snapshot = Enumerator.Snapshot
             typealias DisplayScope = Enumerator.DisplayScope
             static var items: [SwitcherItem] = []
+            static var firstFrontAppItems: [SwitcherItem]?
+            static var focusByRead: [CGWindowID?] = []
+            static var stackRows: [[String: Any]]?
+            static var capturedRows: [[String: Any]]?
+            static var inventoryCaptureSequence: [() -> [[String: Any]]] = []
+            static var rejectedIDs: Set<CGWindowID> = []
+            static var apps: [AppSnapshot] = []
             static var reads: [pid_t?] = []
+            static func stackRow(_ item: SwitcherItem, owner: pid_t? = nil, layer: Int = 0) -> [String: Any] {
+                let frame = item.frame.isEmpty ? CGRect(x: 0, y: 0, width: 400, height: 300) : item.frame
+                return [kCGWindowNumber as String: NSNumber(value: item.windowID ?? 0),
+                        kCGWindowOwnerPID as String: NSNumber(value: owner ?? item.windowOwnerPID),
+                        kCGWindowLayer as String: layer, kCGWindowAlpha as String: 1,
+                        kCGWindowBounds as String: frame.dictionaryRepresentation]
+            }
+            static func CGWindowListCopyWindowInfo(_ options: CGWindowListOption, _ id: CGWindowID) -> CFArray? {
+                let order = WindowUseTracker.physicalOrder ?? items.compactMap(\.windowID)
+                let rows = order.compactMap { id in items.first { $0.windowID == id } }.map { stackRow($0) }
+                return (stackRows ?? rows) as CFArray
+            }
+            static func frameIsSwitchable(_ frame: CGRect) -> Bool { Enumerator.frameIsSwitchable(frame) }
             static func ownWindowID(for window: NSWindow) -> CGWindowID? {
                 Inventory.WindowEnumerator.ownWindowID(for: window)
             }
-            static func runningApplications() -> [Enumerator.AppSnapshot] { [] }
-            static func snapshot(includingRunningApps: Bool) -> Snapshot {
-                .init(accessibilityGranted: false, runningApps: [], ownWindowTitles: [:], screenFrames: [], displayIDsByUUID: [:])
+            static func runningApplications() -> [AppSnapshot] { apps }
+            static func appPID(forWindowOwner owner: pid_t, runningApps: @autoclosure () -> [AppSnapshot]) -> pid_t? {
+                Enumerator.appPID(forWindowOwner: owner, runningApps: runningApps())
             }
-            static func rememberSwitcherWindows(snapshot: Snapshot, filterPID: pid_t? = nil,
+            static func snapshot(includingRunningApps: Bool = true) -> Snapshot {
+                .init(accessibilityGranted: Permissions.shared.accessibility, runningApps: [], ownWindowTitles: [:], screenFrames: [], displayIDsByUUID: [:])
+            }
+            static func rememberSwitcherWindows(snapshot: Snapshot, filterPID: pid_t? = nil, forFrontAppSession: Bool = false,
                                                 isCancelled: () -> Bool) -> WindowList {
                 reads.append(filterPID)
-                return .init(items: items.filter { filterPID == nil || $0.pid == filterPID }, sourceItems: [])
+                let captured = forFrontAppSession ? (firstFrontAppItems ?? items) : items
+                var result = WindowList(items: captured.filter { filterPID == nil || $0.pid == filterPID }, sourceItems: [])
+                if forFrontAppSession {
+                    firstFrontAppItems = nil
+                    if !focusByRead.isEmpty { WindowActivator.focusedWindow = focusByRead.removeFirst() }
+                    result.capturedVisibleSpaces = SessionOpening.SpaceWindowBridge.topology()?.visibleSpaces
+                    result.rejectedWindowIDs = rejectedIDs
+                }
+                if snapshot.accessibilityGranted, let owner = WindowActivator.responderPID ?? captured.first?.windowOwnerPID,
+                   let focus = WindowActivator.focusedWindow,
+                   result.items.contains(where: { $0.windowOwnerPID == owner && $0.windowID == focus }) {
+                    result.focusedWindowIDsByOwner[owner] = focus
+                }
+                let suppliedRows = !forFrontAppSession && filterPID != nil && !inventoryCaptureSequence.isEmpty
+                    ? inventoryCaptureSequence.removeFirst()() : capturedRows
+                if forFrontAppSession || suppliedRows != nil {
+                    let rows = suppliedRows ?? captured.filter { $0.windowID != nil }.map { stackRow($0) }
+                    result.activationSnapshot = .init(windowInfo: rows, capturesActivationBaseline: true)
+                }
+                return result
             }
         }
         static func windowInfo(_ options: CGWindowListOption, _ id: CGWindowID) -> CFArray? {

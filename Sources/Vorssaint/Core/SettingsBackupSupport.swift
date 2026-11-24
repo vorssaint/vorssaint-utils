@@ -221,6 +221,7 @@ enum SettingsBackupSupport {
         DefaultsKey.recorderSystemAudioTapVerified,
         DefaultsKey.batteryCareEnabled,
         DefaultsKey.fanControlRecoveryNeeded,
+        DefaultsKey.fanControlUnregisterPending,
         DefaultsKey.fanControlInterruptedStop,
         DefaultsKey.fanControlDismissedStop,
         DefaultsKey.fanControlHelperVersion,
