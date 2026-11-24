@@ -711,6 +711,7 @@ enum SettingsFeatureTests {
                 && !backupKeys.contains(DefaultsKey.micMuteSavedChannelVolumes)
                 && !backupKeys.contains(DefaultsKey.micMutePendingLegacyControls)
                 && !backupKeys.contains(DefaultsKey.micMuteSavedControls)
+                && !backupKeys.contains(DefaultsKey.micMuteProtectedChannels)
                 && !backupKeys.contains(DefaultsKey.micMuteMutedDevices)
                 && !backupKeys.contains(DefaultsKey.cleanerLastAutoRun)
                 && !backupKeys.contains(DefaultsKey.statusItemPlacementGeneration)
