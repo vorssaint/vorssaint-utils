@@ -640,13 +640,20 @@ def main():
     fan_control = "Sources/Vorssaint/Services/FanControl/FanControlService.swift"
     write("FanControlResume.swift", "import Foundation\n"
           + "extension FanControlResumeContract {\n"
+          + declaration("Sources/Vorssaint/Services/FanControl/FanControlXPC.swift", "enum FanControlIPC {")
           + declaration(fan_control, "    private enum StopConfirmation").replace("private enum", "enum", 1)
+          + declaration(fan_control, "    private enum SleepState").replace("private enum", "enum", 1)
           + "final class Service: Fixture {\n"
+          + declaration(fan_control, "    private func applyConfiguration(_ configuration:")
+          .replace("private func applyConfiguration", "func sendConfiguration", 1)
           + "".join(declaration(fan_control, prefix)
                     .replace("@objc private func", "func", 1)
                     .replace("private static var", "static var", 1)
                     .replace("private func", "func", 1) for prefix in [
                         "    static func recoverIfNeeded(", "    func syncWithPreferences(",
+                        "    func restoreAutomatic()", "    private func restoreAutomatic(supersedingCurrentRequest:",
+                        "    static func restoreBeforeTerminationIfNeeded()", "    private func restoreBeforeTermination()",
+                        "    private func restoreThenUnregister()", "    private func unregisterHelper()", "    func refresh()",
                         "    func returnToSystem(", "    func forgetResume(", "    func resumePreferenceDidChange(",
                         "    private static var resumableConfiguration:", "    private func resume(",
                         "    private static var helperAwaitsRegistration:",
@@ -654,7 +661,9 @@ def main():
                         "    @objc private func workspaceDidWake(", "    @objc private func workspaceWillSleep(",
                         "    private func beginResume(", "    private func cancelResumeRetry(",
                         "    private func resumeDidFail(", "    private func scheduleResumeRetry(",
-                        "    private func retryResume(", "    private func applyStatus(", "    private func apply(_ response:",
+                        "    private func retryResume(", "    private func applyStatus(", "    private func applySessionResponse(",
+                        "    private func blockResumeAfterStop(",
+                        "    private func apply(_ response:",
                         "    private func poll(", "    private func heartbeat(", "    private func requestStatus(",
                         "    private func beginRequest(", "    private func finishRequest("])
           + "}\n}\n")
