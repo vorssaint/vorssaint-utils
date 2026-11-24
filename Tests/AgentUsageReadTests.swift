@@ -628,6 +628,111 @@ enum AgentUsageReadTests {
             } else {
                 suite.expect(false, "parent completion emits a finished alert with combined subagent tokens")
             }
+
+            // Same-batch watcher completion: running parent finishes in the same
+            // filesChanged batch as a brand-new step-0 sender child (parent path first).
+            let batchHome = folder.appending(path: "agy-batch-complete")
+            let batchBrain = batchHome.appending(path: ".gemini/antigravity-cli/brain")
+            let batchParentID = "44444444-4444-4444-8444-444444444444"
+            let batchChildID = "55555555-5555-4555-8555-555555555555"
+            let batchParentFile = batchBrain.appending(path: "\(batchParentID)/.system_generated/logs/transcript.jsonl")
+            let batchChildFile = batchBrain.appending(path: "\(batchChildID)/.system_generated/logs/transcript.jsonl")
+            try FileManager.default.createDirectory(at: batchParentFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: batchChildFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data((parentLines.joined(separator: "\n") + "\n").utf8).write(to: batchParentFile)
+            let batchHost = Host()
+            batchHost.home = batchHome
+            batchHost.start(session: 1, providers: [.antigravity], cancellation: Cancellation())
+            let canonicalBatchParent = AgentLogRoot.canonical(batchParentFile).path
+            suite.expect(batchHost.store.live.count == 1 && batchHost.store.live.first?.tokens.total == 140,
+                         "batch completion fixture opens parent turn with 140 tokens")
+            let batchChildLines = [
+                #"{"step_index":0,"type":"SYSTEM_MESSAGE","status":"DONE","created_at":"\#(ts)","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=\#(ts) sender=\#(batchParentID)\n</SYSTEM_MESSAGE>"}"#,
+                #"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"\#(ts)","content":"<USER_REQUEST>last child</USER_REQUEST>"}"#,
+                #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"#,
+            ]
+            try Data((batchChildLines.joined(separator: "\n") + "\n").utf8).write(to: batchChildFile)
+            let batchParentHandle = try FileHandle(forWritingTo: batchParentFile)
+            try batchParentHandle.seekToEnd()
+            try batchParentHandle.write(contentsOf: Data((finalLine + "\n").utf8))
+            try batchParentHandle.close()
+            let canonicalBatchChild = AgentLogRoot.canonical(batchChildFile).path
+            // Deliver parent BEFORE child in the same watcher batch.
+            batchHost.filesChanged([canonicalBatchParent, canonicalBatchChild], rescan: false)
+            if case .finished(let provider, _, _, let tokens, _) = batchHost.events.last {
+                suite.expect(provider == .antigravity && tokens == 240
+                                && batchHost.store.records.map(\.tokens.total).reduce(0, +) == 240,
+                             "same-batch watcher completion applies pending child usage before closing the parent turn")
+            } else {
+                suite.expect(false, "same-batch completion emits a finished alert carrying child usage")
+            }
+
+            // Direct parent read (e.g. pollOpenLogs hitting parent before a known child)
+            // also flushes unread child usage before emitting `.finished`.
+            let pollHandleParent = try FileHandle(forWritingTo: batchParentFile)
+            try pollHandleParent.seekToEnd()
+            try pollHandleParent.write(contentsOf: Data(([
+                #"{"step_index":3,"type":"USER_INPUT","status":"DONE","created_at":"\#(ts)","content":"<USER_REQUEST>turn 2</USER_REQUEST>"}"#,
+                #"{"step_index":4,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":100,"output_tokens":40,"tool_calls":[{"id":"t2","name":"invoke_subagent"}]}"#,
+            ].joined(separator: "\n") + "\n").utf8))
+            try pollHandleParent.close()
+            _ = batchHost.read(canonicalBatchParent, provider: .antigravity)
+            let pollHandleChild = try FileHandle(forWritingTo: batchChildFile)
+            try pollHandleChild.seekToEnd()
+            try pollHandleChild.write(contentsOf: Data((#"{"step_index":3,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"# + "\n").utf8))
+            try pollHandleChild.close()
+            let pollHandleParentEnd = try FileHandle(forWritingTo: batchParentFile)
+            try pollHandleParentEnd.seekToEnd()
+            try pollHandleParentEnd.write(contentsOf: Data((#"{"step_index":5,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":20,"output_tokens":10}"# + "\n").utf8))
+            try pollHandleParentEnd.close()
+            batchHost.events.removeAll()
+            _ = batchHost.read(canonicalBatchParent, provider: .antigravity)
+            if case .finished(let provider, _, _, let tokens, _) = batchHost.events.last {
+                suite.expect(provider == .antigravity && tokens == 240,
+                             "direct parent read flushes unread child subagent tokens before closing the parent turn")
+            } else {
+                suite.expect(false, "direct parent read emits a finished alert carrying flushed child tokens")
+            }
+
+            // Symlinked brain/ outside Antigravity data directory: start() preserves
+            // the original data directory so DB project and parent rollup work end to end.
+            let symHome = folder.appending(path: "agy-sym-home")
+            let symDataDir = symHome.appending(path: ".gemini/antigravity-cli")
+            let externalBrain = folder.appending(path: "agy-external-brain")
+            let symParentFile = externalBrain.appending(path: "\(parentID)/.system_generated/logs/transcript.jsonl")
+            let symChildFile = externalBrain.appending(path: "\(childID)/.system_generated/logs/transcript.jsonl")
+            try FileManager.default.createDirectory(at: symParentFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: symChildFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: symDataDir, withIntermediateDirectories: true)
+            try FileManager.default.createSymbolicLink(at: symDataDir.appending(path: "brain"), withDestinationURL: externalBrain)
+            try Data((parentLines.joined(separator: "\n") + "\n").utf8).write(to: symParentFile)
+            try Data((childLines.joined(separator: "\n") + "\n").utf8).write(to: symChildFile)
+            try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-30)], ofItemAtPath: symChildFile.path)
+            try FileManager.default.setAttributes([.modificationDate: now], ofItemAtPath: symParentFile.path)
+            let symDBPath = symDataDir.appending(path: "conversation_summaries.db").path
+            var symDB: OpaquePointer?
+            guard sqlite3_open(symDBPath, &symDB) == SQLITE_OK, let symDB else {
+                suite.expect(false, "opens symlinked brain fixture DB")
+                return
+            }
+            defer { sqlite3_close(symDB) }
+            let symSQL = """
+            CREATE TABLE conversation_summaries (conversation_id TEXT PRIMARY KEY, workspace_uris TEXT, parent_conversation_id TEXT);
+            INSERT INTO conversation_summaries VALUES
+              ('\(parentID)', '["file:///Users/me/code/symlink-proj"]', ''),
+              ('\(childID)', '["file:///Users/me/code/symlink-proj"]', '\(parentID)');
+            """
+            suite.expect(sqlite3_exec(symDB, symSQL, nil, nil, nil) == SQLITE_OK, "seeds symlinked Antigravity DB")
+            let symHost = Host()
+            symHost.home = symHome
+            symHost.start(session: 1, providers: [.antigravity], cancellation: Cancellation())
+            let canonicalSymParent = AgentLogRoot.canonical(symParentFile).path
+            suite.expect(symHost.store.records.allSatisfy { $0.project == "symlink-proj" }
+                            && symHost.store.live.count == 1
+                            && symHost.store.live.first?.id == canonicalSymParent
+                            && symHost.store.live.first?.project == "symlink-proj"
+                            && symHost.store.live.first?.tokens.total == 210,
+                         "symlinked brain preserves data directory for project attribution and DB-only subagent rollup")
         } catch {
             suite.expect(false, "Antigravity first-read index fixture failed: \(error)")
         }

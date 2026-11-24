@@ -325,6 +325,7 @@ final class AgentUsageService: ObservableObject {
             // Keep the loading state until all initial history has been read.
             let horizon = Date().addingTimeInterval(-Self.horizon)
             let roots = AgentLogRoot.all(home: home, claudeProfile: claudeProfile, providers: providers)
+            antigravityIndex.register(roots: roots)
             let cursorRoot = roots.first { $0.provider == .cursor }?.url
             let files = AgentLogReader.discover(roots, since: horizon)
             // Resumes where the last launch stopped, among the logs there now.
@@ -589,8 +590,12 @@ final class AgentUsageService: ObservableObject {
         }
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
+        let antigravityDataDir = provider == .antigravity
+            ? watchedRoots.first(where: { $0.provider == .antigravity && $0.accepts(path) })?.dataDirectory
+            : nil
         let antigravityMetadata = provider == .antigravity
-            ? antigravityIndex.entry(forSession: AgentLogParser.antigravitySession(from: path), transcriptPath: path)
+            ? antigravityIndex.entry(forSession: AgentLogParser.antigravitySession(from: path),
+                                     transcriptPath: path, dataDirectory: antigravityDataDir)
             : nil
         let now = Date()
         var changed = false
@@ -642,6 +647,38 @@ final class AgentUsageService: ObservableObject {
             let isSubagent = provider == .opencode && !cursor.state.parentSession.isEmpty
             let turnFile = provider == .opencode && !cursor.state.session.isEmpty ? "\(path)#\(cursor.state.session)" : path
             let tracksTurns = isSubagent ? false : cursor.tracksTurns
+            // Flush unread Antigravity subagent transcripts before closing a live
+            // parent turn so the completion notice carries the combined tokens.
+            if provider == .antigravity && tracksTurns && store.reportsTransitions
+                && (store.turns[turnFile] != nil || store.waiting[turnFile] != nil)
+                && entries.contains(where: { if case .turnEnded(_, true, _) = $0 { return true }; return false }) {
+                var childPaths: [String] = []
+                var seenChildren: Set<String> = [path]
+                for child in cursors.values where child.provider == .antigravity
+                    && child.antigravityParent(among: cursors) == path
+                    && seenChildren.insert(child.path).inserted {
+                    childPaths.append(child.path)
+                }
+                for childSession in antigravityIndex.childSessions(forParent: cursor.state.session,
+                                                                   transcriptPath: path,
+                                                                   dataDirectory: antigravityDataDir) {
+                    if let childPath = AgentAntigravityIndex.transcriptPath(forSession: childSession, siblingOf: path),
+                       seenChildren.insert(childPath).inserted {
+                        childPaths.append(childPath)
+                    }
+                }
+                let nextStack = antigravityStack.union([path])
+                let cutoff = now.addingTimeInterval(-Self.horizon)
+                for childPath in childPaths where !nextStack.contains(childPath) {
+                    var info = stat()
+                    guard stat(childPath, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG,
+                          AgentLogCursor.modificationDate(info) >= cutoff else { continue }
+                    if let existing = cursors[childPath],
+                       UInt64(max(0, info.st_size)) == existing.offset,
+                       UInt64(info.st_ino) == existing.identity { continue }
+                    _ = read(childPath, provider: .antigravity, antigravityStack: nextStack)
+                }
+            }
             let parent = isSubagent ? "\(path)#\(cursor.state.parentSession)"
                 : cursor.parent ?? cursor.codexParent(among: cursors) ?? cursor.antigravityParent(among: cursors)
             let finished = store.apply(entries, file: turnFile, provider: provider, tracksTurns: tracksTurns,
@@ -665,6 +702,7 @@ final class AgentUsageService: ObservableObject {
             store.forget(files: [path])
         }
         watchedRoots = existing
+        antigravityIndex.register(roots: existing)
         lastRootCheck = Date()
         if watcher == nil {
             watcher = AgentLogWatcher(queue: queue) { [weak self] paths, rescan in
@@ -686,14 +724,31 @@ final class AgentUsageService: ObservableObject {
                 store.forget(files: [path])
                 changed = true
             }
-            for file in files {
+            let ordered = files.filter {
+                $0.provider != .antigravity || (store.turns[$0.path] == nil && store.waiting[$0.path] == nil)
+            } + files.filter {
+                $0.provider == .antigravity && (store.turns[$0.path] != nil || store.waiting[$0.path] != nil)
+            }
+            for file in ordered {
                 if read(file.path, provider: file.provider) { changed = true }
             }
         } else {
-            for path in Set(paths) where AgentLogReader.isLog(path) {
+            var pending: [(path: String, provider: AgentProvider, openAntigravityTurn: Bool)] = []
+            var seen: Set<String> = []
+            for path in paths where AgentLogReader.isLog(path) {
                 let actualPath = path.hasSuffix("-wal") ? String(path.dropLast(4)) : path
-                guard let root = watchedRoots.first(where: { $0.accepts(actualPath) }) else { continue }
-                if read(actualPath, provider: root.provider) { changed = true }
+                guard seen.insert(actualPath).inserted,
+                      let root = watchedRoots.first(where: { $0.accepts(actualPath) }) else { continue }
+                let openTurn = root.provider == .antigravity
+                    && (store.turns[actualPath] != nil || store.waiting[actualPath] != nil)
+                pending.append((actualPath, root.provider, openTurn))
+            }
+            // Read non-owning Antigravity logs (including brand-new subagents)
+            // before an already-open parent turn in the same watcher batch so
+            // child usage attaches before the parent closes.
+            pending.sort { !$0.openAntigravityTurn && $1.openAntigravityTurn }
+            for item in pending {
+                if read(item.path, provider: item.provider) { changed = true }
             }
         }
         // Saved tool output and lines with nothing to keep do not change the
@@ -734,6 +789,7 @@ final class AgentUsageService: ObservableObject {
                 let roots = AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile, providers: enabled)
                 if roots.filter(\.exists) != watchedRoots {
                     changed = true
+                    antigravityIndex.register(roots: roots)
                     let cursorRoot = roots.first { $0.provider == .cursor }?.url
                     for file in AgentLogReader.discover(roots, since: now.addingTimeInterval(-Self.horizon)) {
                         if read(file.path, provider: file.provider, cursorRoot: cursorRoot) { changed = true }

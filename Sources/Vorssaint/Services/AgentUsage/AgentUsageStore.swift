@@ -595,6 +595,16 @@ final class AgentUsageStore {
 struct AgentLogRoot: Equatable {
     let provider: AgentProvider
     let url: URL
+    /// The logical parent data directory that holds sibling metadata (such as
+    /// Antigravity's `conversation_summaries.db`), kept separately from `url`
+    /// so symlinking only `brain/` outside its data folder still locates it.
+    let dataDirectory: URL?
+
+    init(provider: AgentProvider, url: URL, dataDirectory: URL? = nil) {
+        self.provider = provider
+        self.url = url
+        self.dataDirectory = dataDirectory
+    }
 
     /// Canonical, because file events report real paths: a folder kept as a
     /// link elsewhere, as dotfile setups do, would otherwise never match.
@@ -611,8 +621,24 @@ struct AgentLogRoot: Equatable {
          (.antigravity, ".gemini/antigravity/brain"),
          (.antigravity, ".gemini/antigravity-ide/brain")].compactMap { provider, path in
             guard providers.contains(provider) else { return nil }
-            return AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
+            let logical = home.appending(path: path, directoryHint: .isDirectory)
+            let dataDirectory = provider == .antigravity
+                ? canonical(logical.deletingLastPathComponent())
+                : nil
+            return AgentLogRoot(provider: provider, url: canonical(logical), dataDirectory: dataDirectory)
         }
+    }
+
+    /// Locates `conversation_summaries.db` for an Antigravity root, preferring
+    /// the original data directory when only `brain/` is symlinked elsewhere.
+    var antigravityDatabasePath: String? {
+        guard provider == .antigravity else { return nil }
+        if let dataDirectory {
+            let preserved = dataDirectory.appending(path: "conversation_summaries.db", directoryHint: .notDirectory).path
+            if FileManager.default.fileExists(atPath: preserved) { return preserved }
+        }
+        return url.deletingLastPathComponent()
+            .appending(path: "conversation_summaries.db", directoryHint: .notDirectory).path
     }
 
     /// The path the file system reports for `url`; the path as given while
@@ -1169,9 +1195,7 @@ enum AgentLogReader {
             // outputs beside each compact transcript. Probe only the single
             // expected transcript path inside each session directory.
             if root.provider == .antigravity {
-                let dbPath = root.url.deletingLastPathComponent()
-                    .appending(path: "conversation_summaries.db", directoryHint: .notDirectory).path
-                let indexEntries = AgentAntigravityIndex.load(at: dbPath)
+                let indexEntries = root.antigravityDatabasePath.map(AgentAntigravityIndex.load(at:)) ?? [:]
                 let sessions = (try? FileManager.default.contentsOfDirectory(
                     at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
                 for session in sessions {

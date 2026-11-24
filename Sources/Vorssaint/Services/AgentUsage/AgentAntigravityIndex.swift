@@ -27,25 +27,87 @@ final class AgentAntigravityIndex {
     }
 
     private var caches: [String: Cache] = [:]
+    /// Maps canonical `brain/` directory paths to their original Antigravity
+    /// data directories so symlinked `brain/` folders still locate
+    /// `conversation_summaries.db` in the data directory that owns them.
+    private var dataDirectories: [String: URL] = [:]
+
+    /// Records the data directory for each canonical Antigravity `brain/` root.
+    func register(roots: [AgentLogRoot]) {
+        dataDirectories.removeAll(keepingCapacity: true)
+        for root in roots where root.provider == .antigravity {
+            if let dataDirectory = root.dataDirectory {
+                dataDirectories[root.url.path] = dataDirectory
+            }
+        }
+    }
 
     /// Resolves metadata for `session` under the Antigravity data folder that
     /// holds `transcriptPath` (`<dataDir>/brain/<session>/.system_generated/logs/transcript.jsonl`).
-    func entry(forSession session: String, transcriptPath: String) -> Entry? {
-        guard !session.isEmpty, let dbPath = Self.databasePath(forTranscript: transcriptPath) else { return nil }
+    func entry(forSession session: String, transcriptPath: String, dataDirectory: URL? = nil) -> Entry? {
+        guard !session.isEmpty,
+              let dbPath = databasePath(forTranscript: transcriptPath, dataDirectory: dataDirectory) else { return nil }
         return entries(at: dbPath)[session]
     }
 
-    /// Derives `<dataDir>/conversation_summaries.db` from a canonical transcript path.
-    static func databasePath(forTranscript transcriptPath: String) -> String? {
+    /// Returns all descendant conversation IDs whose `parentSession` chain
+    /// leads back to `parentSession` in the Antigravity index for `transcriptPath`.
+    func childSessions(forParent parentSession: String, transcriptPath: String,
+                       dataDirectory: URL? = nil) -> [String] {
+        guard !parentSession.isEmpty,
+              let dbPath = databasePath(forTranscript: transcriptPath, dataDirectory: dataDirectory) else { return [] }
+        let all = entries(at: dbPath)
+        guard !all.isEmpty else { return [] }
+        var byParent: [String: [String]] = [:]
+        for (session, entry) in all where !entry.parentSession.isEmpty {
+            byParent[entry.parentSession, default: []].append(session)
+        }
+        var result: [String] = []
+        var seen: Set<String> = [parentSession]
+        var queue: [String] = [parentSession]
+        var cursor = 0
+        while cursor < queue.count, result.count < 256 {
+            let current = queue[cursor]
+            cursor += 1
+            for child in byParent[current] ?? [] where seen.insert(child).inserted {
+                result.append(child)
+                queue.append(child)
+            }
+        }
+        return result
+    }
+
+    /// Resolves `conversation_summaries.db` for `transcriptPath`, preferring
+    /// an explicit or registered data directory when `brain/` is symlinked.
+    func databasePath(forTranscript transcriptPath: String, dataDirectory: URL? = nil) -> String? {
+        if let explicit = dataDirectory ?? Self.brainPath(forTranscript: transcriptPath).flatMap({ dataDirectories[$0] }) {
+            let preserved = explicit.appending(path: "conversation_summaries.db", directoryHint: .notDirectory).path
+            if FileManager.default.fileExists(atPath: preserved) {
+                return preserved
+            }
+        }
+        return Self.databasePath(forTranscript: transcriptPath)
+    }
+
+    /// Returns `<brain>` from `<brain>/<session>/.system_generated/logs/transcript.jsonl`.
+    static func brainPath(forTranscript transcriptPath: String) -> String? {
         let url = URL(fileURLWithPath: transcriptPath, isDirectory: false)
-        // transcript.jsonl -> logs -> .system_generated -> <session> -> brain -> <dataDir>
+        // transcript.jsonl -> logs -> .system_generated -> <session> -> brain
         let logs = url.deletingLastPathComponent()
         let sys = logs.deletingLastPathComponent()
         let session = sys.deletingLastPathComponent()
         let brain = session.deletingLastPathComponent()
-        guard logs.lastPathComponent == "logs", sys.lastPathComponent == ".system_generated" else { return nil }
-        let dataDir = brain.deletingLastPathComponent()
-        guard dataDir.path != brain.path else { return nil }
+        guard logs.lastPathComponent == "logs", sys.lastPathComponent == ".system_generated",
+              brain.path != session.path else { return nil }
+        return brain.path
+    }
+
+    /// Derives `<dataDir>/conversation_summaries.db` from a transcript path.
+    static func databasePath(forTranscript transcriptPath: String) -> String? {
+        guard let brain = brainPath(forTranscript: transcriptPath) else { return nil }
+        let brainURL = URL(fileURLWithPath: brain, isDirectory: true)
+        let dataDir = brainURL.deletingLastPathComponent()
+        guard dataDir.path != brainURL.path else { return nil }
         return dataDir.appending(path: "conversation_summaries.db", directoryHint: .notDirectory).path
     }
 
@@ -53,15 +115,9 @@ final class AgentAntigravityIndex {
     /// beside `transcriptPath` within the same Antigravity brain directory.
     static func transcriptPath(forSession session: String, siblingOf transcriptPath: String) -> String? {
         guard !session.isEmpty, session != ".", session != "..",
-              !session.contains("/"), !session.contains("\\") else { return nil }
-        let url = URL(fileURLWithPath: transcriptPath, isDirectory: false)
-        let logs = url.deletingLastPathComponent()
-        let sys = logs.deletingLastPathComponent()
-        let currentSession = sys.deletingLastPathComponent()
-        let brain = currentSession.deletingLastPathComponent()
-        guard logs.lastPathComponent == "logs", sys.lastPathComponent == ".system_generated",
-              brain.path != currentSession.path else { return nil }
-        return brain
+              !session.contains("/"), !session.contains("\\"),
+              let brain = brainPath(forTranscript: transcriptPath) else { return nil }
+        return URL(fileURLWithPath: brain, isDirectory: true)
             .appending(path: session, directoryHint: .isDirectory)
             .appending(path: ".system_generated/logs/transcript.jsonl", directoryHint: .notDirectory)
             .path
@@ -69,6 +125,7 @@ final class AgentAntigravityIndex {
 
     func clear() {
         caches.removeAll()
+        dataDirectories.removeAll()
     }
 
     private func entries(at dbPath: String) -> [String: Entry] {

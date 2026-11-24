@@ -84,19 +84,51 @@ enum AntigravityAgentTests {
                             && rejected.allSatisfy { !canonicalCLIRoot.accepts(AgentLogRoot.canonical($0).path) },
                          "accepts enforces the exact 4-part brain-relative transcript path")
 
-            // Symlinked brain root resolves canonically and still discovers transcripts.
+            // Symlinked brain root resolves canonically, preserves its original
+            // data directory for conversation_summaries.db, and orders DB subagents after parents.
             let realBrain = folder.appending(path: "external-brain")
-            let linkedTranscript = realBrain.appending(path: "linked-conv/.system_generated/logs/transcript.jsonl")
-            try FileManager.default.createDirectory(at: linkedTranscript.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data("{}\n".utf8).write(to: linkedTranscript)
+            let linkedParent = realBrain.appending(path: "linked-parent/.system_generated/logs/transcript.jsonl")
+            let linkedChild = realBrain.appending(path: "linked-child/.system_generated/logs/transcript.jsonl")
+            try FileManager.default.createDirectory(at: linkedParent.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: linkedChild.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("{}\n".utf8).write(to: linkedParent)
+            try Data("{}\n".utf8).write(to: linkedChild)
+            let symNow = Date()
+            try FileManager.default.setAttributes([.modificationDate: symNow.addingTimeInterval(-30)], ofItemAtPath: linkedChild.path)
+            try FileManager.default.setAttributes([.modificationDate: symNow], ofItemAtPath: linkedParent.path)
             let symHome = folder.appending(path: "sym-home")
-            try FileManager.default.createDirectory(at: symHome.appending(path: ".gemini/antigravity-cli"), withIntermediateDirectories: true)
-            try FileManager.default.createSymbolicLink(at: symHome.appending(path: ".gemini/antigravity-cli/brain"),
+            let symDataDir = symHome.appending(path: ".gemini/antigravity-cli")
+            try FileManager.default.createDirectory(at: symDataDir, withIntermediateDirectories: true)
+            try FileManager.default.createSymbolicLink(at: symDataDir.appending(path: "brain"),
                                                        withDestinationURL: realBrain)
+            let symDBPath = symDataDir.appending(path: "conversation_summaries.db").path
+            var symDB: OpaquePointer?
+            guard sqlite3_open(symDBPath, &symDB) == SQLITE_OK, let symDB else {
+                suite.expect(false, "opens symlinked Antigravity index fixture DB")
+                return
+            }
+            defer { sqlite3_close(symDB) }
+            let symSQL = """
+            CREATE TABLE conversation_summaries (conversation_id TEXT PRIMARY KEY, workspace_uris TEXT, parent_conversation_id TEXT);
+            INSERT INTO conversation_summaries VALUES
+              ('linked-parent', '["file:///Users/me/code/symlink-proj"]', ''),
+              ('linked-child', '["file:///Users/me/code/symlink-proj"]', 'linked-parent');
+            """
+            suite.expect(sqlite3_exec(symDB, symSQL, nil, nil, nil) == SQLITE_OK,
+                         "seeds conversation_summaries.db in original Antigravity data directory")
             let symRoots = AgentLogRoot.all(home: symHome, providers: [.antigravity])
-            let symDiscovered = AgentLogReader.discover(symRoots, since: Date().addingTimeInterval(-3600))
-            suite.expect(symDiscovered.map(\.path) == [AgentLogRoot.canonical(linkedTranscript).path],
-                         "symlinked Antigravity brain directories resolve canonically and discover transcripts")
+            let symDiscovered = AgentLogReader.discover(symRoots, since: symNow.addingTimeInterval(-3600))
+            let canonicalLinkedParent = AgentLogRoot.canonical(linkedParent).path
+            let canonicalLinkedChild = AgentLogRoot.canonical(linkedChild).path
+            suite.expect(symDiscovered.map(\.path) == [canonicalLinkedParent, canonicalLinkedChild],
+                         "symlinked Antigravity brain preserves its data directory and orders DB subagents after parents")
+            let symIndex = AgentAntigravityIndex()
+            symIndex.register(roots: symRoots)
+            let linkedParentEntry = symIndex.entry(forSession: "linked-parent", transcriptPath: canonicalLinkedParent)
+            let linkedChildEntry = symIndex.entry(forSession: "linked-child", transcriptPath: canonicalLinkedChild)
+            suite.expect(linkedParentEntry == AgentAntigravityIndex.Entry(project: "symlink-proj", parentSession: "")
+                            && linkedChildEntry == AgentAntigravityIndex.Entry(project: "symlink-proj", parentSession: "linked-parent"),
+                         "registered symlinked brain roots resolve project and parent metadata for canonical transcript paths")
         } catch {
             suite.expect(false, "Antigravity discovery fixture failed: \(error)")
         }
