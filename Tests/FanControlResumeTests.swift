@@ -54,6 +54,7 @@ enum FanControlResumeContract {
         var isWorking = false
         var resumeFailures = 0
         var interruption: FanControlInterruption?
+        var dismissedStopReason: FanControlStopReason?
         var scheduledResumes: [TimeInterval] = []
         var applied: [FanControlConfiguration] = []
         var events: [String] = []
@@ -104,6 +105,7 @@ enum FanControlResumeContract {
             service.isWorking = false
             service.resumeFailures = 0
             service.interruption = nil
+            service.dismissedStopReason = nil
             service.scheduledResumes = []
             ProcessInfo.processInfo.thermalState = .nominal
         }
@@ -391,13 +393,17 @@ enum FanControlResumeContract {
             return (node.accessibilityChildren?() ?? []).flatMap { texts($0 as AnyObject) }
         }
         let defaults = UserDefaults.standard
+        let mode = Section(service: service, modeRaw: Binding(
+            get: { defaults.string(forKey: DefaultsKey.fanControlMode) ?? FanControlMode.system.rawValue },
+            set: { defaults.set($0, forKey: DefaultsKey.fanControlMode) }
+        )).modeBinding
         func expectFeedback(status: String, message: String?, _ context: String) {
-            let mode = defaults.string(forKey: DefaultsKey.fanControlMode).flatMap(FanControlMode.init(rawValue:))
             let card = FanControlCardContent(
                 strings: strings, betaLabel: "Beta", snapshot: service.snapshot, fallbackFanSpeeds: [],
                 accessState: service.accessState, error: service.error, isWorking: service.isWorking,
                 systemControlUnconfirmed: service.systemControlUnconfirmed, interruption: service.interruption,
-                mode: .constant(mode ?? .system), coolingLevel: .constant(100),
+                dismissedStopReason: service.dismissedStopReason,
+                mode: mode, coolingLevel: .constant(100),
                 curves: .constant([FanControlConfiguration.defaultCurve]),
                 resume: .constant(defaults.bool(forKey: DefaultsKey.fanControlResume)),
                 temperatureUnit: .celsius, authorize: {}, applyConfiguration: { _ in }, stopCooling: {}
@@ -487,10 +493,44 @@ enum FanControlResumeContract {
                        "reopening the card after the helper exits preserves the sensor diagnosis with resume off")
         suite.expect(service.scheduledResumes.isEmpty && service.applied == appliedBeforeStop,
                      "reading the stop after reopening never resumes control")
-        defaults.set(FanControlMode.system.rawValue, forKey: DefaultsKey.fanControlMode)
-        service.forgetResume()
+        mode.wrappedValue = .system
         receiveStatus(.success(idle))
         expectFeedback(status: strings.systemControl, message: nil,
                        "selecting System clears the retained diagnosis")
+
+        func runCurveUntilSensorStops() {
+            mode.wrappedValue = .curve
+            receiveStatus(.success(active))
+            receiveStatus(.success(stopped))
+        }
+        runCurveUntilSensorStops()
+        expectFeedback(status: strings.systemControl, message: strings.temperatureUnavailable,
+                       "the helper reports the sensor stop while the panel stays open")
+        mode.wrappedValue = .system
+        expectFeedback(status: strings.systemControl, message: nil,
+                       "selecting System immediately dismisses the sensor stop still in the snapshot")
+        suite.expect(service.snapshot == stopped, "selecting System preserves the helper's actual snapshot")
+        for _ in 0..<2 {
+            service.requestStatus()
+            expectFeedback(status: strings.systemControl, message: nil,
+                           "idle replies repeating the dismissed sensor stop do not redisplay it")
+            suite.expect(service.snapshot == stopped, "an idle refresh preserves the reported sensor stop")
+        }
+        receiveStatus(.failure(.controlFailed))
+        receiveStatus(.success(stopped))
+        expectFeedback(status: strings.systemControl, message: nil,
+                       "a failed read between idle replies does not turn the old reason into a new stop")
+        runCurveUntilSensorStops()
+        expectFeedback(status: strings.systemControl, message: strings.temperatureUnavailable,
+                       "a new session reports the same sensor stop again")
+        mode.wrappedValue = .system
+        var recovered = stopped
+        recovered.stopReason = .recovery
+        receiveStatus(.success(recovered))
+        expectFeedback(status: strings.systemControl, message: strings.safetyStopped,
+                       "an idle reply reporting a different cause still explains the stop")
+        receiveStatus(.success(stopped))
+        expectFeedback(status: strings.systemControl, message: strings.temperatureUnavailable,
+                       "after a different stop, the same sensor can be reported again")
     }
 }

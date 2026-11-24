@@ -642,6 +642,10 @@ def main():
     write("FanControlCard.swift", (ROOT / fan_panel / "FanControlCurveEditor.swift").read_text()
           + "\nextension FanControlResumeContract {\ntypealias FanControlService = Service\n"
           + declaration(fan_panel + "/FanControlSection.swift", "struct FanControlCardContent:")
+          + "struct Section {\nlet service: Service\n@Binding var modeRaw: String\n"
+          + declaration(fan_panel + "/FanControlSection.swift", "    private var modeBinding:")
+              .replace("private var modeBinding:", "var modeBinding:", 1)
+          + "}\n"
           + "}\n")
     write("FanControlResume.swift", "import Foundation\n"
           + "extension FanControlResumeContract {\nfinal class Service: Fixture {\n"

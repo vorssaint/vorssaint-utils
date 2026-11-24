@@ -32,6 +32,7 @@ struct FanControlSection: View {
                                   isWorking: service.isWorking,
                                   systemControlUnconfirmed: service.systemControlUnconfirmed,
                                   interruption: service.interruption,
+                                  dismissedStopReason: service.dismissedStopReason,
                                   mode: modeBinding,
                                   coolingLevel: $coolingLevel,
                                   curves: curvesBinding,
@@ -86,6 +87,7 @@ struct FanControlCardContent: View {
     let isWorking: Bool
     let systemControlUnconfirmed: Bool
     let interruption: FanControlInterruption?
+    let dismissedStopReason: FanControlStopReason?
     @Binding var mode: FanControlMode
     @Binding var coolingLevel: Int
     @Binding var curves: [FanControlCurve]
@@ -380,7 +382,9 @@ struct FanControlCardContent: View {
         switch interruption {
         case .resumeFailed, .stopped(nil): return strings.failed
         case .stopped(let reason): stopReason = reason
-        case nil: stopReason = snapshot.stopReason
+        case nil:
+            guard snapshot.stopReason != dismissedStopReason else { return nil }
+            stopReason = snapshot.stopReason
         }
         switch stopReason {
         case .temperatureUnavailable: return strings.temperatureUnavailable

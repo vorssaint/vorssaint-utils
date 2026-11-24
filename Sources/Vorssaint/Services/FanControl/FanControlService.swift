@@ -21,6 +21,7 @@ final class FanControlService: ObservableObject {
     @Published private(set) var error: FanControlErrorCode?
     @Published private(set) var isWorking = false
     @Published private(set) var interruption: FanControlInterruption?
+    @Published private(set) var dismissedStopReason: FanControlStopReason?
 
     /// A stopped snapshot can arrive before the helper confirms automatic control.
     var systemControlUnconfirmed: Bool {
@@ -195,6 +196,11 @@ final class FanControlService: ObservableObject {
     }
 
     func forgetResume() {
+        if let reason = snapshot.stopReason {
+            dismissedStopReason = reason
+        } else if case .stopped(let reason) = interruption {
+            dismissedStopReason = reason
+        }
         UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlResumeConfiguration)
         cancelResumeRetry()
     }
@@ -569,6 +575,11 @@ final class FanControlService: ObservableObject {
     }
 
     private func apply(_ response: FanControlResponse) {
+        // The helper repeats its last stop in idle replies until a new session or stop.
+        if response.succeeded, let dismissedStopReason,
+           response.snapshot.isCooling || response.snapshot.stopReason != dismissedStopReason {
+            self.dismissedStopReason = nil
+        }
         snapshot = response.snapshot
         error = response.error
     }
