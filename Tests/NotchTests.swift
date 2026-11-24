@@ -1266,6 +1266,69 @@ enum NotchTests {
         }
     }
 
+    private static func statusItemDiscoveryContracts(_ suite: TestSuite) {
+        let fastPID: pid_t = 10, slowPID: pid_t = 20, hostPID: pid_t = 30
+        var discovery = NotchStatusItemOwners.Discovery()
+        discovery.record(pid: fastPID, isHost: false, result: .success, hasBar: true, previous: [])
+        discovery.record(pid: slowPID, isHost: false, result: .cannotComplete, hasBar: false, previous: [])
+        discovery.record(pid: hostPID, isHost: true, result: .noValue, hasBar: false, previous: [])
+        suite.expect(discovery.owners == [fastPID, hostPID] && discovery.hosts == [hostPID],
+                     "a timeout on first discovery leaves the owner unknown and out of the per-measurement probes")
+
+        enum Item { case window, fastSlot, slowSlot }
+        let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        let bar = CGRect(x: 0, y: 924, width: 1470, height: 32)
+        let menu = CGRect(x: 0, y: 924, width: 300, height: 32)
+        let fastSlot = CGRect(x: 1060, y: 924, width: 25, height: 32)
+        var frames: [Item: CGRect] = [.window: bar, .fastSlot: fastSlot]
+        var extras: [pid_t: [CGRect]] = [fastPID: [fastSlot], hostPID: []]
+        var probed: Set<pid_t> = []
+        var childReads = 0
+        func status(_ windows: [Item], modern: Bool = true) -> [CGRect]? {
+            NotchMenuBarLayout.statusFrames(screen: screen, barHeight: 32, windows: [], requiresExtras: modern) { target in
+                discovery.frames(windows: windows, modernBar: modern ? target : nil,
+                    extras: { pid in probed.insert(pid); return extras[pid] },
+                    children: { _ in childReads += 1; return [.fastSlot, .slowSlot] }, frame: { frames[$0] },
+                    role: { $0 == .fastSlot ? kAXMenuBarItemRole as String : nil })
+            }
+        }
+        func room() -> CGFloat? {
+            status([.window]).flatMap { NotchMenuBarLayout.measuredSideRoom(
+                screen: screen, cameraWidth: 180, barHeight: 32, menuItems: [menu], statusItems: $0) }
+        }
+        suite.expect(status([]) == nil && status([.window]) == nil,
+                     "a readable owner alone cannot prove clearance with an absent host window or an unreadable slot")
+        frames[.slowSlot] = CGRect(x: 810, y: 924, width: 40, height: 32)
+        suite.expect(status([.window]) != nil && room() == nil,
+                     "a host slot without an AX role still occupies the island's center")
+        frames[.window] = bar.offsetBy(dx: screen.width, dy: 0)
+        let readsBeforeOtherDisplay = childReads
+        suite.expect(status([.window]) == nil && childReads == readsBeforeOtherDisplay,
+                     "another display's host bar cannot certify this bar or spend its budget reading slots")
+        frames[.window] = bar
+        let movedSlot = CGRect(x: 860, y: 924, width: 40, height: 32)
+        frames[.slowSlot] = movedSlot
+        suite.expect(room() == 27 && probed == [fastPID, hostPID],
+                     "the next host measurement recovers the available room without probing the unresponsive app")
+        extras[fastPID] = [CGRect(x: 810, y: 924, width: 40, height: 32)]
+        suite.expect(room() == nil, "the host slots also leave room for every frame reported by a known owner")
+        extras[fastPID] = [fastSlot]
+        suite.expect(status([], modern: false) == [fastSlot], "legacy AX fallback still works without the modern host")
+
+        var next = NotchStatusItemOwners.Discovery()
+        let previous = Set(discovery.owners)
+        next.record(pid: fastPID, isHost: false, result: .cannotComplete, hasBar: false, previous: previous)
+        next.record(pid: slowPID, isHost: false, result: .success, hasBar: true, previous: previous)
+        next.record(pid: hostPID, isHost: true, result: .noValue, hasBar: false, previous: previous)
+        discovery = next
+        extras[slowPID] = [movedSlot]
+        suite.expect(next.owners == [fastPID, slowPID, hostPID] && status([]) == [fastSlot, movedSlot],
+                     "a refresh keeps a confirmed owner through a timeout and resolves the newly responding owner")
+        extras[fastPID] = nil
+        suite.expect(status([]) == nil && room() == 27 && status([], modern: false) == nil,
+                     "an unreadable known owner requires complete modern host geometry before the island can use the room")
+    }
+
     private static func menuBarHeightContracts(_ suite: TestSuite) {
         var measurements = NotchMenuBarMeasurements()
         let screen = CGRect(x: -1440, y: -900, width: 1440, height: 900)
@@ -1776,6 +1839,7 @@ enum NotchTests {
         simulatedMenuBoundsContracts(suite)
         simulatedDisplayContracts(suite)
         menuSpaceReuseContracts(suite)
+        statusItemDiscoveryContracts(suite)
         menuBarHeightContracts(suite)
         physicalStripContracts(suite)
         cameraFitContracts(suite)
@@ -3005,13 +3069,13 @@ enum NotchTests {
         let indicator = CGRect(x: 900, y: 892, width: 100, height: 32)
         var reads = 0
         let fromAX = NotchMenuBarLayout.statusFrames(screen: menuScreen, barHeight: 32,
-            windows: [indicator, secondaryMenu], requiresExtras: false) { reads += 1; return [primaryStatus] }
+            windows: [indicator, secondaryMenu], requiresExtras: false) { _ in reads += 1; return [primaryStatus] }
         suite.expect(reads == 1 && fromAX == [primaryStatus],
                      "a recording indicator below this bar and another monitor's icons cannot suppress the AX lookup")
         let missing = NotchMenuBarLayout.statusFrames(screen: menuScreen, barHeight: 32,
-            windows: [primaryStatus], requiresExtras: true) { nil }
+            windows: [primaryStatus], requiresExtras: true) { _ in nil }
         let wrongScreen = NotchMenuBarLayout.statusFrames(screen: menuScreen, barHeight: 32,
-            windows: [], requiresExtras: true) { [secondaryMenu] }
+            windows: [], requiresExtras: true) { _ in [secondaryMenu] }
         suite.expect(missing == nil && wrongScreen == nil, "a modern bar requires complete extras on the chosen display")
         let interiorIcon = CGRect(x: 700, y: 924, width: 20, height: 32)
         suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
