@@ -412,7 +412,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             window.makeKeyAndOrderFront(nil)
             return false
         }
-        guard !flag else { return true }
+        // The island and overlay panels count as visible windows, which made a
+        // second click do nothing: only a shown Settings window or panel is a reason to stay put.
+        _ = flag
+        guard !(settingsWindow?.isVisible == true || popover.isShown) else {
+            settingsWindow?.makeKeyAndOrderFront(nil)
+            sender.activate(ignoringOtherApps: true)
+            return false
+        }
         // A deliberate reopen with no windows showing is the user's recovery action.
         // Rebuild the menu bar item only when it is actually missing: the
         // pre-rebuild item has a settled frame, so iconIsOnScreen() is trustworthy
