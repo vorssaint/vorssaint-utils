@@ -2847,6 +2847,8 @@ def main():
         "    private func syncLidDimmingObserver(",
         "    private func lidStateMayHaveChangedForDimming(",
         "    private func applyDimmingAction(",
+        "    private func requestRealDisplaySleepForDimming(",
+        "    private func resumeDisplayAssertionAfterDimming(",
         "    private func attemptDisplayRestore(",
     ]
     # Supply only the native samples. The production matcher still decides
@@ -2889,6 +2891,9 @@ def main():
           + "var onSessionEnded: ((EndReason) -> Void)?\n"
           + "var lidDimmingNotificationPort: IONotificationPortRef?\nvar lidDimmingNotification: io_object_t = 0\n"
           + "var lidClosedForDimming: Bool?\nvar savedDisplayBrightness: Double?\n"
+          + "var hasDisplayAssertion = false\nvar displayAssertion = 0\n"
+          + "var displayAssertionSuspendedForDimming = false\n"
+          + "static func hasExternalDisplay() -> Bool? { KeepAwakeLidSleepContract.externalDisplay }\n"
           + declaration(keep_awake, "    @Published private(set) var clamshellActive = false {")
                 .replace("@Published private(set) ", "", 1)
           + declaration(keep_awake, "    @Published var clamshellPreferred:").replace("@Published ", "", 1)
