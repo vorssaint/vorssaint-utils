@@ -44,6 +44,10 @@ struct MetricsTests {
             }),
             ("scroll-speed", { ScrollSpeedTests.run(suite) }),
             ("linear-scroll", { LinearScrollTapTests.run(suite) }),
+            ("menu-bar-hider", {
+                MenuBarHiderTests.run(suite)
+                MenuBarHiderRuntimeTests.run(suite)
+            }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
             ("app-management", {
                 AppManagementFeatureTests.run(suite)

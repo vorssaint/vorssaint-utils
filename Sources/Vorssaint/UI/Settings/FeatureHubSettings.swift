@@ -1225,6 +1225,9 @@ extension AppFeature {
         case .connectedDevices: return FeatureStrings.connectedDevices(language).title
         case .fanControl: return FeatureStrings.fanControl(language).title
         case .weather: return FeatureStrings.weather(language).title
+        case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).title
+        case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).title
+        case .menuBarHider: return FeatureStrings.menuBarHider(L10n.shared.language).pageTitle
         }
     }
 
@@ -1323,6 +1326,7 @@ extension AppFeature {
         case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).hubDescription
         case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).hubDescription
         case .weather: return FeatureStrings.weather(L10n.shared.language).description
+        case .menuBarHider: return FeatureStrings.menuBarHider(L10n.shared.language).hubDescription
         }
     }
 }

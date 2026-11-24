@@ -270,6 +270,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Weather/WeatherSupport.swift
         Sources/Vorssaint/Services/Weather/WeatherAlertSupport.swift
         Sources/Vorssaint/Services/Weather/WeatherRadarSupport.swift
+        Sources/Vorssaint/Core/MenuBarHiderStrings.swift
+        Sources/Vorssaint/Services/MenuBarHider/MenuBarHiderSupport.swift
         Sources/Vorssaint/Core/NotchStrings.swift
         Sources/Vorssaint/Core/NotchTourStrings.swift
         Sources/Vorssaint/Core/NotchEditorStrings.swift

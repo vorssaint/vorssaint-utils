@@ -28,7 +28,7 @@ enum AppFeature: String, CaseIterable {
     // Tools
     case menuBarOrganizer, quickLauncher, quickToggles, quitApps, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
-         commandBar, screenRecorder, wallpaper, killProcess, portManager
+         commandBar, screenRecorder, wallpaper, killProcess, portManager, menuBarHider
     // Dynamic Island, then its extensions
     case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
          notchQueue, notchSpotify, notchLiveEqualizer, notchDownloads, notchAgents, notchWatch, notchMascot
@@ -119,7 +119,7 @@ extension AppFeature {
             return .energyDisplay
         case .menuBarOrganizer, .quickLauncher, .quickToggles, .quitApps, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
+             .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager, .menuBarHider:
             return .tools
         case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
              .notchLyrics, .notchQueue, .notchSpotify, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
@@ -213,6 +213,7 @@ extension AppFeature {
         case .killProcess: return "xmark.octagon"
         case .portManager: return "network"
         case .menuBarOrganizer: return "menubar.rectangle"
+        case .menuBarHider: return "chevron.left.circle"
         case .monitorCPU: return "cpu"
         case .monitorGPU: return "rectangle.connected.to.line.below"
         case .monitorMemory: return "memorychip"
@@ -305,6 +306,7 @@ extension AppFeature {
         case .batteryCare: return [DefaultsKey.batteryCareEnabled]
         case .bluetoothSleep: return [DefaultsKey.bluetoothSleepEnabled]
         case .weather: return [DefaultsKey.weatherEnabled]
+        case .menuBarHider: return [DefaultsKey.menuBarHiderEnabled]
         case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .quitApps, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
@@ -409,7 +411,7 @@ extension AppFeature {
              .soundOutputSwitcher, .audioPriority,
              .extraBrightness, .bluetoothSleep, .batteryCare, .quickLauncher, .colorPicker, .micMute, .mediaTools,
              .scratchpad, .wallpaper, .monitorGPU, .monitorNetwork, .connectedDevices, .fanControl, .killProcess,
-             .portManager, .weather,
+             .portManager, .weather, .menuBarHider,
              // Each app gets the ordinary quit request it would from its own menu.
              .quitApps:
             return []
@@ -510,7 +512,7 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .scrollZoom, .linearScroll, .scrollSpeed, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps, .notchSpotify, .weather, .batteryCare, .menuBarOrganizer:
+             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps, .notchSpotify, .weather, .batteryCare, .menuBarOrganizer, .menuBarHider:
             return false
         }
     }
