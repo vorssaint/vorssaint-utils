@@ -72,6 +72,16 @@ enum WindowFocusHistoryTests {
         expect(returned?.windowID == 11 && returned?.previousWindowID == 10
                 && returned?.confirmation != omitted.latest?.confirmation,
                "returning to a source remembers its omitted predecessor even after repeated AX confirmation")
+        var closing = history
+        let readOrigin = closing.lastFocus
+        closing.reconcile(windows: [10], revision: closing.revision)
+        closing.destroyed(10)
+        expect(!closing.focus(10, for: afterSwitch, after: readOrigin),
+               "a delayed AX read cannot restore the focused window after its destruction")
+        expect(closing.focus(11, for: afterSwitch, after: readOrigin)
+                && !closing.focus(10, for: afterSwitch, after: readOrigin)
+                && closing.frontAppFocus(for: 1).windowID == 11,
+               "AX can confirm the surviving sibling and a late reply for the closed window leaves it focused")
         _ = history.activate(99, recording: false)
         expect(!history.focus(11, for: afterSwitch) && windows(history) == [10, 11, 20, 30],
                "the app's own activation handoff invalidates callbacks without changing history")

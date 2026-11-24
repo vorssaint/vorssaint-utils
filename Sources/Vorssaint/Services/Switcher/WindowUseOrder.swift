@@ -27,6 +27,8 @@ struct WindowFocusHistory {
         let previousWindowID: CGWindowID?
         let confirmation: UUID
         fileprivate let switchedAt: TimeInterval?
+
+        fileprivate func includes(_ id: CGWindowID) -> Bool { windowID == id || previousWindowID == id }
     }
 
     struct FrontAppFocus {
@@ -47,7 +49,7 @@ struct WindowFocusHistory {
     private var recent: [Use] = []
     private(set) var current: Request?
     private(set) var revision = UUID()
-    private var lastFocus: Observation?
+    private(set) var lastFocus: Observation?
 
     func frontAppFocus(for pid: pid_t, appPID: pid_t? = nil,
                        now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> FrontAppFocus {
@@ -85,7 +87,12 @@ struct WindowFocusHistory {
     }
 
     @discardableResult
-    mutating func focus(_ window: CGWindowID, for request: Request) -> Bool {
+    mutating func focus(_ window: CGWindowID, for request: Request, after observed: Observation? = nil) -> Bool {
+        // An AX read can finish after its window was destroyed and a sibling received focus.
+        // If closing the source cleared the whole pair, its predecessor can still take focus.
+        if let observed, observed.confirmation != lastFocus?.confirmation,
+           observed.windowID == window || (lastFocus != nil && observed.previousWindowID == window),
+           lastFocus?.includes(window) != true, index(of: window) == nil { return false }
         if current == request {
             recent.removeAll { use in
                 if case .app(let pending) = use { return pending.pid == request.pid }
@@ -153,6 +160,27 @@ struct WindowFocusHistory {
             // Only an actual termination removes activation evidence.
             case .app: return false
             }
+        }
+    }
+
+    /// Unlike omission from a scan, destruction also retires the last observation of this ID.
+    mutating func destroyed(_ windowID: CGWindowID, wasRanked: Bool = false) {
+        let position = index(of: windowID)
+        guard wasRanked || position != nil || lastFocus?.includes(windowID) == true else { return }
+        if let position { recent.remove(at: position) }
+        revision = UUID()
+        if lastFocus?.windowID == windowID {
+            lastFocus = nil
+        } else if let focus = lastFocus, focus.previousWindowID == windowID {
+            lastFocus = Observation(windowID: focus.windowID, previousWindowID: nil,
+                                    confirmation: revision, switchedAt: nil)
+        }
+    }
+
+    private func index(of windowID: CGWindowID) -> Int? {
+        recent.firstIndex { use in
+            if case .window(let id, _) = use { return id == windowID }
+            return false
         }
     }
 

@@ -82,6 +82,15 @@ final class WindowUseTracker {
         }
     }
 
+    func recordDestroyedWindow(_ windowID: CGWindowID) {
+        stateLock.withLock {
+            guard recording else { return }
+            let index = windowHistory.firstIndex(of: windowID)
+            if let index { windowHistory.remove(at: index) }
+            focusHistory.destroyed(windowID, wasRanked: index != nil)
+        }
+    }
+
     /// Rank of an application; one never seen sorts after every known one.
     func rank(of pid: pid_t) -> Int {
         stateLock.withLock { appHistory.firstIndex(of: pid) ?? Int.max }
@@ -154,10 +163,11 @@ final class WindowUseTracker {
     /// A read that arrives after its request was replaced is observed but not
     /// accepted, and the observer needs to be able to say which it was.
     @discardableResult
-    private func promote(window windowID: CGWindowID, for request: WindowFocusHistory.Request) -> Promotion {
+    private func promote(window windowID: CGWindowID, for request: WindowFocusHistory.Request,
+                         after observed: WindowFocusHistory.Observation?) -> Promotion {
         stateLock.withLock {
             guard recording else { return .rejectedNotRecording }
-            guard focusHistory.focus(windowID, for: request) else { return .rejectedRequestGone }
+            guard focusHistory.focus(windowID, for: request, after: observed) else { return .rejectedRequestGone }
             windowHistory = WindowUseOrder.promoting(windowID, in: windowHistory)
             return .accepted
         }
@@ -450,9 +460,10 @@ final class WindowUseTracker {
         guard AXIsProcessTrusted() else {
             return false
         }
-        guard stateLock.withLock({ recording && focusHistory.current == request }) else {
-            return false
+        let (isCurrent, observed) = stateLock.withLock {
+            (recording && focusHistory.current == request, focusHistory.lastFocus)
         }
+        guard isCurrent else { return false }
         let application = AXUIElementCreateApplication(request.focusPID)
         AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
         var value: CFTypeRef?
@@ -470,8 +481,7 @@ final class WindowUseTracker {
         guard let windowID = AXWindowResolver.windowID(for: window) else {
             return false
         }
-        _ = promote(window: windowID, for: request)
-        return true
+        return promote(window: windowID, for: request, after: observed).wasAccepted
     }
 
     /// C callback: no captures, so the tracker travels in the refcon.

@@ -980,12 +980,14 @@ enum SwitcherHoverSelectionTests {
         typealias Work = Desktop.DispatchQueue
         enum Case: CaseIterable {
             case front, background, noNotice, retry, omittedFocus, conflictingFocus, escape, timeout, newerFocus, allApps, allWindows
-            case unlistedFront, foreignFront, overlayFront, rejectedPanel
+            case unlistedFront, foreignFront, overlayFront, rejectedPanel, focusedInspector, observedInspector, inspectorAfterMove
+            case repeatWithInspector, staleInspectorHint, inspectorAfterDocument
             case observedPrevious, onlyPreviousObserved, unknownPrevious
             case repeatedFocus, changedPrevious, confirmedSource, destroyedTarget
             case repeatedPress, repeatWithoutAX, repeatSplitSignals, repeatWithConfirmation, cancelledFirstPress, newFocusBeforeRepeat
             case reconciledFocus, reconciledPrevious, openingClick, restoredPrevious, recoveredPrevious, missingPrevious, prunedSource
             case heldRepeat, helperRepeat, closedSource, closedTarget
+            case destroyedBeforeFocus, destroyedAfterFocus, unrelatedDestruction
             case heldKnown, heldLive, heldEscape, heldTyping, heldDestroyed, heldOwnerExited, carbonLive, carbonKnown
             case carbonReleasedDuringRead, carbonReleasedBeforeReplay, carbonReleasedBeforeDelivery
             case lateSpaceNotice, changedSpace, differentCapturedSpace
@@ -995,11 +997,14 @@ enum SwitcherHoverSelectionTests {
                 [.heldKnown, .heldLive, .heldEscape, .heldTyping, .heldDestroyed, .heldOwnerExited, .carbonLive, .carbonKnown,
                  .heldChangedSpace, .heldLateSpaceNotice, .heldSecureInput, .heldSecureInputChanged].contains(self)
             }
-            var omitsFront: Bool { [.unlistedFront, .foreignFront, .overlayFront, .rejectedPanel].contains(self) }
+            var inspectorHasFocus: Bool { [.focusedInspector, .observedInspector, .inspectorAfterMove, .repeatWithInspector, .staleInspectorHint].contains(self) }
+            var omitsFront: Bool { [.unlistedFront, .foreignFront, .overlayFront, .rejectedPanel, .inspectorAfterDocument].contains(self) || inspectorHasFocus }
+            var destroyedBeforeKey: Bool { [.destroyedBeforeFocus, .destroyedAfterFocus, .unrelatedDestruction].contains(self) }
             var carbonReleased: Bool { [.carbonReleasedDuringRead, .carbonReleasedBeforeReplay, .carbonReleasedBeforeDelivery].contains(self) }
             var repeats: Bool {
                 [.repeatedPress, .repeatWithoutAX, .repeatSplitSignals, .repeatWithConfirmation,
-                 .cancelledFirstPress, .newFocusBeforeRepeat, .heldRepeat, .helperRepeat].contains(self)
+                 .cancelledFirstPress, .newFocusBeforeRepeat, .heldRepeat, .helperRepeat,
+                 .destroyedBeforeFocus, .destroyedAfterFocus, .repeatWithInspector].contains(self)
             }
         }
 
@@ -1088,9 +1093,13 @@ enum SwitcherHoverSelectionTests {
                     Desktop.WindowUseTracker.confirmedFocus = ids[1]
                 }
             }
-            let sourceIsB = scenario == .background || scenario.omitsFront || scenario.held
+            let sourceIsB = scenario == .background || scenario.omitsFront || scenario.held || scenario.destroyedBeforeKey
             let source = sourceIsB ? ids[1] : ids[2]
             FrontAppEnumerator.items = newPrevious ? [a] : [b, a]
+            if scenario == .unrelatedDestruction {
+                FrontAppEnumerator.items.append(.window(id: ids[3], title: "Other window", appName: "Browser", pid: pid + 1,
+                                                         isOnScreen: true, frame: frame))
+            }
             inventory.start()
             Work.scans.drain()
             Work.main.deliveries.drain()
@@ -1105,15 +1114,33 @@ enum SwitcherHoverSelectionTests {
             if scenario == .omittedFocus { FrontAppEnumerator.items = [b, a] }
             if scenario == .conflictingFocus { Desktop.WindowActivator.focusedWindow = ids[0] }
             if scenario.omitsFront {
-                // AX and candidates agree on B while an independently sampled CG row leads them.
+                // An independently sampled CG surface leads the eligible editor windows.
                 FrontAppEnumerator.items = [b, a]
                 let top = FrontAppEnumerator.stackRow(c, owner: scenario == .foreignFront ? pid + 1 : pid,
                                                       layer: scenario == .overlayFront ? 1 : 0)
                 FrontAppEnumerator.stackRows = [top, FrontAppEnumerator.stackRow(b), FrontAppEnumerator.stackRow(a)]
-                if scenario == .rejectedPanel {
+                if scenario == .rejectedPanel || scenario.inspectorHasFocus || scenario == .inspectorAfterDocument {
                     FrontAppEnumerator.capturedRows = FrontAppEnumerator.stackRows
                     FrontAppEnumerator.rejectedIDs = [ids[2]]
                 }
+                if scenario.inspectorHasFocus { Desktop.WindowActivator.focusedWindow = ids[2] }
+                if scenario == .observedInspector { Desktop.WindowUseTracker.shared.recordObservedFocus(windowID: ids[2], pid: pid) }
+                if scenario == .staleInspectorHint || scenario == .inspectorAfterDocument {
+                    Desktop.WindowUseTracker.shared.recordObservedFocus(windowID: ids[0], pid: pid)
+                }
+            }
+            if scenario.destroyedBeforeKey {
+                let history = Desktop.WindowUseTracker.history
+                let remaining = [ids[1], ids[0]]
+                Desktop.WindowUseTracker.shared.recordObservedFocus(windowID: ids[2], pid: pid)
+                history.reconcile(existingWindows: Set(remaining), frontToBack: .init(windows: remaining, apps: [pid]),
+                                  running: [pid], revision: history.focusHistory.revision)
+                tracker.history = history.windows
+                FrontAppEnumerator.items = [b, a]
+                if scenario == .destroyedBeforeFocus { Desktop.Events.shared.deliver?(.destroyed(ids[2])) }
+                Desktop.WindowUseTracker.shared.recordObservedFocus(windowID: ids[1], pid: pid)
+                if scenario == .destroyedAfterFocus { Desktop.Events.shared.deliver?(.destroyed(ids[2])) }
+                if scenario == .unrelatedDestruction { Desktop.Events.shared.deliver?(.destroyed(ids[3])) }
             }
             if [.restoredPrevious, .recoveredPrevious, .missingPrevious, .prunedSource].contains(scenario) {
                 Desktop.WindowUseTracker.shared.recordObservedFocus(windowID: ids[3], pid: pid)
@@ -1143,7 +1170,7 @@ enum SwitcherHoverSelectionTests {
                 FrontAppEnumerator.capturedRows = FrontAppEnumerator.stackRows
             }
             if service.currentSpaceOnly { Desktop.SpaceWindowBridge.visibleSpaces = [2] }
-            if scenario != .noNotice { Desktop.Events.shared.deliver?(.changed(ids[2])) }
+            if scenario != .noNotice && !scenario.destroyedBeforeKey { Desktop.Events.shared.deliver?(.changed(ids[2])) }
             let wide = scenario == .allApps || scenario == .allWindows
             let shortcut: GlobalShortcut = scenario == .allApps ? .switcherDefault
                 : (scenario == .allWindows ? .switcherAllWindowsDefault : .switcherWindowDefault)
@@ -1296,6 +1323,11 @@ enum SwitcherHoverSelectionTests {
             if scenario == .timeout { Queue.advance(to: Queue.time + 1) }
             if scenario == .differentCapturedSpace { Desktop.SpaceWindowBridge.visibleSpaces = [3] }
             service.frontAppReadQueue.drain()
+            if scenario == .inspectorAfterMove { Desktop.WindowUseTracker.shared.recordObservedFocus(windowID: ids[3], pid: pid) }
+            if scenario == .inspectorAfterDocument { Desktop.WindowUseTracker.shared.recordObservedFocus(windowID: ids[0], pid: pid) }
+            if scenario == .observedInspector || scenario == .inspectorAfterMove || scenario == .inspectorAfterDocument {
+                Desktop.WindowUseTracker.shared.recordObservedFocus(windowID: ids[2], pid: pid)
+            }
             if scenario == .newerFocus { Desktop.WindowUseTracker.confirmedFocus = ids[0] }
             if scenario == .repeatedFocus { Desktop.WindowUseTracker.shared.recordObservedFocus(windowID: ids[1], pid: pid) }
             if scenario == .changedPrevious { Desktop.WindowUseTracker.shared.recordObservedFocus(windowID: ids[0], pid: pid) }
@@ -1322,9 +1354,11 @@ enum SwitcherHoverSelectionTests {
             Queue.advance(to: Queue.time)
             if scenario.repeats {
                 let cancelled = scenario == .cancelledFirstPress
-                let firstTargets = cancelled ? [] : [b.id]
-                suite.expect(service.recordedIDs == firstTargets && Activator.activated == before + firstTargets,
-                             "only a completed first press records the C to B switch")
+                let firstTarget = sourceIsB ? a : b
+                let firstTargets = cancelled ? [] : [firstTarget.id]
+                suite.expect(service.recordedIDs == firstTargets && Activator.activated == before + firstTargets
+                             && (cancelled || Activator.lastSourceWindowID == source),
+                             "\(scenario) records the source and destination of the first completed switch")
                 if scenario == .helperRepeat {
                     let recorded = Desktop.WindowUseTracker.history.focusHistory.current
                     suite.expect(recorded?.pid == pid && recorded?.focusPID == renderer,
@@ -1354,22 +1388,23 @@ enum SwitcherHoverSelectionTests {
                                  && Activator.lastHandoffSourcePID == renderer,
                                  "both helper shortcuts read AX at the keyboard owner and enumerate only its host")
                 }
-                let next = cancelled || scenario == .newFocusBeforeRepeat ? b : c
-                let secondSource = scenario == .newFocusBeforeRepeat ? ids[3] : (cancelled ? ids[2] : ids[1])
+                let next = cancelled || scenario == .newFocusBeforeRepeat || sourceIsB ? b : c
+                let secondSource = scenario == .newFocusBeforeRepeat ? ids[3] : (cancelled ? source : firstTarget.windowID)
                 suite.expect(second != generation && service.startedGenerations == (cancelled ? [second] : [generation, second])
                              && Activator.activated == before + firstTargets + [next.id] && service.recordedIDs == firstTargets + [next.id]
-                             && Activator.lastSourceWindowID == secondSource,
+                             && Activator.lastSourceWindowID == secondSource && (cancelled || FrontAppEnumerator.reads == [pid, pid]),
                              "\(scenario) opens a new generation from the last completed switch or newer focus")
                 continue
             }
             let discarded: [Case] = [.omittedFocus, .conflictingFocus, .escape, .changedSpace, .differentCapturedSpace, .timeout, .newerFocus,
                                      .unlistedFront, .repeatedFocus, .changedPrevious, .destroyedTarget,
-                                     .reconciledFocus, .reconciledPrevious, .openingClick, .prunedSource, .missingPrevious]
+                                     .reconciledFocus, .reconciledPrevious, .openingClick, .prunedSource, .missingPrevious,
+                                     .unrelatedDestruction, .inspectorAfterMove, .inspectorAfterDocument]
             if discarded.contains(scenario) {
                 suite.expect(Activator.activated == before && !service.keyboardInputOwnership.isOwned && service.recordedIDs.isEmpty
                              && (scenario == .destroyedTarget || service.startedGenerations.isEmpty),
                              "\(scenario) discards the reply without recording or activating any target")
-                if [.omittedFocus, .conflictingFocus, .unlistedFront, .prunedSource, .missingPrevious].contains(scenario) {
+                if [.omittedFocus, .conflictingFocus, .unlistedFront, .prunedSource, .missingPrevious, .unrelatedDestruction].contains(scenario) {
                     suite.expect(FrontAppEnumerator.reads == [pid, pid], "inconsistent evidence gets one scoped retry")
                 }
             } else {

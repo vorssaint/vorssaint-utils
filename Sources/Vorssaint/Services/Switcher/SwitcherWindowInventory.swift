@@ -231,6 +231,7 @@ final class SwitcherWindowInventory {
             invalidate()
             return
         case .destroyed(let id):
+            WindowUseTracker.shared.recordDestroyedWindow(id)
             onRemoval?(.window(id))
             windowID = id
         case .changed(let id), .focused(let id):

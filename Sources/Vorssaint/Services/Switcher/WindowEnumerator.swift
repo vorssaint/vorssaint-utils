@@ -392,13 +392,21 @@ enum WindowEnumerator {
         guard !isCancelled() else { return empty }
         let windows = captured.items.filter { $0.pid == appPID && $0.windowID != nil }
         let capturedIDs = Set(windows.compactMap(\.windowID))
+        let rejectedIDs = captured.rejectedWindowIDs.subtracting(capturedIDs)
+        func nonRejectedID(_ id: CGWindowID?) -> CGWindowID? {
+            id.flatMap { rejectedIDs.contains($0) ? nil : $0 }
+        }
         let visible = windows.filter { $0.isOnScreen && !$0.isMinimized }
         let visibleIDs = Set(visible.compactMap(\.windowID))
         let stack = frontAppWindowStack(appPID: appPID, snapshot: snapshot, captured: captured)
         let top = stack.first
         // The candidate capture can predate the new window while AX still names its predecessor.
         if let top, !visibleIDs.contains(top) { return empty }
-        let ax = snapshot.accessibilityGranted ? WindowActivator.focusedWindowID(for: frontmostPID) : nil
+        let axFocus = snapshot.accessibilityGranted ? WindowActivator.focusedWindowID(for: frontmostPID) : nil
+        let ax = nonRejectedID(axFocus)
+        let inspectorFocused = axFocus != nil && ax == nil
+        let hint = nonRejectedID(observed.windowID)
+        let observedDocument = observed.latest.flatMap { nonRejectedID($0.windowID) ?? nonRejectedID($0.previousWindowID) }
         // On an immediate repeat, AX and z-order can be at different stages of our own switch.
         let laggingSwitch = observed.recentSwitch.flatMap { last in
             let reports = [ax, top].compactMap { $0 }
@@ -409,18 +417,19 @@ enum WindowEnumerator {
         }
         if laggingSwitch == nil, let top, let ax, ax != top { return empty }
         // Even matching old history and z-order can describe an inventory that missed a new AX window.
-        if let reported = ax ?? observed.windowID, !windows.contains(where: { $0.windowID == reported }) { return empty }
-        if let hint = observed.windowID, !visibleIDs.contains(hint), stack.contains(hint) { return empty }
+        if let reported = ax ?? observedDocument, !capturedIDs.contains(reported) { return empty }
+        if let hint, !visibleIDs.contains(hint), stack.contains(hint) { return empty }
         // A window can be ordered to the front without taking keyboard focus.
-        if laggingSwitch == nil, ax == nil, let hint = observed.windowID, visibleIDs.contains(hint), let top, top != hint {
+        if laggingSwitch == nil, axFocus == nil, let hint, visibleIDs.contains(hint), let top, top != hint {
             return empty
         }
-        let reportedSource = laggingSwitch?.windowID ?? ax ?? top ?? observed.windowID
+        // An inspector can hold keyboard focus above the document the user is looking at.
+        let reportedSource = laggingSwitch?.windowID ?? ax ?? top ?? (inspectorFocused ? visible.first?.windowID : hint)
         let source = reportedSource.flatMap { id in visible.first { $0.windowID == id } }
         // A background scan can prune the latest observation before this shortcut starts.
         // Wait for that source to be accounted for instead of trusting an older visible window.
-        if observed.windowID == nil, let last = observed.latest, last.windowID != reportedSource,
-           !(visible.isEmpty && capturedIDs.contains(last.windowID)) { return empty }
+        if observed.windowID == nil, let last = nonRejectedID(observed.latest?.windowID), last != reportedSource,
+           !((inspectorFocused || visible.isEmpty) && capturedIDs.contains(last)) { return empty }
         guard !isCancelled(), source != nil || visible.isEmpty else { return empty }
         let sourceID = source?.windowID
         var list = SwitcherWindowSelection.select(remembered: captured, scope: .frontmostApp, frontmostPID: appPID,
@@ -445,7 +454,7 @@ enum WindowEnumerator {
             } : []
             let eligible = primary.isEmpty ? destinations : primary
             previousCandidates = Set(eligible.compactMap(\.windowID))
-            let predecessor = observed.latest.flatMap { $0.windowID == sourceID ? $0.previousWindowID : nil }
+            let predecessor = observed.latest.flatMap { $0.windowID == sourceID ? nonRejectedID($0.previousWindowID) : nil }
             if let predecessor, !observed.observedWindows.contains(predecessor), !capturedIDs.contains(predecessor) {
                 return empty
             }
@@ -480,11 +489,14 @@ enum WindowEnumerator {
             // A different app taking focus clears this app's hint (#4393).
             let latest = tracker.frontAppFocus(for: frontmostPID, appPID: appPID)
             guard let change = latest.latest, change.confirmation != observed.latest?.confirmation else { return true }
-            guard change.windowID == sourceID else { return false }
-            // Returning to the same source can make a different window its predecessor.
-            if let previous = change.previousWindowID {
+            let focus = nonRejectedID(change.windowID)
+            if let focus, focus != sourceID { return false }
+            if let previous = nonRejectedID(change.previousWindowID) {
                 guard capturedIDs.contains(previous) else { return false }
-                if previousCandidates.contains(previous) { return previous == expectedPrevious }
+                if focus == nil {
+                    // A different document can take focus before the inspector.
+                    guard previous == sourceID else { return false }
+                } else if previousCandidates.contains(previous) { return previous == expectedPrevious }
             }
             let latestPrevious = latest.observedWindows.first(where: previousCandidates.contains)
             return latestPrevious == nil || latestPrevious == expectedPrevious

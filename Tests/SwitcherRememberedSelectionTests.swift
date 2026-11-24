@@ -121,6 +121,11 @@ enum SwitcherRememberedSelectionTests {
                 Self.history.recordObservedFocus(windowID: windowID, pid: pid)
                 Tracker.shared.history = Self.history.windowHistory
             }
+            func recordDestroyedWindow(_ windowID: CGWindowID) {
+                Self.history.windowHistory = windows
+                Self.history.recordDestroyedWindow(windowID)
+                Tracker.shared.history = Self.history.windowHistory
+            }
         }
         enum WindowActivator {
             static var focusedWindow: CGWindowID?
