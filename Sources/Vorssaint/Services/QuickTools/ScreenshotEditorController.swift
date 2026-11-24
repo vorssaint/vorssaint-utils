@@ -178,8 +178,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// view writes it during layout.
     var currentDisplayZoom: CGFloat = 0.5
     // The toolbar commits the active caption before stepping through history.
-    var canUndo: Bool { !undoStack.isEmpty || hasPendingTextChanges }
-    var canRedo: Bool { !redoStack.isEmpty && !hasPendingTextChanges }
+    var canUndo: Bool {
+        !undoStack.isEmpty || hasPendingTextChanges
+    }
+
+    var canRedo: Bool {
+        !redoStack.isEmpty && !hasPendingTextChanges
+    }
     /// True while there is work that never left the app: closing then asks.
     @Published private(set) var isDirty = false
 
