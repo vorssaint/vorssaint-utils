@@ -278,6 +278,16 @@ enum MenuBarRenderer {
                                     weight: stacked ? .semibold : .medium)
     }
 
+    /// Metric text is centered in its reserved width, which adds visible
+    /// space at the block edges. Give the icon edge a comparable gap in Compact.
+    static func iconMetricGap(spacing: MenuBarMetricSpacing, stacked: Bool) -> NSAttributedString {
+        let glue = MenuBarSpacingSupport.blockGlue(readableStyle: false, spacing: spacing)
+        return NSAttributedString(string: glue, attributes: [
+            .font: statusFont(stacked: stacked),
+            .kern: spacing == .compact ? 4.0 : 0.0,
+        ])
+    }
+
     static func statusFontSize(stacked: Bool) -> CGFloat {
         stacked ? stackedFontSize : singleLineFontSize
     }

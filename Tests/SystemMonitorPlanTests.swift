@@ -13,6 +13,7 @@ enum SystemMonitorPlanTests {
         var fullMonitorVisible = false
         var notchVisible = false
         var notchAccessoryMonitoring = false
+        var animatesMenuBarIcon = false
         static var fanTelemetryAvailable: Bool { true }
     }
 
@@ -83,6 +84,16 @@ enum SystemMonitorPlanTests {
         defaults.set(false, forKey: AppFeature.monitorCPU.availabilityKey)
         suite.expect(!monitor.currentPlan(defaults: defaults).needCPUCores,
                      "an uninstalled CPU monitor does not read every core")
+
+        monitor.menuPanelNeeds = .none
+        defaults.set(false, forKey: DefaultsKey.menuBarCPU)
+        monitor.animatesMenuBarIcon = true
+        let animation = monitor.currentPlan(defaults: defaults)
+        suite.expect(animation.needCPU && !animation.needCPUCores && !animation.needCPUTemperature,
+                     "the animated icon needs only aggregate CPU load even when the CPU monitor is uninstalled")
+        monitor.animatesMenuBarIcon = false
+        suite.expect(!monitor.currentPlan(defaults: defaults).needCPU,
+                     "stopping the animation removes its CPU sampling demand")
 
         let panel = Panel()
         panel.activeSection = .power

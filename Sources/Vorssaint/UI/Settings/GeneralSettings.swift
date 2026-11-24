@@ -311,10 +311,12 @@ private struct DiagonalHalf: Shape {
 struct MenuBarGlyph: View {
     /// Observed so the previews follow a newly chosen symbol right away.
     @AppStorage(DefaultsKey.menuBarIconSymbol) private var symbolName = ""
+    @AppStorage(DefaultsKey.menuBarIconAnimation) private var animationName = ""
 
     var body: some View {
         Group {
-            if let image = BlackHoleGlyph.mark(symbolName: Defaults.sanitizedMenuBarIconSymbol(symbolName)) {
+            if let image = MenuBarIconAnimation(rawValue: animationName)?.frames.first
+                ?? BlackHoleGlyph.mark(symbolName: Defaults.sanitizedMenuBarIconSymbol(symbolName)) {
                 Image(nsImage: image)
                     .renderingMode(.template)
                     .resizable()

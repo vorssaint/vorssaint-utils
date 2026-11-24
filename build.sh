@@ -378,6 +378,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/FeedbackStrings.swift
         Sources/Vorssaint/Core/RadialMenuStrings.swift
         Sources/Vorssaint/Core/MenuBarAppearanceStrings.swift
+        Sources/Vorssaint/Core/MenuBarIconStrings.swift
         Sources/Vorssaint/Core/AppAppearance.swift
         Sources/Vorssaint/Core/AppearanceStrings.swift
         Sources/Vorssaint/Core/GeneralSettingsStrings.swift
@@ -779,6 +780,7 @@ FAN_HELPER_VERSION="$(
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"
 cp build/AppIcon.icns "$STAGE/Contents/Resources/AppIcon.icns"
 cp Sources/RecorderGIFCodec/vendor/cgif/LICENSE "$STAGE/Contents/Resources/cgif-LICENSE.txt"
+cp -R Resources/MenuBarRunners "$STAGE/Contents/Resources/"
 cp build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png "$STAGE/Contents/Resources/"
 if [[ -f build/Assets.car ]]; then
     cp build/Assets.car "$STAGE/Contents/Resources/Assets.car"
