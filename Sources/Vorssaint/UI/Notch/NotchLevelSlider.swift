@@ -269,8 +269,6 @@ private final class NotchLevelCell: NSSliderCell {
         track.fill()
         let span = maxValue - minValue
         let fraction = span > 0 ? min(1, max(0, ((drawnValue ?? doubleValue) - minValue) / span)) : 0
-        fill.withAlphaComponent(isEnabled ? 0.92 : 0.3).setFill()
-        let fraction = span > 0 ? min(1, max(0, (doubleValue - minValue) / span)) : 0
         fill.withAlphaComponent(isEnabled || !dimsWhenDisabled ? 0.92 : 0.3).setFill()
         if isFader {
             let height = track.height * fraction

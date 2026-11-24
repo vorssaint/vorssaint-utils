@@ -15,8 +15,8 @@ enum FanControlResumeContract {
         final class Thermal { var thermalState = Foundation.ProcessInfo.ThermalState.nominal }
     }
     enum AppFeature {
-        case fanControl
-        var isAvailable: Bool { Environment.available }
+        case fanControl, batteryCare
+        var isAvailable: Bool { self == .fanControl && Environment.available }
     }
     enum UserDefaults {
         static let standard = Store()
