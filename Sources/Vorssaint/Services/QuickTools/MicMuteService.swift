@@ -77,13 +77,13 @@ final class MicMuteService: ObservableObject {
     /// An unverified setter gets two spaced retries on this connection.
     private struct RestoreAttempt {
         let target: Double
-        let writes: Int
+        let count: Int
         let deadline: TimeInterval?
 
         init(target: Double, previous: Self?, now: TimeInterval) {
             self.target = target
-            writes = (previous?.writes ?? 0) + 1
-            deadline = writes < 3 ? now + MicMuteService.recoveryDelays[writes - 1] : nil
+            count = (previous?.count ?? 0) + 1
+            deadline = count < 3 ? now + MicMuteService.recoveryDelays[count - 1] : nil
         }
 
         func defersWrite(at now: TimeInterval) -> Bool {
@@ -153,7 +153,9 @@ final class MicMuteService: ObservableObject {
     private var observationGeneration: UInt64 = 0
     private let inputVolumeLock = NSLock()
     private var inputVolumeBlocked = false
+    // An unmuted drag can span several release sweeps.
     private var inputVolumeLifetime = UUID()
+    private var sweepRequest = UUID()
 
     private init(uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.uptime = uptime
@@ -320,19 +322,41 @@ final class MicMuteService: ObservableObject {
         }
     }
 
-    /// On the mute queue, a mixer edit supersedes the saved target for the
-    /// same control. The normal release sweep still verifies the driver's response.
-    func didAdjustInput(uid: String, device: AudioDeviceID, at address: AudioObjectPropertyAddress, to gain: Float) {
-        guard Self.releasePending else { return }
-        let defaults = UserDefaults.standard
-        let key = Self.controlKey(address)
-        guard var saved = defaults.dictionary(forKey: DefaultsKey.micMuteSavedControls) as? [String: [String: Double]],
-              let previous = saved[uid]?[key], Self.inputUID(of: device) == uid else { return }
-        if previous != Double(gain) {
-            saved[uid]?[key] = Double(gain)
-            defaults.set(saved, forKey: DefaultsKey.micMuteSavedControls)
+    /// A mixer edit may round the requested gain or move linked controls. Read
+    /// only this UID's outstanding controls on either side of the user's write.
+    func adjustInputVolume(lifetime: UUID, uid: String, device: AudioDeviceID, to gain: Float,
+                           write: () -> [AudioObjectPropertyAddress]) {
+        withUnmutedInput(lifetime: lifetime) {
+            let defaults = UserDefaults.standard
+            guard Self.releasePending,
+                  var saved = defaults.dictionary(forKey: DefaultsKey.micMuteSavedControls) as? [String: [String: Double]],
+                  let pending = saved[uid], !pending.isEmpty else {
+                _ = write()
+                return
+            }
+            guard Self.inputUID(of: device) == uid else { return }
+            let addresses = pending.keys.compactMap(Self.controlAddress)
+            func readings() -> [String: Double] {
+                var result: [String: Double] = [:]
+                for address in addresses {
+                    result[Self.controlKey(address)] = Self.controlValue(of: device, at: address)
+                }
+                return result
+            }
+            let before = readings()
+            let submitted = Set(write().map(Self.controlKey))
+            guard !submitted.isEmpty else { return }
+            let after = readings()
+            guard Self.inputUID(of: device) == uid else { return }
+            for (key, value) in after {
+                let moved = before[key].map { $0 != value } == true
+                if moved || (submitted.contains(key) && Self.controlValuesMatch(value, Double(gain))) {
+                    saved[uid]?[key] = value
+                }
+            }
+            if saved[uid] != pending { defaults.set(saved, forKey: DefaultsKey.micMuteSavedControls) }
+            scheduleReapply()
         }
-        scheduleReapply()
     }
 
     /// Unmute for a caller that is about to tear the app down. The queue that
@@ -362,6 +386,7 @@ final class MicMuteService: ObservableObject {
         let request = UUID()
         inputVolumeLock.withLock {
             Self.persistRelease(true)
+            sweepRequest = request
             inputVolumeLifetime = request
         }
         halQueue.sync {
@@ -386,6 +411,7 @@ final class MicMuteService: ObservableObject {
         inputVolumeLock.withLock {
             inputVolumeBlocked = false
             inputVolumeLifetime = UUID()
+            sweepRequest = inputVolumeLifetime
         }
         syncSystemListeners(wanted: false)
         callbackLock.withLock { callbackQueued = false }
@@ -463,7 +489,8 @@ final class MicMuteService: ObservableObject {
             if !requestedMute { Self.persistRelease(true) }
             let muted = requestedMute && !Self.releasePending
             inputVolumeBlocked = muted
-            inputVolumeLifetime = request
+            if muted { inputVolumeLifetime = request }
+            sweepRequest = request
             return muted
         }
         wantsMute = muted
@@ -496,7 +523,7 @@ final class MicMuteService: ObservableObject {
             if checkAfterRegistration && effectiveMute && !Self.releasePending,
                !outcome.quietInputs.isEmpty || !Self.readingsStillHold(outcome),
                connection == self.currentAudioGeneration,
-               self.inputVolumeLock.withLock({ self.inputVolumeLifetime == request }) {
+               self.inputVolumeLock.withLock({ self.sweepRequest == request }) {
                 let checked = self.sweep(muted: true, audioGeneration: connection, request: request)
                 outcome.confirmedInputRevision = Self.readingsStillHold(checked) ? checked.confirmedInputRevision : nil
                 outcome.failed = checked.failed
@@ -587,7 +614,7 @@ final class MicMuteService: ObservableObject {
         func isCurrent(_ device: InputDevice) -> Bool {
             // An object ID can be recycled before the device-list notification arrives.
             guard !invalidated, (!requestedMute || follow || !Self.releasePending), Self.inputUID(of: device.id) == device.uid,
-                  inputVolumeLock.withLock({ inputVolumeLifetime == request }),
+                  inputVolumeLock.withLock({ sweepRequest == request }),
                   callbackLock.withLock({ self.audioGeneration == audioGeneration && topologyRevision == revision })
             else {
                 invalidated = true
@@ -717,7 +744,7 @@ final class MicMuteService: ObservableObject {
         func commitCallRelease() {
             guard follow && !committedCallRelease else { return }
             inputVolumeLock.withLock {
-                guard inputVolumeLifetime == request else { return }
+                guard sweepRequest == request else { return }
                 Self.persistRelease(true)
                 committedCallRelease = true
             }
@@ -740,7 +767,7 @@ final class MicMuteService: ObservableObject {
                     continue
                 }
                 follow = !opened.isEmpty && defaults.bool(forKey: DefaultsKey.micMuteFollowCallApps)
-                    && inputVolumeLock.withLock { inputVolumeLifetime == request }
+                    && inputVolumeLock.withLock { sweepRequest == request }
                     && canFollowCallApps(in: audioGeneration, revision: revision)
                 if follow { callOpenings = Set(opened.keys) }
             }
@@ -911,7 +938,7 @@ final class MicMuteService: ObservableObject {
         // The old UID's snapshot is durable before the replacement is enumerated.
         // Limit this immediate retry even when a driver keeps changing its identity.
         if invalidated, canRescan, audioGeneration == currentAudioGeneration,
-           inputVolumeLock.withLock({ inputVolumeLifetime == request }) {
+           inputVolumeLock.withLock({ sweepRequest == request }) {
             if requestedMute && !follow { updateRetries(outcome.retries) }
             var fresh = sweep(muted: requestedMute && !Self.releasePending, audioGeneration: audioGeneration, request: request,
                               followingCallApps: followingCallApps,
@@ -1853,15 +1880,15 @@ final class MicMuteService: ObservableObject {
                                         attempts: inout [String: RestoreAttempt], now: TimeInterval,
                                         recordedLevels: [String: Double]?,
                                         isCurrent: (InputDevice) -> Bool) -> [String: Double] {
-        func restore(_ target: Double, at address: AudioObjectPropertyAddress, prepare: () -> Bool = { true }) -> Bool {
+        func restore(_ target: Double, at address: AudioObjectPropertyAddress, prepare: () -> ControlWrite? = { nil }) -> Bool {
             let key = controlKey(address)
             let previous = attempts[key].flatMap { $0.target == target ? $0 : nil }
+            var submitted = false
             switch writeControl(target, of: device, at: address, isCurrent: isCurrent, prepare: prepare,
                                 deferRestore: previous?.defersWrite(at: now) == true) {
             case .submitted:
-                attempts[key] = RestoreAttempt(target: target, previous: previous, now: now)
                 openings.insert(key)
-                return true
+                submitted = true
             case .unavailable:
                 // A failed read alone cannot prove a new control appeared.
                 var address = address
@@ -1869,17 +1896,25 @@ final class MicMuteService: ObservableObject {
                 if previous != nil, !AudioObjectHasProperty(device.id, &address)
                     || (AudioObjectIsPropertySettable(device.id, &address, &settable) == noErr && !settable.boolValue) {
                     attempts[key] = nil
+                    return false
                 }
-            case .unchanged, .interrupted: break
+            case .unchanged: break
+            case .interrupted: return false
             }
-            return false
+            // A due check can fail before Set, or its final read can still
+            // disagree. Each uses one opportunity on this present control.
+            if submitted || previous?.defersWrite(at: now) == false {
+                attempts[key] = RestoreAttempt(target: target, previous: previous, now: now)
+            }
+            return submitted
         }
         var targets = saved
         let savedAddresses = saved.keys.compactMap(controlAddress)
         let masters = savedAddresses.filter(isMasterGain).sorted { controlRestoreOrder($0) < controlRestoreOrder($1) }
         let previousChannels = channels
         var wroteMaster = false
-        var beforeMaster: [String: Double] = [:]
+        // A sampled channel may be unreadable until the master setter runs.
+        var beforeMaster: [String: Double?] = [:]
         if !masters.isEmpty || saved["0"] != nil {
             for address in savedAddresses where address.mElement != 0 && address.mSelector == kAudioDevicePropertyVolumeScalar {
                 channels.insert(address.mElement)
@@ -1888,38 +1923,40 @@ final class MicMuteService: ObservableObject {
             // Earlier records included read-only meters among their levels.
             // Only an independently writable channel needs compensation.
             let candidates = channels.union(unclassified).union(recordedLevels?.keys.compactMap { UInt32($0) } ?? [])
-            func captureLiveChannels(into live: inout [String: Double]) -> Bool {
+            func captureLiveChannels(into live: inout [String: Double], beforeWrite: inout [String: Double?]) -> ControlWrite? {
                 for element in candidates where element != 0 {
                     var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
                                                              mScope: kAudioDevicePropertyScopeInput, mElement: element)
                     let key = controlKey(address)
                     if targets[key] != nil {
-                        if attempts[key] != nil && beforeMaster[key] == nil {
-                            beforeMaster[key] = controlValue(of: device.id, at: address)
+                        if attempts[key] != nil && !beforeMaster.keys.contains(key) {
+                            beforeWrite.updateValue(controlValue(of: device.id, at: address), forKey: key)
                         }
                         continue
                     }
                     var settable = DarwinBoolean(false)
                     guard AudioObjectHasProperty(device.id, &address) else {
-                        if channels.contains(element) { return false }
+                        if channels.contains(element) { return .interrupted }
                         continue
                     }
-                    guard AudioObjectIsPropertySettable(device.id, &address, &settable) == noErr else { return false }
+                    guard AudioObjectIsPropertySettable(device.id, &address, &settable) == noErr else { return .unavailable }
                     guard settable.boolValue else {
-                        if channels.contains(element) { return false }
+                        if channels.contains(element) { return .interrupted }
                         continue
                     }
                     channels.insert(element)
-                    guard let current = controlValue(of: device.id, at: address) else { return false }
+                    guard let current = controlValue(of: device.id, at: address) else { return .unavailable }
                     live[key] = current
                 }
-                return true
+                return nil
             }
             for master in masters {
                 guard let value = saved[controlKey(master)] else { continue }
                 var live: [String: Double] = [:]
-                if restore(value, at: master, prepare: { captureLiveChannels(into: &live) }) {
+                var beforeWrite: [String: Double?] = [:]
+                if restore(value, at: master, prepare: { captureLiveChannels(into: &live, beforeWrite: &beforeWrite) }) {
                     wroteMaster = true
+                    beforeMaster.merge(beforeWrite) { first, _ in first }
                     targets.merge(live) { saved, _ in saved }
                 }
             }
@@ -1932,8 +1969,9 @@ final class MicMuteService: ObservableObject {
         for address in addresses where !isMasterGain(address) {
             let key = controlKey(address)
             if let value = targets[key] {
-                // Re-enable compensation only for a channel the master moved.
-                if wroteMaster, let before = beforeMaster[key], let current = controlValue(of: device.id, at: address),
+                // A changed gain or a newly readable channel after a submitted
+                // master can need compensation even after an earlier refusal.
+                if let before = beforeMaster[key], let current = controlValue(of: device.id, at: address),
                    current != before {
                     attempts[key] = nil
                 }
@@ -1994,7 +2032,7 @@ final class MicMuteService: ObservableObject {
     private static func writeControl(_ value: Double, of input: InputDevice,
                                       at address: AudioObjectPropertyAddress,
                                       isCurrent: (InputDevice) -> Bool,
-                                      prepare: () -> Bool = { true },
+                                      prepare: () -> ControlWrite? = { nil },
                                       deferRestore: Bool = false,
                                       quietBeforeWrite: Set<DeviceListener>? = nil,
                                       read: ControlReader = MicMuteService.controlValue,
@@ -2014,7 +2052,10 @@ final class MicMuteService: ObservableObject {
         // This is the last software decision before either HAL setter. The
         // callback lock is released before calling a potentially reentrant driver.
         let listener = DeviceListener(device: device, selector: address.mSelector, scope: address.mScope, element: address.mElement)
-        guard prepare(), isCurrent(input), authorize?.beforeWrite(listener, quietBeforeWrite) != false else { return .interrupted }
+        let preparationFailure = prepare()
+        guard isCurrent(input) else { return .interrupted }
+        if let preparationFailure { return preparationFailure }
+        guard authorize?.beforeWrite(listener, quietBeforeWrite) != false else { return .interrupted }
         let status: OSStatus
         if address.mSelector == kAudioDevicePropertyMute {
             var target = UInt32(value)

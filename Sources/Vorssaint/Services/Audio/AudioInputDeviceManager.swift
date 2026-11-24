@@ -193,16 +193,15 @@ final class AudioInputDeviceManager: ObservableObject {
             guard let self else { return }
             // Serialize with mute itself, including a mute requested while
             // this adjustment was waiting for the audio device.
-            MicMuteService.shared.withUnmutedInput(lifetime: muteLifetime) {
-                guard self.volumeWriteLock.withLock({ self.volumeWriteLifetime == lifetime }),
-                      Self.defaultInputDeviceUID() == uid else { return }
-                var deviceUID: CFString = "" as CFString
-                guard Self.read(device.audioObjectID, kAudioDevicePropertyDeviceUID, &deviceUID),
-                      deviceUID as String == uid,
-                      self.volumeWriteLock.withLock({ self.volumeWriteLifetime == lifetime }) else { return }
-                let gain = Float32(clamped)
-                Self.setInputVolume(gain, for: device.audioObjectID) { address in
-                    MicMuteService.shared.didAdjustInput(uid: uid, device: device.audioObjectID, at: address, to: gain)
+            let gain = Float32(clamped)
+            let mute = MicMuteService.shared
+            mute.adjustInputVolume(lifetime: muteLifetime, uid: uid, device: device.audioObjectID, to: gain) {
+                Self.setInputVolume(gain, for: device.audioObjectID) {
+                    var deviceUID: CFString = "" as CFString
+                    return Self.defaultInputDeviceUID() == uid
+                        && Self.read(device.audioObjectID, kAudioDevicePropertyDeviceUID, &deviceUID)
+                        && deviceUID as String == uid && mute.inputVolumeAdjustmentLifetime == muteLifetime
+                        && self.volumeWriteLock.withLock { self.volumeWriteLifetime == lifetime }
                 }
             }
             DispatchQueue.main.async {
@@ -639,30 +638,27 @@ final class AudioInputDeviceManager: ObservableObject {
     }
 
     private static func setInputVolume(_ volume: Float32, for deviceID: AudioObjectID,
-                                       didSet: (AudioObjectPropertyAddress) -> Void) {
-        let clamped = min(max(volume, 0), 1)
+                                       isCurrent: () -> Bool) -> [AudioObjectPropertyAddress] {
+        var submitted: [AudioObjectPropertyAddress] = []
+        func set(_ address: inout AudioObjectPropertyAddress) -> OSStatus {
+            var nextVolume = volume
+            submitted.append(address)
+            return AudioObjectSetPropertyData(deviceID, &address, 0, nil, UInt32(MemoryLayout<Float32>.size), &nextVolume)
+        }
         // Prefer a master control and stop at the first successful selector so
         // devices exposing both master and channels keep their channel balance.
         for var address in mainInputVolumeAddresses() where isSettable(deviceID, &address) {
-            var nextVolume = clamped
-            if AudioObjectSetPropertyData(deviceID, &address, 0, nil,
-                                          UInt32(MemoryLayout<Float32>.size),
-                                          &nextVolume) == noErr {
-                didSet(address)
-                return
-            }
+            guard isCurrent() else { return submitted }
+            if set(&address) == noErr { return submitted }
         }
 
         // With no usable master, every writable channel must be updated or a
         // channel-only microphone would remain partially unchanged.
         for var address in channelInputVolumeAddresses(for: deviceID) where isSettable(deviceID, &address) {
-            var nextVolume = clamped
-            if AudioObjectSetPropertyData(deviceID, &address, 0, nil,
-                                          UInt32(MemoryLayout<Float32>.size),
-                                          &nextVolume) == noErr {
-                didSet(address)
-            }
+            guard isCurrent() else { break }
+            _ = set(&address)
         }
+        return submitted
     }
 
     private static func inputDevices(defaultUID: String?) -> [MixerInputDevice] {

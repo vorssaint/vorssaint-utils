@@ -3665,6 +3665,8 @@ enum MixerInputVolumeContract {
     }
 
     private static func runRestoreRetryLimitTests(_ suite: TestSuite) {
+        runMixerRestoreAdjustmentTests(suite)
+        runRestoreReadRecoveryTests(suite)
         let master = HAL.key(10)
         let channel = HAL.key(10, 1)
         let other = HAL.key(20)
@@ -3765,6 +3767,217 @@ enum MixerInputVolumeContract {
                              "the next mute cycle restores the user's adjustment: \(context)")
             }
         }
+    }
+
+    private static func runRestoreReadRecoveryTests(_ suite: TestSuite) {
+        let master = HAL.key(10)
+        let channel = HAL.key(10, 1)
+        let local = HAL.key(10, 0, kAudioObjectPropertyControlList, scope: kAudioObjectPropertyScopeGlobal)
+        let system = HAL.key(AudioObjectID(kAudioObjectSystemObject), 0, kAudioHardwarePropertyDevices,
+                             scope: kAudioObjectPropertyScopeGlobal)
+        var now: TimeInterval = 10
+        func muted(_ levels: [Key: Float]) -> MicMuteService {
+            HAL.reset()
+            let service = MicMuteService(uptime: { now })
+            MicMuteService.shared = service
+            HAL.levels = levels
+            service.toggle()
+            DispatchQueue.drain()
+            HAL.writes = []
+            return service
+        }
+        func tick(_ service: MicMuteService) {
+            now += 30
+            service.halQueue.runTimers()
+            DispatchQueue.main.runTimers()
+            DispatchQueue.drain()
+        }
+
+        for (persistent, protectChannel) in [(false, false), (true, false), (false, true)] {
+            let service = muted(protectChannel ? [master: 0.625, channel: 0.875] : [master: 0.625])
+            HAL.ignoredWrites = [master]
+            service.toggle()
+            DispatchQueue.drain()
+            let initialWrites = protectChannel ? [master, channel] : [master]
+            suite.expect(HAL.writes == initialWrites && service.retryDeadline != nil && !service.isMuted,
+                         "the first refused restore schedules a second opportunity")
+            HAL.ignoredWrites = []
+            if protectChannel {
+                // The first release restored this channel. A later master Set moves it.
+                HAL.levels[channel] = 0.375
+                HAL.beforeControlWrite = { key, target in if key == master { HAL.levels[channel] = Float(target) } }
+            }
+            if persistent { HAL.readFails = [master] } else { HAL.nextReadFails = [protectChannel ? channel : master] }
+            tick(service)
+            suite.expect(HAL.nextReadFails.isEmpty && HAL.writes == initialWrites && service.hasOutstandingClaims
+                         && service.retryDeadline != nil,
+                         "an unreadable but present writable control gets another timed check without a blind Set")
+            for _ in 0..<5 { tick(service) }
+            if persistent {
+                suite.expect(HAL.levels[master] == 0 && HAL.writes == [master] && service.hasOutstandingClaims
+                             && service.retryDeadline == nil && service.warning == .restoreExhausted
+                             && service.inputVolumeAdjustmentLifetime != nil,
+                             "a permanently unreadable retry stops with a manual warning and the mixer available")
+                _ = HAL.notifyIfRegistered(local)
+                _ = HAL.notifyIfRegistered(system)
+                DispatchQueue.drain()
+                tick(service)
+                suite.expect(HAL.writes == [master] && service.retryDeadline == nil && service.warning == .restoreExhausted,
+                             "echoes do not restart the clock for an exhausted unreadable control")
+            } else {
+                suite.expect(HAL.levels[master] == 0.625 && HAL.writes == initialWrites + initialWrites
+                             && HAL.levels[channel] == (protectChannel ? 0.375 : nil) && service.retryDeadline == nil
+                             && !service.hasOutstandingClaims && service.warning == nil,
+                             "the next clock check restores a transient read failure without a hardware event")
+            }
+        }
+
+        for acceptCompensation in [true, false] {
+            let service = muted([master: 0.625, channel: 0.25])
+            HAL.levels[master] = nil
+            HAL.ignoredWrites = [channel]
+            service.toggle()
+            DispatchQueue.drain()
+            for _ in 0..<4 { tick(service) }
+            suite.expect(HAL.writes == [channel, channel, channel] && service.warning == .restoreExhausted
+                         && service.retryDeadline == nil, "the channel is already exhausted while its master is absent")
+
+            HAL.readFails = [channel]
+            HAL.levels[master] = 0
+            HAL.writes = []
+            HAL.beforeControlWrite = { key, target in
+                guard key == master else { return }
+                // The pending channel cannot be read until the master Set moves it.
+                HAL.levels[channel] = Float(target)
+                HAL.readFails.remove(channel)
+                if acceptCompensation { HAL.ignoredWrites.remove(channel) }
+            }
+            _ = HAL.notifyIfRegistered(local)
+            DispatchQueue.drain()
+            suite.expect(HAL.writes == [master, channel] && HAL.levels[master] == 0.625
+                         && HAL.levels[channel] == (acceptCompensation ? 0.25 : 0.625),
+                         "the submitted master can compensate a previously unreadable exhausted channel")
+            for _ in 0..<6 {
+                _ = HAL.notifyIfRegistered(local)
+                _ = HAL.notifyIfRegistered(system)
+                DispatchQueue.drain()
+                tick(service)
+            }
+            let settled = HAL.writes
+            _ = HAL.notifyIfRegistered(local)
+            _ = HAL.notifyIfRegistered(system)
+            DispatchQueue.drain()
+            tick(service)
+            suite.expect(HAL.writes == settled && settled.filter { $0 == master }.count == 1
+                         && (1...3).contains(settled.filter { $0 == channel }.count)
+                         && service.retryDeadline == nil && service.hasOutstandingClaims == !acceptCompensation
+                         && service.warning == (acceptCompensation ? nil : .restoreExhausted),
+                         "echoes of the master and channel do not renew the compensation budget")
+        }
+    }
+
+    private static func runMixerRestoreAdjustmentTests(_ suite: TestSuite) {
+        let master = HAL.key(10)
+        let linked = HAL.key(10, 1)
+        let independent = HAL.key(10, 2)
+        func exhaustedMixer(_ levels: [Key: Float]) -> AudioInputDeviceManager {
+            HAL.reset()
+            var now: TimeInterval = 10
+            let service = MicMuteService(uptime: { now })
+            MicMuteService.shared = service
+            HAL.levels = levels
+            service.toggle()
+            DispatchQueue.drain()
+            HAL.ignoredWrites = Set(levels.keys)
+            service.toggle()
+            DispatchQueue.drain()
+            for _ in 0..<2 {
+                now += 2
+                service.halQueue.runTimers()
+                DispatchQueue.drain()
+            }
+            suite.expect(service.warning?.message == L10n.shared.s.micRestoreExhaustedHUD,
+                         "the mixer edit starts with an exhausted automatic restore")
+            let mixer = AudioInputDeviceManager()
+            mixer.start()
+            DispatchQueue.drain()
+            HAL.writes = []
+            return mixer
+        }
+        func relaunch(_ mixer: AudioInputDeviceManager) {
+            mixer.stop()
+            HAL.afterWrite = nil
+            HAL.beforeControlWrite = nil
+            HAL.minimumGain = [:]
+            HAL.ignoredWrites = []
+            HAL.writeFails = []
+            HAL.writes = []
+            HAL.relaunchClient()
+            MicMuteService.shared.syncWithPreferences()
+            DispatchQueue.drain()
+        }
+
+        let drag = exhaustedMixer([master: 0.625])
+        HAL.ignoredWrites = []
+        var requests: [Double] = []
+        HAL.beforeControlWrite = { key, target in if key == master { requests.append(target) } }
+        drag.setInputVolume(0.375)
+        drag.setInputVolume(0.75)
+        drag.halQueue.run()
+        suite.expect(requests == [0.375] && HAL.levels[master] == 0.375,
+                     "the driver has accepted the first drag sample with the final sample still queued")
+        // Deliver the first sample's release verification while the final
+        // sample of the same drag is still waiting on the mixer's queue.
+        while !DispatchQueue.main.work.isEmpty { DispatchQueue.main.run() }
+        MicMuteService.shared.halQueue.run()
+        DispatchQueue.drain()
+        suite.expect(requests == [0.375, 0.75] && HAL.levels[master] == 0.75 && drag.inputVolume == 0.75,
+                     "an intervening release check preserves the final queued sample of the user's drag")
+        drag.stop()
+
+        let rounded: Float = 0.4
+        for accepts in [true, false] {
+            let mixer = exhaustedMixer([master: 0.625, linked: 0.25, independent: 0.875])
+            if accepts { HAL.ignoredWrites.remove(master) }
+            HAL.minimumGain[master] = rounded
+            HAL.afterWrite = { HAL.levels[linked] = HAL.levels[master] }
+            mixer.setInputVolume(0.375)
+            DispatchQueue.drain()
+            let applied: Float = accepts ? rounded : 0
+            suite.expect(HAL.writes == [master] && HAL.levels == [master: applied, linked: applied, independent: 0]
+                         && mixer.inputVolume == Double(applied) && MicMuteService.shared.hasOutstandingClaims,
+                         accepts ? "a rounded mixer edit preserves the actual master and linked channel gains"
+                                 : "a silently ignored mixer edit preserves the pending gains without another setter")
+            relaunch(mixer)
+            let expected: [Key: Float] = [master: accepts ? rounded : 0.625,
+                                          linked: accepts ? rounded : 0.25, independent: 0.875]
+            suite.expect(HAL.levels == expected && HAL.writes == (accepts ? [independent] : [master, linked, independent])
+                         && !MicMuteService.shared.hasOutstandingClaims,
+                         accepts ? "relaunch preserves the rounded edit and restores only the independent channel"
+                                 : "relaunch restores every original target after the driver ignored the mixer edit")
+        }
+
+        let failed = exhaustedMixer([master: 0.625])
+        HAL.writeFails = [master]
+        HAL.beforeControlWrite = { key, _ in if key == master { HAL.levels[master] = rounded } }
+        failed.setInputVolume(0.375)
+        DispatchQueue.drain()
+        suite.expect(failed.inputVolume == Double(rounded), "the driver moved the master despite its error status")
+        relaunch(failed)
+        suite.expect(HAL.levels[master] == rounded && HAL.writes.isEmpty && !MicMuteService.shared.hasOutstandingClaims,
+                     "a verified gain survives relaunch even when its setter reported an error")
+
+        let channels = exhaustedMixer([linked: 0.25, independent: 0.875])
+        HAL.ignoredWrites = []
+        HAL.afterWrite = {
+            HAL.uids[10] = "replacement"
+            HAL.levels = [linked: 0.25, independent: 0.125]
+        }
+        channels.setInputVolume(0.375)
+        DispatchQueue.drain()
+        suite.expect(HAL.levels[independent] == 0.125 && HAL.writes == [linked] && MicMuteService.shared.hasOutstandingClaims,
+                     "a channel-only edit stops before writing to a replacement that reused the input's object ID")
+        channels.stop()
     }
 
     private static func runRestoreControlListEchoTests(_ suite: TestSuite) {
