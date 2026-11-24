@@ -198,6 +198,9 @@ enum SwitcherHoverSelectionTests {
         func excludesFrontmostApp(pid: pid_t, regularBundleIdentifier: String?) -> Bool {
             observed?.excludesFrontmostApp(pid: pid, regularBundleIdentifier: regularBundleIdentifier) ?? false
         }
+        func groupedSource(frontmostPID: pid_t, representative: SwitcherItem) -> SwitcherWindowInventory.GroupedSource? {
+            observed?.groupedSource(frontmostPID: frontmostPID, representative: representative)
+        }
         func selection(for generation: UInt64, scope: SwitcherSessionScope, frontmostPID: pid_t,
                        displayScope: SwitcherFullscreenScopeTests.Enumerator.DisplayScope?, confirmedFocus: CGWindowID? = nil)
             -> (list: SwitcherFullscreenScopeTests.Enumerator.WindowList, focusedWindowID: CGWindowID?)? {
@@ -343,9 +346,10 @@ enum SwitcherHoverSelectionTests {
         func unregisterSecureInputActionHotKeys() {}
         var recordedIDs: [String] = []
         var useTracker: SwitcherRememberedSelectionTests.SessionOpening.WindowUseTracker?
-        func recordUse(_ item: SwitcherItem, previous: CGWindowID?, focusPID: pid_t? = nil) {
+        func recordUse(_ item: SwitcherItem, previous: CGWindowID?, focusPID: pid_t? = nil,
+                       sourceRequest: WindowFocusHistory.Request? = nil) {
             recordedIDs.append(item.id)
-            useTracker?.recordSwitch(to: item.windowID, pid: item.pid, from: previous, focusPID: focusPID)
+            useTracker?.recordSwitch(to: item.windowID, pid: item.pid, from: previous, focusPID: focusPID, sourceRequest: sourceRequest)
         }
         var runProtectedLetterAction: (SwitcherLetterAction) -> Void = { _ in
             preconditionFailure("quit-protection commands are covered separately")
@@ -1598,6 +1602,12 @@ enum SwitcherHoverSelectionTests {
         enum Opening: CaseIterable {
             case announced, warm, escape, otherDisplay, changedSpace, earlierScan
             case captured, publishedBeforeOpening, backgroundWindow, newerFocus, closedSourceDuringDelivery
+            case observedFocus, observedBeforeNotice, windowServerFocus, unlistedInspector, backgroundWithoutAX
+
+            var announcesWindow: Bool { self != .warm && self != .unlistedInspector }
+            var groupedOnly: Bool {
+                [.observedFocus, .observedBeforeNotice, .windowServerFocus, .unlistedInspector, .backgroundWithoutAX].contains(self)
+            }
         }
 
         let pid: pid_t = 10
@@ -1650,18 +1660,23 @@ enum SwitcherHoverSelectionTests {
             Activator.lastSourceWindowID = previousSource
             Activator.lastHandoffSourcePID = previousHandoff
         }
-        Workspace.shared.frontmostApplication = .init(processIdentifier: pid)
         Desktop.NSRunningApplication.apps[pid] = .init()
         Desktop.NSRunningApplication.apps[pid + 1] = .init()
         let cases = Mode.allCases.flatMap { mode -> [(Mode, Opening, GlobalWindowGesture?)] in
-            let openings: [Opening] = mode.showsApps ? [.announced] : Opening.allCases
+            let openings: [Opening] = mode.showsApps
+                ? [.announced, .observedFocus, .observedBeforeNotice, .windowServerFocus, .backgroundWindow,
+                   .backgroundWithoutAX, .warm, .closedSourceDuringDelivery]
+                : Opening.allCases.filter { !$0.groupedOnly }
             let gestures: [GlobalWindowGesture] = mode.showsApps ? [] : GlobalWindowGesture.allCases
-            return openings.map { (mode, $0, nil) } + gestures.map { (mode, .announced, $0) }
+            let cases = mode == .groupedSimple ? openings + [.escape, .unlistedInspector] : openings
+            return cases.map { (mode, $0, nil) } + gestures.map { (mode, .announced, $0) }
         }
         for (mode, opening, gesture) in cases {
             let shortcut = mode.shortcut
             let service = Service(), inventory = Desktop.SwitcherWindowInventory()
+            let previousInventoryApp = Desktop.desktop.frontmostApplication
             defer {
+                Desktop.desktop.frontmostApplication = previousInventoryApp
                 inventory.stop()
                 Work.discoveries.reset()
                 Work.scans.reset()
@@ -1669,6 +1684,7 @@ enum SwitcherHoverSelectionTests {
                 Work.main.debounce.reset()
             }
             Queue.jobs = []
+            Workspace.shared.frontmostApplication = .init(processIdentifier: pid)
             service.tap = Tap()
             service.routeAllWindowsShortcut = .switcherAllWindowsDefault
             service.simpleModeEnabled = mode.simple
@@ -1691,16 +1707,44 @@ enum SwitcherHoverSelectionTests {
             Work.main.deliveries.drain()
             FrontAppEnumerator.reads = []
             Desktop.WindowActivator.focusReads = []
-            Desktop.WindowActivator.focusedWindow = opening == .backgroundWindow || opening == .warm ? 2 : 3
+            Desktop.WindowActivator.focusedWindow = [.backgroundWindow, .backgroundWithoutAX, .warm].contains(opening) ? 2 : 3
             let before = Activator.activated
 
             if opening == .earlierScan {
                 inventory.invalidate(pid: pid + 1)
                 captureRefresh()
             }
-            if opening != .warm {
+            if opening.announcesWindow {
                 FrontAppEnumerator.items = [c, opening == .otherDisplay ? window(2, display: 1) : b, a]
-                Desktop.Events.shared.deliver?(.changed(3))
+                if mode.showsApps { FrontAppEnumerator.items.append(d) }
+                if opening != .observedBeforeNotice { Desktop.Events.shared.deliver?(.changed(3)) }
+                if opening == .windowServerFocus {
+                    Desktop.desktop.frontmostApplication = .init(processIdentifier: pid)
+                    suite.expect(WindowUseTracker.confirmedFocus == 2 && !inventory.contains(c),
+                                 "the AX observer still reports B before the WindowServer announces focus on C")
+                    Desktop.Events.shared.deliver?(.focused(3))
+                }
+            }
+            if mode.showsApps {
+                service.useTracker = .shared
+                suite.expect(Desktop.WindowActivator.focusReads.isEmpty, "\(mode) stays idle before the grouped shortcut")
+                if [.observedFocus, .observedBeforeNotice, .unlistedInspector].contains(opening) {
+                    guard let request = history.focusHistory.current else {
+                        suite.expect(false, "the source app has a focus observer")
+                        continue
+                    }
+                    let previousRead = history.readAXFocus
+                    defer { history.readAXFocus = previousRead }
+                    let id: CGWindowID = opening == .unlistedInspector ? 93 : 3
+                    Desktop.WindowActivator.focusedWindow = id
+                    history.readAXFocus = Desktop.WindowActivator.focusedWindowID(for:)
+                    history.windowHistory = tracker.history
+                    let accepted = history.readFocusedWindow(for: request)
+                    tracker.history = history.windows
+                    suite.expect(accepted && tracker.history.first == id && !inventory.knownWindowIDs.contains(id),
+                                 "the source observer reports focus before the grouped inventory lists the window")
+                    Desktop.WindowActivator.focusReads = []
+                }
             }
             if let gesture {
                 checkGlobalWindowGesture(gesture, suite, mode: String(describing: mode),
@@ -1726,13 +1770,62 @@ enum SwitcherHoverSelectionTests {
             Queue.advance(to: Queue.time)
             if opening == .escape {
                 suite.expect(service.route(type: .keyDown, event: key(CGKeyCode(KeyCode.escape), flags: shortcut.modifiers.cgFlags)) == nil,
-                             "Escape cancels All Windows while discovery is pending")
+                             "Escape cancels the shortcut while discovery is pending")
             }
             _ = service.route(type: .flagsChanged, event: release)
             if mode.showsApps {
-                suite.expect(Activator.activated == before + [d.id] && service.frontAppReadQueue.pending.isEmpty
-                             && FrontAppEnumerator.reads.isEmpty && Desktop.WindowActivator.focusReads.isEmpty,
-                             "\(mode) switches to the other app immediately while C awaits discovery")
+                let label = "\(mode) \(opening)"
+                let source = [.announced, .observedFocus, .observedBeforeNotice, .windowServerFocus].contains(opening) ? c : b
+                let targets = opening == .escape ? [] : [d.id]
+                suite.expect(Activator.activated == before + targets && service.recordedIDs == targets
+                             && service.frontAppReadQueue.pending.isEmpty && FrontAppEnumerator.reads.isEmpty
+                             && Desktop.WindowActivator.focusReads.isEmpty && !service.keyboardInputOwnership.isOwned,
+                             "\(label) handles release immediately without reading focus or waiting for inventory")
+                if opening == .unlistedInspector {
+                    suite.expect(Activator.lastSourceWindowID == b.windowID,
+                                 "an unlisted inspector leaves the known source in place for activation")
+                }
+
+                if opening != .escape { Workspace.shared.frontmostApplication = .init(processIdentifier: d.pid) }
+                if opening == .windowServerFocus { Desktop.desktop.frontmostApplication = .init(processIdentifier: d.pid) }
+                // Some apps have no focused AX window once another app owns the keyboard.
+                if [.observedFocus, .observedBeforeNotice, .windowServerFocus, .backgroundWithoutAX].contains(opening) {
+                    Desktop.WindowActivator.focusedWindow = nil
+                }
+                if opening == .observedBeforeNotice {
+                    suite.expect(Work.discoveries.pending.isEmpty && !inventory.contains(c),
+                                 "\(mode) activates D before the creation of the observed C reaches the inventory")
+                    Desktop.Events.shared.deliver?(.changed(3))
+                }
+                Work.discoveries.drain()
+                Work.main.deliveries.drain()
+                captureRefresh()
+                if opening == .closedSourceDuringDelivery {
+                    Desktop.Events.shared.deliver?(.destroyed(3))
+                    FrontAppEnumerator.items.removeAll { $0.id == c.id }
+                }
+                Work.main.deliveries.drain()
+                suite.expect(FrontAppEnumerator.reads == (opening.announcesWindow ? [pid] : [])
+                             && Desktop.WindowActivator.focusReads.isEmpty
+                             && inventory.contains(c) == (opening.announcesWindow && opening != .closedSourceDuringDelivery),
+                             "\(label) finishes only the announced app's refresh before the return")
+                if opening == .escape {
+                    suite.expect(Activator.activated == before && service.recordedIDs.isEmpty && tracker.history == [2, 1, 4]
+                                 && WindowUseTracker.shared.frontAppFocus(for: pid).observedWindows == [2],
+                                 "the cancelled grouped session cannot write either history when the scan arrives")
+                    continue
+                }
+                let pair = [d, source].compactMap(\.windowID)
+                let observed = WindowUseTracker.shared.frontAppFocus(for: d.pid).observedWindows
+                suite.expect(tracker.history.starts(with: pair) && observed.starts(with: pair),
+                             "\(label) records D followed by its surviving source window")
+                let allWindows = GlobalShortcut.switcherAllWindowsDefault
+                _ = service.route(type: .keyDown, event: key(CGKeyCode(allWindows.keyCode), flags: allWindows.modifiers.cgFlags))
+                Queue.advance(to: Queue.time)
+                _ = service.route(type: .flagsChanged, event: release)
+                suite.expect(Activator.activated == before + [d.id, source.id] && service.recordedIDs == [d.id, source.id]
+                             && Desktop.WindowActivator.focusReads.isEmpty && !service.keyboardInputOwnership.isOwned,
+                             "\(label) returns from D to the original focused window with All Windows")
                 continue
             }
             if opening == .warm {

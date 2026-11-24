@@ -199,7 +199,8 @@ def main():
           + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift",
                         "    func reconcile(")
           + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    func recordSwitch(")
-              .replace("focusPID: focusPID)", "focusPID: focusPID, now: SwitcherHoverSelectionTests.Queue.time)", 1)
+              .replace("sourceRequest: sourceRequest)", "sourceRequest: sourceRequest, now: SwitcherHoverSelectionTests.Queue.time)", 1)
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    func confirmSwitchSource(")
           + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    func recordObservedFocus(")
           + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    func recordDestroyedWindow(")
           + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    private func readFocusedWindow(")

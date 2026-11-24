@@ -100,13 +100,29 @@ final class WindowUseTracker {
     /// second-most-recent window, so a quick repeat toggles straight back.
     /// Applied immediately because the window server's order lags an
     /// activation by a frame or two, and a flick is faster than that.
-    func recordSwitch(to windowID: CGWindowID?, pid: pid_t, from previous: CGWindowID?, focusPID: pid_t? = nil) {
+    func recordSwitch(to windowID: CGWindowID?, pid: pid_t, from previous: CGWindowID?, focusPID: pid_t? = nil,
+                      sourceRequest: WindowFocusHistory.Request? = nil) {
         stateLock.withLock {
             guard recording else { return }
-            focusHistory.switched(to: windowID, pid: pid, previous: previous, focusPID: focusPID)
+            focusHistory.switched(to: windowID, pid: pid, previous: previous, focusPID: focusPID, sourceRequest: sourceRequest)
             windowHistory = WindowUseOrder.promoting(target: windowID,
                                                      previous: previous,
                                                      in: windowHistory)
+        }
+    }
+
+    /// A grouped switch can commit before the source app's new window is listed.
+    /// Resolve that use at its original position, behind any newer activations.
+    func confirmSwitchSource(_ window: CGWindowID, replacing previous: CGWindowID, for request: WindowFocusHistory.Request) {
+        stateLock.withLock {
+            guard recording, window != previous, let anchor = windowHistory.firstIndex(of: previous),
+                  focusHistory.focus(window, for: request) else { return }
+            if let position = windowHistory.firstIndex(of: window) {
+                guard position > anchor else { return }
+                windowHistory.remove(at: position)
+            }
+            windowHistory.insert(window, at: anchor)
+            if windowHistory.count > WindowUseOrder.limit { windowHistory.removeLast() }
         }
     }
 
