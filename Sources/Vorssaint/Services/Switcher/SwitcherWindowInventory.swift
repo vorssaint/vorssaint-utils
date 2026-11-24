@@ -247,7 +247,8 @@ final class SwitcherWindowInventory {
            focus.latest?.confirmation == unlistedFocus.observation {
             source.observedWindowID = discoveries[unlistedFocus.ticket]
         } else if let observed = focus.latest, observed.wasObserved, observed.windowID != fallback,
-                  (!hasDiscovery && focus.windowID != nil) || discoveries.values.contains(observed.windowID) {
+                  focus.windowID == observed.windowID || discoveries.values.contains(observed.windowID) {
+            // An unrelated discovery can still be pending when AX has already observed the source.
             source.observedWindowID = observed.windowID
         }
         guard source.pendingRequest != nil else { return nil }
