@@ -372,22 +372,14 @@ struct FanControlCardContent: View {
         if accessState == .requiresApproval { return strings.approvalCaption }
         if systemControlUnconfirmed { return strings.awaitingSystemControl }
         guard !snapshot.isCooling else { return nil }
-        let stopReason: FanControlStopReason?
         switch interruption {
         case .dismissed: return nil
         case .applyFailed: return strings.applyFailed
-        case .resumeFailed, .stopped(nil): return strings.failed
-        case .stopped(let reason): stopReason = reason
-        case nil:
-            stopReason = snapshot.stopReason
-        }
-        switch stopReason {
-        case .temperatureUnavailable: return strings.temperatureUnavailable
-        case .timeLimit, .appDisconnected, .heartbeatLost, .hardwareChanged,
-             .thermalPressure, .recovery:
-            return strings.safetyStopped
-        case .none:
-            return nil
+        case .resumeFailed: return strings.failed
+        case .stopped(nil): return strings.controlStopped
+        case .stopped(.temperatureUnavailable): return strings.temperatureUnavailable
+        case .stopped: return strings.safetyStopped
+        case nil: return snapshot.stopReason == nil ? nil : strings.controlStopped
         }
     }
 

@@ -25,6 +25,7 @@ enum FanControlRecoveryContract {
         var isManual = true
         var controlIntact = true
         var failNextRPMRead = false
+        var snapshotError: FanControlHardwareError?
         var temperatures = [FanControlTemperatureReading(source: .hottestSoC, celsius: 60)]
         var gpuPoweredDown = false
 
@@ -67,6 +68,7 @@ enum FanControlRecoveryContract {
 
         func snapshot(isCooling: Bool, endsAt: Date?, stopReason: FanControlStopReason?,
                       coolingLevel: Int?, configuration: FanControlConfiguration?) throws -> FanControlSnapshot {
+            if let snapshotError { throw snapshotError }
             if failNextRPMRead {
                 failNextRPMRead = false
                 throw FanControlHardwareError.operationFailed
@@ -83,7 +85,12 @@ enum FanControlRecoveryContract {
         var isHeld = true
         var marker = true
         var canRemoveMarker = true
-        func acquire() -> Bool { isHeld = true; return true }
+        var canAcquire = true
+        func acquire() -> Bool {
+            guard canAcquire else { return false }
+            isHeld = true
+            return true
+        }
         func markerExists() -> Bool { marker }
         func createMarker() -> Bool { marker = true; return true }
         func removeMarker() -> Bool {
@@ -134,6 +141,7 @@ enum FanControlRecoveryContract {
         let ownership = Ownership()
         var hardware: FanControlHardware? = FanControlHardware()
         var owner: UUID? = UUID()
+        var unregisterSession: UUID?
         var isCooling = true
         var isRecovering = false
         var endsAt: Date?
@@ -161,7 +169,68 @@ enum FanControlRecoveryContract {
         for _ in 0..<FanControlPolicy.verificationFailureLimit { controller.watchdogTick() }
     }
 
+    private static func checkRestoreCapability(_ suite: TestSuite) {
+        struct LegacyResponse: Decodable {
+            let succeeded: Bool
+            let snapshot: FanControlSnapshot
+            let error: FanControlErrorCode?
+        }
+
+        let legacyData = Data(#"{"succeeded":true,"snapshot":{"fans":[],"isCooling":true}}"#.utf8)
+        let fromLegacyHelper = FanControlIPC.decode(legacyData)
+        suite.expect(fromLegacyHelper?.snapshot.isCooling == true && fromLegacyHelper?.supportsOwnedRestore == nil
+                        && fromLegacyHelper?.localStopReason == nil,
+                     "an active reply from an older helper grants no owner-checked restore")
+
+        let controller = Controller()
+        let owner = UUID()
+        controller.owner = owner
+        let accepted = controller.applyConfiguration(session: owner, configuration: .manual(level: 65), duration: nil)
+        let data = FanControlIPC.encode(accepted)
+        let legacyClient = try? JSONDecoder().decode(LegacyResponse.self, from: data)
+        suite.expect(FanControlIPC.decode(data)?.supportsOwnedRestore == true && legacyClient?.succeeded == true
+                        && legacyClient?.snapshot == accepted.snapshot && legacyClient?.error == nil,
+                     "an accepted Apply advertises the owner check while older clients still decode the same result")
+    }
+
+    private static func checkApplyStopReason(_ suite: TestSuite) {
+        let controller = Controller()
+        let owner = UUID()
+        controller.owner = owner
+        controller.hardware?.writeError = .unsafeControlState
+        let manual = FanControlConfiguration.manual(level: 65)
+        let update = controller.applyConfiguration(session: owner, configuration: manual, duration: nil)
+        suite.expect(update.error == .controlFailed && update.localStopReason == .hardwareChanged
+                        && update.snapshot.stopReason == .hardwareChanged && !controller.isCooling,
+                     "a failed update reports the stop it caused in its own session")
+
+        controller.hardware?.restoreResults = [false]
+        let start = controller.applyConfiguration(session: owner, configuration: manual, duration: nil)
+        let other = controller.applyConfiguration(session: UUID(), configuration: manual, duration: nil)
+        suite.expect(start.error == .controlFailed && start.snapshot.stopReason == .recovery
+                        && start.localStopReason == .recovery && controller.isRecovering,
+                     "a partial first write whose rollback fails reports its own recovery")
+        suite.expect(other.error == .controlFailed && other.snapshot.stopReason == .recovery
+                        && other.localStopReason == nil && controller.statusResponse().localStopReason == nil,
+                     "an Apply during another client's recovery and a status read carry only the global reason")
+    }
+
     static func run(_ suite: TestSuite) {
+        checkRestoreCapability(suite)
+        checkApplyStopReason(suite)
+        for pendingMarker in [false, true] {
+            let idle = Controller()
+            idle.isCooling = false
+            idle.owner = nil
+            idle.ownership.isHeld = false
+            idle.ownership.canAcquire = pendingMarker
+            idle.ownership.marker = pendingMarker
+            var error: FanControlErrorCode?
+            idle.prepareForUnregister(session: UUID()) { error = FanControlIPC.decode($0)?.error }
+            suite.expect(error == (pendingMarker ? .controlFailed : .alreadyControlled) && idle.unregisterSession == nil
+                            && !idle.ownership.isHeld && idle.hardware?.restores == 0,
+                         "a shared lock held elsewhere or an abandoned marker prevents a removal reservation without writes")
+        }
         let healthy = Controller()
         let healthyOwner = healthy.owner
         healthy.watchdogTick()

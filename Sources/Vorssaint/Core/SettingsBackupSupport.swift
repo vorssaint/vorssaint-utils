@@ -215,6 +215,7 @@ enum SettingsBackupSupport {
         // grant this Mac gave, not a setting.
         DefaultsKey.recorderSystemAudioTapVerified,
         DefaultsKey.fanControlRecoveryNeeded,
+        DefaultsKey.fanControlUnregisterPending,
         DefaultsKey.fanControlInterruptedStop,
         DefaultsKey.fanControlDismissedStop,
         DefaultsKey.fanControlHelperVersion,

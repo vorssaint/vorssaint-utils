@@ -689,6 +689,9 @@ def main():
                     .replace("private var", "var", 1)
                     .replace("private func", "func", 1) for prefix in [
                         "    static func recoverIfNeeded(", "    func syncWithPreferences(",
+                        "    func refresh()", "    func panelDidAppear()", "    func panelDidDisappear()",
+                        "    private func replaceRegistrationIfNeeded(",
+                        "    private func replaceReservedRegistration(",
                         "    func returnToSystem(", "    func forgetResume(", "    private func dismissStop(",
                         "    func resumePreferenceDidChange(",
                         "    private static var resumableConfiguration:", "    private func resume(",
@@ -698,18 +701,31 @@ def main():
                         "    private func beginResume(", "    private func cancelResumeRetry(",
                         "    private func resumeDidFail(", "    private func scheduleResumeRetry(",
                         "    private func retryResume(", "    private func applyStatus(", "    private func apply(_ response:",
-                        "    private var interruptedStop:",
-                        "    func restoreAutomatic()", "    private func restoreAutomatic(supersedingCurrentRequest:",
+                        "    private var interruptedStop:", "    private var hadActiveControl:",
+                        "    private func restoreAutomatic(supersedingCurrentRequest:",
+                        "    private func disconnectForRecovery(",
                         "    static func restoreBeforeTerminationIfNeeded()", "    private func restoreBeforeTermination()",
-                        "    private func restoreThenUnregister()",
+                        "    private func restoreOwnedBeforeExit()",
+                        "    private func restoreThenUnregister()", "    private func checkUnregisterStatus(",
+                        "    private func prepareForUnregister(",
+                        "    private func finishUnregisterCheck(",
+                        "    private func cancelUnregisterCheck(", "    private func releaseUnregisterConnection(",
                         "    private func finishSystemHandoff()", "    private func startTimerIfNeeded()",
-                        "    private func observeFailedHandoff(", "    private func poll(", "    private func heartbeat(",
+                        "    private func recordInterruption(", "    private func observeFailedHandoff(",
+                        "    private func poll(", "    private func heartbeat(",
                         "    private func requestStatus(", "    private func connectionLost(",
                         "    private func beginRequest(", "    private func finishRequest("])
           + "}\n}\n")
     write("FanControlRecovery.swift", "import Foundation\n"
-          + "extension FanControlRecoveryContract {\nfinal class Controller: Fixture {\n"
+          + "extension FanControlRecoveryContract {\ntypealias FanControlIPC = FanControlResumeContract.FanControlIPC\n"
+          + "final class Controller: Fixture {\n"
           + declaration("Sources/FanControlHelper/main.swift", "    func connectionClosed(")
+          + declaration("Sources/FanControlHelper/main.swift", "    func shutdown(")
+          + declaration("Sources/FanControlHelper/main.swift", "    func status(reply:")
+          + declaration("Sources/FanControlHelper/main.swift", "    func prepareForUnregister(session")
+          + declaration("Sources/FanControlHelper/main.swift", "    func startLegacySession(")
+          + declaration("Sources/FanControlHelper/main.swift", "    func heartbeat(session")
+          + declaration("Sources/FanControlHelper/main.swift", "    func restore(session")
           + declaration("Sources/FanControlHelper/main.swift", "    private func applyConfiguration(session")
               .replace("private func", "func", 1)
               .replace("let control = FanControlHardware()", "let control = hardware", 1)
