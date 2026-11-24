@@ -207,6 +207,8 @@ struct NotchAgentBars: View {
     let providers: [AgentProvider]
     let byCost: Bool
     @Binding var hovered: Date?
+    /// One colour for every bar, over the agents' own, for a chart of a single agent.
+    var tint: Color? = nil
 
     var body: some View {
         let values = buckets.map { bucket in providers.map { bucket.byProvider[$0]?.weight(byCost: byCost) ?? 0 } }
@@ -228,7 +230,7 @@ struct NotchAgentBars: View {
                                 ForEach(providers.indices.reversed(), id: \.self) { slot in
                                     if parts[slot] > 0 {
                                         Rectangle()
-                                            .fill(providers[slot].tint.opacity(hovered == nil || hovered == bucket.start ? 0.95 : 0.5))
+                                            .fill((tint ?? providers[slot].tint).opacity(hovered == nil || hovered == bucket.start ? 0.95 : 0.5))
                                             .frame(height: max(1, proxy.size.height * parts[slot] / peak))
                                     }
                                 }
@@ -253,6 +255,7 @@ struct NotchAgentHeatmap: View {
     let days: [AgentBucket]
     let byCost: Bool
     @Binding var hovered: Date?
+    var tint: Color = .white
     var calendar: Calendar = .autoupdatingCurrent
     static let spacing: CGFloat = 2.5
 
@@ -277,7 +280,7 @@ struct NotchAgentHeatmap: View {
                             if let day = week[row] {
                                 let value = day.total.weight(byCost: byCost)
                                 RoundedRectangle(cornerRadius: min(2.5, cell / 3), style: .continuous)
-                                    .fill(.white.opacity(opacity(value, levels: levels)))
+                                    .fill(tint.opacity(opacity(value, levels: levels)))
                                     .overlay {
                                         if hovered == day.start || calendar.isDateInToday(day.start) {
                                             RoundedRectangle(cornerRadius: min(2.5, cell / 3), style: .continuous)

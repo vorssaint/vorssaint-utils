@@ -10,6 +10,9 @@ enum AgentClaudeServerTests {
         /// Whether anything but the page's Limits card uses the limits.
         static var used = true
         static func limitsInUse(pageShown: Bool) -> Bool { used || pageShown }
+        enum Readout { case elapsed, limit }
+        static func showsLiveActivity() -> Bool { false }
+        static func readout() -> Readout { .elapsed }
     }
 
     class Fixture {
@@ -18,6 +21,7 @@ enum AgentClaudeServerTests {
         var online = true
         var providers: [AgentProvider] = [.claude]
         var pageVisible = false
+        var snapshot = AgentUsageSnapshot()
         var claudeAccountRequest: AgentClaudeServer.Request?
         var claudeAccountAttempted = Date.distantPast
         var claudeAccountFailure: AgentClaudeServer.Failure?

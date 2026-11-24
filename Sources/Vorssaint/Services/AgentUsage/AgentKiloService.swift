@@ -10,6 +10,9 @@ final class AgentKiloService: ObservableObject {
     static let shared = AgentKiloService()
 
     @Published private(set) var summary: AgentKiloSummary?
+    /// Each day of the last three months and each hour of today, for the AI page's charts.
+    @Published private(set) var days: [AgentBucket] = []
+    @Published private(set) var hours: [AgentBucket] = []
 
     /// A reading this recent stands while the database has not changed.
     static let freshness: TimeInterval = 60
@@ -32,11 +35,14 @@ final class AgentKiloService: ObservableObject {
         let since = AgentKiloReader.start(of: period, now: now)
         queue.async { [weak self] in
             let summary = AgentKiloReader.read(home: home, since: since)
+            let series = summary.installed ? AgentKiloReader.series(home: home, now: now) : (days: [], hours: [])
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.reading = false
                 self.last = (period, day, modified, now)
                 if self.summary != summary { self.summary = summary }
+                if self.days != series.days { self.days = series.days }
+                if self.hours != series.hours { self.hours = series.hours }
             }
         }
     }

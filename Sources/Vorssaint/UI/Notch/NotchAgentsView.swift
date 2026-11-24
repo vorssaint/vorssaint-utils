@@ -161,7 +161,7 @@ struct NotchAgentsView: View {
             NotchAgentShareCard(title: text.projectsCard, symbol: NotchAgentCard.projects.symbol,
                                 shares: snapshot.usage(shown).projects, byCost: snapshot.usage(shown).fullyPriced, text: text)
         case .activity:
-            NotchAgentActivityCard(snapshot: snapshot, text: text)
+            NotchAgentActivityCard(snapshot: snapshot, providers: providers, text: text)
         case .resets:
             NotchAgentResetsCard(now: now, text: text, showsDefaultAccount: tile.namesDefaultAccount)
         case .kilo:
@@ -722,12 +722,30 @@ private struct NotchAgentLiveCard: View {
 // MARK: Trend
 
 private struct NotchAgentTrendCard: View {
-    let snapshot: AgentUsageSnapshot
-    let providers: [AgentProvider]
+    let base: AgentUsageSnapshot
+    let allProviders: [AgentProvider]
     let period: AgentPeriod
     let text: NotchAgentStrings
     @State private var hovered: Date?
+    @State private var lensPage = 0
+    @ObservedObject private var kilo = AgentKiloService.shared
     @Environment(\.locale) private var locale
+
+    private var lenses: [NotchAgentLens] {
+        NotchAgentLens.available(snapshot: base, providers: allProviders, kiloDays: kilo.days)
+    }
+    private var lens: NotchAgentLens { lenses.indices.contains(lensPage) ? lenses[lensPage] : .all }
+    private var snapshot: AgentUsageSnapshot { lens.snapshot(from: base, kiloDays: kilo.days, kiloHours: kilo.hours) }
+    private var providers: [AgentProvider] { lens.providers(all: allProviders) }
+
+    init(snapshot: AgentUsageSnapshot, providers: [AgentProvider], period: AgentPeriod, text: NotchAgentStrings,
+         hovered: Date? = nil) {
+        base = snapshot
+        allProviders = providers
+        self.period = period
+        self.text = text
+        _hovered = State(initialValue: hovered)
+    }
 
     private var buckets: [AgentBucket] {
         period == .today ? snapshot.hours : Array(snapshot.days.suffix(period.days))
@@ -738,7 +756,9 @@ private struct NotchAgentTrendCard: View {
         let caption = self.caption(byCost: byCost)
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
-                NotchAgentCardHeader(title: text.trendCard, symbol: NotchAgentCard.trend.symbol) {
+                NotchAgentCardHeader(title: lens.name(kilo: text.kiloCard).map { text.trendCard + " · " + $0 } ?? text.trendCard,
+                                     symbol: NotchAgentCard.trend.symbol) {
+                    NotchAgentLensDots(count: lenses.count, current: lensPage)
                     Text(caption.reading)
                         .font(.system(size: 9.5, weight: .medium))
                         .monospacedDigit()
@@ -746,10 +766,18 @@ private struct NotchAgentTrendCard: View {
                         .lineLimit(1)
                         .accessibilityLabel(text.costDescription(caption.reading, partial: caption.partial))
                 }
-                NotchAgentBars(buckets: buckets, providers: providers, byCost: byCost, hovered: $hovered)
+                NotchAgentBars(buckets: buckets, providers: providers, byCost: byCost, hovered: $hovered, tint: lens.tint)
                 axis
             }
         }
+        .background(NotchAgentSwipe { move in swipe(move) })
+        .onAppear { kilo.refreshIfStale(period: period) }
+    }
+
+    private func swipe(_ move: Int) {
+        let count = lenses.count
+        guard count > 1 else { return }
+        withAnimation(.smooth(duration: 0.25)) { lensPage = (lensPage - move + count) % count }
     }
 
     private func caption(byCost: Bool) -> (reading: String, partial: Bool) {
@@ -856,10 +884,32 @@ private struct NotchAgentShareCard: View {
 // MARK: Activity
 
 private struct NotchAgentActivityCard: View {
-    let snapshot: AgentUsageSnapshot
+    let base: AgentUsageSnapshot
+    let allProviders: [AgentProvider]
     let text: NotchAgentStrings
     @State private var hovered: Date?
+    @State private var lensPage = 0
+    @ObservedObject private var kilo = AgentKiloService.shared
     @Environment(\.locale) private var locale
+
+    private var lenses: [NotchAgentLens] {
+        NotchAgentLens.available(snapshot: base, providers: allProviders, kiloDays: kilo.days)
+    }
+    private var lens: NotchAgentLens { lenses.indices.contains(lensPage) ? lenses[lensPage] : .all }
+    private var snapshot: AgentUsageSnapshot { lens.snapshot(from: base, kiloDays: kilo.days, kiloHours: kilo.hours) }
+
+    init(snapshot: AgentUsageSnapshot, providers: [AgentProvider] = [], text: NotchAgentStrings, hovered: Date? = nil) {
+        base = snapshot
+        allProviders = providers
+        self.text = text
+        _hovered = State(initialValue: hovered)
+    }
+
+    private func swipe(_ move: Int) {
+        let count = lenses.count
+        guard count > 1 else { return }
+        withAnimation(.smooth(duration: 0.25)) { lensPage = (lensPage - move + count) % count }
+    }
 
     private func hasActivity(_ day: AgentBucket) -> Bool {
         day.observedCursorActivity || day.byProvider.values.contains { $0.requests > 0 }
@@ -880,7 +930,9 @@ private struct NotchAgentActivityCard: View {
         let byCost = total.unpriced == 0
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
-                NotchAgentCardHeader(title: text.activityCard, symbol: NotchAgentCard.activity.symbol) {
+                NotchAgentCardHeader(title: lens.name(kilo: text.kiloCard).map { text.activityCard + " · " + $0 } ?? text.activityCard,
+                                     symbol: NotchAgentCard.activity.symbol) {
+                    NotchAgentLensDots(count: lenses.count, current: lensPage)
                     if streak > 1 {
                         Label("\(streak)", systemImage: "flame.fill")
                             .labelStyle(NotchAgentInlineLabel())
@@ -894,7 +946,7 @@ private struct NotchAgentActivityCard: View {
                 GeometryReader { proxy in
                     let map = NotchAgentHeatmap.width(height: proxy.size.height, days: snapshot.days)
                     HStack(alignment: .top, spacing: 14) {
-                        NotchAgentHeatmap(days: snapshot.days, byCost: byCost, hovered: $hovered)
+                        NotchAgentHeatmap(days: snapshot.days, byCost: byCost, hovered: $hovered, tint: lens.tint ?? .white)
                             .frame(width: map, height: proxy.size.height)
                         figures(total: total, byCost: byCost)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -902,6 +954,8 @@ private struct NotchAgentActivityCard: View {
                 }
             }
         }
+        .background(NotchAgentSwipe { move in swipe(move) })
+        .onAppear { kilo.refreshIfStale(period: .month) }
     }
 
     /// The total for the whole map, its active days and its busiest day; a

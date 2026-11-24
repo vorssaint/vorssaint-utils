@@ -149,6 +149,74 @@ enum AgentKiloReader {
         return summary
     }
 
+    /// Kilo's use for each of the last `AgentUsageSnapshot.dayCount` days and for each
+    /// hour of today, shaped like the other agents' history so the AI page can chart
+    /// it the same way. Kilo does not report a price, so every bucket is partial and
+    /// the page falls back to tokens. Buckets sit under `.opencode`, the agent Kilo
+    /// is built on; the page recolours them.
+    static func series(home: URL, now: Date, calendar: Calendar = .current) -> (days: [AgentBucket], hours: [AgentBucket]) {
+        let today = calendar.startOfDay(for: now)
+        let dayStarts = (0..<AgentUsageSnapshot.dayCount).reversed().compactMap {
+            calendar.date(byAdding: .day, value: -$0, to: today)
+        }
+        let hourStarts = (0...max(0, calendar.component(.hour, from: now))).compactMap {
+            calendar.date(byAdding: .hour, value: $0, to: today)
+        }
+        let empty = (days: dayStarts.map { AgentBucket(start: $0) }, hours: hourStarts.map { AgentBucket(start: $0) })
+        let path = database(home: home).path
+        guard FileManager.default.fileExists(atPath: path) else { return empty }
+        var db: OpaquePointer?
+        defer { sqlite3_close(db) }
+        guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil) == SQLITE_OK,
+              table("session", in: db) else { return empty }
+        sqlite3_busy_timeout(db, 2000)
+
+        func totals(_ format: String, since: Date) -> [String: AgentTotals] {
+            let sql = """
+                SELECT strftime('\(format)', time_updated / 1000, 'unixepoch', 'localtime'),
+                       count(CASE WHEN parent_id IS NULL THEN 1 END),
+                       total(tokens_input), total(tokens_output + tokens_reasoning),
+                       total(tokens_cache_read), total(tokens_cache_write)
+                FROM session WHERE time_updated >= ? GROUP BY 1
+                """
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [:] }
+            sqlite3_bind_int64(stmt, 1, Int64((since.timeIntervalSince1970 * 1000).rounded(.down)))
+            var found: [String: AgentTotals] = [:]
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                guard let key = sqlite3_column_text(stmt, 0).map({ String(cString: $0) }) else { continue }
+                var total = AgentTotals()
+                total.requests = Int(sqlite3_column_int64(stmt, 1))
+                total.tokens = AgentTokens(input: count(stmt, 2), cacheWrite: count(stmt, 5),
+                                           cacheRead: count(stmt, 4), output: count(stmt, 3))
+                total.unpriced = total.tokens.total > 0 ? 1 : 0
+                found[key] = total
+            }
+            return found
+        }
+
+        func key(_ date: Date, _ format: String) -> String {
+            let formatter = DateFormatter()
+            formatter.calendar = calendar
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = format
+            return formatter.string(from: date)
+        }
+
+        let perDay = totals("%Y-%m-%d", since: dayStarts.first ?? today)
+        let perHour = totals("%Y-%m-%d %H", since: today)
+        return (dayStarts.map { start in
+            var bucket = AgentBucket(start: start)
+            if let found = perDay[key(start, "yyyy-MM-dd")] { bucket.byProvider[.opencode] = found }
+            return bucket
+        }, hourStarts.map { start in
+            var bucket = AgentBucket(start: start)
+            if let found = perHour[key(start, "yyyy-MM-dd HH")] { bucket.byProvider[.opencode] = found }
+            return bucket
+        })
+    }
+
     private static func count(_ stmt: OpaquePointer?, _ column: Int32) -> Int {
         let value = sqlite3_column_double(stmt, column)
         return value.isFinite && value > 0 ? Int(value) : 0

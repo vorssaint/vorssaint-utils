@@ -933,8 +933,13 @@ final class AgentUsageService: ObservableObject {
     private func claudeLimitsDue(at now: Date, pageShows: Bool) -> Bool {
         guard running, !paused, online, providers.contains(.claude), claudeAccountRequest == nil,
               NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows) else { return false }
+        // An agent working with the closed island reading its limit is on screen as much as
+        // the page is, so it follows the page's pace rather than the background one.
+        let stripShowsLimit = NotchAgentSupport.showsLiveActivity() && NotchAgentSupport.readout() == .limit
+            && !snapshot.live.isEmpty
         return now.timeIntervalSince(claudeAccountAttempted) >= AgentClaudeServer.interval(
-            after: claudeAccountFailure, repeated: claudeAccountUnreachable, pageVisible: pageVisible)
+            after: claudeAccountFailure, repeated: claudeAccountUnreachable,
+            pageVisible: pageVisible || stripShowsLimit)
     }
 
     /// Main thread.

@@ -328,6 +328,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/CodexProfileLimitsService.swift
         Sources/Vorssaint/Services/AgentUsage/AgentOpenCodeReader.swift
         Sources/Vorssaint/Services/AgentUsage/AgentKiloReader.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentKiloService.swift
         Sources/Vorssaint/Services/AgentAsk/AgentTerminalKeys.swift
         Sources/Vorssaint/Convert/Core/JobProgressEstimate.swift
         Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift
@@ -347,6 +348,7 @@ if (( TEST )); then
         Sources/Vorssaint/UI/Notch/NotchEqualizerBars.swift
         Sources/Vorssaint/UI/Notch/NotchScrollEdgeFade.swift
         Sources/Vorssaint/UI/Notch/NotchAgentComponents.swift
+        Sources/Vorssaint/UI/Notch/NotchAgentLens.swift
         Sources/Vorssaint/UI/Notch/NotchAgentAnimationView.swift
         Sources/Vorssaint/UI/WindowVisibilityReader.swift
         Sources/Vorssaint/Services/Notch/NotchMusicAutomationSupport.swift
