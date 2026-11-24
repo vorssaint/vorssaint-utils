@@ -108,6 +108,7 @@ enum NotchAgentSupport {
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
         case .cursor: return DefaultsKey.notchAgentsCursor
+        case .antigravity: return DefaultsKey.notchAgentsAntigravity
         }
     }
 
@@ -384,6 +385,8 @@ enum NotchAgentSupport {
         guard let limits else { return false }
         let age = now.timeIntervalSince(limits.observedAt)
         if account { return age >= accountStaleness }
+        // Antigravity is asked every minute while it runs; once it quits, the last reading ages.
+        if provider == .antigravity { return age >= accountStaleness }
         return provider == .claude && age >= AgentClaudeAppUsage.freshness
     }
 
