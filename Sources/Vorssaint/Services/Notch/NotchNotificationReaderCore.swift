@@ -197,19 +197,25 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
     func beginReply(_ id: UUID) -> Bool {
         if let held = replying[id] { beginRead(); return replyField(in: held.root) != nil }
         beginRead()
-        guard let target = validatedTarget(id),
-              let action = NotchNotificationSupport.namedAction(in: actions(target.root), titles: replyTitles), usable
-        else { return false }
+        guard let target = validatedTarget(id) else { Self.logReply("beginReply: target no longer on screen"); return false }
+        let available = actions(target.root)
+        guard let action = NotchNotificationSupport.namedAction(in: available, titles: replyTitles), usable else {
+            Self.logReply("beginReply: no single Reply action among \(available.map { $0.replacingOccurrences(of: "\n", with: "/") })")
+            return false
+        }
         // macOS reports a failure for this action even when the box opens, so the box itself is the answer.
         _ = access.perform(action, on: target.root)
-        for _ in 0..<8 {
+        // A slow Mac or a sender that animates its box open needs more than a moment.
+        for attempt in 0..<25 {
             beginRead()
             if replyField(in: target.root) != nil {
                 replying[id] = target
+                Self.logReply("beginReply: box open after \(attempt + 1) tries")
                 return true
             }
-            Thread.sleep(forTimeInterval: 0.1)
+            Thread.sleep(forTimeInterval: 0.12)
         }
+        Self.logReply("beginReply: pressed Reply but no text box appeared in 3 s")
         return false
     }
 
@@ -218,10 +224,15 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
         let message = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !message.isEmpty, let target = replying[id] else { return false }
         beginRead()
-        guard let field = replyField(in: target.root), access.setString(message, "AXValue", on: field),
-              let send = NotchNotificationSupport.namedAction(in: actions(target.root), titles: sendTitles), usable
-        else { return false }
+        guard let field = replyField(in: target.root) else { Self.logReply("sendReply: box is gone"); return false }
+        guard access.setString(message, "AXValue", on: field) else { Self.logReply("sendReply: could not type into the box"); return false }
+        let available = actions(target.root)
+        guard let send = NotchNotificationSupport.namedAction(in: available, titles: sendTitles), usable else {
+            Self.logReply("sendReply: no single Send action among \(available.map { $0.replacingOccurrences(of: "\n", with: "/") })")
+            return false
+        }
         let sent = access.perform(send, on: target.root)
+        Self.logReply("sendReply: Send performed \(sent)")
         if sent { replying[id] = nil }
         return sent
     }
@@ -234,6 +245,15 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
             ($0.components(separatedBy: "\n").first ?? "").localizedCaseInsensitiveContains("Hide")
         }
         if let hide { _ = access.perform(hide, on: target.root) }
+    }
+
+    /// Why a reply did not go, kept in a small file so it can be looked at.
+    private static func logReply(_ line: String) {
+        let url = URL(fileURLWithPath: "/tmp/vorssaint-reply.log")
+        let text = ISO8601DateFormatter().string(from: Date()) + " " + line + "\n"
+        if let handle = try? FileHandle(forWritingTo: url) {
+            handle.seekToEndOfFile(); handle.write(Data(text.utf8)); try? handle.close()
+        } else { try? text.write(to: url, atomically: true, encoding: .utf8) }
     }
 
     private func replyField(in root: Access.Element) -> Access.Element? {
