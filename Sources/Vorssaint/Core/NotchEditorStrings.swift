@@ -85,6 +85,7 @@ struct NotchEditorStrings {
         case .music: return musicSummary
         case .clipboard: return clipboardSummary
         case .dictation: return DictationStrings.localized(L10n.shared.language).history
+        case .themes: return "Outline and halo themes, glass and blur for the island."
         case .captures: return capturesSummary
         case .files: return filesSummary
         case .system: return systemSummary
