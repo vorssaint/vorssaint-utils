@@ -27,6 +27,11 @@ extension FanControlConfiguration {
     }
 }
 
+enum FanControlInterruption: Equatable {
+    case stopped(FanControlStopReason?)
+    case resumeFailed
+}
+
 enum FanControlResumePolicy {
     /// Right after a wake the SMC can refuse a curve for a moment, before the
     /// fans and temperature sensors answer again. A refused resume is tried

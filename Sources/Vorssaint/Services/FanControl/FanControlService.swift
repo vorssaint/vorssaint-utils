@@ -20,9 +20,7 @@ final class FanControlService: ObservableObject {
     @Published private(set) var snapshot: FanControlSnapshot = .empty
     @Published private(set) var error: FanControlErrorCode?
     @Published private(set) var isWorking = false
-    /// Every retry of a kept control failed, so the fans stayed with the
-    /// system even though the card still shows the chosen manual speed or curve.
-    @Published private(set) var resumeFailed = false
+    @Published private(set) var interruption: FanControlInterruption?
 
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                     category: "FanControl")
@@ -175,7 +173,7 @@ final class FanControlService: ObservableObject {
             self.apply(response)
             if response.succeeded, response.snapshot.isCooling {
                 self.resumeFailures = 0
-                self.resumeFailed = false
+                self.interruption = nil
                 self.rememberForResume(configuration)
                 self.startTimerIfNeeded()
             } else {
@@ -390,7 +388,7 @@ final class FanControlService: ObservableObject {
     private func cancelResumeRetry() {
         cancelResumeAttempt()
         resumeFailures = 0
-        resumeFailed = false
+        interruption = nil
     }
 
     /// One refused resume used to leave the fans on System for good while the
@@ -400,7 +398,7 @@ final class FanControlService: ObservableObject {
         guard (failure == .controlFailed || failure == .helperUnavailable),
               stopReason != .hardwareChanged, stopReason != .temperatureUnavailable,
               stopReason != .thermalPressure else {
-            resumeFailed = true
+            interruption = .resumeFailed
             return
         }
         Self.log.error("Fan control resume attempt \(self.resumeFailures + 1) failed: \(failure.rawValue, privacy: .public)")
@@ -409,7 +407,7 @@ final class FanControlService: ObservableObject {
 
     private func scheduleResumeRetry() {
         guard let delay = FanControlResumePolicy.retryDelay(afterFailures: resumeFailures) else {
-            resumeFailed = true
+            interruption = .resumeFailed
             Self.log.error("Fan control resume gave up; the fans stay with the system")
             return
         }
@@ -425,23 +423,31 @@ final class FanControlService: ObservableObject {
             return
         }
         guard !snapshot.isCooling else { return }
-        if !resume(configuration) { resumeFailed = true }
+        if !resume(configuration) { interruption = .resumeFailed }
     }
 
     /// Both panel refreshes and heartbeats can be the first to see a stopped session.
     private func applyStatus(_ response: FanControlResponse) {
         let wasCooling = snapshot.isCooling
         apply(response)
-        guard response.succeeded, !response.snapshot.isCooling else { return }
+        guard !snapshot.isCooling else { return }
+        // Idle polls may repeat an earlier reason. Only the transition identifies this stop.
+        let keptControlStopped = wasCooling && Self.resumableConfiguration != nil
+        guard response.succeeded else {
+            // The watchdog can report the cause before it finishes restoring the fans.
+            if keptControlStopped, response.error == .controlFailed, let reason = snapshot.stopReason {
+                interruption = .stopped(reason)
+            }
+            return
+        }
         UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
         stopIdleWorkIfPossible()
-        guard wasCooling, Self.resumableConfiguration != nil else { return }
-        if response.snapshot.stopReason == .heartbeatLost {
+        guard keptControlStopped else { return }
+        if snapshot.stopReason == .heartbeatLost {
             scheduleResumeRetry()
         } else {
-            // A protection stop or an unknown reason leaves control with macOS.
             cancelResumeAttempt()
-            resumeFailed = true
+            interruption = .stopped(snapshot.stopReason)
         }
     }
 

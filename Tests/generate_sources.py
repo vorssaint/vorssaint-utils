@@ -638,6 +638,11 @@ def main():
                         "    private func choose(applications:", "    private func applyChosen("])
           + "}\n}\n")
     fan_control = "Sources/Vorssaint/Services/FanControl/FanControlService.swift"
+    fan_panel = "Sources/Vorssaint/UI/MenuPanel"
+    write("FanControlCard.swift", (ROOT / fan_panel / "FanControlCurveEditor.swift").read_text()
+          + "\nextension FanControlResumeContract {\ntypealias FanControlService = Service\n"
+          + declaration(fan_panel + "/FanControlSection.swift", "struct FanControlCardContent:")
+          + "}\n")
     write("FanControlResume.swift", "import Foundation\n"
           + "extension FanControlResumeContract {\nfinal class Service: Fixture {\n"
           + "".join(declaration(fan_control, prefix)
