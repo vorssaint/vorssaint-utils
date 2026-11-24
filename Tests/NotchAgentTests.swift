@@ -143,6 +143,16 @@ enum NotchAgentTests {
                           "a long prompt on the fast tier pays both premiums")
         suite.expectClose(AgentPricing.cost(AgentBillable(tokens: AgentTokens(input: 272_000)), model: "gpt-6-astra").cost ?? -1,
                           2.72, "the long-context premium starts past its threshold")
+        // Global Standard promotional rates: https://developers.openai.com/api/docs/pricing.md
+        let rosalind = AgentBillable(tokens: AgentTokens(input: 170_000, cacheWrite: 2_000, cacheRead: 100_000, output: 1_000))
+        suite.expectClose(AgentPricing.cost(rosalind, model: "gpt-6-rosalind").cost ?? -1, 1.875,
+                          "Rosalind bills the promotional rates including 30-minute cache writes")
+        var law = AgentBillable(tokens: AgentTokens(input: 172_000, cacheRead: 100_000, output: 1_000))
+        suite.expectClose(AgentPricing.cost(law, model: "gpt-6-astra-law").cost ?? -1, 1.87,
+                          "Astra Law bills short-context rates at exactly 272K prompt tokens")
+        law.tokens.input += 1
+        suite.expectClose(AgentPricing.cost(law, model: "gpt-6-astra-law").cost ?? -1, 3.71502,
+                          "Astra Law bills long-context rates for the whole request above 272K")
         let plain = AgentBillable(tokens: AgentTokens(input: 1_000_000))
         var fast = plain
         fast.fast = true
