@@ -24,6 +24,7 @@ struct ClipboardQuickPanelView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var clearingIDs: [UUID: Date]?
     @State private var shelfScrollerStyle = NSScroller.preferredScrollerStyle
+    @State private var filterOptionsHeight: CGFloat = 205
     @State private var boardEditor: PinboardEditor.Mode?
     @State private var historyRevealEntryID: UUID?
     @State private var deletingBoard: ClipboardPinboard?
@@ -58,7 +59,7 @@ struct ClipboardQuickPanelView: View {
             let inEdgeShelf = layout == .cards
             let concealed = inEdgeShelf && !reduceMotion && !history.quickShelfPresented
             Group {
-                if privacyMode { protectedContent } else { shelfContent }
+                if privacyMode { protectedContent } else { shelfContent(height: geometry.size.height) }
             }
             .padding(.top, inEdgeShelf ? history.quickShelfTopInset : 0)
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -102,13 +103,15 @@ struct ClipboardQuickPanelView: View {
         }
     }
 
-    private var shelfContent: some View {
+    private func shelfContent(height: CGFloat) -> some View {
         VStack(spacing: 0) {
             toolbar
                 .modifier(ClipboardClearRecentConfirmation(entryIDs: $clearingIDs))
             if layout == .list {
                 filterChoices.disabled(boardEditor != nil)
                 Divider()
+            } else if vertical {
+                shelfFilters(maxHeight: height * 0.45)
             }
             shelfResults
             if layout == .list {
@@ -166,7 +169,9 @@ struct ClipboardQuickPanelView: View {
         contentWithPreview
             .allowsHitTesting(boardEditor == nil)
             .accessibilityHidden(boardEditor != nil)
-            .overlay(alignment: .top) { filterFlyout }
+            .overlay(alignment: .top) {
+                if !vertical { shelfFilters(maxHeight: 260) }
+            }
             .overlay(alignment: .topTrailing) {
                 if let mode = boardEditor, usesBoardEditorFlyout {
                     pinboardEditor(mode)
@@ -177,11 +182,11 @@ struct ClipboardQuickPanelView: View {
     }
 
     @ViewBuilder
-    private var filterFlyout: some View {
+    private func shelfFilters(maxHeight: CGFloat) -> some View {
         if layout == .cards, boardEditor == nil, hasFilterChoices {
             Group {
                 if history.quickSourcePickerPresented || history.quickTypePickerPresented {
-                    shelfFilterPicker
+                    shelfFilterPicker(maxHeight: maxHeight)
                 } else {
                     sourceChoices.padding(.vertical, 8)
                 }
@@ -192,8 +197,9 @@ struct ClipboardQuickPanelView: View {
         }
     }
 
-    private var shelfFilterPicker: some View {
-        ScrollView {
+    private func shelfFilterPicker(maxHeight: CGFloat) -> some View {
+        let height = min(filterOptionsHeight, maxHeight)
+        return ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 Text(shelfText.filterByType).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 LazyVGrid(columns: filterColumns, alignment: .leading, spacing: 6) {
@@ -212,8 +218,9 @@ struct ClipboardQuickPanelView: View {
                 }
             }
             .padding(12)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { filterOptionsHeight = $0 }
         }
-        .frame(height: 205)
+        .frame(idealHeight: height, maxHeight: height)
     }
 
     private var filterColumns: [GridItem] {
@@ -318,29 +325,32 @@ struct ClipboardQuickPanelView: View {
     private func shelfToolbar(width: CGFloat) -> some View {
         let expanded = shelfSearchExpanded
         let fieldWidth = expanded ? min(520, max(80, width - 96), max(220, width * 0.4)) : 28
-        let leading = expanded ? (width - fieldWidth) / 2 : 0
+        let sideSearch = vertical && expanded
 
-        return ZStack(alignment: .leading) {
-            HStack(spacing: 6) {
-                if vertical && expanded {
-                    compactPinboardMenu.disabled(boardEditor != nil)
-                    Spacer(minLength: 0)
-                } else {
-                    pinboardBar.padding(.leading, leading + fieldWidth + 6)
-                }
-                if history.pasteStackCount > 0 && !(vertical && expanded) {
-                    ClipboardPasteStackMenu(language: l10n.language)
-                        .focused($filterChoiceFocus, equals: .pasteStack)
-                        .disabled(boardEditor != nil)
-                }
-                compactActions.disabled(boardEditor != nil)
+        return HStack(spacing: 0) {
+            if sideSearch {
+                compactPinboardMenu
+                    .disabled(boardEditor != nil)
+                    .padding(.trailing, 6)
+            } else if expanded {
+                Color.clear.frame(width: max(0, (width - fieldWidth) / 2))
             }
             shelfSearch
                 .disabled(boardEditor != nil)
-                .frame(width: fieldWidth)
-                .offset(x: leading)
+                .frame(width: sideSearch ? nil : fieldWidth)
+            if !sideSearch {
+                pinboardBar.padding(.leading, 6)
+            }
+            if !sideSearch && history.pasteStackCount > 0 {
+                ClipboardPasteStackMenu(language: l10n.language)
+                    .focused($filterChoiceFocus, equals: .pasteStack)
+                    .disabled(boardEditor != nil)
+                    .padding(.leading, 6)
+            }
+            compactActions
+                .disabled(boardEditor != nil)
+                .padding(.leading, 6)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var shelfSearchExpanded: Bool {
