@@ -414,7 +414,7 @@ extension AppFeature {
         case .uninstaller: return FeatureSettingsDestination(.uninstaller)
         case .killProcess: return FeatureSettingsDestination(.killProcess)
         case .portManager: return FeatureSettingsDestination(.portManager)
-        case .menuBarOrganizer: return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
+        case .menuBarOrganizer: return FeatureSettingsDestination(.general)
         case .homebrew: return FeatureSettingsDestination(.homebrew)
         case .appUpdates: return FeatureSettingsDestination(.appUpdates)
         case .screenshot:
@@ -494,7 +494,7 @@ enum FeatureVisibilitySupport {
         case .superKey: return [.superKey]
         case .textSnippets: return [.textSnippets]
         case .screenshot: return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
-        case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchSpotify, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch, .notchMascot]
+        case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchSpotify, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch, .notchMascot, .notchHomeAssistant]
         case .notchMascot: return [.notchMascot]
         case .radialMenu: return [.radialMenu]
         case .commandBar: return [.commandBar]

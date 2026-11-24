@@ -99,7 +99,7 @@ enum AgentUsageArchive {
         let sharedTranscripts = Set(contents.store.records.lazy
             .filter { $0.record.provider == .cursor && $0.key.hasPrefix("cursor-transcript:") && $0.sources.count > 1 }
             .flatMap(\.sources))
-        var gone = store.files.subtracting(cursors.keys)
+        var gone = store.files.subtracting(cursors.keys).subtracting([AgentKiroServer.accountSource])
         let sharing = store.files(sharingWith: gone).subtracting(gone).subtracting(sharedTranscripts)
         for file in sharing { cursors[file] = nil }
         gone.formUnion(sharing)

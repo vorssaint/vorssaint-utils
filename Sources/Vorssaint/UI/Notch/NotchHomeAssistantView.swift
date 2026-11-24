@@ -160,7 +160,9 @@ struct NotchHomeAssistantSettingsControls: View {
                 }
             }
         } label: { Image(systemName: "ellipsis") }
-        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .menuIndicator(.hidden)
         .help(text[.entityOptions]).accessibilityLabel(text[.entityOptions])
         .disabled(destinations.isEmpty)
     }

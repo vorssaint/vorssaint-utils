@@ -386,23 +386,21 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 84, "feature catalog has 84 features")
+        suite.expect(AppFeature.allCases.count == 87, "feature catalog has 87 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
-            "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit", "spacesOrder",
-            "scrollInverter", "scrollHorizontal", "scrollZoom", "focusFollowsMouse", "smoothScroll", "linearScroll", "scrollSpeed", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
-            "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
-            "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
-            "diskImageInstaller",
-            "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
-            "keepAwake", "brightness", "extraBrightness", "bluetoothSleep", "batteryCare",
-            "quickLauncher", "quickToggles", "quitApps", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
-            "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchSpotify", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "menuBarHider", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
-            "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
-            "connectedDevices", "fanControl", "weather",
+            "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit", "spacesOrder", "scrollInverter",
+            "scrollHorizontal", "scrollZoom", "focusFollowsMouse", "smoothScroll", "linearScroll", "scrollSpeed", "mouseAcceleration", "mouseNavigation",
+            "mouseButtonShortcuts", "middleClick", "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection", "clipboardHistory",
+            "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner", "diskImageInstaller", "mixer", "soundOutputSwitcher",
+            "audioPriority", "micMute", "musicBlock", "dictation", "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
+            "batteryCare", "menuBarOrganizer", "quickLauncher", "quickToggles", "quitApps", "colorPicker", "screenOCR", "cleaningMode",
+            "mediaTools", "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview", "radialMenu",
+            "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "menuBarHider", "notch",
+            "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchSpotify",
+            "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot", "notchHomeAssistant", "monitorCPU", "monitorGPU",
+            "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower", "connectedDevices", "fanControl", "weather",
         ], "feature ids are stable (they persist inside availability keys)")
         suite.expect(MouseAccelerationSupport.validatedRegistryID(nil) == nil
                 && MouseAccelerationSupport.validatedRegistryID(0) == nil
@@ -698,7 +696,7 @@ enum FeatureCatalogTests {
         suite.expect(AppFeature.features(in: .dynamicIsland) == [
             .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer,
             .notchAccessories, .notchLyrics, .notchQueue, .notchSpotify, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
-            .notchMascot,
+            .notchMascot, .notchHomeAssistant,
         ], "the Dynamic Island heads its own hub section, followed by its extensions")
         suite.expect(AppFeature.dynamicIslandExtensions
                 == Array(AppFeature.features(in: .dynamicIsland).dropFirst()),

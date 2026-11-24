@@ -4285,7 +4285,18 @@ final class NotchService: ObservableObject {
     /// The gallery steps rows; Home keeps native scrolling and momentum in its
     /// body, while the header remains available for island gestures.
     private func handleScroll(_ event: NSEvent) -> Bool {
-        handleConvertSwipe(event) || handleSectionScroll(event) || handleGesture(event)
+        if running, !suspended, expanded, selected == .homeAssistant,
+           !showingSections, !showingAppPanel, !showingCommandBar, let panel {
+            let point = panel.convertPoint(toScreen: event.locationInWindow)
+            if windowHost?.containsSurface(point) == true,
+               panel.frame.maxY - point.y > expandedGeometry.headerTopInset + expandedGeometry.headerRowHeight {
+                // Never finish a header gesture from a wheel event over a card
+                // or a gap. AppKit delivers the complete sequence to ScrollView.
+                gesture = NotchGestureSupport()
+                return false
+            }
+        }
+        return handleConvertSwipe(event) || handleSectionScroll(event) || handleGesture(event)
     }
 
     private var convertSwipe = ConvertSwipe()

@@ -44,7 +44,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .mixer: return "v"
         case .music: return "m"
         case .clipboard: return "b"
-        case .dictation: return "h"
+        case .dictation: return "k"
         case .captures: return "s"
         case .files: return "f"
         case .system: return "i"

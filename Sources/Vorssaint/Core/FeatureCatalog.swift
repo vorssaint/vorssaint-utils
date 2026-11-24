@@ -451,7 +451,7 @@ extension AppFeature {
     /// Agents reads local session histories, and the companion changes the
     /// resting island. Spotify connects an account. Each is a separate choice.
     static var dynamicIslandInitialExtensions: [AppFeature] {
-        dynamicIslandExtensions.filter { $0 != .notchMascot && $0 != .notchAgents && $0 != .notchSpotify }
+        dynamicIslandExtensions.filter { $0 != .notchMascot && $0 != .notchAgents && $0 != .notchSpotify && $0 != .notchHomeAssistant }
     }
 
     var initialInstallGroup: [AppFeature] {
