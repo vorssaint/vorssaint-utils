@@ -539,6 +539,7 @@ enum DefaultsKey {
     static let windowReserveStageManagerSpace = "windowReserveStageManagerSpace"
     static let windowLayoutMarginPercent = "windowLayoutMarginPercent" // per-edge percentage for margin maximize
     static let windowLayoutNudgeStep = "windowLayoutNudgeStep" // points one nudge moves the active window
+    static let windowLayoutResizeStepPercent = "windowLayoutResizeStepPercent" // display-relative size change per shortcut press
     static let windowLayoutSideRepeatCyclesThirds = "windowLayoutSideRepeatCyclesThirds" // repeated Left/Right cycles half, 2/3, 1/3 on the same display
     static let windowLayoutIgnoredApps = "windowLayoutIgnoredApps" // apps that temporarily disable window layout while focused
     static let panelCollapsedSections = "panelCollapsedSections"
@@ -841,6 +842,8 @@ enum DefaultsKey {
     static let windowLayoutShortcutRightQuarter = "windowLayoutShortcutRightQuarter"
     static let windowLayoutShortcutPreviousDisplay = "windowLayoutShortcutPreviousDisplay"
     static let windowLayoutShortcutNextDisplay = "windowLayoutShortcutNextDisplay"
+    static let windowLayoutShortcutDecreaseSize = "windowLayoutShortcutDecreaseSize"
+    static let windowLayoutShortcutIncreaseSize = "windowLayoutShortcutIncreaseSize"
     static let windowLayoutShortcutFullScreen = "windowLayoutShortcutFullScreen"
     static let windowLayoutShortcutTopLeftSixth = "windowLayoutShortcutTopLeftSixth"
     static let windowLayoutShortcutTopCenterSixth = "windowLayoutShortcutTopCenterSixth"
@@ -1769,6 +1772,7 @@ enum Defaults {
         DefaultsKey.windowLayoutScreenGap: 0,
         DefaultsKey.windowReserveStageManagerSpace: false,
         DefaultsKey.windowLayoutMarginPercent: 5.0,
+        DefaultsKey.windowLayoutResizeStepPercent: 5.0,
         DefaultsKey.windowLayoutSideRepeatCyclesThirds: false,
         DefaultsKey.windowLayoutNudgeStep: WindowLayoutNudge.defaultStep,
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
@@ -2097,6 +2101,8 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutRightQuarter: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutPreviousDisplay: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutNextDisplay: GlobalShortcut.windowLayoutNextDisplayDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutDecreaseSize: GlobalShortcut.windowLayoutDecreaseSizeDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutIncreaseSize: GlobalShortcut.windowLayoutIncreaseSizeDefault.storageValue,
         DefaultsKey.windowLayoutShortcutTopLeftSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutTopCenterSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutTopRightSixth: WindowLayoutAction.clearedShortcutStorageValue,
