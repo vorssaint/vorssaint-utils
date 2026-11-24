@@ -401,7 +401,7 @@ enum FeatureCatalogTests {
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchSpotify", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
-            "connectedDevices", "fanControl",
+            "connectedDevices", "fanControl", "weather",
         ], "feature ids are stable (they persist inside availability keys)")
         suite.expect(MouseAccelerationSupport.validatedRegistryID(nil) == nil
                 && MouseAccelerationSupport.validatedRegistryID(0) == nil
@@ -2416,6 +2416,10 @@ enum FeatureCatalogTests {
                 && AppFeature.allCases.filter { $0 != .diskImageInstaller }
                     .allSatisfy(\.hasNavigableSettingsDestination),
                "a feature without a separate configuration surface does not show a dead-end link")
+        suite.expect(AppFeature.weather.settingsDestination == FeatureSettingsDestination(.weather)
+                && pageVisible(.weather, available: [.weather])
+                && !pageVisible(.weather, available: []),
+               "weather settings live on their own page, kept by the weather feature")
         suite.expect(AppFeature.monitorCPU.settingsDestination == FeatureSettingsDestination(.monitor)
                 && AppFeature.fanControl.settingsDestination
                 == FeatureSettingsDestination(.monitor, sectionAnchor: .fanControl),

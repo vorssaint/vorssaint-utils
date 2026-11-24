@@ -167,6 +167,7 @@ struct NotchPagePreview: View {
             RecentCapturesView(onClose: nil, notchSize: size).notchBand(trailing: { NotchClearCapturesButton() })
         case .files: NotchFilesView(service: notch)
         case .system: NotchSystemView(size: size) { _ in }
+        case .weather: WeatherNotchView(size: size)
         case .tools: QuickLauncherView(notchSize: size)
         case .scratchpad: NotchScratchpadStill()
         case .agents:
@@ -308,9 +309,9 @@ struct NotchSectionListRow: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(editor.summary(module))
+                .help(editor.summary(module, language: l10n.language))
                 .accessibilityLabel(title)
-                .accessibilityValue(editor.summary(module))
+                .accessibilityValue(editor.summary(module, language: l10n.language))
                 .accessibilityAddTraits(selected ? .isSelected : [])
                 .accessibilityAction(named: FeatureStrings.clipboard(l10n.language).moveUp) { move(by: -1) }
                 .accessibilityAction(named: FeatureStrings.clipboard(l10n.language).moveDown) { move(by: 1) }
@@ -347,7 +348,7 @@ struct NotchSectionHeader: View {
             NotchSectionTile(module: module, shown: shown, side: 38)
             VStack(alignment: .leading, spacing: 3) {
                 Text(module.title(l10n.language)).font(.title3.weight(.semibold))
-                Text(editor.summary(module))
+                Text(editor.summary(module, language: l10n.language))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -397,6 +398,7 @@ extension NotchModule {
         case .captures: return .indigo
         case .files: return .cyan
         case .system: return .green
+        case .weather: return .cyan
         case .tools: return .gray
         case .calendar: return .red
         case .notifications: return .orange

@@ -4,8 +4,9 @@
 <dict>
 	<!-- Hardened runtime still requires explicit resource capabilities even
 	     though the app is not sandboxed. These allow requesting access to
-	     Apple Events, camera, audio input and calendars; the user still
-	     authorizes each protected resource through the normal TCC prompt. -->
+	     Apple Events, camera, audio input, calendars and location; the user
+	     still authorizes each protected resource through the normal TCC
+	     prompt. -->
 	<key>com.apple.security.automation.apple-events</key>
 	<true/>
 	<key>com.apple.security.device.camera</key>
@@ -13,6 +14,8 @@
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
 	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
+	<key>com.apple.security.personal-information.location</key>
 	<true/>
 </dict>
 </plist>

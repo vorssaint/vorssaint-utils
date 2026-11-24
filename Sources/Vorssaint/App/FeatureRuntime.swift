@@ -398,6 +398,7 @@ final class FeatureRuntime: ObservableObject {
             }
         },
         .appUpdates: { AppUpdatesService.shared.syncWithPreferences() },
+        .weather: { MainActor.assumeIsolated { WeatherService.shared.syncWithFeatures() } },
         .uninstaller: { TrashAppWatcher.shared.syncWithPreferences() },
         .monitorCPU: { FeatureRuntime.syncMonitor() },
         .monitorGPU: { FeatureRuntime.syncMonitor() },

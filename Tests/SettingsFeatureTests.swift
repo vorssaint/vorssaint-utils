@@ -251,6 +251,16 @@ enum SettingsFeatureTests {
         verify(alerts.diskThreshold, opens: monitorAlerts, commandID: alertID, shown: false)
         verify(alerts.disk, opens: monitorAlerts, commandID: alertID)
 
+        let weather = FeatureStrings.weather(.enUS)
+        let weatherPage = FeatureSettingsDestination(.weather)
+        for label in [weather.unitsTitle, weather.useCurrentLocation, weather.currentLocation,
+                      weather.menuBarStyle, weather.showInPanel, weather.visibilityLabel,
+                      weather.attribution, weather.dataSourceTitle] {
+            verify(label, opens: weatherPage, commandID: "settings.weather")
+        }
+        verify(weather.unitsTitle, opens: weatherPage, commandID: "settings.weather",
+               shown: false, without: [.weather])
+
         let musicDestination = FeatureSettingsDestination(notch: .module(.music))
         verify(music.online, opens: musicDestination, commandID: "settings.feature.notchLyrics")
         defaults.set(false, forKey: DefaultsKey.notchLyricsEnabled)
