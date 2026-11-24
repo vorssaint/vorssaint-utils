@@ -4212,9 +4212,10 @@ enum ScreenshotFeatureTests {
                "every input channel is muted, never fewer than the stereo pair")
         suite.expect(MicMuteSupport.controlValuesMatch(0.5, 0.48, isMute: false)
                 && !MicMuteSupport.controlValuesMatch(0.5, 0.4, isMute: false)
+                && !MicMuteSupport.controlValuesMatch(0.005, 0, isMute: false)
                 && MicMuteSupport.controlValuesMatch(1, 1, isMute: true)
                 && !MicMuteSupport.controlValuesMatch(1, 0, isMute: true),
-               "restored gain may settle near the saved level; mute switches stay exact")
+               "restored gain may settle near the saved level; near-zero residuals and mute switches stay exact")
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,
                "the radial menu ships off by default")

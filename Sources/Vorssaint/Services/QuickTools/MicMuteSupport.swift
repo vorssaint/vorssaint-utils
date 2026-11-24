@@ -115,12 +115,16 @@ enum MicMuteSupport {
     }
 
     /// Mute is on or off; gain may settle a little away from the saved value
-    /// after a master/channel write. A still-zero gain must not count as a
-    /// match for a saved audible level.
+    /// after a master/channel write. Slack only applies between audible
+    /// levels — a near-zero residual must still be written down to mute.
     static func controlValuesMatch(_ left: Double, _ right: Double, isMute: Bool) -> Bool {
         guard left.isFinite && right.isFinite else { return false }
         if isMute { return abs(left - right) <= 0.0001 }
-        return abs(left - right) <= volumeMatchTolerance
+        let delta = abs(left - right)
+        if delta <= 0.0001 { return true }
+        let audible = Double(silenceThreshold)
+        guard left > audible, right > audible else { return false }
+        return delta <= volumeMatchTolerance
     }
 
     /// Master first, then every channel the stream layout named, never fewer
