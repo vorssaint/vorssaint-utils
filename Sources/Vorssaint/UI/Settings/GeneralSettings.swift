@@ -17,6 +17,7 @@ struct GeneralSettings: View {
     @State private var loginPending = false
     @State private var loginRefreshID = UUID()
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
+    @AppStorage(DefaultsKey.panelQuitRequiresHold) private var panelQuitRequiresHold = false
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
@@ -74,6 +75,13 @@ struct GeneralSettings: View {
                     .font(.caption)
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            Divider()
+            SettingsRow(symbol: "power", title: text.holdToQuitTitle,
+                        caption: text.holdToQuitCaption) {
+                Toggle(text.holdToQuitTitle, isOn: $panelQuitRequiresHold)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
             }
             Divider()
             SettingsRow(symbol: "globe", title: l10n.s.languageLabel) {

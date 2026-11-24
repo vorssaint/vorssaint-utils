@@ -72,6 +72,7 @@ struct MenuPanelView: View {
     @ObservedObject private var panelFocus = MenuPanelFocus.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(DefaultsKey.panelQuitRequiresHold) private var panelQuitRequiresHold = false
     @AppStorage(DefaultsKey.monitorShowMixer) private var showMixer = true
     @AppStorage(DefaultsKey.monitorShowSystem) private var showSystem = true
     @AppStorage(DefaultsKey.monitorShowNetwork) private var showNetwork = true
@@ -466,11 +467,19 @@ struct MenuPanelView: View {
                 appDelegate()?.openSettingsWindow()
             }
 
-            HoldToQuitButton(title: l10n.s.panelQuit,
-                             holdHint: l10n.s.panelQuitHoldHint,
-                             fill: footerFill,
-                             border: PanelSurface.border(for: colorScheme)) {
-                NSApp.terminate(nil)
+            if panelQuitRequiresHold {
+                HoldToQuitButton(title: l10n.s.panelQuit,
+                                 holdHint: l10n.s.panelQuitHoldHint,
+                                 fill: footerFill,
+                                 border: PanelSurface.border(for: colorScheme)) {
+                    NSApp.terminate(nil)
+                }
+            } else {
+                footerButton(l10n.s.panelQuit,
+                             systemImage: "power",
+                             horizontalPadding: 7) {
+                    NSApp.terminate(nil)
+                }
             }
         }
         .frame(maxWidth: .infinity)

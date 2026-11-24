@@ -315,6 +315,7 @@ enum SettingsDirectory {
             (categories.essentials, [
                 SettingsDirectoryItem(page: .general, title: s.tabGeneral, icon: "gearshape",
                                        keywords: [s.launchAtLogin, s.languageLabel,
+                                                  FeatureStrings.generalSettings(language).holdToQuitTitle,
                                                   FeatureStrings.appearance(language).label,
                                                   FeatureStrings.appearance(language).dark,
                                                   FeatureStrings.feedback(language).sectionTitle] + liquidGlass,

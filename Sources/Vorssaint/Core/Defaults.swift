@@ -46,6 +46,7 @@ enum DefaultsKey {
     static let keepAwakeMouseJiggleInterval = "keepAwakeMouseJiggleIntervalMinutes"
     static let hotkeyEnabled = "hotkeyEnabled"
     static let launchAtLoginWanted = "launchAtLoginWanted"  // the user's choice; the system record can be lost
+    static let panelQuitRequiresHold = "panelQuitRequiresHold" // the panel's Quit button quits only after a hold
     static let keepAwakeShortcut = "keepAwakeShortcut"    // GlobalShortcut storage value
     static let keepAwakeIconTint = "keepAwakeIconTint"    // KeepAwakeIconTint.rawValue
     static let keepAwakeActiveIcon = "keepAwakeActiveIcon" // KeepAwakeActiveIcon.rawValue
@@ -1270,6 +1271,7 @@ enum Defaults {
         DefaultsKey.keepAwakeMouseJiggleInterval: 5,
         DefaultsKey.hotkeyEnabled: true,
         DefaultsKey.launchAtLoginWanted: false,
+        DefaultsKey.panelQuitRequiresHold: false,
         DefaultsKey.keepAwakeShortcut: "control+option+command:40",
         DefaultsKey.keepAwakeIconTint: KeepAwakeIconTint.orange.rawValue,
         DefaultsKey.keepAwakeActiveIcon: KeepAwakeActiveIcon.vorssaint.rawValue,
