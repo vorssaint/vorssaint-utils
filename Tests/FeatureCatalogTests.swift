@@ -1167,6 +1167,7 @@ enum FeatureCatalogTests {
                "only a valid manual speed or curve is ever kept or brought back after a restart")
         FanControlResumeContract.run(suite)
         FanControlRecoveryContract.run(suite)
+        FanControlOwnershipTests.run(suite)
         FanControlHardwareContract.run(suite)
         let legacySnapshotData = Data(#"{"fans":[],"isCooling":false,"temperatures":[{"source":"hottestCPU","celsius":45}]}"#.utf8)
         let legacySnapshot = try? JSONDecoder().decode(FanControlSnapshot.self, from: legacySnapshotData)

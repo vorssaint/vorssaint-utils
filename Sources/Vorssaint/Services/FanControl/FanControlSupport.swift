@@ -150,6 +150,10 @@ struct FanControlResponse: Codable, Equatable, Sendable {
     var sessionStop: FanControlSessionStop? = nil
     /// Present on helpers that report stop receipts for the requesting connection.
     var isRecovering: Bool? = nil
+    /// A conditional resume must present this ticket on the connection that received it.
+    var resumeAuthorization: UUID? = nil
+    /// Binds a saved configuration to the last session eligible for relaunch.
+    var resumeSessionID: UUID? = nil
 
     static func success(_ snapshot: FanControlSnapshot) -> FanControlResponse {
         FanControlResponse(succeeded: true, snapshot: snapshot, error: nil, supportsSessionRelease: true)
@@ -452,12 +456,12 @@ enum FanControlPolicy {
                               temperatureFailures: Int = 0,
                               thermalState: ProcessInfo.ThermalState) -> FanControlStopReason? {
         if let endsAt, now >= endsAt { return .timeLimit }
-        if heartbeatAge > heartbeatLimit { return .heartbeatLost }
         if verificationFailures >= verificationFailureLimit { return .hardwareChanged }
         if temperatureFailures >= temperatureFailureLimit { return .temperatureUnavailable }
         if thermalState == .serious || thermalState == .critical {
             return .thermalPressure
         }
+        if heartbeatAge > heartbeatLimit { return .heartbeatLost }
         return nil
     }
 }

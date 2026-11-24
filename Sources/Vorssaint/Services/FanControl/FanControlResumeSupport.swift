@@ -7,23 +7,40 @@ import Foundation
 // compiles: resuming is the app's own business, and code the helper never
 // runs must not change its binary and force every Mac to register it again.
 extension FanControlConfiguration {
+    private struct SavedSession: Codable {
+        let configuration: FanControlConfiguration
+        let sessionID: UUID
+    }
+
     /// The control kept for a restart or wake. Only a valid manual speed or
     /// curve qualifies: System control has nothing to bring back.
-    static func encodeResume(_ configuration: FanControlConfiguration) -> String? {
+    static func encodeResume(_ configuration: FanControlConfiguration, sessionID: UUID? = nil) -> String? {
         guard configuration.mode != .system,
               FanControlPolicy.validConfiguration(configuration) else { return nil }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        guard let data = try? encoder.encode(configuration) else { return nil }
+        let data: Data?
+        if let sessionID {
+            data = try? encoder.encode(SavedSession(configuration: configuration, sessionID: sessionID))
+        } else {
+            data = try? encoder.encode(configuration)
+        }
+        guard let data else { return nil }
         return String(data: data, encoding: .utf8)
     }
 
     static func decodeResume(_ value: String) -> FanControlConfiguration? {
-        guard let data = value.data(using: .utf8),
-              let configuration = try? JSONDecoder().decode(FanControlConfiguration.self, from: data),
+        let data = Data(value.utf8)
+        let decoder = JSONDecoder()
+        let saved = try? decoder.decode(SavedSession.self, from: data)
+        guard let configuration = saved?.configuration ?? (try? decoder.decode(Self.self, from: data)),
               configuration.mode != .system,
               FanControlPolicy.validConfiguration(configuration) else { return nil }
         return configuration
+    }
+
+    static func resumeSessionID(in value: String) -> UUID? {
+        (try? JSONDecoder().decode(SavedSession.self, from: Data(value.utf8)))?.sessionID
     }
 }
 

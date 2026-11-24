@@ -660,6 +660,7 @@ def main():
           + "final class Service: Fixture {\n"
           + declaration(fan_control, "    private var ownsSession:").replace("private var", "var", 1)
           + declaration(fan_control, "    private var needsTimer:").replace("private var", "var", 1)
+          + declaration(fan_control, "    func applyConfiguration(_ configuration:")
           + declaration(fan_control, "    private func applyConfiguration(_ configuration:")
           .replace("private func applyConfiguration", "func sendConfiguration", 1)
           + declaration(fan_control, "    private func disconnectSession(").replace("NSXPCConnection", "Invalidating", 1)
@@ -674,7 +675,8 @@ def main():
                         "    static func restoreBeforeTerminationIfNeeded()", "    private func restoreBeforeTermination()",
                         "    private func restoreThenUnregister()", "    private func unregisterHelper()", "    func refresh()", "    func authorize()",
                         "    func returnToSystem(", "    func forgetResume(", "    func resumePreferenceDidChange(",
-                        "    private static var resumableConfiguration:", "    private func resume(",
+                        "    private static var resumableConfiguration:", "    private static var savedResumeSessionID:",
+                        "    private func resume(",
                         "    private static var helperAwaitsRegistration:",
                         "    private func rememberForResume(", "    private func startTimerIfNeeded(",
                         "    func panelDidAppear()", "    func panelDidDisappear()", "    private func stopIdleWorkIfPossible(",
@@ -682,7 +684,8 @@ def main():
                         "    private func beginResume(", "    private func cancelResumeRetry(",
                         "    private func resumeDidFail(", "    private func scheduleResumeRetry(",
                         "    private func retryResume(", "    private func applyStatus(", "    private func applySessionResponse(",
-                        "    private func confirmPreviousRecovery(", "    private func automaticControlConfirmed()",
+                        "    private func confirmPreviousRecovery(", "    private func acceptResumeAuthorization(",
+                        "    private func automaticControlConfirmed()",
                         "    private func blockResumeAfterStop(",
                         "    private func apply(_ response:",
                         "    private func poll(", "    private func heartbeat(", "    private func requestStatus(",
@@ -691,7 +694,10 @@ def main():
     fan_helper = "Sources/FanControlHelper/main.swift"
     write("FanControlRecovery.swift", "import Foundation\n"
           + declaration("Sources/Vorssaint/Services/FanControl/FanControlXPC.swift", "@objc protocol FanControlXPCProtocol {")
-          + "extension FanControlRecoveryContract {\nfinal class Controller: Fixture {\n"
+          + "extension FanControlRecoveryContract {\n"
+          + declaration(fan_helper, "private struct FanControlResumeEpoch:").replace("private struct", "struct", 1)
+          + declaration(fan_helper, "private enum FanControlResumeGrant").replace("private enum", "enum", 1)
+          + "final class Controller: Fixture {\n"
           + "".join(declaration(fan_helper, prefix)
                     .replace("FanControlHardware()", "openHardware()")
                     .replace("private func", "func", 1) for prefix in [
@@ -700,6 +706,8 @@ def main():
                         "    func restore(session", "    func restoreForRemoval(reply:", "    func releaseControl(session",
                         "    private func releaseResponse(for",
                         "    private func restoreResponse(", "    private func encodedResponse(",
+                        "    private func revokeResumeGrants(", "    private func revokeForExternalControl(",
+                        "    private func changeResumeEpoch(", "    private func attachSessionStop(",
                         "    private func currentSnapshot()", "    private func statusResponse(",
                         "    private func applyConfiguration(session", "    private func updateActiveConfiguration(",
                         "    private func finishFailedStart(",
@@ -715,6 +723,27 @@ def main():
           + declaration(fan_hardware, "enum FanControlHardwareError:")
           + declaration(fan_hardware, "final class FanControlHardware {")
           + "}\n")
+    # Run the real flock, pread/pwrite and marker operations under a disposable
+    # directory owned by the test process.
+    ownership = declaration(fan_helper, "private final class FanControlOwnership {")
+    for original, isolated in [
+        ("private final class FanControlOwnership {",
+         "final class FanControlOwnership {\n    let directory: URL\n    init(directory: URL) { self.directory = directory }"),
+        ('let lockPath = "/var/run/vorssaint-fan-control.lock"',
+         'var lockPath: String { directory.appendingPathComponent("vorssaint-fan-control.lock").path }'),
+        ('let markerPath = "/var/run/vorssaint-fan-control.active"',
+         'var markerPath: String { directory.appendingPathComponent("vorssaint-fan-control.active").path }'),
+        ('stat("/var/run",', 'stat(self.directory.path,'),
+        ("info.st_uid == 0", "info.st_uid == geteuid()"),
+    ]:
+        if original not in ownership:
+            raise ValueError(f"Missing fan ownership fixture substitution: {original}")
+        ownership = ownership.replace(original, isolated)
+    if '"/var/run' in ownership:
+        raise ValueError("Fan ownership fixture contains a live run directory")
+    write("FanControlOwnership.swift", "import Darwin\nimport Foundation\nextension FanControlOwnershipTests {\n"
+          + declaration(fan_helper, "private struct FanControlResumeEpoch:").replace("private struct", "struct", 1)
+          + ownership + "}\n")
     write("NotchAudioLevelLifecycle.swift", "import Combine\nimport Foundation\n"
           + "extension NotchAudioLevelLifecycleContract {\n"
           + declaration("Sources/Vorssaint/Services/Notch/NotchAudioLevelService.swift",

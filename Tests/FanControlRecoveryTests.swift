@@ -73,10 +73,65 @@ enum FanControlRecoveryContract {
     }
 
     final class Ownership {
-        var isHeld = true
-        var marker = true
+        final class Machine {
+            var holder: ObjectIdentifier?
+            var marker = true
+            var directoryChange = 0
+            var launchDirectoryChange = 0
+            var generation: UUID?
+            var removalID: UUID
+            var recordedRemoval: UUID
+            var permitsLaunch = false
+            var canRecord = true
+            init() {
+                let stamp = UUID()
+                removalID = stamp
+                recordedRemoval = stamp
+            }
+        }
+        var machine = Machine()
+        var isHeld: Bool {
+            get { machine.holder == ObjectIdentifier(self) }
+            set {
+                if newValue { machine.holder = ObjectIdentifier(self) }
+                else if isHeld { machine.holder = nil }
+            }
+        }
+        var marker: Bool {
+            get { machine.marker }
+            set {
+                if machine.marker != newValue { machine.directoryChange += 1 }
+                machine.marker = newValue
+            }
+        }
         var canRemoveMarker = true
-        func acquire() -> Bool { isHeld = true; return true }
+        init() { isHeld = true }
+        func acquire() -> Bool {
+            guard isHeld || machine.holder == nil else { return false }
+            isHeld = true
+            return true
+        }
+        func resumeEpoch() -> FanControlResumeEpoch? {
+            guard isHeld, machine.canRecord, let id = machine.generation,
+                  machine.recordedRemoval == machine.removalID else { return nil }
+            return FanControlResumeEpoch(id: id,
+                                         permitsLaunch: machine.permitsLaunch && machine.directoryChange == machine.launchDirectoryChange,
+                                         removalID: machine.removalID, directorySeconds: 0,
+                                         directoryNanoseconds: machine.directoryChange)
+        }
+        func rotateResumeEpoch(permitsLaunch: Bool, expectedRemovalID: UUID? = nil,
+                               sessionID: UUID = UUID()) -> FanControlResumeEpoch? {
+            guard isHeld, machine.canRecord else { return nil }
+            machine.generation = sessionID
+            machine.recordedRemoval = machine.removalID
+            machine.launchDirectoryChange = machine.directoryChange
+            machine.permitsLaunch = permitsLaunch && expectedRemovalID == machine.removalID
+            return resumeEpoch()
+        }
+        func markRemoval() -> Bool {
+            machine.removalID = UUID()
+            return true
+        }
         func markerExists() -> Bool { marker }
         func createMarker() -> Bool {
             guard isHeld, !marker else { return false }
@@ -146,6 +201,11 @@ enum FanControlRecoveryContract {
         var lastStopReason: FanControlStopReason?
         var lastStoppedOwner: UUID?
         var sessionStops: [UUID: FanControlSessionStop] = [:]
+        var resumeGrants: [UUID: FanControlResumeGrant] = [:]
+        var resumableStopEpoch: FanControlResumeEpoch?
+        var controllingEpoch: FanControlResumeEpoch?
+        var pendingRelaunchEpoch: FanControlResumeEpoch?
+        var externalControlEpochID: UUID?
         var coolingLevel: Int? = 0
         var activeConfiguration: FanControlConfiguration? = .curve([.init(
             sensor: .hottestSoC,
@@ -163,6 +223,8 @@ enum FanControlRecoveryContract {
                 ownership.isHeld = false
                 ownership.marker = false
                 timer = nil
+            } else {
+                controllingEpoch = ownership.rotateResumeEpoch(permitsLaunch: false)
             }
         }
         func openHardware() -> FanControlHardware? {
@@ -375,8 +437,142 @@ enum FanControlRecoveryContract {
         }
     }
 
+    private static func conditionalResume(_ suite: TestSuite) {
+        let curve = FanControlConfiguration.curve([FanControlConfiguration.defaultCurve])
+        guard let encoded = FanControlIPC.encode(curve) else {
+            suite.expect(false, "the conditional resume fixture requires an encodable curve")
+            return
+        }
+        func apply(_ session: FanControlSession) -> FanControlResponse? {
+            readReply { session.applyConfiguration(encoded, withReply: $0) }
+        }
+        func resume(_ session: FanControlSession, _ token: UUID) -> FanControlResponse? {
+            readReply { session.resumeConfiguration(encoded, authorization: token as NSUUID, withReply: $0) }
+        }
+        func loseHeartbeat(_ controller: Controller) {
+            controller.lastHeartbeatUptime -= FanControlPolicy.heartbeatLimit + 1
+            controller.watchdogTick()
+        }
+        func peer(of controller: Controller) -> Controller {
+            let peer = Controller(idle: true)
+            peer.ownership.machine = controller.ownership.machine
+            return peer
+        }
+
+        let controller = Controller(idle: true)
+        let owner = FanControlSession(controller: controller)
+        let observer = FanControlSession(controller: controller)
+        let fresh = readReply(observer.status)
+        suite.expect(fresh?.succeeded == true && fresh?.resumeAuthorization == nil && fresh?.resumeSessionID == nil,
+                     "fresh telemetry from a helper with no accepted session cannot authorize an old saved curve")
+        guard let firstID = apply(owner)?.resumeSessionID else {
+            suite.expect(false, "an accepted write must bind the saved curve to its session")
+            return
+        }
+        suite.expect(readReply(owner.heartbeat)?.resumeSessionID == firstID && readReply(observer.status)?.resumeSessionID == nil,
+                     "only the active owner sees its configuration's session ID")
+        loseHeartbeat(controller)
+        let stopped = readReply(owner.status)
+        guard let token = stopped?.resumeAuthorization else {
+            suite.expect(false, "a confirmed heartbeat stop must authorize its owner to resume")
+            return
+        }
+        suite.expect(stopped?.sessionStop?.reason == .heartbeatLost && readReply(owner.status)?.resumeAuthorization == token
+                        && resume(observer, token)?.error == .alreadyControlled && !controller.isCooling,
+                     "duplicate idle status preserves the same ticket and another connection cannot spend it")
+        let restarted = peer(of: controller)
+        suite.expect(resume(FanControlSession(controller: restarted), token)?.error == .alreadyControlled,
+                     "the former helper's in-flight ticket is unusable after reconnecting to another helper")
+        let accepted = resume(owner, token)
+        suite.expect(accepted?.succeeded == true && accepted?.resumeSessionID != nil && accepted?.resumeSessionID != firstID
+                        && resume(owner, token)?.error == .alreadyControlled && controller.hardware?.updates.count == 1,
+                     "one conditional write starts a new session and a duplicate cannot reapply the curve")
+        controller.connectionClosed(owner.id)
+        let launch = FanControlSession(controller: restarted)
+        let relaunch = readReply(launch.status)
+        suite.expect(relaunch?.resumeAuthorization != nil && relaunch?.resumeSessionID == accepted?.resumeSessionID
+                        && relaunch?.resumeSessionID != firstID,
+                     "the confirmed disconnect preserves only the latest accepted session ID across helper processes")
+        restarted.ownership.machine.directoryChange += 1
+        let afterLegacy = readReply(FanControlSession(controller: restarted).status)
+        suite.expect(afterLegacy?.succeeded == true && afterLegacy?.resumeAuthorization == nil && afterLegacy?.resumeSessionID == nil,
+                     "a legacy owner cycling its marker invalidates the saved session even for a newly opened connection")
+
+        let edited = Controller(idle: true)
+        let editor = FanControlSession(controller: edited)
+        let original = apply(editor)?.resumeSessionID
+        if let changed = FanControlIPC.encode(FanControlConfiguration.manual(level: 60)) {
+            let updated = readReply { editor.applyConfiguration(changed, withReply: $0) }
+            edited.connectionClosed(editor.id)
+            let latest = readReply(FanControlSession(controller: edited).status)
+            suite.expect(original != nil && updated?.resumeSessionID != nil && updated?.resumeSessionID != original
+                            && latest?.resumeSessionID == updated?.resumeSessionID && latest?.resumeAuthorization != nil,
+                         "a lost acknowledgement for an active edit cannot authorize the previous saved configuration on relaunch")
+        }
+
+        for independent in [false, true] {
+            for readBeforeProtection in [false, true] {
+                let a = Controller(idle: true)
+                let b = independent ? peer(of: a) : a
+                let old = FanControlSession(controller: a)
+                let next = FanControlSession(controller: b)
+                _ = apply(old)
+                loseHeartbeat(a)
+                let cached = readBeforeProtection ? readReply(old.status)?.resumeAuthorization : nil
+                _ = apply(next)
+                b.hardware?.controlIntact = false
+                b.verificationFailures = FanControlPolicy.verificationFailureLimit - 1
+                loseHeartbeat(b)
+                let protection = readReply(next.status)
+                let stale = readReply(old.status)
+                suite.expect(protection?.sessionStop?.reason == .hardwareChanged && protection?.resumeAuthorization == nil
+                                && stale?.sessionStop == nil && stale?.resumeAuthorization == nil && !b.ownership.marker,
+                             "the successor's physical protection overrides its simultaneous heartbeat loss and revokes any prior receipt")
+                if readBeforeProtection {
+                    suite.expect(cached.map { resume(old, $0)?.error == .alreadyControlled } == true
+                                    && !a.isCooling && a.hardware?.isManual == false,
+                                 "an already-delivered ticket is checked against the shared generation before any fan write")
+                }
+            }
+        }
+
+        for independent in [false, true] {
+            let a = Controller(idle: true)
+            let b = independent ? peer(of: a) : a
+            let sleeper = FanControlSession(controller: a)
+            let remover = FanControlSession(controller: b)
+            _ = apply(sleeper)
+            a.hardware?.restoreResults = [false, true]
+            suite.expect(readReply(sleeper.releaseControl)?.isRecovering == true, "the owner is recovering its failed sleep handoff")
+            let removal = readReply(remover.restoreForRemoval)
+            suite.expect(removal?.succeeded == !independent,
+                         "only the helper holding the hardware lock can acknowledge the global restore")
+            if independent { a.watchdogTick() }
+            let completion = readReply(sleeper.status)
+            suite.expect(completion?.succeeded == true && completion?.resumeAuthorization == nil && completion?.sessionStop == nil
+                            && !a.ownership.marker && a.hardware?.isManual == false,
+                         "even a contended removal revokes a pending handoff before its watchdog completes")
+
+            _ = apply(sleeper)
+            loseHeartbeat(a)
+            let ticket = readReply(sleeper.heartbeat)?.resumeAuthorization
+            let completed = readReply(remover.restoreForRemoval)
+            suite.expect(completed?.succeeded == true && ticket.map { resume(sleeper, $0)?.error == .alreadyControlled } == true
+                            && readReply(sleeper.status)?.resumeAuthorization == nil && !a.isCooling,
+                         "full removal invalidates an already-delivered heartbeat ticket across connections and helpers")
+        }
+        let unsupportedRecord = Controller(idle: true)
+        unsupportedRecord.ownership.machine.canRecord = false
+        let explicit = FanControlSession(controller: unsupportedRecord)
+        let manual = apply(explicit)
+        loseHeartbeat(unsupportedRecord)
+        suite.expect(manual?.succeeded == true && manual?.resumeSessionID == nil && readReply(explicit.status)?.resumeAuthorization == nil,
+                     "manual control remains available when a trustworthy authority record cannot be written")
+    }
+
     static func run(_ suite: TestSuite) {
         connectionOwnership(suite)
+        conditionalResume(suite)
         let healthy = Controller()
         let healthyOwner = healthy.owner
         healthy.watchdogTick()
