@@ -27,7 +27,8 @@ final class PreciseVolumeRollerService: ObservableObject {
     /// Island steps bypass the system, so its volume click plays on release here.
     /// Waits for both the release and the last step's adjustment, so a failed
     /// step forwarded to macOS never plays a second click.
-    private var feedback: (key: Int32, step: Int, applied: Bool, released: Bool)?
+    private var feedback: (key: Int32, step: Int, monitorTarget: BrightnessSupport.SpeakerTarget?,
+                           applied: Bool, released: Bool)?
     private var feedbackStep = 0
     private static let volumeFeedback = NSSound(
         contentsOfFile: "/System/Library/LoginPlugins/BezelServices.loginPlugin/Contents/Resources/volume.aiff",
@@ -304,7 +305,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         feedback = NotchVolumeKeyGate.playsFeedback(
             setting: UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback"),
             option: flags.contains(.maskAlternate), shift: flags.contains(.maskShift))
-            ? (code, step, false, false) : nil
+            ? (code, step, target, false, false) : nil
         DispatchQueue.main.async { [weak self] in
             self?.applyMonitorVolumeKey(action, target: target, fine: fine || precise, step: step)
         }
@@ -383,7 +384,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         feedback = NotchVolumeKeyGate.playsFeedback(
             setting: UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback"),
             option: event.flags.contains(.maskAlternate), shift: event.flags.contains(.maskShift))
-            ? (code, step, false, false) : nil
+            ? (code, step, nil, false, false) : nil
         let fine = precise || (event.flags.contains(.maskAlternate) && event.flags.contains(.maskShift))
         let fallback = event.copy()
         let lifetime = mixer.currentOutputControlLifetime
@@ -448,6 +449,8 @@ final class PreciseVolumeRollerService: ObservableObject {
     private func playFeedbackIfReady() {
         guard let feedback, feedback.applied, feedback.released else { return }
         self.feedback = nil
+        // The default output can change after the monitor confirms the write.
+        if let target = feedback.monitorTarget, AppVolumeMixer.shared.monitorOutput?.target != target { return }
         Self.volumeFeedback?.stop()
         Self.volumeFeedback?.play()
     }

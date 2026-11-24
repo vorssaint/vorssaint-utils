@@ -1388,7 +1388,7 @@ def main():
                         "    private func noteNativeVolumeKey(",
                         "    private static func volumePress(",
                         "    private func routeNotchVolume(", "    private func routeMonitorVolume(",
-                        "    private func applyMonitorVolumeKey("])
+                        "    private func applyMonitorVolumeKey(", "    private func playFeedbackIfReady("])
           + "}\n}\n")
     mixer_section = "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift"
     write("MixerPercentKey.swift", "import AppKit\nimport SwiftUI\nextension MixerPercentKeyTests {\nfinal class Coordinator: Fixture {\n"
