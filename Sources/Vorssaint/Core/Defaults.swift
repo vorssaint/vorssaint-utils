@@ -541,9 +541,14 @@ enum DefaultsKey {
     static let windowLayoutScreenGapBottom = "windowLayoutScreenGapBottom"
     static let windowLayoutScreenGapLeft = "windowLayoutScreenGapLeft"
     static let windowLayoutScreenGapRight = "windowLayoutScreenGapRight"
-    static let windowLayoutMarginPercent = "windowLayoutMarginPercent" // per-edge percentage for margin maximize
     static let windowLayoutNudgeStep = "windowLayoutNudgeStep" // points one nudge moves the active window
     static let windowLayoutResizeStepPercent = "windowLayoutResizeStepPercent" // display-relative size change per shortcut press
+    static let windowLayoutMarginPercent = "windowLayoutMarginPercent" // percentage on every edge for margin maximize when the edges share one margin
+    static let windowLayoutMarginUniform = "windowLayoutMarginUniform" // margin maximize uses windowLayoutMarginPercent on every edge
+    static let windowLayoutMarginTopPercent = "windowLayoutMarginTopPercent" // margin maximize top edge percentage when not uniform
+    static let windowLayoutMarginBottomPercent = "windowLayoutMarginBottomPercent"
+    static let windowLayoutMarginLeftPercent = "windowLayoutMarginLeftPercent"
+    static let windowLayoutMarginRightPercent = "windowLayoutMarginRightPercent"
     static let windowLayoutSideRepeatCyclesThirds = "windowLayoutSideRepeatCyclesThirds" // repeated Left/Right cycles half, 2/3, 1/3 on the same display
     static let windowLayoutIgnoredApps = "windowLayoutIgnoredApps" // apps that temporarily disable window layout while focused
     static let panelCollapsedSections = "panelCollapsedSections"
@@ -1781,6 +1786,11 @@ enum Defaults {
         DefaultsKey.windowLayoutScreenGapRight: -1,
         DefaultsKey.windowLayoutMarginPercent: 5.0,
         DefaultsKey.windowLayoutResizeStepPercent: 5.0,
+        DefaultsKey.windowLayoutMarginUniform: true,
+        DefaultsKey.windowLayoutMarginTopPercent: 5.0,
+        DefaultsKey.windowLayoutMarginBottomPercent: 5.0,
+        DefaultsKey.windowLayoutMarginLeftPercent: 5.0,
+        DefaultsKey.windowLayoutMarginRightPercent: 5.0,
         DefaultsKey.windowLayoutSideRepeatCyclesThirds: false,
         DefaultsKey.windowLayoutNudgeStep: WindowLayoutNudge.defaultStep,
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),

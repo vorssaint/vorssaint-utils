@@ -895,7 +895,7 @@ enum WindowEdgeSnapSupport {
                                                         visibleFrame: screen.visibleFrame,
                                                         windowGap: WindowLayoutGaps.windowGap,
                                                         screenInsets: WindowLayoutGaps.screenInsets,
-                                                        marginPercent: WindowLayoutMargin.percent)
+                                                        margin: WindowLayoutMargin.edges)
             return WindowEdgeSnapTarget(zone: zone,
                                         action: action,
                                         frame: targetFrame.integral,
