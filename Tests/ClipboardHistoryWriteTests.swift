@@ -5,6 +5,7 @@ import AppKit
 
 struct ClipboardHistoryWriteTests {
     static func run(_ suite: TestSuite) {
+        cancelledStackWrite(suite)
         let png = Data([1, 2, 3])
         let tiff = Data([4, 5, 6])
         let rich = NSAttributedString(string: "saved rich text")
@@ -52,9 +53,9 @@ struct ClipboardHistoryWriteTests {
             if name == "rich" { mutations.append("string") }
             for allowedCalls in 0...(mutations.count + 1) {
                 let pasteboard = FakeHistoryPasteboard()
-                let result = write.write(to: pasteboard) {
+                let result = write.write(to: pasteboard, isExpired: {
                     pasteboard.operations.count >= allowedCalls
-                }
+                })
                 if allowedCalls == 0 {
                     suite.expect(result == nil && pasteboard.operations.isEmpty,
                            "expired \(name) leaves clipboard untouched before clear")
@@ -82,6 +83,43 @@ struct ClipboardHistoryWriteTests {
         let imagePasteboard = FakeHistoryPasteboard()
         _ = ClipboardHistoryWrite.image(png: png, tiff: tiff).write(to: imagePasteboard, isExpired: { false })
         suite.expect(imagePasteboard.data == [png, tiff], "image write preserves PNG and TIFF payloads")
+    }
+
+    private static func cancelledStackWrite(_ suite: TestSuite) {
+        let history = ClipboardPreviewContract.Service()
+        let presentation = history.shelfPasteSession.withLock { $0 }
+        let clips = [UUID(), UUID(), UUID()]
+        let first = history.pasteStack.withLock { stack in
+            stack.append(clips)
+            return stack.beginPaste()
+        }
+        guard let first else {
+            suite.expect(false, "a queued clip can begin a paste request")
+            return
+        }
+        let canStart = history.shelfStackWriteGuard(for: first, presentation: presentation)
+        let pasteboard = FakeHistoryPasteboard()
+        let write = ClipboardHistoryWrite.text("queued clip")
+
+        let second = history.pasteStack.withLock { stack in
+            stack.removeFirst()
+            return stack.beginPaste()
+        }
+        suite.expect(write.write(to: pasteboard, canStart: canStart, isExpired: { false }) == nil
+                     && pasteboard.operations.isEmpty,
+                     "skipping an unavailable clip cancels its pending write before it clears the pasteboard")
+        guard let second else {
+            suite.expect(false, "skipping one clip leaves the next available")
+            return
+        }
+        suite.expect(second.entryID == clips[1] && history.pasteStack.withLock { $0.count } == 2,
+                     "skipping the first clip preserves the remaining stack order")
+
+        let canStartSecond = history.shelfStackWriteGuard(for: second, presentation: presentation)
+        history.shelfPasteSession.withLock { $0 = UUID() }
+        suite.expect(write.write(to: pasteboard, canStart: canStartSecond, isExpired: { false }) == nil
+                     && pasteboard.operations.isEmpty,
+                     "a delayed write for a previous shelf presentation leaves the pasteboard intact")
     }
 }
 

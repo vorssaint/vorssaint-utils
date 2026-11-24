@@ -2083,6 +2083,7 @@ enum ClipboardPreviewContract {
     class Fixture {
         func pruneQuickBatchSelection() {}
         let pasteStack = OSAllocatedUnfairLock(initialState: ClipboardPasteStack())
+        let shelfPasteSession = OSAllocatedUnfairLock(initialState: UUID())
         var pasteStackCount = 0
         var isRunning = true
         var latestPasteboardEntry: ClipboardHistoryEntry?
@@ -2093,7 +2094,7 @@ enum ClipboardPreviewContract {
         let objectWillChange = PassthroughSubject<Void, Never>()
         var pendingWrite: ((Bool) -> Void)?
         func writeToPasteboard(_ list: [ClipboardHistoryEntry], plainText: String?,
-                               completion: @escaping (Int?) -> Void) {
+                               canStartWrite: (() -> Bool)?, completion: @escaping (Int?) -> Void) {
             pendingWrite = { copied in completion(copied ? 1 : nil) }
         }
         var encodedHistoryByteLimit = ClipboardHistoryEditing.maxEncodedHistoryBytes
@@ -2677,6 +2678,13 @@ enum ClipboardPreviewContract {
         fromEditor.sourceBundleID = "com.example.editor"
         let other = ClipboardHistoryEntry(text: "Another copy")
         service.setEntries([other, fromEditor])
+        let originalLimit = service.encodedHistoryByteLimit
+        let originalEntries = service.entries
+        service.encodedHistoryByteLimit = (try? JSONEncoder().encode(originalEntries).count) ?? 1
+        suite.expect(!service.renameEntry(fromEditor.id, to: String(repeating: "x", count: 100))
+                     && service.entries == originalEntries,
+                     "renaming near the encoded limit cannot evict another clipboard entry")
+        service.encodedHistoryByteLimit = originalLimit
         suite.expect(service.renameEntry(fromEditor.id, to: "  Release snippet  "),
                      "rename accepts a trimmed title")
         service.promote("Copied in an editor", source: nil, keepsSource: true)

@@ -209,12 +209,12 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     private func copyEntries(_ selectedEntries: [ClipboardHistoryEntry], plainText: String? = nil,
-                             completion: @escaping (Int?) -> Void) {
+                             canStartWrite: (() -> Bool)? = nil, completion: @escaping (Int?) -> Void) {
         guard !selectedEntries.isEmpty else {
             completion(nil)
             return
         }
-        writeToPasteboard(selectedEntries, plainText: plainText) { [weak self] changeCount in
+        writeToPasteboard(selectedEntries, plainText: plainText, canStartWrite: canStartWrite) { [weak self] changeCount in
             if changeCount != nil {
                 self?.touch(selectedEntries.map(\.id))
                 // A single-entry selection mirrors the entry above; a real
@@ -231,7 +231,7 @@ final class ClipboardHistoryService: ObservableObject {
     /// Failure includes an expired request. The lane remains serialized and
     /// admission stays occupied until the underlying operation actually ends.
     private func writeToPasteboard(_ list: [ClipboardHistoryEntry], plainText: String?,
-                                   completion: @escaping (Int?) -> Void) {
+                                   canStartWrite: (() -> Bool)?, completion: @escaping (Int?) -> Void) {
         guard !copyInFlight,
               let write = plainText.map(ClipboardHistoryWrite.text) ?? Self.plannedWrite(for: list) else {
             completion(nil)
@@ -239,7 +239,7 @@ final class ClipboardHistoryService: ObservableObject {
         }
         copyInFlight = true
         GeneralPasteboardAccess.shared.async(timeout: Self.pasteboardTimeout, { isExpired in
-            write.write(to: NSPasteboard.general, isExpired: isExpired)
+            write.write(to: NSPasteboard.general, canStart: canStartWrite, isExpired: isExpired)
         }, then: { result in
             completion(result?.succeeded == true ? result?.changeCount : nil)
         }, didFinish: { [weak self] result in
@@ -492,10 +492,7 @@ final class ClipboardHistoryService: ObservableObject {
         guard entries[index].customTitle != title else { return true }
         var updated = entries
         updated[index].customTitle = title
-        guard !updated[index].isPinned
-                || ClipboardHistoryEditing.pinnedEntriesFit(updated, byteLimit: encodedHistoryByteLimit) else {
-            return false
-        }
+        guard ClipboardHistoryEditing.entriesFit(updated, byteLimit: encodedHistoryByteLimit) else { return false }
         entries = updated
         save()
         return true
@@ -883,9 +880,20 @@ final class ClipboardHistoryService: ObservableObject {
         syncPasteStackCount()
     }
 
+    func skipNextPasteStackEntry() {
+        pasteStack.withLock { $0.removeFirst() }
+        syncPasteStackCount()
+    }
+
+    var canPasteNextFromStack: Bool {
+        guard isRunning, quickLayout == .cards, panel?.isVisible == true, !shelfIsClosing,
+              !UserDefaults.standard.bool(forKey: DefaultsKey.clipboardShelfPrivacyMode),
+              let target = pasteTargetApp, !target.isTerminated else { return false }
+        return ClipboardHistoryPasteTarget.acceptsSyntheticPaste(bundleID: target.bundleIdentifier)
+    }
+
     func pasteNextFromStack() {
-        guard isRunning, !UserDefaults.standard.bool(forKey: DefaultsKey.clipboardShelfPrivacyMode),
-              let request = pasteStack.withLock({ $0.beginPaste() }) else { return }
+        guard canPasteNextFromStack, let request = pasteStack.withLock({ $0.beginPaste() }) else { return }
         guard let entry = entries.first(where: { $0.id == request.entryID }) else {
             prunePasteStack()
             return
@@ -909,6 +917,16 @@ final class ClipboardHistoryService: ObservableObject {
     private func syncPasteStackCount() {
         let count = pasteStack.withLock { $0.count }
         if pasteStackCount != count { pasteStackCount = count }
+    }
+
+    private func shelfStackWriteGuard(for request: ClipboardPasteStack.Request, presentation: UUID) -> () -> Bool {
+        let session = shelfPasteSession
+        let stack = pasteStack
+        return {
+            session.withLock { current in
+                current == presentation && stack.withLock { $0.isPending(request) }
+            }
+        }
     }
 
     func copyQuickEntries(_ selectedEntries: [ClipboardHistoryEntry], plainText: String? = nil,
@@ -935,7 +953,10 @@ final class ClipboardHistoryService: ObservableObject {
             closed = true
             pasteWhenReady()
         }
-        copyEntries(selectedEntries, plainText: plainText) { changeCount in
+        let canStartWrite = stackRequest.flatMap { request in
+            shelfPresentation.map { shelfStackWriteGuard(for: request, presentation: $0) }
+        }
+        copyEntries(selectedEntries, plainText: plainText, canStartWrite: canStartWrite) { changeCount in
             guard let changeCount else {
                 self.finishPasteStackRequest(stackRequest)
                 NSSound.beep()

@@ -799,6 +799,7 @@ def main():
               "    func clearQuickShelfSearch(",
               "    private func retainedEntries(", "    func addToPasteStack(",
               "    private func prunePasteStack(", "    private func syncPasteStackCount(",
+              "    private func shelfStackWriteGuard(",
               "    func cancelSearch(", "    func filteredEntries(", "    var filteredQuickEntries:", "    var selectedQuickEntry:",
               "    private var quickSearchSurface:", "    func setQuickSourceApp(",
               "    func setQuickContentType(", "    func setQuickCollection(", "    private func setQuickFilter(",

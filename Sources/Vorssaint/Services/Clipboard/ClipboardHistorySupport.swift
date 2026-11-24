@@ -677,19 +677,22 @@ enum ClipboardHistoryEditing {
     /// a pin or an edit that fails this check would lose a pinned entry.
     static func pinnedEntriesFit(_ entries: [ClipboardHistoryEntry],
                                  byteLimit: Int = maxEncodedHistoryBytes) -> Bool {
-        let pinned = entries.filter(\.isPinned)
+        entriesFit(entries.filter(\.isPinned), byteLimit: byteLimit)
+    }
+
+    static func entriesFit(_ entries: [ClipboardHistoryEntry], byteLimit: Int) -> Bool {
         // JSON escaping turns one UTF-8 byte into at most six, and an entry's
-        // other fields stay well under 512 bytes, so a small pinned set is
+        // other fields stay well under 512 bytes, so a small history is
         // never encoded on the main thread just to be measured.
-        let rawBound = pinned.reduce(0) { total, entry in
+        let rawBound = entries.reduce(0) { total, entry in
             total + 512 + entry.text.utf8.count + (entry.imageFile?.utf8.count ?? 0)
-                + (entry.customTitle?.utf8.count ?? 0)
+                + (entry.customTitle?.utf8.count ?? 0) + (entry.sourceBundleID?.utf8.count ?? 0)
                 + entry.filePaths.reduce(0) { $0 + $1.utf8.count + 3 }
         }
         guard rawBound > (byteLimit - 2) / 6 else { return true }
         let encoder = JSONEncoder()
         var encodedSize = 2 // Opening and closing brackets.
-        for (offset, entry) in pinned.enumerated() {
+        for (offset, entry) in entries.enumerated() {
             guard let encoded = try? encoder.encode(entry) else { return false }
             encodedSize += encoded.count + (offset == 0 ? 0 : 1)
             if encodedSize > byteLimit { return false }

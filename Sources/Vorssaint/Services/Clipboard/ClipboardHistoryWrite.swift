@@ -28,8 +28,9 @@ enum ClipboardHistoryWrite {
     /// Setting the representations does not acquire pasteboard ownership again.
     /// If another app takes ownership, leave its generation for history to read.
     func write(to pasteboard: any ClipboardHistoryPasteboard,
-               isExpired: () -> Bool) -> ClipboardHistoryWriteResult? {
-        guard !isExpired() else { return nil }
+               canStart: (() -> Bool)? = nil, isExpired: () -> Bool) -> ClipboardHistoryWriteResult? {
+        // Apply stack cancellation before acquiring pasteboard ownership.
+        guard !isExpired(), canStart?() != false else { return nil }
         let changeCount = pasteboard.clearContents()
 
         var succeeded = false

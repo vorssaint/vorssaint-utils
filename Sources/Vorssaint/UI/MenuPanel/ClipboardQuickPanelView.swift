@@ -317,8 +317,7 @@ struct ClipboardQuickPanelView: View {
 
     private func shelfToolbar(width: CGFloat) -> some View {
         let expanded = shelfSearchExpanded
-        let reservedWidth: CGFloat = vertical && history.pasteStackCount > 0 ? 174 : 96
-        let fieldWidth = expanded ? min(520, max(80, width - reservedWidth), max(220, width * 0.4)) : 28
+        let fieldWidth = expanded ? min(520, max(80, width - 96), max(220, width * 0.4)) : 28
         let leading = expanded ? (width - fieldWidth) / 2 : 0
 
         return ZStack(alignment: .leading) {
@@ -329,7 +328,7 @@ struct ClipboardQuickPanelView: View {
                 } else {
                     pinboardBar.padding(.leading, leading + fieldWidth + 6)
                 }
-                if history.pasteStackCount > 0 {
+                if history.pasteStackCount > 0 && !(vertical && expanded) {
                     ClipboardPasteStackMenu(language: l10n.language)
                         .focused($filterChoiceFocus, equals: .pasteStack)
                         .disabled(boardEditor != nil)
@@ -480,6 +479,9 @@ struct ClipboardQuickPanelView: View {
 
     private var compactActions: some View {
         Menu {
+            if vertical && shelfSearchExpanded && history.pasteStackCount > 0 {
+                ClipboardPasteStackMenu(language: l10n.language, showsName: true)
+            }
             if history.quickBatchCount > 0 {
                 batchActions
                 Divider()

@@ -18,6 +18,7 @@ struct ClipboardPasteStackEntryAction: View {
 struct ClipboardPasteStackMenu: View {
     @ObservedObject private var history = ClipboardHistoryService.shared
     let language: AppLanguage
+    var showsName = false
 
     var body: some View {
         if history.pasteStackCount > 0 {
@@ -25,9 +26,11 @@ struct ClipboardPasteStackMenu: View {
             Menu {
                 Button(text.pasteNext, systemImage: "clipboard") { history.pasteNextFromStack() }
                     .keyboardShortcut(.return, modifiers: [.command, .shift])
+                    .disabled(!history.canPasteNextFromStack)
+                Button(text.skipNext, systemImage: "forward.end") { history.skipNextPasteStackEntry() }
                 Button(text.clear, systemImage: "xmark", role: .destructive) { history.clearPasteStack() }
             } label: {
-                Label(history.pasteStackCount.formatted(), systemImage: "square.stack")
+                Label(showsName ? text.title : history.pasteStackCount.formatted(), systemImage: "square.stack")
                     .font(.system(size: 11, weight: .medium))
                     .frame(minHeight: 24)
             }

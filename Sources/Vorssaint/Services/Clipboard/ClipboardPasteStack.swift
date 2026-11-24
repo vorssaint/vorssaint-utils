@@ -38,6 +38,16 @@ struct ClipboardPasteStack {
         return request
     }
 
+    func isPending(_ request: Request) -> Bool {
+        pending == request
+    }
+
+    mutating func removeFirst() {
+        guard !entryIDs.isEmpty else { return }
+        entryIDs.removeFirst()
+        pending = nil
+    }
+
     mutating func finishPaste(_ request: Request) {
         if pending == request { pending = nil }
     }
@@ -45,9 +55,8 @@ struct ClipboardPasteStack {
     // The pasteboard lane holds the stack lock across the post. Clearing or
     // pruning the stack can therefore cancel a request before it sends keys.
     mutating func post(_ request: Request, shortcut: () -> Bool) -> Bool {
-        guard pending == request, shortcut() else { return false }
-        entryIDs.removeFirst()
-        pending = nil
+        guard isPending(request), shortcut() else { return false }
+        removeFirst()
         return true
     }
 }
