@@ -995,6 +995,7 @@ enum DefaultsKey {
     // [countdown key: event end] chosen from an event's menu; unregistered, so it stays out of backups
     static let notchCalendarChosenCountdowns = "notchCalendarChosenCountdowns"
     // AI agents: what the island reads from Claude Code, Codex, OpenCode, GitHub Copilot and Gemini CLI and Antigravity, and shows.
+    // AI agents: what the island reads from Claude Code, Codex, OpenCode, GitHub Copilot and Kiro, and shows.
     static let notchAgentsEnabled = "notchAgentsEnabled"
     static let notchAgentsClaude = "notchAgentsClaude"
     static let notchAgentsClaudeProfile = "notchAgentsClaudeProfile"
@@ -1006,6 +1007,7 @@ enum DefaultsKey {
     static let notchAgentsCursor = "notchAgentsCursor"
     static let notchAgentsAntigravity = "notchAgentsAntigravity"
     static let notchAgentsGemini = "notchAgentsGemini"
+    static let notchAgentsKiro = "notchAgentsKiro"
     static let notchAgentsCardOrder = "notchAgentsCardOrder"
     static let notchAgentsHiddenCards = "notchAgentsHiddenCards"
     static let notchAgentsPeriod = "notchAgentsPeriod"
@@ -1662,6 +1664,7 @@ enum Defaults {
         DefaultsKey.notchAgentsCursor: true,
         DefaultsKey.notchAgentsAntigravity: true,
         DefaultsKey.notchAgentsGemini: true,
+        DefaultsKey.notchAgentsKiro: true,
         DefaultsKey.notchAgentsCardOrder: "",
         DefaultsKey.notchAgentsHiddenCards: "",
         DefaultsKey.notchAgentsPeriod: AgentPeriod.today.rawValue,

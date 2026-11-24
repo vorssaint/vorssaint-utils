@@ -34,6 +34,7 @@ extension AgentProvider {
         case .cursor: CursorReader()
         case .antigravity: AntigravityReader()
         case .gemini: GeminiReader()
+        case .kiro: KiroReader()
         }
     }
 }

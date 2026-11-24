@@ -15,6 +15,7 @@ extension AgentProvider {
         case .cursor: return Color(red: 0.42, green: 0.48, blue: 0.78)
         case .antigravity: return Color(red: 0.26, green: 0.52, blue: 0.96)
         case .gemini: return Color(red: 0.72, green: 0.45, blue: 0.92)
+        case .kiro: return Color(red: 0.56, green: 0.27, blue: 1.0)
         }
     }
 }
@@ -213,7 +214,7 @@ struct NotchAgentBars: View {
     var tint: Color? = nil
 
     var body: some View {
-        let values = buckets.map { bucket in providers.map { bucket.byProvider[$0]?.weight(byCost: byCost) ?? 0 } }
+        let values = buckets.map { bucket in providers.map { bucket.byProvider[$0]?.use(byCost: byCost) ?? 0 } }
         let peak = max(values.map { $0.reduce(0, +) }.max() ?? 0, .leastNonzeroMagnitude)
         GeometryReader { proxy in
             let count = CGFloat(max(1, buckets.count))
@@ -280,7 +281,7 @@ struct NotchAgentHeatmap: View {
                     VStack(spacing: spacing) {
                         ForEach(0..<7, id: \.self) { row in
                             if let day = week[row] {
-                                let value = day.total.weight(byCost: byCost)
+                                let value = day.total.use(byCost: byCost)
                                 RoundedRectangle(cornerRadius: min(2.5, cell / 3), style: .continuous)
                                     .fill(tint.opacity(opacity(value, levels: levels)))
                                     .overlay {
@@ -324,7 +325,7 @@ struct NotchAgentHeatmap: View {
 
     /// Quartiles of the active days, so one heavy day does not wash out the rest.
     private var thresholds: [Double] {
-        let values = days.map { $0.total.weight(byCost: byCost) }.filter { $0 > 0 }.sorted()
+        let values = days.map { $0.total.use(byCost: byCost) }.filter { $0 > 0 }.sorted()
         guard !values.isEmpty else { return [] }
         return [0.25, 0.5, 0.75].map { values[min(values.count - 1, Int(Double(values.count) * $0))] }
     }
@@ -384,6 +385,8 @@ private extension AgentProvider {
         case .cursor: return ["com.todesktop.230313mzl4w4u92"]
         case .antigravity: return ["com.google.antigravity", "com.google.antigravity-ide", "com.google.antigravity.ide"]
         case .gemini: return ["com.google.GeminiMacOS"]
+        // Kiro CLI.app keeps the bundle identifier of Amazon Q, its predecessor.
+        case .kiro: return ["com.amazon.codewhisperer"]
         }
     }
 
@@ -399,6 +402,7 @@ private extension AgentProvider {
         // The OpenCode app shows nothing in the menu bar; its icon stands in.
         case .opencode: return []
         case .copilot, .cursor, .gemini, .antigravity: return []
+        case .copilot, .kiro: return []
         }
     }
 }

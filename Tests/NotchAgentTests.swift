@@ -27,6 +27,7 @@ enum NotchAgentTests {
         AntigravityLaunchTests.run(suite)
         GeminiAgentTests.run(suite)
         HarnessReaderContractTests.run(suite)
+        KiroAgentTests.run(suite)
         timestamps(suite)
         summary(suite)
         AgentUsageSummaryCacheTests.run(suite)
@@ -3224,6 +3225,13 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .gemini], "Antigravity keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsGemini)
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "Gemini CLI keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .kiro], "an agent can be left out")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .kiro], "OpenCode keeps its own preference")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .kiro], "multiple agents can be left out")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsKiro)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "Kiro keeps its own preference")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
         defaults.set(NotchAgentLimitFocus.weekly.rawValue, forKey: DefaultsKey.notchAgentsLimitFocus)
@@ -3237,6 +3245,7 @@ enum NotchAgentTests {
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
                     DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsCursor, DefaultsKey.notchAgentsAntigravity, DefaultsKey.notchAgentsGemini,
+                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsKiro,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,

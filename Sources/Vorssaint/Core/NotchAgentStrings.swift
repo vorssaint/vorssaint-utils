@@ -125,6 +125,15 @@ struct NotchAgentStrings {
     func planMultiple(_ multiple: String, plan: String) -> String { String(format: planMultipleFormat, multiple, plan) }
     func finished(_ agent: String) -> String { String(format: finishedFormat, agent) }
     func left(_ share: String) -> String { String(format: leftFormat, share) }
+    func credits(_ used: String, of limit: String) -> String { String(format: creditsFormat, used, limit) }
+    func creditCount(_ count: String) -> String { String(format: creditCountFormat, count) }
+    func listPrice(_ price: String) -> String { String(format: listPriceFormat, price) }
+    func streakHelp(_ days: String) -> String { String(format: streakHelpFormat, days) }
+    func kiroWithinPlan(_ rate: String) -> String { String(format: kiroWithinPlanFormat, rate) }
+    func kiroOverage(_ credits: String, rate: String, cost: String) -> String {
+        String(format: kiroOverageFormat, credits, rate, cost)
+    }
+    func overage(_ credits: String, cost: String) -> String { String(format: overageFormat, credits, cost) }
     func usedShare(_ share: String) -> String { String(format: usedFormat, share) }
     func updated(_ when: String) -> String { String(format: updatedFormat, when) }
     func claudeLimitsCurrent(_ when: String) -> String { String(format: claudeLimitsCurrentFormat, when) }

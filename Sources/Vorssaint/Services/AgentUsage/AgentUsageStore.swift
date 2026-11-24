@@ -113,7 +113,8 @@ final class AgentUsageStore {
                 let old = records[position]
                 records[position] = AgentUsageRecord(provider: old.provider, date: old.date, model: model,
                     project: old.project, session: old.session, requests: old.requests,
-                    tokens: old.tokens, cost: old.cost, savings: old.savings, reportedCost: old.reportedCost)
+                    tokens: old.tokens, cost: old.cost, savings: old.savings, reportedCost: old.reportedCost,
+                    credits: old.credits)
                 // Incremental token updates keep the same model; attribution
                 // changes instead rebuild model buckets from the records.
                 summary.invalidate()
@@ -628,6 +629,12 @@ struct AgentLogRoot: Equatable {
          (.gemini, ".gemini/tmp"), (.gemini, ".cache/.gemini/tmp")].compactMap { provider, path in
             guard providers.contains(provider) else { return nil }
             return AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
+    static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
+        [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
+         (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.kiro, ".kiro/sessions")].map { provider, path in
+            AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
 
@@ -650,6 +657,7 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        if provider == .kiro { return AgentKiroLog.accepts(path.dropFirst(prefix.count)) }
         guard path.hasSuffix(".jsonl") else { return false }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
         switch provider {
@@ -1027,7 +1035,8 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
-        return path.hasSuffix(".jsonl")
+        // Kiro's older sessions keep a JSON document; roots admit it only there.
+        return path.hasSuffix(".jsonl") || path.hasSuffix(".json")
     }
 
     /// Cursor can replace a transcript at the end of a turn. During a replay,
@@ -1251,6 +1260,8 @@ enum AgentLogReader {
                         }
                     }
                 }
+            if root.provider == .kiro {
+                for log in AgentKiroLog.logs(in: root.url) { include(log, from: root) }
                 continue
             }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
@@ -1286,6 +1297,10 @@ enum AgentLogReader {
     private static func readRegularFile(_ cursor: AgentLogCursor, secured: CursorTranscriptAccess.File?,
                                         shouldContinue: () -> Bool, onRestart: () -> Bool = { true },
                                         including: ((Data, Range<Int>) -> Bool)? = nil, line: (Data) -> Void) {
+        if cursor.provider == .kiro, AgentKiroLog.isSnapshot(cursor.path) {
+            AgentKiroLog.readSnapshot(cursor, shouldContinue: shouldContinue, line: line)
+            return
+        }
         var info = stat()
         if let secured {
             info = secured.info
@@ -1312,6 +1327,10 @@ enum AgentLogReader {
         defer { cursor.fingerprintRead(descriptor: secured?.handle.fileDescriptor) }
         guard size > cursor.offset, let handle = secured?.handle ?? FileHandle(forReadingAtPath: cursor.path) else { return }
         defer { if secured == nil { try? handle.close() } }
+        defer { cursor.fingerprintRead() }
+        guard size > cursor.offset, let handle = FileHandle(forReadingAtPath: cursor.path) else { return }
+        defer { try? handle.close() }
+        if cursor.provider == .kiro, cursor.offset == 0 { line(AgentKiroLog.header(for: cursor.path)) }
         do { try handle.seek(toOffset: cursor.offset) } catch { return }
         while cursor.offset < size, shouldContinue() {
             let wanted = Int(min(UInt64(chunkSize), size - cursor.offset))

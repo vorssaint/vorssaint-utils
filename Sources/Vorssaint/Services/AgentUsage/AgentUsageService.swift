@@ -5,7 +5,7 @@ import Combine
 import Foundation
 import Network
 
-/// Reads Claude Code, Codex, GitHub Copilot, Antigravity and Gemini CLI usage from local
+/// Reads Claude Code, Codex, GitHub Copilot, Antigravity, Gemini CLI and Kiro usage from local
 /// session logs, and OpenCode usage from its database, while the AI section is
 /// on, along with the plan limits the Claude app saves. The files are read
 /// where they are, incrementally, and nothing is copied or sent: only counters
@@ -31,6 +31,7 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAccountIdentity: ClaudeAccountProfile.Identity?
     @Published private(set) var antigravityAccountChecking = false
     @Published private(set) var antigravityAccountFailure: AgentAntigravityServer.Failure?
+    @Published private(set) var kiroAccountFailure: AgentKiroServer.Failure?
     /// The day of the price list in use.
     @Published private(set) var pricesUpdated: Date?
     let events = PassthroughSubject<AgentUsageEvent, Never>()
@@ -85,6 +86,9 @@ final class AgentUsageService: ObservableObject {
     private var antigravityAccountUnreachable = 0
     /// Whether the Mac has a network, as the reading queue last heard.
     private var online = true
+    private let kiroAccountQueue = DispatchQueue(label: "com.vorssaint.kiro-limits", qos: .utility)
+    private var kiroAccountRequest: AgentKiroServer.Request?
+    private var kiroAccountAttempted = Date.distantPast
     /// The AI page is on the island, which asks Claude Code more often.
     private var pageVisible = false
 
@@ -115,6 +119,8 @@ final class AgentUsageService: ObservableObject {
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
     private var claudeAccountLimits: AgentLimits?
     private var antigravityAccountLimits: AgentLimits?
+    private var kiroAccountLimits: AgentLimits?
+    private var kiroPlan: AgentPlan?
     private var shippedPrices: AgentPriceList?
     private var previousLimits: [AgentProvider: AgentLimits] = [:]
     /// Warned windows, each waiting for its renewal.
@@ -156,6 +162,7 @@ final class AgentUsageService: ObservableObject {
         syncPrices()
         refreshClaudeLimits()
         refreshAntigravityLimits()
+        refreshKiroLimits()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -170,6 +177,7 @@ final class AgentUsageService: ObservableObject {
         paused = true
         cancelClaudeLimits()
         cancelAntigravityLimits()
+        cancelKiroLimits()
         timer?.invalidate()
         timer = nil
         queue.async { [self] in
@@ -212,6 +220,9 @@ final class AgentUsageService: ObservableObject {
         antigravityAccountFailure = nil
         antigravityAccountUnreachable = 0
         online = true
+        cancelKiroLimits()
+        kiroAccountAttempted = .distantPast
+        kiroAccountFailure = nil
         paused = false
         session += 1
         timer?.invalidate()
@@ -247,6 +258,8 @@ final class AgentUsageService: ObservableObject {
             claudeAppSamples = []
             claudeAccountLimits = nil
             antigravityAccountLimits = nil
+            kiroAccountLimits = nil
+            kiroPlan = nil
             savedMark = nil
             lastSave = .distantPast
         }
@@ -271,6 +284,8 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
         refreshAntigravityLimits(pageShows: true)
+        refreshClaudeLimits()
+        refreshKiroLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudePlan()
@@ -343,6 +358,12 @@ final class AgentUsageService: ObservableObject {
             // The account Claude Code uses picks the Claude app's readings.
             readClaudePlan()
             readClaudeApp(now: now)
+            // The last launch's reading stands until Kiro answers again; one
+            // that answered while the logs were read is newer.
+            if let saved = store.limits[.kiro], (kiroAccountLimits?.observedAt ?? .distantPast) < saved.observedAt {
+                kiroAccountLimits = saved
+            }
+            readKiroAccount(now: now)
             store.reportsTransitions = true
             previousLimits = store.limits
             // A budget already passed before launch is history, not news.
@@ -698,6 +719,7 @@ final class AgentUsageService: ObservableObject {
         syncPrices()
         refreshClaudeLimits()
         refreshAntigravityLimits()
+        refreshKiroLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -725,6 +747,7 @@ final class AgentUsageService: ObservableObject {
             readClaudePlan()
             readClaudeApp(now: now)
             readAntigravityLimits(now: now)
+            readKiroAccount(now: now)
             checkLimits()
             reportRenewals(now: now)
             if now.timeIntervalSince(lastSave) >= Self.saveInterval { saveProgress(now: now) }
@@ -745,13 +768,14 @@ final class AgentUsageService: ObservableObject {
         let claudeOrganization: String?
         let claudeIdentity: ClaudeAccountProfile.Identity?
         let claudeApp: [AgentClaudeAppUsage.Sample]
+        let kiroPlan: AgentPlan?
     }
 
     /// Runs on `queue`.
     private var inputs: Inputs {
         Inputs(records: store.records.count, turns: store.turns, limits: store.limits, codexPlan: store.codexPlan,
                claudePlan: claudePlan, claudeOrganization: claudeOrganization, claudeIdentity: claudeIdentity,
-               claudeApp: claudeAppSamples)
+               claudeApp: claudeAppSamples, kiroPlan: kiroPlan)
     }
 
     /// Runs on `queue` and hands the finished snapshot to the main thread.
@@ -760,6 +784,7 @@ final class AgentUsageService: ObservableObject {
         guard session >= 0 else { return }
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
+        if let kiroPlan { plans[.kiro] = kiroPlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
         let hasCursor = watchedRoots.contains { $0.provider == .cursor }
         let transcripts = hasCursor ? cursors.values.filter { $0.provider == .cursor } : []
@@ -1057,6 +1082,50 @@ final class AgentUsageService: ObservableObject {
                         guard self.readerSession == session, self.enabled.contains(.antigravity) else { return }
                         self.antigravityAccountLimits = summary.limits
                         self.readAntigravityLimits(now: Date())
+    /// The month's credits as Kiro last answered, until the month renews.
+    /// Runs on `queue`.
+    private func readKiroAccount(now: Date) {
+        guard enabled.contains(.kiro), let current = AgentKiroServer.current(kiroAccountLimits, now: now) else {
+            store.clearLimits(.kiro)
+            if !enabled.contains(.kiro) { kiroAccountLimits = nil; kiroPlan = nil }
+            return
+        }
+        store.setLimits(current)
+    }
+
+    // Main thread. Same rhythm as Claude's check: every minute while the
+    // page shows, every five otherwise, and backing off after a failure.
+    func refreshKiroLimits(now: Date = Date()) {
+        guard running, !paused, providers.contains(.kiro), kiroAccountRequest == nil else { return }
+        let interval = AgentKiroServer.interval(after: kiroAccountFailure, pageVisible: pageVisible)
+        guard now.timeIntervalSince(kiroAccountAttempted) >= interval else { return }
+        kiroAccountAttempted = now
+        let request = AgentKiroServer.Request()
+        kiroAccountRequest = request
+        let session = self.session
+        let home = self.home
+        kiroAccountQueue.async { [weak self] in
+            let result: Result<AgentKiroServer.Summary, AgentKiroServer.Failure>
+            if let executable = AgentKiroServer.executable(home: home, searchPath: ProcessInfo.processInfo.environment["PATH"]) {
+                result = request.run(executable, environment: AgentCodexServer.environment(for: executable, searchPath: nil))
+            } else { result = .failure(.missing) }
+            DispatchQueue.main.async {
+                guard let self, self.running, !self.paused, self.session == session,
+                      self.kiroAccountRequest === request else { return }
+                self.kiroAccountRequest = nil
+                switch result {
+                case .failure(let failure): self.kiroAccountFailure = failure
+                case .success(let summary):
+                    self.kiroAccountFailure = nil
+                    self.queue.async {
+                        guard self.readerSession == session, self.enabled.contains(.kiro) else { return }
+                        self.kiroAccountLimits = summary.limits
+                        self.kiroPlan = summary.plan
+                        if let charge = AgentKiroServer.overage(summary.limits, recorded: self.store.records) {
+                            self.store.apply([charge], file: AgentKiroServer.accountSource, provider: .kiro,
+                                             tracksTurns: false, modified: summary.limits.observedAt)
+                        }
+                        self.readKiroAccount(now: Date())
                         self.checkLimits()
                         self.schedulePublish()
                     }
@@ -1086,6 +1155,11 @@ final class AgentUsageService: ObservableObject {
     private func noteAntigravityCheck(_ failure: AgentAntigravityServer.Failure?) {
         antigravityAccountFailure = failure
         antigravityAccountUnreachable = failure == .unreachable ? antigravityAccountUnreachable + 1 : 0
+    private func cancelKiroLimits() {
+        guard let request = kiroAccountRequest else { return }
+        request.cancel()
+        kiroAccountRequest = nil
+        kiroAccountAttempted = .distantPast
     }
 
     // MARK: Prices
