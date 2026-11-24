@@ -30,7 +30,24 @@ extension FanControlConfiguration {
 enum FanControlInterruption: Equatable {
     case stopped(FanControlStopReason?)
     case dismissed(FanControlStopReason?)
+    case applyFailed
     case resumeFailed
+
+    // Keep the manual-Apply requirement after retiring an acknowledged cause.
+    static let acknowledgedStop = "dismissed"
+    static let refusedApply = "applyFailed"
+
+    init?(storedStop: String) {
+        switch storedStop {
+        case Self.acknowledgedStop: return nil
+        case Self.refusedApply: self = .applyFailed
+        default: self = .stopped(FanControlStopReason(rawValue: storedStop))
+        }
+    }
+}
+
+enum FanControlRequest {
+    case read, apply, restore
 }
 
 enum FanControlResumePolicy {

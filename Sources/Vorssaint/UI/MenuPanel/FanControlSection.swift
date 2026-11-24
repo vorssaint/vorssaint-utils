@@ -375,6 +375,7 @@ struct FanControlCardContent: View {
         let stopReason: FanControlStopReason?
         switch interruption {
         case .dismissed: return nil
+        case .applyFailed: return strings.applyFailed
         case .resumeFailed, .stopped(nil): return strings.failed
         case .stopped(let reason): stopReason = reason
         case nil:
@@ -398,7 +399,7 @@ struct FanControlCardContent: View {
             break
         }
         switch interruption {
-        case .stopped, .resumeFailed: return !snapshot.isCooling
+        case .stopped, .applyFailed, .resumeFailed: return !snapshot.isCooling
         case .dismissed, .none: return false
         }
     }

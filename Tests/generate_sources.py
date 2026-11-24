@@ -691,10 +691,12 @@ def main():
                         "    private func restoreThenUnregister()",
                         "    private func finishSystemHandoff()", "    private func startTimerIfNeeded()",
                         "    private func observeFailedHandoff(", "    private func poll(", "    private func heartbeat(",
-                        "    private func requestStatus(", "    private func beginRequest(", "    private func finishRequest("])
+                        "    private func requestStatus(", "    private func connectionLost(",
+                        "    private func beginRequest(", "    private func finishRequest("])
           + "}\n}\n")
     write("FanControlRecovery.swift", "import Foundation\n"
           + "extension FanControlRecoveryContract {\nfinal class Controller: Fixture {\n"
+          + declaration("Sources/FanControlHelper/main.swift", "    func connectionClosed(")
           + declaration("Sources/FanControlHelper/main.swift", "    private func applyConfiguration(session")
               .replace("private func", "func", 1)
               .replace("let control = FanControlHardware()", "let control = hardware", 1)

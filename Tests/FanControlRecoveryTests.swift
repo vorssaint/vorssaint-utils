@@ -98,6 +98,10 @@ enum FanControlRecoveryContract {
         func cancel() { cancelled = true }
     }
 
+    struct ImmediateQueue {
+        func async(_ work: () -> Void) { work() }
+    }
+
     /// Accepts the helper's `Logger` interpolations, privacy included, and
     /// keeps the rendered text so a test can read why a session ended.
     struct LogMessage: ExpressibleByStringInterpolation {
@@ -125,6 +129,8 @@ enum FanControlRecoveryContract {
 
     class Fixture {
         let log = Log()
+        let queue = ImmediateQueue()
+        var connectionCount = 1
         let ownership = Ownership()
         var hardware: FanControlHardware? = FanControlHardware()
         var owner: UUID? = UUID()
