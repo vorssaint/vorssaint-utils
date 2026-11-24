@@ -95,8 +95,12 @@ enum FanControlRecoveryContract {
         func cancel() { cancelled = true }
     }
 
-    struct Queue {
+    final class Queue {
+        private(set) var scheduledExits = 0
         func async(_ work: () -> Void) { work() }
+        func asyncAfter(deadline: DispatchTime, execute work: @escaping () -> Void) {
+            scheduledExits += 1 // Observe scheduling without exiting the test process.
+        }
     }
 
     /// Accepts the helper's `Logger` interpolations, privacy included, and
@@ -141,6 +145,7 @@ enum FanControlRecoveryContract {
         var temperatureFailures = 0
         var lastStopReason: FanControlStopReason?
         var lastStoppedOwner: UUID?
+        var sessionStops: [UUID: FanControlSessionStop] = [:]
         var coolingLevel: Int? = 0
         var activeConfiguration: FanControlConfiguration? = .curve([.init(
             sensor: .hottestSoC,
@@ -148,7 +153,6 @@ enum FanControlRecoveryContract {
                      .init(temperature: 80, coolingLevel: 100)]
         )])
         var timer: Timer? = Timer()
-        var exitChecks = 0
         init(idle: Bool = false) {
             if idle {
                 hardware = nil
@@ -169,7 +173,6 @@ enum FanControlRecoveryContract {
         func startWatchdog() {
             if timer == nil { timer = Timer() }
         }
-        func scheduleExitIfIdle() { exitChecks += 1 }
     }
 
     /// Ticks until the verification tolerance is spent.
@@ -199,14 +202,83 @@ enum FanControlRecoveryContract {
         let restarted = Controller(idle: true)
         let idleReply = release(restarted, from: UUID())
         suite.expect(idleReply?.error == .controlFailed && idleReply?.snapshot.stopReason == nil
+                        && idleReply?.sessionStop == nil
                         && idleReply?.supportsSessionRelease == true && restarted.hardware == nil,
                      "a fresh idle helper cannot confirm a release requested on a former connection")
         let legacySession = FanControlSession(controller: restarted)
         suite.expect(readReply(legacySession.restoreAutomatic)?.succeeded == true,
                      "an old client can still confirm automatic control with an idle helper")
         let legacy = FanControlIPC.decode(Data(#"{"succeeded":true,"snapshot":{"fans":[],"isCooling":false}}"#.utf8))
-        suite.expect(legacy?.succeeded == true && legacy?.supportsSessionRelease == nil,
+        suite.expect(legacy?.succeeded == true && legacy?.supportsSessionRelease == nil
+                        && legacy?.isRecovering == nil && legacy?.sessionStop == nil,
                      "an older helper reply decodes without advertising session release")
+
+        for firstReadIsStatus in [false, true] {
+            let controller = Controller(idle: true)
+            let first = FanControlSession(controller: controller)
+            let second = FanControlSession(controller: controller)
+            let observer = FanControlSession(controller: controller)
+            _ = readReply { first.applyConfiguration(encoded, withReply: $0) }
+            controller.hardware?.controlIntact = false
+            controller.hardware?.writeError = .unsafeControlState
+            controller.watchdogTick()
+            suite.expect(!controller.isCooling && controller.lastStopReason == .hardwareChanged,
+                         "the first owner loses its curve to hardware protection before observing the stop")
+            _ = readReply { second.applyConfiguration(encoded, withReply: $0) }
+            if firstReadIsStatus {
+                let stillActive = readReply(first.status)
+                suite.expect(stillActive?.snapshot.isCooling == true && stillActive?.snapshot.configuration == curve
+                                && stillActive?.sessionStop?.reason == .hardwareChanged && stillActive?.sessionStop?.restored == true,
+                             "the first owner's receipt identifies its stopped session even while the same curve runs for its successor")
+            }
+            clock.systemUptime += FanControlPolicy.heartbeatLimit + 1
+            controller.watchdogTick()
+            let firstRead = readReply(firstReadIsStatus ? first.status : first.heartbeat)
+            let secondRead = readReply(second.status)
+            let panel = readReply(observer.status)
+            suite.expect(firstRead?.snapshot.stopReason == .heartbeatLost && firstRead?.sessionStop?.reason == .hardwareChanged
+                            && firstRead?.sessionStop?.restored == true && secondRead?.sessionStop?.reason == .heartbeatLost
+                            && secondRead?.sessionStop?.restored == true && panel?.snapshot.stopReason == .heartbeatLost
+                            && panel?.sessionStop == nil && controller.hardware?.restores == 1,
+                         "status and heartbeat show the latest telemetry but attribute each completed stop only to its owner")
+            let reapplied = readReply { first.applyConfiguration(encoded, withReply: $0) }
+            suite.expect(reapplied?.succeeded == true && reapplied?.sessionStop == nil && readReply(first.status)?.sessionStop == nil,
+                         "starting a new curve on the same connection discards its previous stop receipt")
+        }
+
+        for firstReadIsStatus in [false, true] {
+            let controller = Controller(idle: true)
+            let owner = FanControlSession(controller: controller)
+            let observer = FanControlSession(controller: controller)
+            _ = readReply { owner.applyConfiguration(encoded, withReply: $0) }
+            controller.hardware?.restoreResults = [false, true]
+            let failed = readReply(owner.releaseControl)
+            suite.expect(failed?.error == .controlFailed && failed?.sessionStop?.restored == false
+                            && failed?.sessionStop?.reason == nil && failed?.isRecovering == true,
+                         "a failed voluntary release leaves its owner a pending receipt with no stop reason")
+            controller.watchdogTick()
+            let foreign = readReply(observer.status)
+            let confirmed = readReply(firstReadIsStatus ? owner.status : owner.heartbeat)
+            let duplicate = readReply(owner.status)
+            suite.expect(foreign?.succeeded == true && foreign?.sessionStop == nil
+                            && confirmed?.succeeded == true && confirmed?.sessionStop?.restored == true
+                            && confirmed?.sessionStop?.reason == nil && confirmed?.isRecovering == false
+                            && duplicate?.sessionStop == nil && readReply(owner.releaseControl)?.error == .controlFailed
+                            && controller.hardware?.restores == 2 && !controller.ownership.marker,
+                         "only the releasing owner can consume the watchdog's voluntary completion once on the same helper")
+        }
+
+        let removing = Controller(idle: true)
+        let sleeper = FanControlSession(controller: removing)
+        let uninstaller = FanControlSession(controller: removing)
+        _ = readReply { sleeper.applyConfiguration(encoded, withReply: $0) }
+        removing.hardware?.restoreResults = [false, true]
+        let pending = readReply(sleeper.releaseControl)
+        let removed = readReply(uninstaller.restoreForRemoval)
+        let observed = readReply(sleeper.status)
+        suite.expect(pending?.sessionStop?.restored == false && removed?.succeeded == true && observed?.succeeded == true
+                        && observed?.sessionStop == nil && removing.hardware?.restores == 2 && !removing.ownership.marker,
+                     "complete removal supersedes the sleeping owner's pending receipt before confirming automatic control")
 
         enum SessionEnd { case disconnect, ownedRelease, legacyRestore, heartbeatLoss, removalAfterHeartbeatLoss }
         for ending: SessionEnd in [.disconnect, .ownedRelease, .legacyRestore, .heartbeatLoss, .removalAfterHeartbeatLoss] {
@@ -457,7 +529,8 @@ enum FanControlRecoveryContract {
         exhaustTolerance(recovering)
         let unconfirmed = release(recovering, from: protectedOwner)
         suite.expect(unconfirmed?.error == .controlFailed && unconfirmed?.snapshot.stopReason == .hardwareChanged
-                        && recovering.hardware?.restores == 1 && recovering.ownership.marker,
+                        && recovering.hardware?.restores == 1 && recovering.ownership.marker
+                        && recovering.queue.scheduledExits == 0,
                      "a release during protection recovery only reports the outstanding restore")
         suite.expect(recovering.isRecovering && !recovering.isCooling
                         && recovering.owner == nil && recovering.activeConfiguration == nil
@@ -469,16 +542,20 @@ enum FanControlRecoveryContract {
         recovering.hardware?.writeError = nil
         recovering.watchdogTick()
         suite.expect(recovering.hardware?.updates == [50, 50, 50] && recovering.hardware?.restores == 2
-                        && recovering.isRecovering && recovering.ownership.marker,
+                        && recovering.isRecovering && recovering.ownership.marker && recovering.queue.scheduledExits == 0,
                      "recovery retries automatic mode without reapplying the curve")
         recovering.watchdogTick()
         suite.expect(recovering.hardware?.updates == [50, 50, 50] && recovering.hardware?.restores == 3
                         && recovering.hardware?.isManual == false && !recovering.isRecovering
                         && !recovering.ownership.marker && !recovering.ownership.isHeld
-                        && recovering.timer == nil && recovering.exitChecks == 1
+                        && recovering.timer == nil && recovering.queue.scheduledExits == 1
                         && recovering.lastStopReason == .hardwareChanged
                         && recovering.log.notices.last?.hasSuffix("hardwareChanged") == true,
                      "successful automatic recovery releases ownership and stops retrying")
+        recovering.watchdogTick()
+        suite.expect(recovering.hardware?.restores == 3 && recovering.hardware?.updates == [50, 50, 50]
+                        && recovering.queue.scheduledExits == 1,
+                     "an idle tick after recovery neither rewrites the fans nor schedules another exit")
         let confirmed = release(recovering, from: protectedOwner)
         suite.expect(confirmed?.succeeded == true && confirmed?.snapshot.stopReason == .hardwareChanged
                         && recovering.hardware?.restores == 3,
@@ -510,10 +587,13 @@ enum FanControlRecoveryContract {
         suite.expect(failedRelease?.error == .controlFailed && failedRelease?.snapshot.stopReason == nil,
                      "a failed owner release cannot acknowledge automatic control")
         requested.watchdogTick()
-        suite.expect(release(requested, from: requestingOwner)?.error == .controlFailed
+        let completedRequest = release(requested, from: requestingOwner)
+        suite.expect(completedRequest?.succeeded == true && completedRequest?.sessionStop?.restored == true
+                        && completedRequest?.sessionStop?.reason == nil
+                        && release(requested, from: requestingOwner)?.error == .controlFailed
                         && !requested.isRecovering && requested.lastStopReason == nil
                         && requested.log.notices.last?.hasSuffix("requested") == true,
-                     "an unattributed idle reply after recovery cannot turn the failed release into a success")
+                     "the scoped release can collect the owner's voluntary completion once after the watchdog restores the fans")
 
         let transientRead = Controller()
         transientRead.activeConfiguration = .manual(level: 50)

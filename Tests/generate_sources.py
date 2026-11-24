@@ -669,10 +669,10 @@ def main():
                     .replace("@objc private func", "func", 1)
                     .replace("private static var", "static var", 1)
                     .replace("private func", "func", 1) for prefix in [
-                        "    static func recoverIfNeeded(", "    func syncWithPreferences(",
+                        "    static func recoverIfNeeded(", "    private func checkLaunchRecovery(", "    func syncWithPreferences(",
                         "    func restoreAutomatic()", "    private func restoreAutomatic(supersedingCurrentRequest:",
                         "    static func restoreBeforeTerminationIfNeeded()", "    private func restoreBeforeTermination()",
-                        "    private func restoreThenUnregister()", "    private func unregisterHelper()", "    func refresh()",
+                        "    private func restoreThenUnregister()", "    private func unregisterHelper()", "    func refresh()", "    func authorize()",
                         "    func returnToSystem(", "    func forgetResume(", "    func resumePreferenceDidChange(",
                         "    private static var resumableConfiguration:", "    private func resume(",
                         "    private static var helperAwaitsRegistration:",
@@ -682,6 +682,7 @@ def main():
                         "    private func beginResume(", "    private func cancelResumeRetry(",
                         "    private func resumeDidFail(", "    private func scheduleResumeRetry(",
                         "    private func retryResume(", "    private func applyStatus(", "    private func applySessionResponse(",
+                        "    private func confirmPreviousRecovery(", "    private func automaticControlConfirmed()",
                         "    private func blockResumeAfterStop(",
                         "    private func apply(_ response:",
                         "    private func poll(", "    private func heartbeat(", "    private func requestStatus(",
@@ -695,15 +696,17 @@ def main():
                     .replace("FanControlHardware()", "openHardware()")
                     .replace("private func", "func", 1) for prefix in [
                         "    func connectionOpened()", "    func connectionClosed(", "    func apply(session",
-                        "    func status(reply:", "    func startLegacySession(", "    func heartbeat(session",
+                        "    func status(session", "    func startLegacySession(", "    func heartbeat(session",
                         "    func restore(session", "    func restoreForRemoval(reply:", "    func releaseControl(session",
                         "    private func releaseResponse(for",
-                        "    private func restoreResponse()", "    private func currentSnapshot()", "    private func statusResponse(",
+                        "    private func restoreResponse(", "    private func encodedResponse(",
+                        "    private func currentSnapshot()", "    private func statusResponse(",
                         "    private func applyConfiguration(session", "    private func updateActiveConfiguration(",
                         "    private func finishFailedStart(",
                         "    private func requestedLevel(", "    private func performRestore(",
                         "    private func watchdogStopReason()",
-                        "    private func watchdogTick()", "    private func stopWatchdogIfIdle()"])
+                        "    private func watchdogTick()", "    private func stopWatchdogIfIdle()",
+                        "    private func scheduleExitIfIdle()"])
           + "}\ntypealias FanControlController = Controller\n"
           + declaration(fan_helper, "private final class FanControlSession:").replace("private final class", "final class", 1)
           + "}\n")

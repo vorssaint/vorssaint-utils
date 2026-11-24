@@ -135,12 +135,21 @@ enum FanControlErrorCode: String, Codable, Equatable, Error, Sendable {
     case controlFailed
 }
 
+struct FanControlSessionStop: Codable, Equatable, Sendable {
+    /// A nil reason denotes a voluntary release requested by this session.
+    let reason: FanControlStopReason?
+    var restored: Bool
+}
+
 struct FanControlResponse: Codable, Equatable, Sendable {
     let succeeded: Bool
     let snapshot: FanControlSnapshot
     let error: FanControlErrorCode?
     /// Helpers with owner-scoped release also provide a separate restore for full removal.
     let supportsSessionRelease: Bool?
+    var sessionStop: FanControlSessionStop? = nil
+    /// Present on helpers that report stop receipts for the requesting connection.
+    var isRecovering: Bool? = nil
 
     static func success(_ snapshot: FanControlSnapshot) -> FanControlResponse {
         FanControlResponse(succeeded: true, snapshot: snapshot, error: nil, supportsSessionRelease: true)
