@@ -1823,6 +1823,7 @@ enum MixerInputVolumeContract {
         runMuteListenerTests(suite)
         runPendingRestoreDeviceChangeTests(suite)
         runPendingControlListTests(suite)
+        runRestoreControlListEchoTests(suite)
         runMuteRecoveryTests(suite)
         runLowGainMuteTests(suite)
         runProtectedChannelRestoreTests(suite)
@@ -2041,11 +2042,21 @@ enum MixerInputVolumeContract {
             HAL.levels = [left: 0, right: 0]
             HAL.levels[master] = currentMaster
             release()
-            let needsCheck = currentMaster.map { $0 <= MicMuteSupport.residualGainLimit } ?? false
+            let needsCheck = currentMaster.map { $0 <= MicMuteSupport.residualGainLimit } ?? true
             suite.expect(HAL.levels[left] == 0.25 && HAL.levels[right] == 0.75 && HAL.levels[master] == currentMaster
                          && !HAL.writes.contains(master) && !MicMuteService.shared.hasOutstandingClaims
                          && MicMuteService.shared.warning == (needsCheck ? .manualRestore : nil),
-                         "a legacy channel-only record leaves an ambiguous master alone and reports a quiet one")
+                         "a legacy stereo record requests a manual check for an absent or quiet ambiguous master")
+            if currentMaster == nil {
+                HAL.levels[master] = 0
+                HAL.writes = []
+                HAL.relaunchClient()
+                MicMuteService.shared.syncWithPreferences()
+                DispatchQueue.drain()
+                suite.expect(HAL.writes.isEmpty && HAL.levels[master] == 0 && MicMuteService.shared.warning == .manualRestore
+                             && !MicMuteService.shared.hasOutstandingClaims && MicMuteService.shared.inputVolumeAdjustmentLifetime != nil,
+                             "an ambiguous master that returns at zero stays available for the user's manual adjustment")
+            }
         }
 
         // Per-control snapshots distinguish a virtual master even when its level matches a channel.
@@ -2984,9 +2995,9 @@ enum MixerInputVolumeContract {
         let master = HAL.key(10)
         let left = HAL.key(10, 1)
         let right = HAL.key(10, 2)
-        func seed(_ level: Double, _ channels: [String: Double]) {
+        func seed(_ level: Double?, _ channels: [String: Double]) {
             defaults.set([uid], forKey: DefaultsKey.micMuteMutedDevices)
-            defaults.set([uid: level], forKey: DefaultsKey.micMuteSavedVolumes)
+            if let level { defaults.set([uid: level], forKey: DefaultsKey.micMuteSavedVolumes) }
             defaults.set([uid: channels], forKey: DefaultsKey.micMuteSavedChannelVolumes)
         }
         func release() {
@@ -3007,7 +3018,7 @@ enum MixerInputVolumeContract {
                      && finished(), "a legacy stereo meter has no restore target alongside its writable master and channel")
 
         HAL.reset()
-        seed(0.25, ["1": 0.25])
+        seed(nil, ["1": 0.25])
         HAL.levels = [left: 0.005]
         HAL.readOnly = [left]
         release()
@@ -3015,7 +3026,7 @@ enum MixerInputVolumeContract {
                      "a stereo record with only a read-only meter leaves no automatic restore outstanding")
 
         HAL.reset()
-        seed(0.25, ["1": 0.25])
+        seed(nil, ["1": 0.25])
         HAL.levels = [left: 0.375]
         HAL.settableReadFails = [left]
         release()
@@ -3029,7 +3040,7 @@ enum MixerInputVolumeContract {
 
         for readOnly in [false, true] {
             HAL.reset()
-            seed(0.25, ["1": 0.25, "2": 0.75])
+            seed(nil, ["1": 0.25, "2": 0.75])
             HAL.levels = [left: 0]
             release()
             suite.expect(HAL.writes == [left] && HAL.levels[left] == 0.25 && MicMuteService.shared.hasOutstandingClaims,
@@ -3650,7 +3661,105 @@ enum MixerInputVolumeContract {
                      "the system change restores the returning master without losing the user's latest channel mix")
     }
 
+    private static func runRestoreControlListEchoTests(_ suite: TestSuite) {
+        let master = HAL.key(10)
+        let channel = HAL.key(10, 1)
+        let controlList = HAL.key(10, 0, kAudioObjectPropertyControlList, scope: kAudioObjectPropertyScopeGlobal)
+        for delayed in [false, true] {
+            HAL.reset()
+            let service = MicMuteService.shared
+            HAL.levels = [master: 0.625, channel: 0.875]
+            service.setMuted(true)
+            DispatchQueue.drain()
+            HAL.levels = [:]
+            service.setMuted(false)
+            DispatchQueue.drain()
+            func signalList() {
+                suite.expect(HAL.notifyIfRegistered(controlList), "the pending input delivers its control-list change")
+                DispatchQueue.drain()
+            }
+
+            HAL.levels[master] = 0
+            if delayed { HAL.writeFails = [master] } else { HAL.ignoredWrites = [master] }
+            HAL.writes = []
+            var echoes = 0
+            var queued: [() -> Void] = []
+            HAL.beforeControlWrite = { key, _ in
+                // Cap deliveries so a regression fails without exhausting the test queue.
+                guard key == master, echoes < 3, let notify = HAL.pendingNotification(for: controlList) else { return }
+                echoes += 1
+                if delayed { queued.append(notify) } else { notify() }
+            }
+            signalList()
+            while !queued.isEmpty {
+                queued.removeFirst()()
+                DispatchQueue.drain()
+            }
+            HAL.beforeControlWrite = nil
+            suite.expect(echoes == 1 && HAL.writes == [master] && HAL.levels[master] == 0
+                         && service.hasOutstandingClaims && service.warning == .restoreUnconfirmed,
+                         "a refused master stays pending after its own \(delayed ? "late" : "synchronous") control-list echo")
+
+            HAL.levels[channel] = 0
+            HAL.writes = []
+            signalList()
+            suite.expect(HAL.writes == [channel] && HAL.levels[channel] == 0.875 && service.hasOutstandingClaims,
+                         "a newly available channel restores without retrying its unchanged refused master")
+            HAL.levels[channel] = 0.375
+            HAL.levels[master] = nil
+            HAL.writes = []
+            signalList()
+            suite.expect(HAL.writes.isEmpty && service.hasOutstandingClaims, "an unavailable master retains its claim")
+            HAL.levels[master] = 0
+            signalList()
+            suite.expect(HAL.writes == [master] && HAL.levels[channel] == 0.375 && service.hasOutstandingClaims,
+                         "the same master gets a fresh restore attempt after disappearing and returning")
+
+            HAL.ignoredWrites = []
+            HAL.writeFails = []
+            HAL.writes = []
+            if delayed {
+                HAL.levels[master] = 0.625
+                signalList()
+            } else {
+                service.setMuted(false)
+                DispatchQueue.drain()
+            }
+            suite.expect(HAL.writes == (delayed ? [] : [master]) && HAL.levels[master] == 0.625
+                         && HAL.levels[channel] == 0.375 && !service.hasOutstandingClaims
+                         && service.warning == nil && HAL.listeners.isEmpty,
+                         "a verified readback or an explicit unmute can finish the refused restore")
+        }
+
+        HAL.reset()
+        let service = MicMuteService.shared
+        HAL.levels = [master: 0.625, channel: 0.875]
+        service.setMuted(true)
+        DispatchQueue.drain()
+        HAL.levels[master] = nil
+        HAL.ignoredWrites = [channel]
+        HAL.writes = []
+        service.setMuted(false)
+        DispatchQueue.drain()
+        suite.expect(HAL.writes == [channel] && HAL.levels[channel] == 0 && service.hasOutstandingClaims,
+                     "a refused channel keeps its own target while the linked master is absent")
+        HAL.beforeControlWrite = { key, target in
+            if key == master {
+                HAL.levels[channel] = Float(target)
+                HAL.ignoredWrites.remove(channel)
+            }
+        }
+        HAL.levels[master] = 0
+        HAL.writes = []
+        suite.expect(HAL.notifyIfRegistered(controlList), "the device reports the return of the coupled master")
+        DispatchQueue.drain()
+        suite.expect(HAL.writes == [master, channel] && HAL.levels == [master: 0.625, channel: 0.875]
+                     && !service.hasOutstandingClaims && HAL.listeners.isEmpty,
+                     "the returning master permits compensation of a previously refused channel in the same restore")
+    }
+
     private static func runPendingControlListTests(_ suite: TestSuite) {
+        runPendingUIDGainListenerTests(suite)
         let global = kAudioObjectPropertyScopeGlobal
         let local = HAL.key(10, 0, kAudioObjectPropertyControlList, scope: global)
         let system = AudioObjectID(kAudioObjectSystemObject)
@@ -3754,6 +3863,51 @@ enum MixerInputVolumeContract {
         DispatchQueue.drain()
         suite.expect(HAL.levels[master] == 0.625 && HAL.listeners.isEmpty,
                      "the renewed local registration finishes the restore on the reconnected input")
+    }
+
+    private static func runPendingUIDGainListenerTests(_ suite: TestSuite) {
+        let defaults = UserDefaults.standard
+        let local = HAL.key(10, 0, kAudioObjectPropertyControlList, scope: kAudioObjectPropertyScopeGlobal)
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        let master = HAL.key(10)
+        let other = HAL.key(20)
+        HAL.reset()
+        HAL.devices = [10, 20]
+        HAL.levels = [other: 0.375]
+        // This input had a single scalar and a per-UID gain in the old format.
+        defaults.set(["device-10"], forKey: DefaultsKey.micMuteMutedDevices)
+        defaults.set(["device-10": 0.625], forKey: DefaultsKey.micMuteSavedVolumes)
+        HAL.relaunchClient()
+        MicMuteService.shared.syncWithPreferences()
+        DispatchQueue.drain()
+        let late = HAL.pendingNotification(for: local)
+        suite.expect(HAL.listeners.filter { $0.d != system } == [local] && late != nil && HAL.writes.isEmpty
+                     && MicMuteService.shared.hasOutstandingClaims,
+                     "a claimed per-UID level watches its own missing scalar before a control snapshot exists")
+        HAL.levels[master] = 0
+        suite.expect(HAL.notifyIfRegistered(local), "the input's control list alone reports the returning scalar")
+        DispatchQueue.drain()
+        suite.expect(HAL.writes == [master] && HAL.levels == [master: 0.625, other: 0.375] && HAL.listeners.isEmpty
+                     && !MicMuteService.shared.hasOutstandingClaims && MicMuteService.shared.warning == nil,
+                     "the local event restores the recorded UID gain once and retires all listeners")
+        HAL.levels[master] = 0.25
+        late?()
+        DispatchQueue.drain()
+        suite.expect(HAL.writes == [master] && HAL.levels[master] == 0.25 && HAL.listeners.isEmpty,
+                     "a late scalar-list callback preserves the user's subsequent gain")
+
+        HAL.reset()
+        HAL.levels[master] = 0
+        defaults.set(["device-10"], forKey: DefaultsKey.micMuteMutedDevices)
+        defaults.set(0.625, forKey: DefaultsKey.micMuteSavedVolume)
+        HAL.relaunchClient()
+        MicMuteService.shared.syncWithPreferences()
+        DispatchQueue.drain()
+        HAL.mute[10] = 1
+        suite.expect(!HAL.listenerAdds.contains(local) && !HAL.notifyIfRegistered(local)
+                     && MicMuteService.shared.warning == .manualRestore && !MicMuteService.shared.hasOutstandingClaims
+                     && HAL.writes.isEmpty && HAL.listeners.isEmpty,
+                     "a UID without a saved level or identifiable switch leaves only the manual reminder")
     }
 
     private static func runMuteListenerTests(_ suite: TestSuite) {
