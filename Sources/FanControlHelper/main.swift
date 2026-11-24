@@ -167,8 +167,13 @@ private final class FanControlController {
         }
     }
 
-    func restore(reply: @escaping (Data) -> Void) {
+    func restore(session id: UUID? = nil, reply: @escaping (Data) -> Void) {
         queue.async {
+            if let id, !self.isCooling || self.owner != id {
+                let error: FanControlErrorCode = self.isCooling ? .alreadyControlled : .controlFailed
+                reply(FanControlIPC.encode(.failure(error, snapshot: self.currentSnapshot())))
+                return
+            }
             let succeeded = self.performRestore(reason: nil)
             let response = succeeded
                 ? FanControlResponse.success(self.currentSnapshot())
@@ -257,7 +262,7 @@ private final class FanControlController {
             lastStopReason = nil
             startWatchdog()
             log.notice("Cooling session started")
-            return .success(currentSnapshot())
+            return .success(currentSnapshot(), supportsOwnedRestore: true)
         } catch FanControlHardwareError.noFans {
             finishFailedStart(mayHaveChangedHardware: false)
             return .failure(.noFans)
@@ -269,7 +274,8 @@ private final class FanControlController {
             return .failure(.unsupportedHardware)
         } catch {
             finishFailedStart(mayHaveChangedHardware: true)
-            return .failure(.controlFailed, snapshot: currentSnapshot())
+            return .failure(.controlFailed, snapshot: currentSnapshot(),
+                            localStopReason: isRecovering ? .recovery : nil)
         }
     }
 
@@ -291,10 +297,10 @@ private final class FanControlController {
             verificationFailures = 0
             temperatureFailures = 0
             lastStopReason = nil
-            return .success(currentSnapshot())
+            return .success(currentSnapshot(), supportsOwnedRestore: true)
         } catch {
             _ = performRestore(reason: .hardwareChanged)
-            return .failure(.controlFailed, snapshot: currentSnapshot())
+            return .failure(.controlFailed, snapshot: currentSnapshot(), localStopReason: .hardwareChanged)
         }
     }
 
@@ -565,6 +571,10 @@ private final class FanControlSession: NSObject, FanControlXPCProtocol {
 
     func restoreAutomatic(withReply reply: @escaping (Data) -> Void) {
         controller.restore(reply: reply)
+    }
+
+    func restoreOwnedControl(withReply reply: @escaping (Data) -> Void) {
+        controller.restore(session: id, reply: reply)
     }
 }
 

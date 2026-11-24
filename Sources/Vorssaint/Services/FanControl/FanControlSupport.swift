@@ -139,14 +139,22 @@ struct FanControlResponse: Codable, Equatable, Sendable {
     let succeeded: Bool
     let snapshot: FanControlSnapshot
     let error: FanControlErrorCode?
+    // Advertised by an accepted Apply. Older helpers omit this key.
+    let supportsOwnedRestore: Bool?
+    // Present only when this request caused the stop. The snapshot is global.
+    let localStopReason: FanControlStopReason?
 
-    static func success(_ snapshot: FanControlSnapshot) -> FanControlResponse {
-        FanControlResponse(succeeded: true, snapshot: snapshot, error: nil)
+    static func success(_ snapshot: FanControlSnapshot,
+                        supportsOwnedRestore: Bool? = nil) -> FanControlResponse {
+        FanControlResponse(succeeded: true, snapshot: snapshot, error: nil,
+                           supportsOwnedRestore: supportsOwnedRestore, localStopReason: nil)
     }
 
     static func failure(_ error: FanControlErrorCode,
-                        snapshot: FanControlSnapshot = .empty) -> FanControlResponse {
-        FanControlResponse(succeeded: false, snapshot: snapshot, error: error)
+                        snapshot: FanControlSnapshot = .empty,
+                        localStopReason: FanControlStopReason? = nil) -> FanControlResponse {
+        FanControlResponse(succeeded: false, snapshot: snapshot, error: error,
+                           supportsOwnedRestore: nil, localStopReason: localStopReason)
     }
 }
 

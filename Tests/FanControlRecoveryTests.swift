@@ -161,7 +161,55 @@ enum FanControlRecoveryContract {
         for _ in 0..<FanControlPolicy.verificationFailureLimit { controller.watchdogTick() }
     }
 
+    private static func checkRestoreCapability(_ suite: TestSuite) {
+        struct LegacyResponse: Decodable {
+            let succeeded: Bool
+            let snapshot: FanControlSnapshot
+            let error: FanControlErrorCode?
+        }
+
+        let legacyData = Data(#"{"succeeded":true,"snapshot":{"fans":[],"isCooling":true}}"#.utf8)
+        let fromLegacyHelper = FanControlIPC.decode(legacyData)
+        suite.expect(fromLegacyHelper?.snapshot.isCooling == true && fromLegacyHelper?.supportsOwnedRestore == nil
+                        && fromLegacyHelper?.localStopReason == nil,
+                     "an active reply from an older helper grants no owner-checked restore")
+
+        let controller = Controller()
+        let owner = UUID()
+        controller.owner = owner
+        let accepted = controller.applyConfiguration(session: owner, configuration: .manual(level: 65), duration: nil)
+        let data = FanControlIPC.encode(accepted)
+        let legacyClient = try? JSONDecoder().decode(LegacyResponse.self, from: data)
+        suite.expect(FanControlIPC.decode(data)?.supportsOwnedRestore == true && legacyClient?.succeeded == true
+                        && legacyClient?.snapshot == accepted.snapshot && legacyClient?.error == nil,
+                     "an accepted Apply advertises the owner check while older clients still decode the same result")
+    }
+
+    private static func checkApplyStopReason(_ suite: TestSuite) {
+        let controller = Controller()
+        let owner = UUID()
+        controller.owner = owner
+        controller.hardware?.writeError = .unsafeControlState
+        let manual = FanControlConfiguration.manual(level: 65)
+        let update = controller.applyConfiguration(session: owner, configuration: manual, duration: nil)
+        suite.expect(update.error == .controlFailed && update.localStopReason == .hardwareChanged
+                        && update.snapshot.stopReason == .hardwareChanged && !controller.isCooling,
+                     "a failed update reports the stop it caused in its own session")
+
+        controller.hardware?.restoreResults = [false]
+        let start = controller.applyConfiguration(session: owner, configuration: manual, duration: nil)
+        let other = controller.applyConfiguration(session: UUID(), configuration: manual, duration: nil)
+        suite.expect(start.error == .controlFailed && start.snapshot.stopReason == .recovery
+                        && start.localStopReason == .recovery && controller.isRecovering,
+                     "a partial first write whose rollback fails reports its own recovery")
+        suite.expect(other.error == .controlFailed && other.snapshot.stopReason == .recovery
+                        && other.localStopReason == nil && controller.statusResponse().localStopReason == nil,
+                     "an Apply during another client's recovery and a status read carry only the global reason")
+    }
+
     static func run(_ suite: TestSuite) {
+        checkRestoreCapability(suite)
+        checkApplyStopReason(suite)
         let healthy = Controller()
         let healthyOwner = healthy.owner
         healthy.watchdogTick()

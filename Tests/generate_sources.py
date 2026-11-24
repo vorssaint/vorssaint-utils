@@ -697,9 +697,11 @@ def main():
                         "    private func beginResume(", "    private func cancelResumeRetry(",
                         "    private func resumeDidFail(", "    private func scheduleResumeRetry(",
                         "    private func retryResume(", "    private func applyStatus(", "    private func apply(_ response:",
-                        "    private var interruptedStop:",
+                        "    private var interruptedStop:", "    private var hadActiveControl:",
                         "    func restoreAutomatic()", "    private func restoreAutomatic(supersedingCurrentRequest:",
+                        "    private func disconnectForRecovery(",
                         "    static func restoreBeforeTerminationIfNeeded()", "    private func restoreBeforeTermination()",
+                        "    private func restoreOwnedBeforeExit()",
                         "    private func restoreThenUnregister()",
                         "    private func finishSystemHandoff()", "    private func startTimerIfNeeded()",
                         "    private func recordInterruption(", "    private func observeFailedHandoff(",
@@ -712,7 +714,7 @@ def main():
           + "final class Controller: Fixture {\n"
           + declaration("Sources/FanControlHelper/main.swift", "    func connectionClosed(")
           + declaration("Sources/FanControlHelper/main.swift", "    func heartbeat(session")
-          + declaration("Sources/FanControlHelper/main.swift", "    func restore(reply:")
+          + declaration("Sources/FanControlHelper/main.swift", "    func restore(session")
           + declaration("Sources/FanControlHelper/main.swift", "    private func applyConfiguration(session")
               .replace("private func", "func", 1)
               .replace("let control = FanControlHardware()", "let control = hardware", 1)

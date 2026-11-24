@@ -460,8 +460,7 @@ enum DefaultsKey {
     static let fanControlCurves = "fanControlCurves"
     // Re-apply the last manual speed or curve when the app opens and after wake.
     static let fanControlResume = "fanControlResume"
-    // Machine-only: the control the user left running while resume is on,
-    // cleared when they return to System so it never outlives that choice.
+    // Machine-only: arm resume only after the helper releases this connection's control.
     static let fanControlResumeConfiguration = "fanControlResumeConfiguration"
     // Previous panel visibility key, read once by the migration below.
     static let monitorShowFanControlBeta = "monitorShowFanControlBeta"
