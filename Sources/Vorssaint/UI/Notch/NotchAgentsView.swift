@@ -158,7 +158,8 @@ struct NotchAgentsView: View {
                                      display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text,
                                      account: account(tile, now: now),
                                      accountName: provider == .claude ? claudeAccountName : nil,
-                                     expanded: expanded)
+                                     expanded: expanded,
+                                     accountUnreachable: provider == .kiro && usage.kiroAccountFailure != nil)
             }
         case .spend:
             NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
@@ -301,6 +302,8 @@ private struct NotchAgentLimitsCard: View {
     var accountName: String? = nil
     /// Claude's tall card: its status line's details under the limits.
     var expanded = false
+    /// The agent's own check of its account failed, so no reading is coming.
+    var accountUnreachable = false
     @ObservedObject private var service = AgentUsageService.shared
     @Environment(\.locale) private var locale
 
@@ -410,24 +413,50 @@ private struct NotchAgentLimitsCard: View {
     /// what is left or used, as chosen, and when the window renews.
     private func row(_ window: AgentLimitWindow) -> some View {
         let pace = AgentLimitSupport.pace(for: window, now: now)
-        let tint = agentLimitTint(provider, usedFraction: window.usedFraction)
+        // Credits spent past the limit are billed on top: that reads as trouble.
+        let over = window.credits?.isOver == true
+        let tint = over ? Color.red : agentLimitTint(provider, usedFraction: window.usedFraction)
         let remaining = display == .remaining
         let fraction = remaining ? window.remainingFraction : window.usedFraction
         let reset = AgentLimitSupport.displayedReset(window, now: now).map {
             (window.estimatedResetsAt == nil ? "" : "≈ ") + countdown(to: $0)
         }
+        let share = window.credits.map { credits in
+            remaining ? text.left(AgentFormat.percent(window.remainingFraction))
+                : text.usedShare(AgentFormat.percent(credits.usedShare, capped: false, locale: locale))
+        } ?? NotchAgentSupport.limitShare(window, display: display, text: text)
         return VStack(alignment: .leading, spacing: 2) {
-            NotchAgentLimitReading(title: label(window),
-                                  share: NotchAgentSupport.limitShare(window, display: display, text: text),
+            NotchAgentLimitReading(title: label(window), share: share,
                                   countdown: reset, tint: tint == provider.tint ? Color.white : tint)
             NotchAgentMeter(value: fraction, pace: pace.map { remaining ? 1 - $0.elapsed : $0.elapsed },
                             tint: tint, height: 4)
+            if let credits = window.credits { creditLines(credits) }
         }
         .help(help(window))
     }
 
     /// What the window covers: its length, or the model it is kept for.
+    /// What the month's credits come to, and what passing them costs.
+    @ViewBuilder private func creditLines(_ credits: AgentCredits) -> some View {
+        Text(text.credits(AgentFormat.credits(credits.used, locale: locale),
+                          of: AgentFormat.credits(credits.limit, locale: locale))
+             + " · " + text.left(AgentFormat.credits(credits.remaining, locale: locale)))
+            .font(.system(size: 9.5))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+        if credits.isOver {
+            Text(text.overage(AgentFormat.credits(credits.overage, locale: locale),
+                              cost: AgentFormat.cost(credits.overageCharges, locale: locale)))
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(.orange)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+
     private func label(_ window: AgentLimitWindow) -> String {
+        if window.credits != nil { return text.monthly }
         switch window.kind {
         case .session: return window.scope.map { "\(text.session) · \($0)" } ?? text.session
         case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
@@ -511,6 +540,11 @@ private struct NotchAgentLimitsCard: View {
                 Text(text.waitingForLimits).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
                 lastUsed
             }
+        } else if provider == .kiro {
+            // Kiro's credits come from the account, never from the logs.
+            Text(accountUnreachable ? text.creditsUnavailable : text.loading)
+                .font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
+            lastUsed
         } else {
             Text(text.waitingForLimits).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
             lastUsed
