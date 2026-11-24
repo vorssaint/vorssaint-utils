@@ -22,6 +22,11 @@ final class FanControlService: ObservableObject {
     @Published private(set) var isWorking = false
     @Published private(set) var interruption: FanControlInterruption?
 
+    /// A stopped snapshot can arrive before the helper confirms automatic control.
+    var systemControlUnconfirmed: Bool {
+        !snapshot.isCooling && UserDefaults.standard.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
+    }
+
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                     category: "FanControl")
     private let probeQueue = DispatchQueue(label: "com.vorssaint.fan-control.probe",
@@ -432,17 +437,20 @@ final class FanControlService: ObservableObject {
         apply(response)
         guard !snapshot.isCooling else { return }
         // Idle polls may repeat an earlier reason. Only the transition identifies this stop.
-        let keptControlStopped = wasCooling && Self.resumableConfiguration != nil
         guard response.succeeded else {
             // The watchdog can report the cause before it finishes restoring the fans.
-            if keptControlStopped, response.error == .controlFailed, let reason = snapshot.stopReason {
+            if wasCooling, response.error == .controlFailed, let reason = snapshot.stopReason {
                 interruption = .stopped(reason)
             }
             return
         }
         UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
         stopIdleWorkIfPossible()
-        guard keptControlStopped else { return }
+        guard wasCooling else { return }
+        guard Self.resumableConfiguration != nil else {
+            interruption = snapshot.stopReason.map(FanControlInterruption.stopped)
+            return
+        }
         if snapshot.stopReason == .heartbeatLost {
             scheduleResumeRetry()
         } else {

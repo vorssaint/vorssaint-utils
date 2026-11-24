@@ -356,7 +356,8 @@ enum FanControlResumeContract {
         var stopped = FanControlSnapshot.empty
         stopped.stopReason = .heartbeatLost
         service.applyStatus(.success(stopped))
-        suite.expect(service.scheduledResumes.isEmpty, "a heartbeat loss only resumes opted-in control")
+        suite.expect(service.interruption == .stopped(.heartbeatLost) && service.scheduledResumes.isEmpty,
+                     "a confirmed heartbeat loss is remembered without resuming control when resume is off")
         reset()
         Environment.available = false
         service.syncWithPreferences()
@@ -381,35 +382,53 @@ enum FanControlResumeContract {
         window.isReleasedWhenClosed = false
         defer { window.contentView = nil; window.close() }
         let strings = FanControlFeatureStrings.enUS
-        func texts(_ node: AnyObject) -> [String] {
+        func texts(_ node: AnyObject) -> [(id: String?, text: String)] {
             let value = NSSelectorFromString("accessibilityValue")
             if node.accessibilityRole?() == .staticText, let object = node as? NSObject,
                object.responds(to: value), let text = object.perform(value)?.takeUnretainedValue() as? String {
-                return [text]
+                return [(node.accessibilityIdentifier?(), text)]
             }
             return (node.accessibilityChildren?() ?? []).flatMap { texts($0 as AnyObject) }
         }
-        func expectMessage(_ expected: String, _ context: String) {
+        let defaults = UserDefaults.standard
+        func expectFeedback(status: String, message: String?, _ context: String) {
+            let mode = defaults.string(forKey: DefaultsKey.fanControlMode).flatMap(FanControlMode.init(rawValue:))
             let card = FanControlCardContent(
                 strings: strings, betaLabel: "Beta", snapshot: service.snapshot, fallbackFanSpeeds: [],
                 accessState: service.accessState, error: service.error, isWorking: service.isWorking,
-                interruption: service.interruption, mode: .constant(.curve), coolingLevel: .constant(100),
-                curves: .constant([FanControlConfiguration.defaultCurve]), resume: .constant(true),
+                systemControlUnconfirmed: service.systemControlUnconfirmed, interruption: service.interruption,
+                mode: .constant(mode ?? .system), coolingLevel: .constant(100),
+                curves: .constant([FanControlConfiguration.defaultCurve]),
+                resume: .constant(defaults.bool(forKey: DefaultsKey.fanControlResume)),
                 temperatureUnit: .celsius, authorize: {}, applyConfiguration: { _ in }, stopCooling: {}
             )
             let host = NSHostingView(rootView: card)
             window.contentView = host
             host.layoutSubtreeIfNeeded()
             RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-            let messages = [strings.temperatureUnavailable, strings.safetyStopped, strings.failed, strings.helperUnavailable]
-            let displayed = texts(host).filter(messages.contains)
-            suite.expect(displayed == [expected], "\(context): expected \(expected), got \(displayed)")
+            let warnings = [strings.temperatureUnavailable, strings.safetyStopped, strings.failed,
+                            strings.helperUnavailable, strings.awaitingSystemControl]
+            let rendered = texts(host)
+            let headers = rendered.filter { $0.id == "fanControl.status" }.map { $0.text }
+            let messages = rendered.map { $0.text }.filter(warnings.contains)
+            suite.expect(headers == [status] && messages == (message.map { [$0] } ?? []),
+                         "\(context): got headers \(headers), messages \(messages)")
+        }
+        func receiveStatus(_ response: FanControlResponse?) {
+            service.statusResponse = response
+            service.requestStatus()
         }
 
         var idle = FanControlSnapshot.empty
         idle.fans = [.init(index: 0, actualRPM: 1_200, minimumRPM: 1_200, maximumRPM: 5_800,
                            targetRPM: 1_200, isManuallyControlled: false)]
         var stopped = idle
+        service.panelIsVisible = true
+        service.isWorking = true
+        defaults.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
+        expectFeedback(status: strings.controlUnconfirmed, message: nil,
+                       "starting a configuration does not announce a safety stop or return to system control")
+        service.isWorking = false
         for (reason, message): (FanControlStopReason, String) in [
             (.hardwareChanged, strings.safetyStopped), (.temperatureUnavailable, strings.temperatureUnavailable)
         ] {
@@ -417,28 +436,61 @@ enum FanControlResumeContract {
             service.snapshot.isCooling = true
             stopped.stopReason = reason
             service.applyStatus(.success(stopped))
-            expectMessage(message, "the card explains why the kept curve stopped (\(reason))")
+            expectFeedback(status: strings.systemControl, message: message,
+                           "the card explains why the kept curve stopped (\(reason))")
         }
         service.workspaceDidWake()
         for _ in 0...FanControlResumePolicy.retryDelays.count { service.resumeDidFail(.controlFailed) }
         service.applyStatus(.success(stopped)) // An idle poll still carries the old sensor stop.
-        expectMessage(strings.failed, "the card explains a later exhausted resume")
+        expectFeedback(status: strings.systemControl, message: strings.failed,
+                       "the card explains a later exhausted resume")
 
         service.workspaceDidWake()
         service.snapshot.isCooling = true
         stopped.stopReason = .thermalPressure
-        UserDefaults.standard.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
-        service.applyStatus(.failure(.controlFailed, snapshot: stopped))
-        expectMessage(strings.failed, "the card reports the current failure while restoration is unconfirmed")
-        suite.expect(UserDefaults.standard.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
+        defaults.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
+        receiveStatus(.failure(.controlFailed, snapshot: stopped))
+        expectFeedback(status: strings.controlUnconfirmed, message: strings.awaitingSystemControl,
+                       "the card waits for confirmation before reporting a return to system control")
+        suite.expect(defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
                         && service.scheduledResumes.isEmpty,
                      "observing the cause during recovery keeps the recovery flag and schedules no resume")
-        service.applyStatus(.success(stopped))
-        expectMessage(strings.safetyStopped, "the card explains the safety stop once restoration succeeds")
-        service.applyStatus(.success(idle))
-        expectMessage(strings.safetyStopped, "the card retains the stop reason after an idle helper restarts")
-        service.statusResponse = nil
-        service.requestStatus()
-        expectMessage(strings.helperUnavailable, "a current read error takes precedence")
+        receiveStatus(nil)
+        expectFeedback(status: strings.controlUnconfirmed, message: strings.helperUnavailable,
+                       "losing the helper during recovery leaves the status unconfirmed")
+        receiveStatus(.success(stopped))
+        expectFeedback(status: strings.systemControl, message: strings.safetyStopped,
+                       "the card explains the safety stop once restoration succeeds")
+        receiveStatus(.success(idle))
+        expectFeedback(status: strings.systemControl, message: strings.safetyStopped,
+                       "the card retains the stop reason after an idle helper restarts")
+
+        defaults.set(false, forKey: DefaultsKey.fanControlResume)
+        service.resumePreferenceDidChange()
+        var active = idle
+        active.isCooling = true
+        active.configuration = .curve([FanControlConfiguration.defaultCurve])
+        defaults.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
+        receiveStatus(.success(active))
+        service.panelIsVisible = false
+        service.stopIdleWorkIfPossible()
+        let appliedBeforeStop = service.applied
+        stopped.stopReason = .temperatureUnavailable
+        receiveStatus(.failure(.controlFailed, snapshot: stopped))
+        // A confirmation may no longer carry the reason seen at the stop.
+        receiveStatus(.success(idle))
+        suite.expect(service.timer == nil && service.connection == nil && !service.observing,
+                     "after a stop with resume off and the panel closed, the idle helper can exit")
+        service.panelIsVisible = true
+        receiveStatus(.success(idle))
+        expectFeedback(status: strings.systemControl, message: strings.temperatureUnavailable,
+                       "reopening the card after the helper exits preserves the sensor diagnosis with resume off")
+        suite.expect(service.scheduledResumes.isEmpty && service.applied == appliedBeforeStop,
+                     "reading the stop after reopening never resumes control")
+        defaults.set(FanControlMode.system.rawValue, forKey: DefaultsKey.fanControlMode)
+        service.forgetResume()
+        receiveStatus(.success(idle))
+        expectFeedback(status: strings.systemControl, message: nil,
+                       "selecting System clears the retained diagnosis")
     }
 }

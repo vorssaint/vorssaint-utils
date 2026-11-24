@@ -645,6 +645,7 @@ def main():
           + "}\n")
     write("FanControlResume.swift", "import Foundation\n"
           + "extension FanControlResumeContract {\nfinal class Service: Fixture {\n"
+          + declaration(fan_control, "    var systemControlUnconfirmed:")
           + "".join(declaration(fan_control, prefix)
                     .replace("@objc private func", "func", 1)
                     .replace("private static var", "static var", 1)

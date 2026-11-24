@@ -30,6 +30,7 @@ struct FanControlSection: View {
                                   accessState: service.accessState,
                                   error: service.error,
                                   isWorking: service.isWorking,
+                                  systemControlUnconfirmed: service.systemControlUnconfirmed,
                                   interruption: service.interruption,
                                   mode: modeBinding,
                                   coolingLevel: $coolingLevel,
@@ -83,6 +84,7 @@ struct FanControlCardContent: View {
     let accessState: FanControlService.AccessState
     let error: FanControlErrorCode?
     let isWorking: Bool
+    let systemControlUnconfirmed: Bool
     let interruption: FanControlInterruption?
     @Binding var mode: FanControlMode
     @Binding var coolingLevel: Int
@@ -240,6 +242,7 @@ struct FanControlCardContent: View {
                 Text(statusText)
                     .font(.system(size: 10).monospacedDigit())
                     .foregroundStyle(snapshot.isCooling ? Color.cyan : Color.secondary)
+                    .accessibilityIdentifier("fanControl.status")
             }
             Spacer()
             if isWorking { ProgressView().controlSize(.small) }
@@ -334,6 +337,7 @@ struct FanControlCardContent: View {
     }
 
     private var statusText: String {
+        if systemControlUnconfirmed { return strings.controlUnconfirmed }
         guard snapshot.isCooling else { return strings.systemControl }
         let level = snapshot.coolingLevel ?? FanControlPolicy.defaultCoolingLevel
         switch snapshot.configuration?.mode ?? .manual {
@@ -360,12 +364,17 @@ struct FanControlCardContent: View {
         case .alreadyControlled: return strings.alreadyControlled
         case .unsupportedHardware: return strings.unsupported
         case .helperUnavailable: return strings.helperUnavailable
-        case .controlFailed: return strings.failed
+        case .controlFailed where !systemControlUnconfirmed: return strings.failed
         case .authorizationRequired: return strings.approvalCaption
-        case .noFans, .none: break
+        case .controlFailed, .noFans, .none: break
         }
         if accessState == .notRegistered, !snapshot.fans.isEmpty { return strings.approvalCaption }
         if accessState == .requiresApproval { return strings.approvalCaption }
+        if systemControlUnconfirmed {
+            // Starting a new configuration also sets the recovery marker before its reply.
+            if isWorking, error == nil, interruption == nil { return nil }
+            return strings.awaitingSystemControl
+        }
         guard !snapshot.isCooling else { return nil }
         let stopReason: FanControlStopReason?
         switch interruption {
