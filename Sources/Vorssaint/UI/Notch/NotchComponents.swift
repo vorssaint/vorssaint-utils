@@ -224,6 +224,9 @@ struct NotchPrismLevelBar: View {
         guard usesPrismBars(), let kind = levelKind(for: notice.event) else { return .white }
         let muted = kind == .volume && (notice.level ?? 0) <= 0.001
         return NotchLevelPrismPalette.palette(for: kind, muted: muted).lead.color
+    }
+}
+
 /// Dynamic Island wing strip indicating Caps Lock ON and/or Shift held on notched displays.
 struct NotchModifierStrip: View {
     let indicator: NotchModifierIndicator

@@ -115,29 +115,30 @@ struct ConstellationLyricsView: View {
             let text = Text(words[i]).font(.system(size: size, weight: .bold, design: .rounded)).foregroundColor(color)
             gc.opacity = appear
             var resolved = gc.resolve(text)
-            // Depth: a short extrusion of dark copies stepping down and right of the word.
-            let step = max(0.6, size * 0.022)
-            resolved.shading = .color(.black.opacity(0.5))
-            for layer in stride(from: 4, through: 1, by: -1) {
-                gc.draw(resolved, at: CGPoint(x: anchor.x + step * CGFloat(layer) * 0.5, y: anchor.y + step * CGFloat(layer)),
-                        anchor: .center)
-            }
-            // Texture: the face lights from the top and settles into the word's colour.
+            // The face keeps the word's colour, lit only a little from above.
             resolved.shading = .linearGradient(
-                Gradient(stops: [.init(color: .white.opacity(0.92), location: 0),
-                                 .init(color: color, location: 0.45),
-                                 .init(color: color, location: 1)]),
+                Gradient(stops: [.init(color: color.blended(with: .white, 0.28), location: 0),
+                                 .init(color: color, location: 0.5),
+                                 .init(color: color.blended(with: .black, 0.12), location: 1)]),
                 startPoint: CGPoint(x: anchor.x, y: anchor.y - size * 0.55),
                 endPoint: CGPoint(x: anchor.x, y: anchor.y + size * 0.55))
-            // Shadow: a soft one under the face, only on the words that stand out.
+            // A soft, wide shadow lifts the word off the backdrop; no hard edge.
             if e > 0.05 {
                 gc.drawLayer { layer in
-                    layer.addFilter(.shadow(color: .black.opacity(0.55 * e), radius: size * 0.12, x: 0, y: size * 0.06))
+                    layer.addFilter(.shadow(color: .black.opacity(0.4 * e), radius: size * 0.18, x: 0, y: size * 0.05))
                     layer.draw(resolved, at: anchor, anchor: .center)
                 }
             } else {
                 gc.draw(resolved, at: anchor, anchor: .center)
             }
+            // Texture: a fine diagonal grain over the letters, like paper or brushed metal.
+            resolved.shading = .linearGradient(
+                Gradient(stops: stride(from: 0.0, through: 1.0, by: 0.04).enumerated().map { index, location in
+                    .init(color: index % 2 == 0 ? Color.white.opacity(0.14) : Color.black.opacity(0.10), location: location)
+                }),
+                startPoint: CGPoint(x: anchor.x - size * 0.5, y: anchor.y - size * 0.4),
+                endPoint: CGPoint(x: anchor.x - size * 0.5 + size * 0.5, y: anchor.y - size * 0.4 + size * 0.5))
+            gc.draw(resolved, at: anchor, anchor: .center)
             gc.opacity = 1
             star(&gc, at: points[i], radius: (6 + 10 * e) * scale, color: e > 0.05 ? glow : soft, alpha: appear)
         }
@@ -152,5 +153,16 @@ struct ConstellationLyricsView: View {
         path.addQuadCurve(to: CGPoint(x: point.x - radius, y: point.y), control: CGPoint(x: point.x - k, y: point.y + k))
         path.addQuadCurve(to: CGPoint(x: point.x, y: point.y - radius), control: CGPoint(x: point.x - k, y: point.y - k))
         gc.fill(path, with: .color(color.opacity(alpha)))
+    }
+}
+
+
+private extension Color {
+    /// This colour moved toward another by `amount`, keeping its own opacity.
+    func blended(with other: NSColor, _ amount: CGFloat) -> Color {
+        let base = NSColor(self)
+        let alpha = base.alphaComponent
+        let mixed = base.blended(withFraction: amount, of: other) ?? base
+        return Color(nsColor: mixed.withAlphaComponent(alpha))
     }
 }

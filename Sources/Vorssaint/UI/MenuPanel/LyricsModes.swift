@@ -329,9 +329,9 @@ struct LyricsTextModeView: View {
 /// The face of a lyric: lit at the top, settling into its colour and a shade
 /// deeper at the base, so flat text reads as a raised surface.
 func lyricFace(_ base: Color, lift: Double = 0.9) -> LinearGradient {
-    LinearGradient(stops: [.init(color: .white.opacity(lift), location: 0),
-                           .init(color: base, location: 0.4),
-                           .init(color: base.opacity(0.8), location: 1)],
+    LinearGradient(stops: [.init(color: .white.opacity(lift * 0.45), location: 0),
+                           .init(color: base, location: 0.45),
+                           .init(color: base.opacity(0.88), location: 1)],
                    startPoint: .top, endPoint: .bottom)
 }
 
@@ -342,10 +342,7 @@ extension View {
         if strength <= 0 {
             self
         } else {
-            self
-                .shadow(color: .black.opacity(0.5 * strength), radius: 0, x: size * 0.02, y: size * 0.03)
-                .shadow(color: .black.opacity(0.45 * strength), radius: 0, x: size * 0.04, y: size * 0.06)
-                .shadow(color: .black.opacity(0.4 * strength), radius: max(1, size * 0.12), x: 0, y: size * 0.08)
+            self.shadow(color: .black.opacity(0.4 * strength), radius: max(1, size * 0.16), x: 0, y: size * 0.05)
         }
     }
 }
