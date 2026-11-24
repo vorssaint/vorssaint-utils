@@ -126,9 +126,9 @@ struct AgentPriceList: Equatable {
         if downloaded.tieredModelCount == nil, let count = shipped.tieredModelCount {
             let tiered = shipped.codex.suffix(count)
             let ids = Set(tiered.map(\.id))
-            downloaded.codex.removeAll { ids.contains($0.id) }
-            guard downloaded.codex.count + count <= maximumModels else { return downloaded }
-            downloaded.codex.append(contentsOf: tiered)
+            let regular = downloaded.codex.filter { !ids.contains($0.id) }
+            guard regular.count + count <= maximumModels else { return downloaded }
+            downloaded.codex = regular + tiered
             downloaded.tieredModelCount = count
         }
         return downloaded

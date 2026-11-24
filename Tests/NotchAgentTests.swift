@@ -311,6 +311,12 @@ enum NotchAgentTests {
         var legacy = shipped
         legacy.codex.removeLast(legacy.tieredModelCount ?? 0)
         legacy.tieredModelCount = nil
+        if let existing = shipped.codex.last {
+            var fullCache = legacy
+            fullCache.codex = [existing] + (1..<500).map { AgentPriceList.Model(id: "model-\($0)", price: existing.price) }
+            suite.expect(AgentPriceList.newer(shipped, fullCache) == fullCache,
+                         "a full legacy cache keeps every existing rate when the additional models cannot fit")
+        }
         let tieredIDs = ["gpt-6.2-astra", "gpt-6.2-sol", "gpt-6.2-astra-law"]
         suite.expect(tieredIDs.allSatisfy { AgentPricing.price(for: $0, in: shipped) != nil && AgentPricing.price(for: $0, in: legacy) == nil },
                      "all three GPT-6.2 entries are isolated from readers that cannot distinguish Ultrafast")
