@@ -29,7 +29,10 @@ enum DisplaySpeakerVolumeTests {
             Service.shared.defaultOutputReads += 1
             return Service.shared.actualDevice
         }
-        static func outputDeviceUID(for device: AudioObjectID) -> String? { Service.shared.outputUIDs[device] }
+        static func outputDeviceUID(for device: AudioObjectID) -> String? {
+            Service.shared.outputUIDReads.append(device)
+            return Service.shared.outputUIDs[device]
+        }
         static func isOutputDeviceAlive(_ device: AudioObjectID) -> Bool {
             Service.shared.feedbackOutputChecks.append(device)
             return !Service.shared.unavailableOutputs.contains(device)
@@ -127,6 +130,7 @@ enum DisplaySpeakerVolumeTests {
         var monitorOutputNames: [AudioObjectID: String] = [31: "Monitor A", 32: "Monitor B"]
         var outputUIDs: [AudioObjectID: String] = [31: "monitor-a", 32: "monitor-b"]
         var defaultOutputReads = 0
+        var outputUIDReads: [AudioObjectID] = []
         var unavailableOutputs: Set<AudioObjectID> = []
         var feedbackOutputChecks: [AudioObjectID] = []
         var raw: UInt16 = 40
@@ -473,7 +477,7 @@ enum DisplaySpeakerVolumeTests {
 
     private static func checkSliderFeedbackOutput(_ suite: TestSuite) {
         enum Change: CaseIterable {
-            case defaultOnly, removed, reusedID, inactive, unknownAtStart, emptyUIDAtStart
+            case defaultOnly, removed, reusedID, inactive, publicationPending, emptyUIDAtStart
             case cancelAfterCheck, dragAfterCheck, writeAfterCheck, disableAfterCheck, removedAfterCheck
         }
         let mixer = MixerOutputAdjustmentContract.Mixer()
@@ -489,7 +493,7 @@ enum DisplaySpeakerVolumeTests {
             service.monitorOutputNames[32] = nil
             service.outputUIDs[32] = change == .emptyUIDAtStart ? "" : "headphones"
             service.readSelectedAudioOutput()
-            if change != .unknownAtStart { service.finish() }
+            if change != .publicationPending { service.finish() }
             feedback.editingChanged(true)
             service.actualDevice = 31
             service.readSelectedAudioOutput()
@@ -513,7 +517,7 @@ enum DisplaySpeakerVolumeTests {
                          "release performs no audio lookup and waits for the final write (\(change))")
             service.workQueue.runOne()
             DispatchQueue.main.runOne()
-            let checks: [AudioObjectID] = [.unknownAtStart, .emptyUIDAtStart].contains(change) ? [] : [32]
+            let checks: [AudioObjectID] = change == .emptyUIDAtStart ? [] : [32]
             suite.expect(service.writtenIDs == [7, 7] && service.raw == 70 && service.clicks == 0
                          && service.audioOutputQueue.jobs.count == checks.count && service.feedbackOutputChecks.isEmpty,
                          "both writes reach A and only the initial playback device can be checked asynchronously (\(change))")
@@ -533,7 +537,7 @@ enum DisplaySpeakerVolumeTests {
             default: break
             }
             service.finish()
-            let expected: [String?] = change == .defaultOnly ? ["headphones"] : []
+            let expected: [String?] = [.defaultOnly, .publicationPending].contains(change) ? ["headphones"] : []
             suite.expect(service.clickDeviceUIDs == expected && service.feedbackOutputChecks == checks
                          && service.writtenIDs == (change == .writeAfterCheck ? [7, 7, 7] : [7, 7]),
                          "only the live original headphones can play the final unsuperseded click (\(change))")
@@ -544,6 +548,52 @@ enum DisplaySpeakerVolumeTests {
                 suite.expect(service.clickDeviceUIDs == ["monitor-a"] && service.feedbackOutputChecks == [32, 31]
                              && service.writtenIDs == [7, 7, 7],
                              "the next drag captures its own output and plays once after its own write")
+            }
+        }
+    }
+
+    private static func checkSliderOutputBeforeObserverUpdate(_ suite: TestSuite) {
+        enum Observer: CaseIterable { case delayed, unavailable, awaitingPublication }
+        let mixer = MixerOutputAdjustmentContract.Mixer()
+        let target = BrightnessSupport.SpeakerTarget(displayID: 7, path: "port-a")
+        for observer in Observer.allCases {
+            for drag in [false, true] {
+                for readableUID in [true, false] {
+                    let service = connect(mixer)
+                    service.actualDevice = 32  // Both A and B are connected, but B is already playing.
+                    if !readableUID { service.outputUIDs[32] = nil }
+                    switch observer {
+                    case .delayed: break  // A is still published.
+                    case .unavailable: service.removeAudioOutputObserver()
+                    case .awaitingPublication:
+                        service.readSelectedAudioOutput()
+                        service.audioOutputQueue.runOne()  // The reply about B is waiting on main.
+                    }
+                    let reads = service.defaultOutputReads
+                    let uidReads = service.outputUIDReads.count
+                    let feedback = SpeakerSliderFeedback { service.sliderFeedbackOutput }
+                    func set(_ level: Double) {
+                        service.requestSpeakers(.set(volume: level, muted: nil), target: target, sliderFeedback: feedback.request())
+                    }
+                    if drag {
+                        feedback.editingChanged(true)
+                        set(0.5)
+                        service.finish()
+                        suite.expect(service.clicks == 0, "a held drag stays silent after its intermediate write")
+                        service.actualDevice = 31
+                    }
+                    set(0.7)
+                    if drag { feedback.editingChanged(false) }
+                    suite.expect(service.defaultOutputReads - reads == 1
+                                 && service.outputUIDReads.dropFirst(uidReads).elementsEqual([32]),
+                                 "the panel samples the default ID and UID once before the final write can complete")
+                    service.finish()
+                    let expectedClicks: [String?] = readableUID ? ["monitor-b"] : []
+                    suite.expect(service.defaultOutputReads - reads == 1 && service.raw == 70
+                                 && service.writtenIDs == (drag ? [7, 7] : [7])
+                                 && service.clickDeviceUIDs == expectedClicks,
+                                 "one initial default read routes feedback for an explicit write to A (\(observer), drag: \(drag), readable B: \(readableUID))")
+                }
             }
         }
     }
@@ -809,6 +859,7 @@ enum DisplaySpeakerVolumeTests {
         checkInterruptedDDCWrites(suite)
         checkSliderFeedback(suite)
         checkSliderFeedbackOutput(suite)
+        checkSliderOutputBeforeObserverUpdate(suite)
         checkSliderEndpointChanges(suite)
         let mixer = MixerOutputAdjustmentContract.Mixer()
         let mute = BrightnessSupport.audioMuteCode

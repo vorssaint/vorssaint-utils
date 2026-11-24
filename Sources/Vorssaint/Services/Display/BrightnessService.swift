@@ -277,7 +277,7 @@ final class BrightnessService: ObservableObject {
     private var ddcRetry: DispatchWorkItem?
     /// Uptime of the last rescan a volume key started. Main thread only.
     private var lastVolumeKeyRescan: TimeInterval?
-    /// The tap is on the main run loop. All HAL reads run off that loop.
+    /// The key tap uses the observer's snapshot. Its HAL checks run off the main loop.
     private let audioOutputQueue = DispatchQueue(label: "com.vorssaint.utils.display-audio")
     private var audioOutputGeneration = 0
     private var selectedAudioOutput: (id: AudioObjectID, monitorName: String?, uid: String?)?
@@ -3373,11 +3373,12 @@ final class BrightnessService: ObservableObject {
         refresh(force: true)
     }
 
-    /// The click follows the output selected when the edit began, even if the
-    /// slider belongs to a different monitor. The observer already read its UID.
+    /// Sample once at the start of a panel edit. The default can change before
+    /// its notification arrives or before a queued read gets to run.
     var sliderFeedbackOutput: SpeakerSliderFeedback.Output? {
-        guard let output = selectedAudioOutput, let uid = output.uid, !uid.isEmpty else { return nil }
-        return (output.id, uid)
+        guard let device = AppVolumeMixer.defaultOutputDeviceID(),
+              let uid = AppVolumeMixer.outputDeviceUID(for: device), !uid.isEmpty else { return nil }
+        return (device, uid)
     }
 
     /// Main-thread snapshot used to route volume keys without querying HAL.
