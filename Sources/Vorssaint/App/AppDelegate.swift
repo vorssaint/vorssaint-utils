@@ -71,6 +71,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        if Permissions.launchRequestsEverything {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { Permissions.shared.requestEverything() }
+        }
         // Before any window exists, so nothing is ever built with the wrong
         // appearance and then repainted.
         AppAppearanceController.shared.apply()

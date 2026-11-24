@@ -26,6 +26,13 @@ struct AdvancedSettings: View {
 
     var body: some View {
         Form {
+            Section("Permissions") {
+                Text("Shows every system permission prompt now, one after another, so no feature waits on a permission later.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Allow all permissions…") { Permissions.shared.requestEverything() }
+            }
             Section(backup.title) {
                 Text(backup.description)
                     .font(.caption)
