@@ -626,15 +626,10 @@ struct AgentLogRoot: Equatable {
          (.antigravity, ".gemini/antigravity/brain"), (.antigravity, ".gemini/antigravity-ide/brain"),
          (.antigravity, ".gemini/antigravity-cli/brain"),
          // Gemini CLI in macOS's sandbox uses the cache folder instead.
-         (.gemini, ".gemini/tmp"), (.gemini, ".cache/.gemini/tmp")].compactMap { provider, path in
+         (.gemini, ".gemini/tmp"), (.gemini, ".cache/.gemini/tmp"),
+         (.kiro, ".kiro/sessions")].compactMap { provider, path in
             guard providers.contains(provider) else { return nil }
             return AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
-    static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
-        [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
-         (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
-         (.kiro, ".kiro/sessions")].map { provider, path in
-            AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
 
@@ -675,7 +670,7 @@ struct AgentLogRoot: Equatable {
             // named after the session that started it.
             return (3...4).contains(parts.count) && parts[1] == "chats"
                 && parts.allSatisfy { !$0.isEmpty && !$0.hasPrefix(".") }
-        case .claude, .codex, .opencode:
+        case .claude, .codex, .opencode, .kiro:
             return true
         }
     }
@@ -1327,9 +1322,6 @@ enum AgentLogReader {
         defer { cursor.fingerprintRead(descriptor: secured?.handle.fileDescriptor) }
         guard size > cursor.offset, let handle = secured?.handle ?? FileHandle(forReadingAtPath: cursor.path) else { return }
         defer { if secured == nil { try? handle.close() } }
-        defer { cursor.fingerprintRead() }
-        guard size > cursor.offset, let handle = FileHandle(forReadingAtPath: cursor.path) else { return }
-        defer { try? handle.close() }
         if cursor.provider == .kiro, cursor.offset == 0 { line(AgentKiroLog.header(for: cursor.path)) }
         do { try handle.seek(toOffset: cursor.offset) } catch { return }
         while cursor.offset < size, shouldContinue() {
