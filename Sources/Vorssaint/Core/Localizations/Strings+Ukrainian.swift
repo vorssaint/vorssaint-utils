@@ -47,7 +47,6 @@ extension Strings {
         indefinite: "Доки не вимкнете",
         panelSettings: "Налаштування",
         panelQuit: "Вийти",
-        panelQuitHoldHint: "Утримуйте, щоб вийти",
         panelHotkeyHint: "Клавіатурне скорочення перемикає",
         keepAwakeTitle: "Не давати Mac заснути",
         keepAwakeEndsIn: "Завершиться через",

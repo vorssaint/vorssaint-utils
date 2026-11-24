@@ -385,9 +385,9 @@ enum SettingsFeatureTests {
                "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability, never a session's all-apps output")
         suite.expect(backupKeys.contains(DefaultsKey.launchAtLoginWanted),
                "the launch at login choice travels with the settings backup")
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.panelQuitRequiresHold] as? Bool == false
-                && backupKeys.contains(DefaultsKey.panelQuitRequiresHold),
-               "the panel's Quit button keeps its single click until the user asks for a hold, and the choice is backed up")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.holdCommandQToQuit] as? Bool == false
+                && backupKeys.contains(DefaultsKey.holdCommandQToQuit),
+               "Command-Q quits Vorssaint at once until the user asks for a hold, and the choice is backed up")
         let islandKeys: Set<String> = [
             DefaultsKey.notchEnabled,
             DefaultsKey.notchShowPlayingMusic,

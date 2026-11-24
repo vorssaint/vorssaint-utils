@@ -49,7 +49,6 @@ extension Strings {
 
         panelSettings: "設定",
         panelQuit: "終了",
-        panelQuitHoldHint: "長押しで終了",
         panelHotkeyHint: "ショートカットで切り替え",
 
         keepAwakeTitle: "スリープ防止",

@@ -187,6 +187,7 @@ struct MetricsTests {
             }),
             ("quit-protection", {
                 QuitProtectionHUD.progressChecks(suite)
+                OwnQuitHoldTests.run(suite)
                 QuitProtectionRoutingContract.QuitProtectionService.routingChecks(suite)
             }),
             ("scratchpad", { ScratchpadMarkTests.run { suite.expect($0, $1) } }),

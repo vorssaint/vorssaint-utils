@@ -49,7 +49,6 @@ extension Strings {
 
         panelSettings: "Ajustes",
         panelQuit: "Salir",
-        panelQuitHoldHint: "Mantén pulsado para salir",
         panelHotkeyHint: "El atajo alterna",
 
         keepAwakeTitle: "Mantener activo",

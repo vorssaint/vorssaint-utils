@@ -49,7 +49,6 @@ extension Strings {
 
         panelSettings: "Nastavenia",
         panelQuit: "Ukončiť",
-        panelQuitHoldHint: "Podržte na ukončenie",
         panelHotkeyHint: "Skratka prepína",
 
         keepAwakeTitle: "Bdelý režim",

@@ -49,7 +49,6 @@ extension Strings {
 
         panelSettings: "設定",
         panelQuit: "結束",
-        panelQuitHoldHint: "按住以結束",
         panelHotkeyHint: "快捷鍵切換",
 
         keepAwakeTitle: "保持喚醒",

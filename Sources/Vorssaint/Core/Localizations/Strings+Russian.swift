@@ -49,7 +49,6 @@ extension Strings {
 
         panelSettings: "Настройки",
         panelQuit: "Выйти",
-        panelQuitHoldHint: "Удерживайте, чтобы выйти",
         panelHotkeyHint: "Горячая клавиша переключает",
 
         keepAwakeTitle: "Не давать Mac уснуть",

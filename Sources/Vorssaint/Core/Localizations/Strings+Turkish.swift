@@ -49,7 +49,6 @@ extension Strings {
 
         panelSettings: "Ayarlar",
         panelQuit: "Çık",
-        panelQuitHoldHint: "Çıkmak için basılı tutun",
         panelHotkeyHint: "Kısayol açıp kapatır",
 
         keepAwakeTitle: "Uyanık tut",

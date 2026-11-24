@@ -17,7 +17,7 @@ struct GeneralSettings: View {
     @State private var loginPending = false
     @State private var loginRefreshID = UUID()
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
-    @AppStorage(DefaultsKey.panelQuitRequiresHold) private var panelQuitRequiresHold = false
+    @AppStorage(DefaultsKey.holdCommandQToQuit) private var holdCommandQToQuit = false
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
@@ -77,9 +77,9 @@ struct GeneralSettings: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Divider()
-            SettingsRow(symbol: "power", title: text.holdToQuitTitle,
+            SettingsRow(symbol: "command", title: text.holdToQuitTitle,
                         caption: text.holdToQuitCaption) {
-                Toggle(text.holdToQuitTitle, isOn: $panelQuitRequiresHold)
+                Toggle(text.holdToQuitTitle, isOn: $holdCommandQToQuit)
                     .labelsHidden()
                     .toggleStyle(.switch)
             }

@@ -49,7 +49,6 @@ extension Strings {
 
         panelSettings: "Einstellungen",
         panelQuit: "Beenden",
-        panelQuitHoldHint: "Zum Beenden halten",
         panelHotkeyHint: "Kurzbefehl schaltet um",
 
         keepAwakeTitle: "Wachhalten",

@@ -49,7 +49,6 @@ extension Strings {
 
         panelSettings: "설정",
         panelQuit: "종료",
-        panelQuitHoldHint: "길게 눌러 종료",
         panelHotkeyHint: "단축키로 전환",
 
         keepAwakeTitle: "절전 방지",
