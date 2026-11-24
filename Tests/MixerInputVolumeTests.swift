@@ -3669,6 +3669,7 @@ enum MixerInputVolumeContract {
 
     private static func runRestoreRetryLimitTests(_ suite: TestSuite) {
         runMixerRestoreAdjustmentTests(suite)
+        runInterruptedMixerHandoffTests(suite)
         runRestoreReadRecoveryTests(suite)
         runLegacyMixerRestoreEditTests(suite)
         let master = HAL.key(10)
@@ -3798,40 +3799,45 @@ enum MixerInputVolumeContract {
             DispatchQueue.drain()
         }
 
-        for (target, protectsChannel) in [(master, false), (channel, false), (channel, true)] {
-            let channelIsOwed = target == channel && !protectsChannel
+        for (targets, protectsChannel) in [([master], false), ([channel], false), ([channel], true), ([master, channel], true)] {
+            let channelIsOwed = targets == [channel] && !protectsChannel
             let service = muted(channelIsOwed ? [master: 0.625, channel: 0.25] : [master: 0.625])
             if channelIsOwed { HAL.levels[master] = nil }
             if protectsChannel { HAL.levels[channel] = 0.375 }
-            HAL.settableReadFails = [target]
+            HAL.settableReadFails = Set(targets)
             HAL.accessQueries = [:]
             service.toggle()
             DispatchQueue.drain()
             for attempt in 1...3 {
-                suite.expect(HAL.accessQueries[target] == attempt,
-                             "each restore opportunity queries the target's unknown access once")
+                suite.expect(targets.allSatisfy { HAL.accessQueries[$0] == attempt },
+                             "each restore opportunity queries unknown access once per control")
                 if let deadline = service.retryDeadline { now = deadline.nextDown }
                 for event in [local, system, local] {
                     _ = HAL.notifyIfRegistered(event)
                     DispatchQueue.drain()
                 }
-                suite.expect(HAL.accessQueries[target] == attempt && HAL.writes.isEmpty,
+                suite.expect(targets.allSatisfy { HAL.accessQueries[$0] == attempt } && HAL.writes.isEmpty,
                              "local and global echoes cannot spend another access query")
                 tick(service)
             }
-            suite.expect(HAL.accessQueries[target] == 3 && service.retryDeadline == nil && service.warning == .restoreExhausted,
+            suite.expect(targets.allSatisfy { HAL.accessQueries[$0] == 3 } && service.retryDeadline == nil && service.warning == .restoreExhausted,
                          "an exhausted access check has no further polling")
         }
 
         let laterChannel = HAL.key(10, 2)
         let waitingMaster = muted([master: 0.625])
-        HAL.levels[channel] = 0.25
-        HAL.settableReadFails = [channel]
+        HAL.settableReadFails = [master, channel]
+        HAL.accessQueries = [:]
         waitingMaster.toggle()
         DispatchQueue.drain()
+        HAL.levels[channel] = 0.25
         HAL.levels[laterChannel] = 0.375
-        _ = HAL.notifyIfRegistered(local)
-        DispatchQueue.drain()
+        for event in [local, system, local] {
+            _ = HAL.notifyIfRegistered(event)
+            DispatchQueue.drain()
+        }
+        suite.expect(HAL.accessQueries[master] == 1 && HAL.accessQueries[channel] == 1 && HAL.writes.isEmpty,
+                     "a channel discovered during a master's access cooldown waits after its first failed check")
         HAL.levels[laterChannel] = nil
         HAL.settableReadFails = []
         tick(waitingMaster)
@@ -3840,7 +3846,8 @@ enum MixerInputVolumeContract {
         HAL.levels[laterChannel] = 0.375
         _ = HAL.notifyIfRegistered(local)
         DispatchQueue.drain()
-        suite.expect(HAL.writes == [master] && !waitingMaster.hasOutstandingClaims,
+        suite.expect(HAL.writes == [master] && HAL.levels[channel] == 0.25 && HAL.levels[laterChannel] == 0.375
+                     && !waitingMaster.hasOutstandingClaims && waitingMaster.retryDeadline == nil,
                      "the master restores when it can protect both channels")
 
         for (query, recovers) in [(Query.gain, true), (.gain, false), (.access, true), (.access, false)] {
@@ -4035,6 +4042,106 @@ enum MixerInputVolumeContract {
                          && !MicMuteService.shared.hasOutstandingClaims && MicMuteService.shared.warning == .manualRestore,
                          "a later legacy \(bareElement ? "element 0" : "UID gain") cannot undo the accepted mixer edit")
         }
+    }
+
+    private static func runInterruptedMixerHandoffTests(_ suite: TestSuite) {
+        let defaults = UserDefaults.standard
+        let uid = "device-10", peer = "device-20"
+        let master = HAL.key(10), channel = HAL.key(10, 1), other = HAL.key(20)
+        let mainKey = "\(master.s):0", channelKey = "\(channel.s):1", switchKey = "\(kAudioDevicePropertyMute):0"
+        let maps: [(key: String, stale: Any)] = [
+            (DefaultsKey.micMuteSavedControls, [mainKey: 0.625, channelKey: 0.75, switchKey: 1.0]),
+            (DefaultsKey.micMuteSavedVolumes, 0.625),
+            (DefaultsKey.micMuteSavedChannelVolumes, ["1": 0.75]),
+            (DefaultsKey.micMuteProtectedChannels, [UInt32(9)]),
+        ]
+        let cuts = ["all maps", "legacy gains and protection", "stereo and protection", "protection only", "no residue"]
+        for (cleared, cut) in cuts.enumerated() {
+            HAL.reset()
+            let hasPeer = cleared % 2 == 0
+            HAL.devices = [10, 20]
+            HAL.levels = [master: 0.375, channel: 0.1875, other: 0]
+            HAL.mute[10] = 0
+            defaults.set(true, forKey: DefaultsKey.micMuteReleasePending)
+            defaults.set(true, forKey: DefaultsKey.micMuteManualCheckNeeded)
+            defaults.set(hasPeer ? [peer] : [], forKey: DefaultsKey.micMuteMutedDevices)
+            for (index, map) in maps.enumerated() {
+                var records: [String: Any] = [:]
+                if index >= cleared { records[uid] = map.stale }
+                if hasPeer && map.key == DefaultsKey.micMuteSavedControls { records[peer] = [mainKey: 0.875] }
+                defaults.set(records, forKey: map.key)
+            }
+            HAL.relaunchClient()
+            let service = MicMuteService.shared
+            if !hasPeer {
+                service.syncWithPreferences()
+                DispatchQueue.drain()
+                suite.expect(HAL.writes.isEmpty && !service.hasOutstandingClaims && service.warning == .manualRestore,
+                             "relaunch leaves an explicitly released input alone with \(cut)")
+            }
+            // A shortcut can be the first action after relaunch, before a release sweep.
+            service.toggle()
+            DispatchQueue.drain()
+            let gains = defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes) as? [String: Double]
+            let stereo = defaults.dictionary(forKey: DefaultsKey.micMuteSavedChannelVolumes) as? [String: [String: Double]]
+            suite.expect(service.isMuted && HAL.levels[master] == 0 && HAL.mute[10] == 1
+                         && gains?[uid] == 0.375 && stereo?[uid]?["1"] == 0.1875,
+                         "a fresh mute saves the current scalar and stereo gains with \(cut)")
+            service.toggle()
+            DispatchQueue.drain()
+            suite.expect(!service.hasOutstandingClaims && service.warning == .manualRestore && HAL.mute[10] == 0
+                         && HAL.levels == [master: 0.375, channel: 0.1875, other: hasPeer ? 0.875 : 0],
+                         "the new cycle restores its own switch and mix and keeps the peer's valid target with \(cut)")
+        }
+
+        for hasList in [false, true] {
+            HAL.reset()
+            HAL.levels[master] = 0.375
+            defaults.set(true, forKey: DefaultsKey.micMuteActive)
+            defaults.set(0.625, forKey: DefaultsKey.micMuteSavedVolume)
+            if hasList { defaults.set([String](), forKey: DefaultsKey.micMuteMutedDevices) }
+            HAL.relaunchClient()
+            MicMuteService.shared.toggle()
+            DispatchQueue.drain()
+            suite.expect(HAL.writes.isEmpty && HAL.levels[master] == 0.375
+                         && MicMuteService.shared.warning == (hasList ? nil : .manualRestore),
+                         "only a missing historical list leaves the old global gain unidentified")
+        }
+
+        for hasList in [false, true] {
+            HAL.reset()
+            HAL.devices = [10, 20]
+            HAL.levels = [master: 0.375, other: 0]
+            bindLegacyDefault(uid: peer, gain: 0.875, scalars: [0])
+            if hasList { defaults.set([String](), forKey: DefaultsKey.micMuteMutedDevices) }
+            else { defaults.removeObject(forKey: DefaultsKey.micMuteMutedDevices) }
+            HAL.relaunchClient()
+            MicMuteService.shared.syncWithPreferences()
+            DispatchQueue.drain()
+            suite.expect(HAL.writes == (hasList ? [] : [other]) && HAL.levels == [master: 0.375, other: hasList ? 0 : 0.875]
+                         && !MicMuteService.shared.hasOutstandingClaims,
+                         "the same bound legacy record is valid with a missing list and retired by an explicit empty list")
+        }
+
+        HAL.reset()
+        HAL.levels[master] = 0.625
+        let service = MicMuteService.shared
+        service.toggle()
+        DispatchQueue.drain()
+        HAL.ignoredWrites.insert(master)
+        service.toggle()
+        DispatchQueue.drain()
+        let mixer = AudioInputDeviceManager()
+        mixer.start()
+        DispatchQueue.drain()
+        defaults.writtenKeys = []
+        mixer.setInputVolume(0.375)
+        DispatchQueue.drain()
+        let writes = defaults.writtenKeys
+        suite.expect(writes.contains(DefaultsKey.micMuteMutedDevices)
+                     && writes.prefix { $0 != DefaultsKey.micMuteMutedDevices }.contains(DefaultsKey.micMuteManualCheckNeeded),
+                     "the real mixer handoff persists its manual reminder before removing the UID")
+        mixer.stop()
     }
 
     private static func runMixerRestoreAdjustmentTests(_ suite: TestSuite) {
