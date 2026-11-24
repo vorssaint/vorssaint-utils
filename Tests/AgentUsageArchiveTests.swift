@@ -448,6 +448,7 @@ enum AgentUsageArchiveSaveTests {
         var enabled: Set<AgentProvider> = [.claude]
         var store = AgentUsageStore()
         var cursors: [String: AgentLogCursor] = [:]
+        var antigravityIndex = AgentAntigravityIndex()
     }
 
     static func run(_ suite: TestSuite) {

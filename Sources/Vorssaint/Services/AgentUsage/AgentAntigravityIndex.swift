@@ -77,6 +77,20 @@ final class AgentAntigravityIndex {
         deferredUsage.removeAll()
     }
 
+    /// Source transcript paths with uncommitted deferred usage waiting on a parent.
+    var deferredSourceFiles: Set<String> {
+        Set(deferredUsage.values.flatMap { $0.map(\.file) })
+    }
+
+    /// Discards all pending deferred child usage and returns the source
+    /// transcript paths whose cursors must replay on the next read.
+    @discardableResult
+    func discardDeferredUsage() -> Set<String> {
+        let files = deferredSourceFiles
+        deferredUsage.removeAll()
+        return files
+    }
+
     /// Records the data directory for each canonical Antigravity `brain/` root.
     func register(roots: [AgentLogRoot]) {
         dataDirectories.removeAll(keepingCapacity: true)

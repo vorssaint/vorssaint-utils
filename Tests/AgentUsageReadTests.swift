@@ -826,6 +826,71 @@ enum AgentUsageReadTests {
                     suite.expect(false, "Antigravity \(mode) emits finished for Turn A while keeping Turn B open")
                 }
             }
+
+            // Canceling a watcher batch after child usage is deferred (as stop(keepingProgress: true)
+            // does) drops the affected child cursor so an archive round-trip replays those records
+            // cleanly rather than losing them behind an advanced saved offset.
+            let cancelHome = folder.appending(path: "agy-cancel-archive")
+            let cancelBrain = cancelHome.appending(path: ".gemini/antigravity-cli/brain")
+            let cpID = "88888888-8888-4888-8888-888888888888"
+            let ccID = "99999999-9999-4999-8999-999999999999"
+            let cpFile = cancelBrain.appending(path: "\(cpID)/.system_generated/logs/transcript.jsonl")
+            let ccFile = cancelBrain.appending(path: "\(ccID)/.system_generated/logs/transcript.jsonl")
+            try FileManager.default.createDirectory(at: cpFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: ccFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(([
+                #"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"\#(tAStart)","content":"<USER_REQUEST>cancel test</USER_REQUEST>"}"#,
+                #"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAWork)","model":"gemini-4-neon-high","input_tokens":100,"output_tokens":40,"tool_calls":[{"id":"tc","name":"invoke_subagent"}]}"#,
+            ].joined(separator: "\n") + "\n").utf8).write(to: cpFile)
+            let cancelHost = Host()
+            cancelHost.home = cancelHome
+            let cancelToken = Cancellation()
+            cancelHost.start(session: 1, providers: [.antigravity], cancellation: cancelToken)
+            try Data(([
+                #"{"step_index":0,"type":"SYSTEM_MESSAGE","status":"DONE","created_at":"\#(tAChild)","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=\#(tAChild) sender=\#(cpID)\n</SYSTEM_MESSAGE>"}"#,
+                #"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"\#(tAChild)","content":"<USER_REQUEST>child work</USER_REQUEST>"}"#,
+                #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAChild)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"#,
+            ].joined(separator: "\n") + "\n").utf8).write(to: ccFile)
+            let cph = try FileHandle(forWritingTo: cpFile)
+            try cph.seekToEnd()
+            try cph.write(contentsOf: Data((#"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAEnd)","model":"gemini-4-neon-high","input_tokens":20,"output_tokens":10}"# + "\n").utf8))
+            try cph.close()
+            let canonCP = AgentLogRoot.canonical(cpFile).path
+            let canonCC = AgentLogRoot.canonical(ccFile).path
+            var childLinesSeen = 0
+            AgentLogReader.beforeLine = {
+                childLinesSeen += 1
+                // Cancel after the child's 3 lines have been read and deferred,
+                // before the queued parent transcript in the same batch runs.
+                if childLinesSeen >= 3 { cancelToken.isCancelled = true }
+            }
+            cancelHost.filesChanged([canonCP, canonCC], rescan: false)
+            AgentLogReader.beforeLine = nil
+            suite.expect(cancelHost.cursors[canonCC] == nil && cancelHost.antigravityIndex.deferredSourceFiles.isEmpty,
+                         "canceling a batch after deferring child usage clears the deferred queue and drops the child cursor for replay")
+            // Archive round-trip: restore saved progress and replay remaining logs.
+            let archived = AgentUsageReadProductionArchive.Contents(
+                providers: [.antigravity], store: cancelHost.store.saved,
+                cursors: cancelHost.cursors.values.map(\.saved))
+            let encoded = AgentUsageReadProductionArchive.encode(archived, build: "agy-cancel-roundtrip")
+            let decoded = AgentUsageReadProductionArchive.decode(encoded, build: "agy-cancel-roundtrip")
+            if let decoded {
+                let resumed = AgentUsageReadProductionArchive.resume(
+                    decoded, logs: Set([canonCP, canonCC]), since: now.addingTimeInterval(-3600))
+                let nextHost = Host()
+                nextHost.home = cancelHome
+                nextHost.watchedRoots = cancelHost.watchedRoots
+                nextHost.antigravityIndex.register(roots: cancelHost.watchedRoots)
+                nextHost.store = resumed.store
+                nextHost.cursors = resumed.cursors
+                _ = nextHost.read(canonCP, provider: .antigravity)
+                _ = nextHost.read(canonCC, provider: .antigravity)
+                let totalHistory = nextHost.store.records.map(\.tokens.total).reduce(0, +)
+                suite.expect(totalHistory == 240,
+                             "archive round-trip after a canceled Antigravity batch replays deferred child usage (total \(totalHistory) vs 240)")
+            } else {
+                suite.expect(false, "encodes and decodes archive after canceled Antigravity batch")
+            }
         } catch {
             suite.expect(false, "Antigravity first-read index fixture failed: \(error)")
         }

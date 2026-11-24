@@ -343,10 +343,16 @@ final class AgentUsageService: ObservableObject {
             }
             for file in files {
                 // A stop while reading leaves the rest for the next start.
-                guard !cancellation.isCancelled else { return }
+                guard !cancellation.isCancelled else {
+                    for deferredFile in antigravityIndex.discardDeferredUsage() { cursors[deferredFile] = nil }
+                    return
+                }
                 read(file.path, provider: file.provider, cursorRoot: cursorRoot)
             }
-            guard !cancellation.isCancelled else { return }
+            guard !cancellation.isCancelled else {
+                for deferredFile in antigravityIndex.discardDeferredUsage() { cursors[deferredFile] = nil }
+                return
+            }
             let now = Date()
             // A turn left open by a crash would otherwise stay working.
             store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
@@ -400,7 +406,13 @@ final class AgentUsageService: ObservableObject {
         // Cursor retracts the old readings when it replays a transcript.
         // Nothing from OpenCode's database is saved. Its open replies and
         // sessions live only in memory, so each launch reads it again.
-        let kept = cursors.values.filter { $0.provider == .cursor || (!$0.restarted && $0.provider != .opencode) }
+        // Antigravity subagents with deferred usage not yet committed to the
+        // store are also omitted so the next launch replays them cleanly.
+        let deferredSources = antigravityIndex.deferredSourceFiles
+        let kept = cursors.values.filter {
+            !deferredSources.contains($0.path)
+                && ($0.provider == .cursor || (!$0.restarted && $0.provider != .opencode))
+        }
         let contents = AgentUsageArchive.Contents(providers: enabled, store: store.saved, cursors: kept.map(\.saved))
         if AgentUsageArchive.save(contents) { savedMark = mark }
     }
@@ -752,7 +764,16 @@ final class AgentUsageService: ObservableObject {
             AgentLogReader.readAppended(cursor, since: cutoff,
                                         shouldContinue: { !cancellation.isCancelled }, line: consume)
         }
-        if provider == .antigravity, !cancellation.isCancelled {
+        if provider == .antigravity {
+            // If cancellation interrupted before deferred child usage could be
+            // drained, drop the affected child cursors so the next launch (or
+            // saveProgress checkpoint) replays those records instead of losing them.
+            if cancellation.isCancelled {
+                for deferredFile in antigravityIndex.discardDeferredUsage() {
+                    cursors[deferredFile] = nil
+                }
+                return changed
+            }
             // If this file turned out to be an intermediate subagent, forward
             // any child usage queued against it up to its own parent.
             if cursor.state.antigravitySubagent, !cursor.state.antigravityParent.isEmpty,
@@ -843,6 +864,11 @@ final class AgentUsageService: ObservableObject {
                 if item.provider == .antigravity { remainingAntigravity.remove(item.path) }
                 if read(item.path, provider: item.provider,
                         deferredAntigravityParents: remainingAntigravity) { changed = true }
+            }
+        }
+        if readerCancellation?.isCancelled == true {
+            for deferredFile in antigravityIndex.discardDeferredUsage() {
+                cursors[deferredFile] = nil
             }
         }
         // Saved tool output and lines with nothing to keep do not change the
