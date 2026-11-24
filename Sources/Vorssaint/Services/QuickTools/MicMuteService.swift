@@ -355,15 +355,33 @@ final class MicMuteService: ObservableObject {
             inputVolumeBlocked = muted
             inputVolumeLifetime = request
         }
+        // A manual unmute must leave mute mode immediately. Waiting on HAL
+        // confirmation is how meetings stayed silent until the app was killed:
+        // a refused restore used to put mute back on and keep remute watchers.
+        if announce && !muted {
+            if isMuted { isMuted = false }
+            if UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive) {
+                UserDefaults.standard.set(false, forKey: DefaultsKey.micMuteActive)
+            }
+        }
         applyGeneration += 1
         let generation = applyGeneration
-        let keepRetriesIfUnmuteFails = isMuted && AppFeature.micMute.isAvailable
+        // Only automatic unmute failures may keep remute retries. A user
+        // unmute drops them so gain changes cannot silence the mic again.
+        let keepRetriesIfUnmuteFails = !announce && isMuted && AppFeature.micMute.isAvailable
         // A reset between the first mute sweep and publication invalidates
         // every device registration, even if the device IDs stay the same.
         if muted && !wantsSystemListeners { syncSystemListeners(wanted: true) }
         halQueue.async { [weak self] in
             guard let self else { return }
             let connection = self.currentAudioGeneration
+            // Drop remute watchers before a manual unmute writes gain, so our
+            // own restore cannot be treated as something to silence again.
+            // System listeners stay until finish publishes; they only restore
+            // claims, they do not put mute mode back on.
+            if announce && !muted {
+                self.syncDeviceListeners(muted: false)
+            }
             let outcome = self.sweep(muted: muted, audioGeneration: connection,
                                      followRequest: followingCallApps ? request : nil,
                                      keepRetriesIfUnmuteFails: keepRetriesIfUnmuteFails)
@@ -725,17 +743,31 @@ final class MicMuteService: ObservableObject {
                 UserDefaults.standard.set(muted, forKey: DefaultsKey.micMuteActive)
             }
             syncListeners()
+        } else if announce && !muted {
+            // Manual unmute must never leave mute mode latched. Keep any
+            // claims for a quiet restore later, but do not remute.
+            wantsMute = false
+            if isMuted { isMuted = false }
+            if UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive) {
+                UserDefaults.standard.set(false, forKey: DefaultsKey.micMuteActive)
+            }
+            inputVolumeLock.withLock {
+                inputVolumeBlocked = false
+                inputVolumeLifetime = UUID()
+            }
+            syncListeners()
         } else {
-            // Nothing was reached, so the request is dropped as it always was:
+            // A refused mute (or automatic unmute) drops the request as before:
             // the published state stays what it is, and so does the wanted one.
             wantsMute = isMuted
             inputVolumeLock.withLock { inputVolumeBlocked = isMuted }
             if !isMuted && !hasOutstandingClaims { syncSystemListeners(wanted: false) }
+            else { syncListeners() }
         }
         guard announce || outcome.followedCallApp else { return }
         // Report a known failure even when no device could be changed. The
         // whole sentence matters, and it is longer than the island's wings.
-        if outcome.failed {
+        if outcome.failed || (announce && !muted && !outcome.applied) {
             NotchService.shared.retractMicrophoneNotice()
             QuickToolHUD.show(icon: "exclamationmark.triangle",
                               message: muted ? L10n.shared.s.micMutePartialHUD : L10n.shared.s.micUnmutePartialHUD)
@@ -1038,7 +1070,14 @@ final class MicMuteService: ObservableObject {
                         failed = true
                     }
                 }
-                if failed {
+                // Readback can lie after a successful open. If capture is no
+                // longer silent, release the claim even when a setter reported
+                // failure — otherwise mute mode fights the meeting.
+                if !inputControls(device.id, readSwitch: true).isSilenced {
+                    outcome.applied = true
+                    outcome.savedVolumes.removeValue(forKey: device.uid)
+                    outcome.savedChannelVolumes.removeValue(forKey: device.uid)
+                } else if failed {
                     outcome.mutedDevices.append(device.uid)
                     outcome.failed = true
                 } else {

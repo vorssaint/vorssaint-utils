@@ -973,11 +973,11 @@ enum MixerInputVolumeContract {
                 && NotchService.shared.reactions.isEmpty
                 && NotchService.shared.retractions == 1,
               "a wholly refused unmute warns without announcing that mute is off")
-        check(MicMuteService.shared.isMuted && MicMuteService.shared.hasOutstandingClaims
-                && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
-                && MicMuteService.shared.inputVolumeAdjustmentLifetime == nil
+        check(!MicMuteService.shared.isMuted && MicMuteService.shared.hasOutstandingClaims
+                && !UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
+                && MicMuteService.shared.inputVolumeAdjustmentLifetime != nil
                 && HAL.mute[10] == 1,
-              "a wholly refused unmute preserves the state and claim for retry")
+              "a refused unmute still leaves mute mode so meetings are not stuck silent")
         HAL.writeFails = []
         MicMuteService.shared.setMuted(false)
         DispatchQueue.drain()
@@ -1197,9 +1197,9 @@ enum MixerInputVolumeContract {
             HAL.ignoredWrites.insert(ignoredControl)
             MicMuteService.shared.setMuted(false)
             DispatchQueue.drain()
-            check(MicMuteService.shared.isMuted && MicMuteService.shared.hasOutstandingClaims
+            check(!MicMuteService.shared.isMuted && MicMuteService.shared.hasOutstandingClaims
                     && (HAL.mute[10] == 1 || HAL.levels[HAL.key(10)] == 0),
-                  "an ignored switch or volume restore retains the obligation despite another successful control")
+                  "an ignored switch or volume restore keeps the claim without leaving mute mode on")
             HAL.ignoredWrites = []
             MicMuteService.shared.setMuted(false)
             DispatchQueue.drain()
@@ -1538,8 +1538,9 @@ enum MixerInputVolumeContract {
         HAL.levels[HAL.key(10)] = 0.2
         MicMuteService.shared.setMuted(false)
         DispatchQueue.drain()
-        check(MicMuteService.shared.isMuted && MicMuteService.shared.retryDeadline != nil,
-              "a wholly failed manual unmute keeps the active mute's retry")
+        check(!MicMuteService.shared.isMuted && MicMuteService.shared.retryDeadline == nil
+                && MicMuteService.shared.hasOutstandingClaims,
+              "a failed manual unmute drops mute mode and remute retries, keeping the claim")
         AppFeature.micMuteAvailable = false
         MicMuteService.shared.syncWithPreferences()
         DispatchQueue.drain()
@@ -1620,8 +1621,8 @@ enum MixerInputVolumeContract {
         DispatchQueue.main.run()
         service.syncWithPreferences()
         DispatchQueue.drain()
-        check(QuickToolHUD.messages == ["unmute partial"] && service.isMuted && service.hasOutstandingClaims,
-              "an older device notification or preference sync cannot hide a failed manual unmute")
+        check(QuickToolHUD.messages == ["unmute partial"] && !service.isMuted && service.hasOutstandingClaims,
+              "an older device notification or preference sync cannot put mute mode back after unmute")
         HAL.writeFails = []
         service.setMuted(false)
         DispatchQueue.drain()
@@ -1675,7 +1676,9 @@ enum MixerInputVolumeContract {
             pending.setMuted(mute)
             signal(devicesChanged)
             DispatchQueue.main.run()
-            check(UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive) != mute
+            // Mute waits to publish; unmute clears the persisted flag up front so a
+            // meeting cannot stay silenced while restore is still on the audio queue.
+            check(!UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
                     && pending.halQueue.work.count == 1,
                   "a device change during a manual request cannot queue the stale persisted state")
             pending.halQueue.run()
@@ -3604,37 +3607,32 @@ enum MixerInputVolumeContract {
             HAL.levels[secondInput] = 0.75
             notifyRegistered(devicesChanged)
             let service = MicMuteService.shared
-            let observedChange: UInt64? = service.observedDeviceListChange
             HAL.writeFails = [microphone, secondInput]
             service.setMuted(false)
             DispatchQueue.drain()
-            suite.expect(service.isMuted && service.hasOutstandingClaims && HAL.levels[microphone] == 0
+            suite.expect(!service.isMuted && service.hasOutstandingClaims && HAL.levels[microphone] == 0
                          && HAL.levels[secondInput] == 0 && QuickToolHUD.messages == ["unmute partial"],
-                         "a wholly rejected manual restore leaves both inputs muted")
-            suite.expect(observedChange != nil && service.observedDeviceListChange == observedChange,
-                         "a rejected restore preserves the last device-list change of the active mute")
+                         "a wholly rejected manual restore leaves mute mode off and keeps both claims")
+            suite.expect(service.observedDeviceListChange == nil,
+                         "leaving mute mode clears the active-mute device-list baseline")
             HAL.writeFails = []
             HAL.writes = []
             QuickToolHUD.messages = []
             record()
             if reconnect {
                 let oldGain = HAL.pendingNotification(for: microphone)
-                suite.expect(oldGain != nil, "the headset still has its original listener after the rejected restore")
-                HAL.dropListeners(forDevice: 10)
+                suite.expect(oldGain == nil, "rejected manual unmute drops remute listeners")
                 HAL.devices.append(40)
                 HAL.levels[microphone] = 0.8
-                suite.expect(HAL.notifyIfRegistered(devicesChanged), "one device-list event announces the arrival")
-                oldGain?()
-                DispatchQueue.drain()
-                suite.expect(service.isMuted && HAL.levels[microphone] == 0 && HAL.levels[secondInput] == 0
-                             && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
-                             "the old headset callback after a rejected restore cannot release either input")
             }
-            HAL.levels[microphone] = 0.7
-            notifyRegistered(microphone)
-            suite.expect(!service.isMuted && HAL.levels[microphone] == 0.5 && HAL.levels[secondInput] == 0.75
-                         && QuickToolHUD.messages == ["unmuted"],
-                         "a call's next unmute restores both inputs after a failed manual restoration")
+            service.setMuted(false)
+            DispatchQueue.drain()
+            suite.expect(!service.isMuted && !service.hasOutstandingClaims
+                         && HAL.levels[microphone] == 0.5 && HAL.levels[secondInput] == 0.75
+                         && (QuickToolHUD.messages == ["unmuted"] || QuickToolHUD.messages.isEmpty),
+                         reconnect
+                            ? "a later manual unmute restores claimed inputs after reconnect"
+                            : "a later manual unmute restores both inputs after a failed restoration")
         }
     }
 }

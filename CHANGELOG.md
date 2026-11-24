@@ -24,7 +24,7 @@ This update reduces the work Vorssaint does at startup and improves window switc
 - Low disk space alerts repeat at most once every six hours per volume, with an earlier alert if free space drops below half the warning threshold. Thanks to @ywu73.
 
 ### Fixed
-- Mic Mute treats a near-miss restore as success when gain settles a little off the saved level, and retries once if capture is still silent. Toggle already follows the request in flight on main.
+- Mic Mute never leaves you stuck muted after you unmute: mute mode clears immediately, remute watchers drop, and a near-miss restore still opens capture. Mute still zeros input volume while mute mode is on.
 - Camera Preview fits the camera image inside the floating mirror and Dynamic Island, including wide and portrait video. Thanks to @iva-zhu and @amithm7.
 - The Homebrew installed-package filter fits the menu panel with long labels and package counts. The selected option keeps keyboard focus when the filter changes layout. Thanks to @blakster and @andrewcdelaney.
 - Dynamic Island keeps the Explore search text when a query has no matches, so typing and deleting continue from the cursor. Thanks to @imuhammadnadeem and @kaiwenfa.
