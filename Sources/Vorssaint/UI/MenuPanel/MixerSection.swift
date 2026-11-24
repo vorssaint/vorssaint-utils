@@ -326,8 +326,9 @@ struct MixerSection: View {
             }
 
             if let volume = inputManager.inputVolume {
+                let valueLabel = MixerRoutingSupport.inputPercentText(forVolume: volume)
                 HStack(spacing: 8) {
-                    Image(systemName: volume <= 0.001 ? "mic.slash.fill" : "mic.fill")
+                    Image(systemName: volume == 0 ? "mic.slash.fill" : "mic.fill")
                         .font(.system(size: 10.5, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .frame(width: 16)
@@ -339,15 +340,17 @@ struct MixerSection: View {
                                       accentRevision: accentRevision,
                                       glassEnabled: glassEnabled,
                                       maximum: 1,
-                                      accessibilityLabel: l10n.s.mixerInputTitle)
+                                      accessibilityLabel: l10n.s.mixerInputTitle,
+                                      valueLabel: valueLabel)
 
                     EditableVolumePercent(currentPercent: MixerRoutingSupport.displayPercent(forVolume: volume),
                                           maximumPercent: 100,
                                           width: 36,
                                           editorID: "microphone-input",
                                           editingID: $editingVolumeID,
-                                          accessibilityLabel: l10n.s.mixerInputTitle) {
-                        Text("\(MixerRoutingSupport.displayPercent(forVolume: volume))%")
+                                          accessibilityLabel: l10n.s.mixerInputTitle,
+                                          valueLabel: valueLabel) {
+                        Text(valueLabel)
                             .font(.system(size: 10.5, weight: .medium))
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
@@ -365,6 +368,9 @@ struct MixerSection: View {
             } else if let lastError = inputManager.lastError {
                 inputMessage(String(format: l10n.s.mixerInputErrorFormat, lastError),
                              systemImage: "exclamationmark.triangle")
+            }
+            if micMute.hasUnconfirmedInputs {
+                inputMessage(l10n.s.micMutePartialHUD, systemImage: "exclamationmark.triangle")
             }
         }
     }
@@ -1123,6 +1129,7 @@ struct EditableVolumePercent<Label: View>: View {
     let editorID: String
     @Binding var editingID: String?
     let accessibilityLabel: String
+    var valueLabel: String?
     @ViewBuilder let label: () -> Label
     let onCommit: (Double) -> Void
 
@@ -1165,7 +1172,7 @@ struct EditableVolumePercent<Label: View>: View {
             .buttonStyle(.plain)
             .opacity(isEditing ? 0 : 1)
             .allowsHitTesting(!isEditing)
-            .accessibilityLabel("\(accessibilityLabel) \(currentPercent)%")
+            .accessibilityLabel(accessibilityLabel + " " + (valueLabel ?? "\(currentPercent)%"))
             .accessibilityHidden(isEditing)
         }
         .frame(width: width, alignment: .trailing)
@@ -1363,9 +1370,10 @@ private struct MixerVolumeSlider: View {
     let glassEnabled: Bool
     let maximum: Double
     let accessibilityLabel: String
+    var valueLabel: String?
 
     private var activeTint: Color { isBoosting ? boostTint : normalTint }
-    private var percentage: Int { MixerRoutingSupport.displayPercent(forVolume: value) }
+    private var percentage: String { valueLabel ?? "\(MixerRoutingSupport.displayPercent(forVolume: value))%" }
 
     var body: some View {
         Group {
@@ -1375,16 +1383,17 @@ private struct MixerVolumeSlider: View {
                                        tint: activeTint,
                                        isBoosting: isBoosting,
                                        maximum: maximum,
-                                       accessibilityLabel: accessibilityLabel)
+                                       accessibilityLabel: accessibilityLabel,
+                                       valueLabel: percentage)
             } else {
                 nativeSlider
                     .accessibilityLabel(accessibilityLabel)
-                    .accessibilityValue("\(percentage)%")
+                    .accessibilityValue(percentage)
             }
 #else
             nativeSlider
                 .accessibilityLabel(accessibilityLabel)
-                .accessibilityValue("\(percentage)%")
+                .accessibilityValue(percentage)
 #endif
         }
         .overlay(SliderScrollArea(value: $value, range: 0...maximum))
@@ -1409,6 +1418,7 @@ private struct LiquidGlassMixerSlider: View {
     let isBoosting: Bool
     let maximum: Double
     let accessibilityLabel: String
+    let valueLabel: String
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
 
@@ -1451,7 +1461,7 @@ private struct LiquidGlassMixerSlider: View {
         }
         .frame(height: knobHeight)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityValue("\(MixerRoutingSupport.displayPercent(forVolume: value))%")
+        .accessibilityValue(valueLabel)
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment:

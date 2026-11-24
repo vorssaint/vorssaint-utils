@@ -133,6 +133,7 @@ enum MixerInputVolumeContract {
     }
     enum HAL {
         static var levels: [Key: Float] = [:]
+        static var minimumGain: [Key: Float] = [:]
         static var readOnly: Set<Key> = []
         static var readFails: Set<Key> = []
         static var nextReadFails: Set<Key> = []
@@ -194,6 +195,7 @@ enum MixerInputVolumeContract {
         }
         static func reset() {
             levels = [:]
+            minimumGain = [:]
             readOnly = []
             readFails = []
             nextReadFails = []
@@ -400,7 +402,7 @@ enum MixerInputVolumeContract {
                 return noErr
             }
             guard levels[k] != nil else { return -1 }
-            levels[k] = p.load(as: Float.self)
+            levels[k] = max(p.load(as: Float.self), minimumGain[k] ?? 0)
             let callback = afterWrite
             afterWrite = nil
             callback?()
@@ -973,7 +975,8 @@ enum MixerInputVolumeContract {
                 && NotchService.shared.reactions.isEmpty
                 && NotchService.shared.retractions == 1,
               "a wholly refused unmute warns without announcing that mute is off")
-        check(MicMuteService.shared.isMuted && MicMuteService.shared.hasOutstandingClaims
+        check(MicMuteService.shared.isMuted && !MicMuteService.shared.hasUnconfirmedInputs
+                && MicMuteService.shared.hasOutstandingClaims
                 && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
                 && MicMuteService.shared.inputVolumeAdjustmentLifetime == nil
                 && HAL.mute[10] == 1,
@@ -997,8 +1000,8 @@ enum MixerInputVolumeContract {
         MicMuteService.shared.syncWithPreferences()
         DispatchQueue.drain()
         check(QuickToolHUD.messages.isEmpty && NotchService.shared.microphone.isEmpty
-                && NotchService.shared.retractions == 0,
-              "a failed background reapply stays silent instead of repeating the warning")
+                && NotchService.shared.retractions == 1,
+              "a failed background reapply retracts a stale confirmation without repeating the warning")
         NotchService.shared.showsMicrophone = false
         HAL.reset()
         HAL.devices = [10, 20]
@@ -1044,7 +1047,8 @@ enum MixerInputVolumeContract {
         MicMuteService.shared.setMuted(true)
         DispatchQueue.drain()
         check(
-            QuickToolHUD.messages == ["muted"] && MicMuteService.inputControls(10).isSilenced,
+            QuickToolHUD.messages == ["muted"] && !MicMuteService.shared.hasUnconfirmedInputs
+                && MicMuteService.inputControls(10).isSilenced,
             "an aggregate with no mute or level of its own does not make the mute partial")
         HAL.reset()
         HAL.devices = [10, 40]
@@ -1053,8 +1057,10 @@ enum MixerInputVolumeContract {
         MicMuteService.shared.setMuted(true)
         DispatchQueue.drain()
         check(
-            QuickToolHUD.messages == ["muted"] && MicMuteService.inputControls(10).isSilenced,
-            "an idle microphone with no mute or level of its own does not make the mute partial")
+            QuickToolHUD.messages == ["mute partial"] && MicMuteService.shared.hasUnconfirmedInputs
+                && MicMuteService.inputControls(10).isSilenced
+                && UserDefaults.standard.stringArray(forKey: DefaultsKey.micMuteMutedDevices) == ["device-10"],
+            "an idle input without controls warns without being claimed for restoration")
         HAL.reset()
         HAL.levels[HAL.key(10)] = 0.5
         NotchService.shared.showsMicrophone = true
@@ -1113,24 +1119,31 @@ enum MixerInputVolumeContract {
         check(
             HAL.levels[HAL.key(10, 1)] == 0.8 && HAL.levels[HAL.key(10, 2)] == 0.4,
             "a device with channel levels only keeps their balance through a gain mute")
-        // What a version without saved channel levels leaves behind: the main
-        // level and both channels at zero, with only the main level saved.
-        HAL.reset()
-        HAL.levels[HAL.key(10)] = 0
-        HAL.levels[HAL.key(10, 1)] = 0
-        HAL.levels[HAL.key(10, 2)] = 0
-        UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteActive)
-        UserDefaults.standard.set(["device-10": 0.5], forKey: DefaultsKey.micMuteSavedVolumes)
-        UserDefaults.standard.set(["device-10"], forKey: DefaultsKey.micMuteMutedDevices)
-        MicMuteService.shared = MicMuteService()
-        MicMuteService.shared.syncWithPreferences()
-        DispatchQueue.drain()
-        MicMuteService.shared.setMuted(false)
-        DispatchQueue.drain()
-        check(
-            !MicMuteService.shared.isMuted && HAL.levels[HAL.key(10)] == 0.5
-                && HAL.levels[HAL.key(10, 1)] == 0.5 && HAL.levels[HAL.key(10, 2)] == 0.5,
-            "an unmute after updating brings back the channels an earlier version lowered")
+        // A version without per-control snapshots saved only the main level.
+        // One of its zero writes may still be reading back a small residual.
+        for (active, residual): (Bool, Float) in [(true, 0), (true, 0.005), (false, 0.005)] {
+            HAL.reset()
+            HAL.streamChannels[10] = [3]
+            HAL.levels[HAL.key(10, 3)] = 0.8
+            HAL.levels[HAL.key(10)] = residual
+            HAL.levels[HAL.key(10, 1)] = 0
+            HAL.levels[HAL.key(10, 2)] = 0
+            UserDefaults.standard.set(active, forKey: DefaultsKey.micMuteActive)
+            UserDefaults.standard.set(["device-10": 0.5], forKey: DefaultsKey.micMuteSavedVolumes)
+            UserDefaults.standard.set(["device-10"], forKey: DefaultsKey.micMuteMutedDevices)
+            MicMuteService.shared = MicMuteService()
+            MicMuteService.shared.syncWithPreferences()
+            DispatchQueue.drain()
+            if active {
+                MicMuteService.shared.setMuted(false)
+                DispatchQueue.drain()
+            }
+            check(
+                !MicMuteService.shared.isMuted && HAL.levels[HAL.key(10)] == 0.5
+                    && HAL.levels[HAL.key(10, 1)] == 0.5 && HAL.levels[HAL.key(10, 2)] == 0.5
+                    && HAL.levels[HAL.key(10, 3)] == 0.8,
+                "legacy restore recovers lowered channels and preserves an audible channel without a snapshot")
+        }
 
         HAL.reset()
         HAL.mute[10] = 1
@@ -1198,8 +1211,9 @@ enum MixerInputVolumeContract {
             MicMuteService.shared.setMuted(false)
             DispatchQueue.drain()
             check(MicMuteService.shared.isMuted && MicMuteService.shared.hasOutstandingClaims
+                    && MicMuteService.shared.hasUnconfirmedInputs == (ignoredControl.s == kAudioDevicePropertyMute)
                     && (HAL.mute[10] == 1 || HAL.levels[HAL.key(10)] == 0),
-                  "an ignored switch or volume restore retains the obligation despite another successful control")
+                  "an ignored restore keeps the obligation and reports mute coverage from the actual remaining gain")
             HAL.ignoredWrites = []
             MicMuteService.shared.setMuted(false)
             DispatchQueue.drain()
@@ -1556,18 +1570,6 @@ enum MixerInputVolumeContract {
 
         HAL.reset()
         HAL.levels[HAL.key(10)] = 0.5
-        HAL.ignoreWrites = true
-        MicMuteService.shared.setMuted(true)
-        DispatchQueue.drain()
-        for _ in 0..<5 { changed(10) }
-        check(MicMuteService.shared.retryDeadline == nil && HAL.writes.filter { $0 == HAL.key(10) }.count == 6,
-              "an unclassified or physical microphone never enters virtual-driver backoff")
-        HAL.ignoreWrites = false
-        changed(10)
-        check(HAL.levels[HAL.key(10)] == 0, "a slow physical microphone is silenced on its next change")
-
-        HAL.reset()
-        HAL.levels[HAL.key(10)] = 0.5
         MicMuteService.shared.setMuted(true)
         DispatchQueue.drain()
         HAL.levels[HAL.key(10)] = 0.5
@@ -1691,7 +1693,126 @@ enum MixerInputVolumeContract {
         runCoalescedReconnectTests(suite)
         runMuteListenerTests(suite)
         runMuteRecoveryTests(suite)
+        runLowGainMuteTests(suite)
         runCallAppUnmuteTests(suite)
+    }
+
+    private static func runLowGainMuteTests(_ suite: TestSuite) {
+        func setMuted(_ muted: Bool) {
+            MicMuteService.shared.setMuted(muted)
+            DispatchQueue.drain()
+        }
+        let gain = HAL.key(10)
+        let other = HAL.key(20)
+        let low: Float = 0.005
+        // Include a positive value inside the old setter's comparison tolerance.
+        for initial: Float in [low, 0.00005] {
+            HAL.reset()
+            HAL.levels[gain] = initial
+            QuickToolHUD.messages = []
+            setMuted(true)
+            suite.expect(HAL.writes == [gain] && HAL.levels[gain] == 0 && MicMuteService.shared.isMuted
+                         && !MicMuteService.shared.hasUnconfirmedInputs && QuickToolHUD.messages == ["muted"],
+                         "muting a gain-only mic at \(initial) writes and confirms zero")
+            HAL.relaunchClient()
+            MicMuteService.shared.syncWithPreferences()
+            DispatchQueue.drain()
+            HAL.ignoredWrites = [gain]
+            setMuted(false)
+            suite.expect(MicMuteService.shared.hasOutstandingClaims && HAL.levels[gain] == 0
+                         && QuickToolHUD.messages.last == "unmute partial",
+                         "a driver that ignores a low gain restore keeps the obligation and reports the failure")
+            HAL.ignoredWrites = []
+            HAL.writes = []
+            setMuted(false)
+            suite.expect(HAL.writes == [gain] && HAL.levels[gain] == initial
+                         && !MicMuteService.shared.hasOutstandingClaims,
+                         "the saved gain \(initial) survives a relaunch and is restored exactly")
+        }
+
+        for ignores in [false, true] {
+            HAL.reset()
+            var now: TimeInterval = 10
+            let service = MicMuteService(uptime: { now })
+            MicMuteService.shared = service
+            HAL.devices = [10, 20]
+            HAL.levels[gain] = ignores ? low : 0.4
+            HAL.levels[other] = 0.7
+            if ignores { HAL.ignoredWrites = [gain] } else { HAL.minimumGain[gain] = low }
+            QuickToolHUD.messages = []
+            setMuted(true)
+            suite.expect(service.isMuted && service.hasUnconfirmedInputs && HAL.levels[gain] == low && HAL.levels[other] == 0
+                         && HAL.writes.contains(gain) && QuickToolHUD.messages == ["mute partial"],
+                         "an accepted zero write that leaves a positive readback warns the user")
+            for _ in 0..<10 {
+                suite.expect(HAL.notifyIfRegistered(gain), "the refusing gain remains observed")
+                DispatchQueue.drain()
+            }
+            suite.expect(HAL.writes.filter { $0 == gain }.count == 3 && service.retryDeadline != nil
+                         && QuickToolHUD.messages == ["mute partial"],
+                         "repeated notices from a refusing physical mic back off without repeating its warning")
+            let writesBeforeTopology = HAL.writes
+            let topology = HAL.key(10, 0, kAudioDevicePropertyDeviceHasChanged, scope: kAudioObjectPropertyScopeGlobal)
+            for _ in 0..<3 {
+                suite.expect(HAL.notifyIfRegistered(topology), "the driver can also echo its device-change listener")
+                DispatchQueue.drain()
+            }
+            suite.expect(HAL.writes == writesBeforeTopology && service.hasUnconfirmedInputs,
+                         "structural notices for the same residual do not restart its writes")
+            HAL.ignoredWrites = []
+            HAL.minimumGain = [:]
+            now += 1
+            service.halQueue.runTimers()
+            DispatchQueue.drain()
+            suite.expect(service.isMuted && !service.hasUnconfirmedInputs && HAL.levels[gain] == 0,
+                         "a scheduled retry confirms zero when the mic recovers")
+            let settledWrites = HAL.writes
+            now += 60
+            service.halQueue.runTimers()
+            DispatchQueue.drain()
+            suite.expect(service.retryDeadline == nil && HAL.writes == settledWrites,
+                         "a sustained zero clears the cooldown without another write")
+            setMuted(false)
+            suite.expect(HAL.levels[gain] == (ignores ? low : 0.4) && HAL.levels[other] == 0.7,
+                         "recovery restores the gain saved before the first attempt")
+        }
+
+        HAL.reset()
+        HAL.streamChannels[10] = [2]
+        let left = HAL.key(10, 1)
+        let right = HAL.key(10, 2)
+        HAL.levels = [left: 0, right: low]
+        HAL.mute[10] = 1
+        HAL.minimumGain[right] = low
+        QuickToolHUD.messages = []
+        setMuted(true)
+        suite.expect(HAL.writes.contains(right) && !HAL.writes.contains(left)
+                     && HAL.levels[right] == low && HAL.mute[10] == 1 && QuickToolHUD.messages == ["mute partial"],
+                     "one positive channel gets a zero attempt and a warning even with the native switch engaged")
+        setMuted(false)
+        suite.expect(HAL.levels[left] == 0 && HAL.levels[right] == low && HAL.mute[10] == 1
+                     && !HAL.writes.contains(HAL.key(10, 0, kAudioDevicePropertyMute)),
+                     "unmute preserves the user's original channel mix and their engaged mute switch")
+
+        let rightSwitch = HAL.key(10, 2, kAudioDevicePropertyMute)
+        for originalSwitch: UInt32? in [nil, 2, 0] {
+            let usableSwitch = originalSwitch == 0
+            HAL.reset()
+            HAL.streamChannels[10] = [2]
+            HAL.levels[left] = low
+            HAL.muteElements[rightSwitch] = originalSwitch
+            QuickToolHUD.messages = []
+            let service = MicMuteService.shared
+            setMuted(true)
+            suite.expect(HAL.levels[left] == 0 && service.isMuted && service.hasUnconfirmedInputs == !usableSwitch
+                         && (usableSwitch ? HAL.muteElements[rightSwitch] == 1 : !HAL.writes.contains(rightSwitch))
+                         && QuickToolHUD.messages == [usableSwitch ? "muted" : "mute partial"],
+                         "a zero on the left channel needs a confirmed control on the right")
+            setMuted(false)
+            suite.expect(HAL.levels[left] == low && HAL.muteElements[rightSwitch] == originalSwitch
+                         && !service.hasOutstandingClaims,
+                         "both types of channel control return to their saved values")
+        }
     }
 
     private static func runCoalescedReconnectTests(_ suite: TestSuite) {
@@ -1801,18 +1922,20 @@ enum MixerInputVolumeContract {
 
         HAL.readFails.insert(devicesChanged)
         notify(devicesChanged)
-        suite.expect(HAL.listeners == original, "a failed device-list read preserves the active registrations")
+        suite.expect(HAL.listeners == original && MicMuteService.shared.isMuted && MicMuteService.shared.hasUnconfirmedInputs,
+                     "a failed device-list read preserves the active registrations and marks coverage unconfirmed")
         expectCalls("a failed device-list read does not detach the last known input")
         HAL.readFails.remove(devicesChanged)
         let inputListeners = original.filter { $0.d == 10 }
         HAL.devices = []
         notify(devicesChanged)
-        suite.expect(HAL.listeners == original.subtracting(inputListeners),
-                     "the system stays watched with no inputs present")
+        suite.expect(HAL.listeners == original.subtracting(inputListeners) && MicMuteService.shared.hasUnconfirmedInputs,
+                     "the system stays watched with coverage unconfirmed while no inputs are present")
         expectCalls("removing the last input clears its registrations", removing: inputListeners)
         HAL.devices = [10]
         notify(devicesChanged)
-        suite.expect(HAL.listeners == original, "the same UID and object ID can return after a real disconnect")
+        suite.expect(HAL.listeners == original && !MicMuteService.shared.hasUnconfirmedInputs,
+                     "the returning UID and object ID regain confirmation after a new check")
         expectCalls("the returning input regains each of its registrations", adding: inputListeners)
 
         HAL.devices = [10, 20]
@@ -2081,6 +2204,63 @@ enum MixerInputVolumeContract {
         }
         func resetAudioService() {
             suite.expect(HAL.restartAudioService(), "the in-flight reset reaches the registered callback")
+        }
+
+        prepare()
+        HAL.devices = [10, 20]
+        HAL.levels[secondInput] = 0.75
+        mute()
+        record()
+        HAL.writes = []
+        HAL.levels[microphone] = 0.005
+        notify()
+        suite.expect(MicMuteService.shared.isMuted && HAL.levels[microphone] == 0 && HAL.writes == [microphone]
+                     && HAL.levels[secondInput] == 0 && QuickToolHUD.messages.isEmpty,
+                     "a small gain echo after verified zero is corrected without releasing the other microphone")
+        HAL.levels[microphone] = 0.7
+        notify()
+        suite.expect(!MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.5
+                     && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
+                     "the next call opening after the corrected echo restores both microphones")
+
+        for virtual in [false, true] {
+            prepare()
+            let service = MicMuteService(uptime: { 100 })
+            MicMuteService.shared = service
+            HAL.devices = [10, 20]
+            HAL.virtual = virtual ? [10] : []
+            HAL.running = [10]
+            let channel = HAL.key(10, 1)
+            HAL.levels[channel] = 0.25
+            HAL.levels[secondInput] = 0.75
+            mute()
+            record()
+            HAL.writes = []
+            for _ in 0..<10 {
+                HAL.levels[microphone] = 0.005
+                notify()
+            }
+            suite.expect((1..<10).contains(HAL.writes.filter { $0 == microphone }.count)
+                         && service.isMuted && service.hasUnconfirmedInputs && HAL.levels[microphone] == 0.005
+                         && HAL.levels[secondInput] == 0 && QuickToolHUD.messages.isEmpty,
+                         "repeated residual callbacks during capture limit writes and display unconfirmed coverage")
+            HAL.writes = []
+            HAL.levels[channel] = 0.4
+            suite.expect(HAL.notifyIfRegistered(channel), "a different channel reports its real gain change")
+            DispatchQueue.drain()
+            suite.expect(service.isMuted && HAL.levels[channel] == 0 && HAL.writes == [channel],
+                         "a residual cooldown still corrects another channel immediately")
+            if virtual {
+                service.setMuted(false)
+                DispatchQueue.drain()
+            } else {
+                record(20)
+                HAL.levels[secondInput] = 0.8
+                notify(20)
+            }
+            suite.expect(!service.isMuted && !service.hasUnconfirmedInputs && HAL.levels[microphone] == 0.5
+                         && HAL.levels[channel] == 0.25 && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
+                         "a residual cooldown permits manual unmute or a call opening on the other confirmed input")
         }
 
         for preference: Bool? in [nil, false] {
@@ -2720,7 +2900,7 @@ enum MixerInputVolumeContract {
                 if moment == .inventory {
                     suite.expect(silentReads >= 2, "both post-write silence reads precede the inventory callback")
                 }
-                if moment == .setter || moment == .firstReadback || moment == .topology {
+                if moment == .setter || moment == .firstReadback || moment == .residualReadback || moment == .topology {
                     suite.expect(MicMuteService.shared.isMuted && HAL.levels[microphone] == 0 && HAL.levels[secondInput] == 0
                                  && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
                                  "an unverified opening during \(moment) keeps the other mic silent")

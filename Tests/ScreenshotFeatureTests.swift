@@ -4129,12 +4129,14 @@ enum ScreenshotFeatureTests {
                "the mute skips the app's own aggregate devices and no other")
         suite.expect(!MicMuteSupport.shouldSaveVolume(nil)
                 && !MicMuteSupport.shouldSaveVolume(0)
-                && !MicMuteSupport.shouldSaveVolume(0.005)
+                && MicMuteSupport.shouldSaveVolume(0.005)
                 && MicMuteSupport.shouldSaveVolume(0.4),
                "a level worth restoring is remembered and a silent one never is")
         suite.expect(MicMuteSupport.volumeToRestore(uid: "mic-a",
                                               saved: ["mic-a": 0.4, "mic-b": 0.9],
                                               legacy: 0.6) == 0.4
+                && MicMuteSupport.volumeToRestore(uid: "mic-a", saved: ["mic-a": 0.005], legacy: 0.6) == 0.005
+                && MicMuteSupport.volumeToRestore(uid: "mic-a", saved: [:], legacy: 0.005) == 0.005
                 && MicMuteSupport.volumeToRestore(uid: "mic-c",
                                                   saved: ["mic-a": 0.4],
                                                   legacy: 0.6) == 0.6
@@ -4160,13 +4162,15 @@ enum ScreenshotFeatureTests {
                 && MicMuteSupport.absentClaims(recorded: ["headset"], present: []) == ["headset"],
                "a sweep keeps the claim on a microphone this app muted that is unplugged right now, so it is released when it returns")
         suite.expect(!MicMuteSupport.shouldReplaceSavedVolume(existing: 0.4, current: 1.0)
+                && !MicMuteSupport.shouldReplaceSavedVolume(existing: 0.005, current: 0.4)
                 && MicMuteSupport.shouldReplaceSavedVolume(existing: nil, current: 0.4)
                 && MicMuteSupport.shouldReplaceSavedVolume(existing: 0, current: 0.4)
                 && !MicMuteSupport.shouldReplaceSavedVolume(existing: nil, current: 0),
                "a later re-apply keeps the first real level and never saves silence")
         suite.expect(!MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: 0.75)
                 && MicMuteSupport.isCaptureSilenced(muteSwitch: 0, volume: 0)
-                && MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: 0.005)
+                && !MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: 0.005)
+                && !MicMuteSupport.isCaptureSilenced(muteSwitch: nil, volume: 0.005)
                 && MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: nil)
                 && !MicMuteSupport.isCaptureSilenced(muteSwitch: 0, volume: 0.4)
                 && !MicMuteSupport.isCaptureSilenced(muteSwitch: nil, volume: 0.4)

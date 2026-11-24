@@ -156,10 +156,11 @@ struct QuickToolsSettings: View {
                         MicMuteService.shared.toggle()
                     } label: {
                         Label(micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName,
-                              systemImage: micMute.isMuted ? "mic.slash.fill" : "mic")
+                              systemImage: micMute.controlSymbol)
                     }
                     if micMute.isMuted {
-                        Label(l10n.s.micMutedHUD, systemImage: "mic.slash.fill")
+                        Label(micMute.hasUnconfirmedInputs ? l10n.s.micMutePartialHUD : l10n.s.micMutedHUD,
+                              systemImage: micMute.controlSymbol)
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }

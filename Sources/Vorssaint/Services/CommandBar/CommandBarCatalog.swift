@@ -542,14 +542,14 @@ enum CommandBarCatalog {
         }
 
         if AppFeature.micMute.isAvailable {
-            let muted = MicMuteService.shared.isMuted
+            let micMute = MicMuteService.shared
             entries.append(CommandBarEntry(
                 id: "action.micMute",
-                title: muted ? s.micUnmuteName : s.micMuteName,
-                subtitle: area(.micMute),
-                icon: .symbol(muted ? "mic.slash.fill" : "mic"),
+                title: micMute.isMuted ? s.micUnmuteName : s.micMuteName,
+                subtitle: micMute.hasUnconfirmedInputs ? s.micMutePartialHUD : area(.micMute),
+                icon: .symbol(micMute.controlSymbol),
                 shortcut: roleShortcut(.micMute),
-                isActive: muted,
+                isActive: micMute.isMuted,
                 run: { _ in MicMuteService.shared.toggle() }))
         }
 
