@@ -167,6 +167,7 @@ enum MixerInputVolumeContract {
         static var inputsWithoutStreams: Set<UInt32> = []
         static var inactiveDevices: Set<UInt32> = []
         static var streamChannels: [UInt32: [UInt32]] = [:]
+        static var returnedLayoutBytes: [UInt32: UInt32] = [:]
         static var streamReadFails = false
         static var afterWrite: (() -> Void)?
         static var afterGainRead: [Key: () -> Void] = [:]
@@ -182,6 +183,7 @@ enum MixerInputVolumeContract {
         static var current: UInt32 = 10
         static var uids: [UInt32: String] = [:]
         static var aggregates: Set<UInt32> = []
+        static var aggregateMembers: [UInt32: [UInt32]] = [:]
         static var virtual: Set<UInt32> = []
         static var running: Set<UInt32> = []
         static func key(_ d: UInt32, _ e: UInt32 = 0, _ s: UInt32 = kAudioDevicePropertyVolumeScalar,
@@ -220,9 +222,11 @@ enum MixerInputVolumeContract {
             current = 10
             uids = [:]
             aggregates = []
+            aggregateMembers = [:]
             virtual = []
             running = []
             streamChannels = [:]
+            returnedLayoutBytes = [:]
             streamReadFails = false
             afterWrite = nil
             afterGainRead = [:]
@@ -253,6 +257,8 @@ enum MixerInputVolumeContract {
                 return devices.contains(d) && key.e == 0 && key.scope == kAudioObjectPropertyScopeGlobal
             case kAudioDevicePropertyStreamConfiguration, kAudioDevicePropertyStreams:
                 return devices.contains(d) && key.e == 0 && key.scope == kAudioDevicePropertyScopeInput
+            case kAudioAggregateDevicePropertyActiveSubDeviceList:
+                return aggregates.contains(d) && key.e == 0 && key.scope == kAudioObjectPropertyScopeGlobal
             case kAudioDevicePropertyMute:
                 return muteElements[key] != nil
                     || (key.e == 0 && key.scope == kAudioDevicePropertyScopeInput && mute[d] != nil)
@@ -274,6 +280,11 @@ enum MixerInputVolumeContract {
             _ qp: UnsafeRawPointer?, _ size: UnsafeMutablePointer<UInt32>
         ) -> OSStatus {
             if sizeReadFails.contains(Key(d, a.pointee)) { return -1 }
+            if a.pointee.mSelector == kAudioAggregateDevicePropertyActiveSubDeviceList {
+                guard let members = aggregateMembers[d] else { return -1 }
+                size.pointee = UInt32(members.count * MemoryLayout<AudioObjectID>.size)
+                return noErr
+            }
             if a.pointee.mSelector == kAudioDevicePropertyStreams {
                 size.pointee = inputsWithoutStreams.contains(d) ? 0 : UInt32(MemoryLayout<AudioStreamID>.size)
                 return noErr
@@ -309,6 +320,11 @@ enum MixerInputVolumeContract {
                 return noErr
             }
             switch a.pointee.mSelector {
+            case kAudioAggregateDevicePropertyActiveSubDeviceList:
+                guard let members = aggregateMembers[d] else { return -1 }
+                for (i, id) in members.enumerated() {
+                    p.storeBytes(of: id, toByteOffset: i * MemoryLayout<AudioObjectID>.size, as: UInt32.self)
+                }
             case kAudioDevicePropertyStreamConfiguration:
                 if streamReadFails { return -1 }
                 let channels = streamChannels[d] ?? [2]
@@ -318,6 +334,7 @@ enum MixerInputVolumeContract {
                 for (i, n) in channels.enumerated() {
                     buffers[i] = AudioBuffer(mNumberChannels: n, mDataByteSize: 0, mData: nil)
                 }
+                if let bytes = returnedLayoutBytes[d] { size.pointee = bytes }
             case kAudioHardwarePropertyDevices:
                 deviceListReads += 1
                 for (i, v) in devices.enumerated() {
@@ -1042,6 +1059,7 @@ enum MixerInputVolumeContract {
         HAL.devices = [10, 30]
         HAL.levels[HAL.key(10)] = 0.5
         HAL.aggregates = [30]
+        HAL.aggregateMembers[30] = [10]
         HAL.running = [30]
         QuickToolHUD.messages = []
         MicMuteService.shared.setMuted(true)
@@ -1691,10 +1709,269 @@ enum MixerInputVolumeContract {
         }
 
         runCoalescedReconnectTests(suite)
+        runInitialMuteRegistrationTests(suite)
         runMuteListenerTests(suite)
         runMuteRecoveryTests(suite)
         runLowGainMuteTests(suite)
+        runAggregateAndRestoreTests(suite)
+        runControlRetryTests(suite)
         runCallAppUnmuteTests(suite)
+    }
+
+    private static func runControlRetryTests(_ suite: TestSuite) {
+        let left = HAL.key(10, 1)
+        let right = HAL.key(10, 2)
+        let other = HAL.key(20)
+        var now: TimeInterval = 10
+        func start() -> MicMuteService {
+            let service = MicMuteService(uptime: { now })
+            MicMuteService.shared = service
+            service.setMuted(true)
+            DispatchQueue.drain()
+            return service
+        }
+        func notify(_ key: Key) {
+            suite.expect(HAL.notifyIfRegistered(key), "the current control can report its gain")
+            DispatchQueue.drain()
+        }
+        func writes(_ key: Key) -> Int { HAL.writes.filter { $0 == key }.count }
+
+        for reportsZeroFirst in [false, true] {
+            for virtual in [false, true] {
+                HAL.reset()
+                HAL.devices = [10, 20]
+                HAL.levels = [left: 0.6, right: 0.3, other: 0.8]
+                HAL.running = [10]
+                if virtual { HAL.virtual = [10] }
+                HAL.beforeControlWrite = { key, target in
+                    guard key == left && target == 0 else { return }
+                    if reportsZeroFirst {
+                        // The setter's own read returns zero, but the level has
+                        // already rebounded by the final verification pass.
+                        HAL.afterGainRead[left] = { HAL.levels[left] = 0.4 }
+                    } else {
+                        HAL.minimumGain[left] = 0.4
+                    }
+                }
+                let service = start()
+                suite.expect(service.hasUnconfirmedInputs && service.retryDeadline != nil,
+                             "the first unconfirmed setter schedules recovery without needing a callback")
+                for index in 0..<10 {
+                    HAL.levels[left] = index.isMultiple(of: 2) ? 0.2 : 0.7
+                    notify(left)
+                }
+                let leftCount = writes(left)
+                suite.expect(leftCount <= 3 && service.retryDeadline != nil && service.hasUnconfirmedInputs,
+                             "alternating live readings on one refused control cannot restart its burst")
+                HAL.levels[right] = 0.6
+                HAL.levels[other] = 0.8
+                notify(right)
+                suite.expect(writes(left) == leftCount && HAL.levels[right] == 0 && HAL.levels[other] == 0,
+                             "the other channel and input are silenced immediately during the refused setter's cooldown")
+                HAL.beforeControlWrite = nil
+                HAL.minimumGain = [:]
+                now += 1
+                service.halQueue.runTimers()
+                DispatchQueue.drain()
+                suite.expect(writes(left) == leftCount + 1 && HAL.levels[left] == 0 && !service.hasUnconfirmedInputs,
+                             "the timer retries the original control and verifies recovery")
+            }
+        }
+
+        HAL.reset()
+        HAL.levels = [left: 0.5, right: 0]
+        HAL.ignoredWrites = [left]
+        let service = start()
+        notify(left)
+        notify(left)
+        let leftDeadline = service.retryDeadline
+        now += 0.1
+        HAL.levels[right] = 0.5
+        HAL.ignoredWrites.insert(right)
+        for _ in 0..<3 { notify(right) }
+        let leftCount = writes(left)
+        let rightCount = writes(right)
+        suite.expect(service.retryDeadline == leftDeadline,
+                     "one channel starting its own cooldown preserves the earlier deadline on the other")
+        now += 0.15
+        service.halQueue.runTimers()
+        DispatchQueue.drain()
+        suite.expect(writes(left) == leftCount + 1 && writes(right) == rightCount,
+                     "the earliest timer services only the control whose cooldown expired")
+
+        HAL.reset()
+        HAL.levels = [left: 0.005, right: 0]
+        HAL.minimumGain[left] = 0.005
+        let recovering = start()
+        HAL.minimumGain = [:]
+        now += 1
+        recovering.halQueue.runTimers()
+        DispatchQueue.drain()
+        suite.expect(HAL.levels[left] == 0 && !recovering.hasUnconfirmedInputs,
+                     "a physical mic that refuses only its first write recovers without a notification")
+
+        for becomesUnreadable in [false, true] {
+            HAL.reset()
+            HAL.levels = [left: 0.5, right: 0]
+            HAL.ignoredWrites = [left]
+            let stuck = start()
+            if becomesUnreadable { HAL.readFails = [left] }
+            var ticks = 0
+            while let deadline = stuck.retryDeadline, ticks < 20 {
+                now = deadline
+                stuck.halQueue.runTimers()
+                DispatchQueue.drain()
+                ticks += 1
+            }
+            suite.expect((2...10).contains(ticks) && stuck.retryDeadline == nil && stuck.hasUnconfirmedInputs,
+                         "persistent failure exhausts timed recovery, including unreadable controls")
+            let priorWrites = writes(left)
+            HAL.readFails = []
+            HAL.levels[left] = 0.3
+            notify(left)
+            suite.expect(writes(left) == priorWrites && stuck.retryDeadline == nil,
+                         "another positive reading cannot restart the exhausted retry burst")
+            now += 60
+            HAL.ignoredWrites = []
+            notify(left)
+            suite.expect(writes(left) == priorWrites + 1 && HAL.levels[left] == 0 && !stuck.hasUnconfirmedInputs,
+                         "a new hardware notice after cooldown recovers an input that exhausted its timers")
+        }
+
+        HAL.reset()
+        HAL.devices = [10, 20]
+        HAL.uids[10] = "old input"
+        HAL.levels = [left: 0.005, right: 0, other: 0.8]
+        HAL.ignoredWrites = [left]
+        UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteFollowCallApps)
+        let replacing = start()
+        notify(left)
+        notify(left)
+        let stale = HAL.pendingNotification(for: left)
+        HAL.uids[10] = "new input"
+        HAL.ignoredWrites = []
+        notify(HAL.key(AudioObjectID(kAudioObjectSystemObject), 0, kAudioHardwarePropertyDevices,
+                       scope: kAudioObjectPropertyScopeGlobal))
+        suite.expect(stale != nil && HAL.levels[left] == 0 && !replacing.hasUnconfirmedInputs,
+                     "the same control address and residual on a replacement UID get a fresh zero attempt")
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        HAL.processes = [(object: 100, pid: ownPID == 4242 ? 4243 : 4242, recording: true, devices: [10])]
+        HAL.levels[left] = 0.7
+        stale?()
+        DispatchQueue.drain()
+        suite.expect(replacing.isMuted && HAL.levels[left] == 0 && HAL.levels[other] == 0,
+                     "the retired registration can reassert mute but cannot release another mic")
+        HAL.levels[left] = 0.7
+        notify(left)
+        suite.expect(!replacing.isMuted && HAL.levels[left] == 0.005 && HAL.levels[other] == 0.8,
+                     "the new registration follows a real call opening and restores the replacement's gain")
+    }
+
+    private static func runAggregateAndRestoreTests(_ suite: TestSuite) {
+        let gain = HAL.key(10)
+        let members = HAL.key(30, 0, kAudioAggregateDevicePropertyActiveSubDeviceList, scope: kAudioObjectPropertyScopeGlobal)
+        for missing in ["none", "member", "membership", "layout", "truncated layout", "no members"] {
+            HAL.reset()
+            HAL.devices = [30, 10, 20]
+            HAL.aggregates = [30]
+            HAL.inputsWithoutStreams = [20] // An active output-only member does not capture.
+            HAL.uids = [101: "device-10", 102: "device-20"] // The HAL supplies sub-device objects.
+            HAL.aggregateMembers[30] = missing == "no members" ? [] : [101, 102]
+            if missing == "member" { HAL.aggregateMembers[30]?.append(199) }
+            if missing == "membership" { HAL.readFails = [members] }
+            if missing == "truncated layout" {
+                // Two buffers fit the allocation; the returned byte count describes only the first.
+                HAL.streamChannels[30] = [1, 1]
+                HAL.returnedLayoutBytes[30] = UInt32(MemoryLayout<AudioBufferList>.size)
+            }
+            if missing == "layout" { HAL.sizeReadFails = [HAL.key(30, 0, kAudioDevicePropertyStreamConfiguration)] }
+            HAL.levels[gain] = 0.6
+            QuickToolHUD.messages = []
+            let service = MicMuteService.shared
+            service.setMuted(true)
+            DispatchQueue.drain()
+            suite.expect(service.isMuted && service.hasUnconfirmedInputs == (missing != "none")
+                         && HAL.levels[gain] == 0 && QuickToolHUD.messages == [missing == "none" ? "muted" : "mute partial"],
+                         "aggregate confirmation requires known active input members and layout (\(missing))")
+            if missing == "none" {
+                HAL.aggregateMembers[30] = [199]
+                suite.expect(HAL.notifyIfRegistered(members), "the aggregate reports a change of its active members")
+                DispatchQueue.drain()
+                suite.expect(service.hasUnconfirmedInputs && HAL.levels[gain] == 0,
+                             "a membership change invalidates coverage without releasing the unrelated mic")
+            }
+        }
+
+        HAL.reset()
+        HAL.devices = [10, 30]
+        HAL.aggregates = [30]
+        HAL.aggregateMembers[30] = [10]
+        HAL.levels[gain] = 0.6
+        HAL.afterListenerAdd[members] = { HAL.aggregateMembers[30] = [199] }
+        QuickToolHUD.messages = []
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        suite.expect(MicMuteService.shared.hasUnconfirmedInputs && QuickToolHUD.messages == ["mute partial"],
+                     "a member hidden during listener installation cannot inherit the old aggregate confirmation")
+
+        let readbacks: [(Float, Float, Bool)] = [(0.5, Float(0.5).nextUp, true), (0.5, Float(0.5).nextDown, true),
+                                                 (0.5, 0.51, false), (0.00005, 0.00009, false), (0.00005, 0, false)]
+        for (original, readback, restored) in readbacks {
+            HAL.reset()
+            HAL.levels[gain] = original
+            let service = MicMuteService.shared
+            service.setMuted(true)
+            DispatchQueue.drain()
+            var requested: Double?
+            HAL.beforeControlWrite = { key, value in if key == gain { requested = value } }
+            HAL.afterWrite = { HAL.levels[gain] = readback }
+            QuickToolHUD.messages = []
+            service.setMuted(false)
+            DispatchQueue.drain()
+            suite.expect(requested == Double(original) && service.hasOutstandingClaims == !restored && service.isMuted == !restored
+                         && QuickToolHUD.messages == [restored ? "unmuted" : "unmute partial"],
+                         "restore writes the exact gain and verifies a positive driver readback (\(readback))")
+        }
+
+        for active in [false, true] {
+            for originalSwitch: UInt32? in [nil, 0, 1] {
+                HAL.reset()
+                HAL.levels[gain] = 0.005
+                HAL.mute[10] = originalSwitch
+                UserDefaults.standard.set(0.625, forKey: DefaultsKey.micMuteSavedVolume)
+                UserDefaults.standard.set(["device-10"], forKey: DefaultsKey.micMuteMutedDevices)
+                UserDefaults.standard.set(active, forKey: DefaultsKey.micMuteActive)
+                HAL.relaunchClient()
+                let service = MicMuteService.shared
+                service.syncWithPreferences()
+                DispatchQueue.drain()
+                if active {
+                    service.setMuted(false)
+                    DispatchQueue.drain()
+                }
+                suite.expect(HAL.levels[gain] == 0.625 && !service.hasOutstandingClaims && !service.isMuted
+                             && (originalSwitch == nil || HAL.mute[10] == 0),
+                             "a saved legacy global gain survives a residual (active: \(active), switch: \(String(describing: originalSwitch)))")
+            }
+        }
+
+        // A pre-3.2 record refers to the default input. A fresh manual
+        // request may still find an old saved global level on the same Mac.
+        for inherited in [false, true] {
+            HAL.reset()
+            HAL.devices = [10, 20]
+            HAL.levels = [gain: 0.005, HAL.key(20): 0.008]
+            UserDefaults.standard.set(0.625, forKey: DefaultsKey.micMuteSavedVolume)
+            UserDefaults.standard.set(inherited, forKey: DefaultsKey.micMuteActive)
+            HAL.relaunchClient()
+            let service = MicMuteService.shared
+            if inherited { service.syncWithPreferences() } else { service.setMuted(true) }
+            DispatchQueue.drain()
+            service.setMuted(false)
+            DispatchQueue.drain()
+            suite.expect(HAL.levels[gain] == (inherited ? 0.625 : 0.005) && HAL.levels[HAL.key(20)] == 0.008,
+                         "only a migrated default input restores the legacy global volume")
+        }
     }
 
     private static func runLowGainMuteTests(_ suite: TestSuite) {
@@ -1812,6 +2089,39 @@ enum MixerInputVolumeContract {
             suite.expect(HAL.levels[left] == low && HAL.muteElements[rightSwitch] == originalSwitch
                          && !service.hasOutstandingClaims,
                          "both types of channel control return to their saved values")
+        }
+    }
+
+    private static func runInitialMuteRegistrationTests(_ suite: TestSuite) {
+        let first = HAL.key(10)
+        let second = HAL.key(20)
+        for refusesCorrection in [false, true] {
+            HAL.reset()
+            HAL.devices = [10, 20]
+            HAL.levels = [first: 0.5, second: 0.75]
+            UserDefaults.standard.set(false, forKey: DefaultsKey.micMuteFollowCallApps)
+            var missedNotice = false
+            HAL.beforeControlWrite = { key, target in
+                guard key == second && target == 0 else { return }
+                HAL.levels[first] = 0.005
+                missedNotice = !HAL.notifyIfRegistered(first)
+                if refusesCorrection { HAL.ignoredWrites = [first] }
+            }
+            QuickToolHUD.messages = []
+            let service = MicMuteService.shared
+            service.setMuted(true)
+            DispatchQueue.drain()
+            suite.expect(missedNotice && HAL.listeners.contains(first) && service.isMuted && HAL.levels[second] == 0,
+                         "the second input reopens the first before its gain listener is installed")
+            suite.expect(HAL.levels[first] == (refusesCorrection ? 0.005 : 0)
+                         && service.hasUnconfirmedInputs == refusesCorrection
+                         && QuickToolHUD.messages == [refusesCorrection ? "mute partial" : "muted"],
+                         "the first announcement reflects the mute rechecked after listener registration")
+            HAL.ignoredWrites = []
+            service.setMuted(false)
+            DispatchQueue.drain()
+            suite.expect(HAL.levels[first] == 0.5 && HAL.levels[second] == 0.75 && !service.hasOutstandingClaims,
+                         "the post-registration check preserves the gains from before the first write")
         }
     }
 

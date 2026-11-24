@@ -141,38 +141,58 @@ enum MicMuteSupport {
         return (recorded ?? []).filter { !here.contains($0) }
     }
 
-    /// A burst of attempts to silence an input backs off from a quarter
-    /// second to half a minute. A new connection starts over.
+    /// Retries belong to one control on one input. A driver can change the
+    /// reported gain on each refusal without changing which setter failed.
     struct Retry {
-        let deviceID: UInt32
-        let onlyWhileIdle: Bool
+        enum Reason { case unconfirmed, smallRebound, idleVirtual }
+        let reason: Reason
         let attempts: Int
         let lastAttempt: TimeInterval
         let deadline: TimeInterval?
-        /// Values returned by refused setters or tiny levels corrected to zero.
-        /// Other controls and larger gain changes still get serviced immediately.
-        var retryValues: [String: Double] = [:]
+        private static let maximumAttempts = 10
 
-        func defers(_ value: Double, at key: String, isGain: Bool) -> Bool {
-            guard let previous = retryValues[key] else { return false }
-            return previous == value || (isGain && Self.isSmallGain(previous) && Self.isSmallGain(value))
+        /// After the timed attempts, hardware notices can still recheck the
+        /// control at the same capped cadence without polling indefinitely.
+        var scheduledDeadline: TimeInterval? { attempts < Self.maximumAttempts ? deadline : nil }
+
+        init(reason: Reason, previous: Retry?, now: TimeInterval) {
+            self.reason = reason
+            lastAttempt = now
+            if let previous, previous.reason == reason,
+               reason == .unconfirmed || previous.deadline != nil || now - previous.lastAttempt < 0.25 {
+                attempts = min(previous.attempts + 1, Self.maximumAttempts)
+            } else {
+                attempts = 1
+            }
+            // A driver can recover silently even after its very first refusal.
+            // Allow a short burst of callbacks before throttling this setter.
+            if reason == .unconfirmed || attempts >= 3 {
+                deadline = now + min(30, 0.25 * Double(1 << max(0, attempts - 3)))
+            } else {
+                deadline = nil
+            }
+        }
+
+        func defers(_ value: Double, idle: Bool, now: TimeInterval) -> Bool {
+            guard attempts >= 3, let deadline, now < deadline else { return false }
+            switch reason {
+            case .unconfirmed: return true
+            case .smallRebound: return Self.isSmallGain(value)
+            case .idleVirtual: return idle
+            }
+        }
+
+        func keepAfterZero(now: TimeInterval) -> Bool {
+            reason != .unconfirmed && now < (deadline ?? lastAttempt + 0.25)
+        }
+
+        func waitingForReadableControl(now: TimeInterval) -> Self? {
+            guard reason == .unconfirmed, let deadline else { return nil }
+            return now < deadline ? self : Self(reason: reason, previous: self, now: now)
         }
 
         static func isSmallGain(_ value: Double) -> Bool {
             value > 0 && value <= Double(residualGainLimit)
-        }
-
-        init(deviceID: UInt32, onlyWhileIdle: Bool, verified: Bool, previous: Retry?, now: TimeInterval) {
-            self.deviceID = deviceID
-            self.onlyWhileIdle = onlyWhileIdle
-            lastAttempt = now
-            if let previous, previous.deviceID == deviceID, previous.onlyWhileIdle == onlyWhileIdle,
-               !verified || previous.deadline != nil || now - previous.lastAttempt < 0.25 {
-                attempts = min(previous.attempts + 1, 10)
-            } else {
-                attempts = 1
-            }
-            deadline = attempts < 3 ? nil : now + min(30, 0.25 * Double(1 << (attempts - 3)))
         }
     }
 }

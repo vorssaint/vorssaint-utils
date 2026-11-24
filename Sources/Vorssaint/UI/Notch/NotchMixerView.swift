@@ -163,6 +163,7 @@ private struct NotchEditablePercent: View {
     @Binding var editingID: String?
     let label: String
     var valueLabel: String?
+    var inputVolume: Double?
     var tint: Color = .secondary
     var boosting = false
     var width: CGFloat = 40
@@ -172,7 +173,8 @@ private struct NotchEditablePercent: View {
 
     var body: some View {
         EditableVolumePercent(currentPercent: percent, maximumPercent: maximum, width: width, height: height,
-                              editorID: editorID, editingID: $editingID, accessibilityLabel: label, valueLabel: valueLabel) {
+                              editorID: editorID, editingID: $editingID, accessibilityLabel: label,
+                              valueLabel: valueLabel, inputVolume: inputVolume) {
             HStack(spacing: 1) {
                 if boosting {
                     Image(systemName: "bolt.fill").font(.system(size: 7, weight: .bold)).foregroundStyle(tint)
@@ -276,7 +278,7 @@ private struct NotchMicrophoneFader: View {
                     .disabled(micMute.isMuted)
                 NotchEditablePercent(percent: MixerRoutingSupport.displayPercent(forVolume: volume), maximum: 100,
                                      editorID: "notch-microphone-fader", editingID: $editingVolumeID,
-                                     label: l10n.s.mixerInputTitle, valueLabel: valueLabel, height: 28) {
+                                     label: l10n.s.mixerInputTitle, valueLabel: valueLabel, inputVolume: volume, height: 28) {
                     input.setInputVolume($0)
                 }
                 .disabled(micMute.isMuted)
@@ -448,7 +450,7 @@ private struct NotchMixerOptions: View {
                     .disabled(micMute.isMuted)
                 NotchEditablePercent(percent: MixerRoutingSupport.displayPercent(forVolume: volume), maximum: 100,
                                      editorID: "notch-microphone-input", editingID: $editingVolumeID,
-                                     label: l10n.s.mixerInputTitle, valueLabel: valueLabel) {
+                                     label: l10n.s.mixerInputTitle, valueLabel: valueLabel, inputVolume: volume) {
                     input.setInputVolume($0)
                 }
                 .disabled(micMute.isMuted)

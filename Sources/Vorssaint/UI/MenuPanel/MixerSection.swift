@@ -349,7 +349,7 @@ struct MixerSection: View {
                                           editorID: "microphone-input",
                                           editingID: $editingVolumeID,
                                           accessibilityLabel: l10n.s.mixerInputTitle,
-                                          valueLabel: valueLabel) {
+                                          valueLabel: valueLabel, inputVolume: volume) {
                         Text(valueLabel)
                             .font(.system(size: 10.5, weight: .medium))
                             .monospacedDigit()
@@ -1130,10 +1130,12 @@ struct EditableVolumePercent<Label: View>: View {
     @Binding var editingID: String?
     let accessibilityLabel: String
     var valueLabel: String?
+    var inputVolume: Double?
     @ViewBuilder let label: () -> Label
     let onCommit: (Double) -> Void
 
     @State private var draft = ""
+    @State private var initialInputDraft: String?
 
     private var isEditing: Bool { editingID == editorID }
 
@@ -1179,12 +1181,23 @@ struct EditableVolumePercent<Label: View>: View {
     }
 
     private func beginEditing() {
-        draft = String(currentPercent)
+        initialInputDraft = inputVolume.map { volume in
+            let percent = Float(volume) * 100
+            if percent == Float(currentPercent) { return String(currentPercent) }
+            return String(percent).replacingOccurrences(of: ".", with: Locale.current.decimalSeparator ?? ".")
+        }
+        draft = initialInputDraft ?? String(currentPercent)
         editingID = editorID
     }
 
     @discardableResult
     private func commit() -> Bool {
+        // Keep the input's exact gain, including any adjustment made externally
+        // while the field was open, when the user leaves its text untouched.
+        if draft == initialInputDraft {
+            editingID = nil
+            return true
+        }
         guard let volume = MixerRoutingSupport.volumeFraction(
             fromPercentageText: draft,
             maximumPercent: maximumPercent
