@@ -674,17 +674,18 @@ enum DefaultsKey {
     static let scratchpadDocument = "scratchpadDocument"     // Data: ScratchpadDocument JSON, including named tabs
     static let scratchpadTextSize = "scratchpadTextSize"     // pad-wide point size (ScratchpadSupport.textSizeRange)
     static let micMuteActive = "micMuteActive"               // mic muted by the app (survives relaunch)
-    static let micMuteReleasePending = "micMuteReleasePending" // keep restoring after an unmute, even before publication
-    static let micMuteReleasedUIDs = "micMuteReleasedUIDs"   // [String]: verified releases whose restore records are being cleared
+    static let micMuteReleasePending = "micMuteReleasePending" // false requests mute, true requests release. Absence uses micMuteActive.
+    static let micMuteReleasedUIDs = "micMuteReleasedUIDs"   // legacy list of verified releases awaiting cleanup
     static let micMuteSavedVolume = "micMuteSavedVolume"     // input volume to restore on unmute (pre 3.2.0 state)
     static let micMuteSavedVolumes = "micMuteSavedVolumes"   // [device uid: input volume] to restore on unmute
     static let micMuteSavedChannelVolumes = "micMuteSavedChannelVolumes" // [device uid: [channel: input volume]] to restore on unmute
-    // Per UID, selector:element keys carry restore targets. A bare legacy element still needs a writability check.
+    // Per UID, a dictionary holds restore targets and "changing" marks a write with an unknown result.
+    // A release checkpoint also records which targets still lack a reliable readback.
     static let micMuteSavedControls = "micMuteSavedControls"
     // Channel elements to preserve on a pending master restore, by UID.
     static let micMuteProtectedChannels = "micMuteProtectedChannels"
     static let micMutePendingLegacyControls = "micMutePendingLegacyControls" // unresolved pre-3.2 default input and its controls
-    static let micMuteMixerHandoffUID = "micMuteMixerHandoffUID" // input with a mixer handoff in progress
+    static let micMuteMixerHandoffUID = "micMuteMixerHandoffUID" // legacy UID of an interrupted mixer handoff
     static let micMuteManualCheckNeeded = "micMuteManualCheckNeeded" // previous input settings need a manual check
     static let micMuteMutedDevices = "micMuteMutedDevices"   // uids of the devices this app muted
     static let micMuteMenuBarIndicator = "micMuteMenuBarIndicator" // badge the status icon while muted
