@@ -259,10 +259,22 @@ final class SwitcherWindowInventory {
         return source
     }
 
-    /// Wait only for windows already announced at the key press. A later announcement
-    /// (even for the same ID) belongs to its own discovery and cannot extend this wait.
+    /// Wait only for discoveries known at the key press, including a window AX
+    /// has already observed. Later notifications cannot extend this wait.
     func afterAnnouncedWindows(frontmostPID: pid_t, isPending: @escaping () -> Bool,
                                resume: @escaping (_ needsFocus: Bool) -> Void) -> Bool {
+        // onReady will retry against the first snapshot if there is no discovery to wait for yet.
+        guard isReady || !pendingWindowIDs.isEmpty || !discoveriesForRefresh.isEmpty else { return false }
+        let appPID = remembered.items.first { $0.windowOwnerPID == frontmostPID || $0.pid == frontmostPID }?.pid
+        let focus = WindowUseTracker.shared.frontAppFocus(for: frontmostPID, appPID: appPID)
+        if let observed = focus.latest, observed.wasObserved,
+           !remembered.items.contains(where: { $0.windowID == observed.windowID }),
+           pendingWindowIDs[observed.windowID] == nil, !discoveriesForRefresh.values.contains(observed.windowID) {
+            // AX can see a new document or an excluded inspector before the creation notice.
+            // Let the inventory decide membership before using an older window as the source.
+            discoveriesForRefresh[UUID()] = observed.windowID
+            invalidate(pid: appPID)
+        }
         guard !pendingWindowIDs.isEmpty || !discoveriesForRefresh.isEmpty else { return false }
         let ids = Set(pendingWindowIDs.keys).union(discoveriesForRefresh.values)
         let tickets = Set(pendingWindowIDs.values).union(discoveriesForRefresh.keys)
