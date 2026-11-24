@@ -1351,6 +1351,7 @@ def main():
           + declaration(cleaner, "    enum Phase:")
           + "final class Scanner: ScannerState {\ntypealias FileManager = FixtureTrash\nstatic let shared = Scanner()\n"
           + declaration(cleaner, "    private static func cachedAppLookup(")
+          + declaration(cleaner, "    private static func removalCheck(")
           + "".join(declaration(cleaner, prefix) for prefix in [
               "    func reset()", "    func scan(", "    func cleanSelected("])
           + "}\n}\n")

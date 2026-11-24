@@ -233,10 +233,20 @@ enum CleanerEligibilityTests {
             try launchPlist(label, program: program)
                 .write(to: agents.appendingPathComponent(label + ".plist"))
         }
+        let systemAgents = URL(fileURLWithPath: systemLibrary).appendingPathComponent("LaunchAgents")
+        try manager.createDirectory(at: systemAgents, withIntermediateDirectories: true)
+        let liveProgram = home.appendingPathComponent("live-agent-helper")
+        try Data([1]).write(to: liveProgram)
+        try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: liveProgram.path)
+        try launchPlist("test.editor", program: liveProgram)
+            .write(to: systemAgents.appendingPathComponent("test.editor.plist"))
+
         let apps: Set<String> = ["editor.test"]
         let found = CleanerScanFlowTests.scanFixture(installedApps: apps).filter { $0.category == .loginItems }
-        guard found.count == 1, let item = found.first, item.detail == "test.editor", item.include else {
-            suite.expect(false, "only the orphaned agent starts selected while the installed label stays protected")
+        let orphan = agents.appendingPathComponent("test.editor.plist")
+        guard found.count == 1, let item = found.first, item.url == orphan,
+              item.detail == "test.editor", item.include else {
+            suite.expect(false, "only the orphaned user plist is listed when a live system agent has the same label")
             return
         }
 
@@ -265,8 +275,8 @@ enum CleanerEligibilityTests {
         try manager.moveItem(at: program, to: moved)
 
         let (phase, actions) = CleanerScanFlowTests.cleanFixture(item, installedApps: apps)
-        suite.expect(actions == [.bootout(item.url), .trash(item.url)] && phase == .done(freed: item.size, failed: 0),
-                     "cleaning an agent that is still orphaned unloads it before the Trash move")
+        suite.expect(actions == [.trash(orphan)] && phase == .done(freed: item.size, failed: 0),
+                     "cleaning the orphaned plist preserves the service with the same label")
 
         let handle = try FileHandle(forWritingTo: item.url)
         defer { try? handle.close() }
@@ -275,6 +285,27 @@ enum CleanerEligibilityTests {
         suite.expect(item.fileIdentity == UninstallerSupport.fileIdentity(at: item.url),
                      "updating Program in place preserves the selected plist's identity")
         expectProtected(installed: apps, "pointing the same plist at a living executable")
+    }
+
+    private static func checkUnresolvableAgentExecutable(_ suite: TestSuite, home: URL) throws {
+        let directory = home.appendingPathComponent("helper-directory")
+        let program = directory.appendingPathComponent("agent")
+        let agents = home.appendingPathComponent("Library/LaunchAgents", isDirectory: true)
+        try FileManager.default.createDirectory(at: agents, withIntermediateDirectories: true)
+        let plist = agents.appendingPathComponent("local.fixture.plist")
+        try PropertyListSerialization.data(fromPropertyList: ["Label": "local.fixture", "Program": program.path],
+                                           format: .xml, options: 0).write(to: plist)
+        guard let item = scanOrphanedLaunchPlists(installed: []).first(where: { $0.url == plist && $0.include }) else {
+            suite.expect(false, "a confirmed missing executable makes the fixture eligible")
+            return
+        }
+
+        // A loop in an ancestor makes the executable lookup fail even for a privileged test runner.
+        try FileManager.default.createSymbolicLink(atPath: directory.path, withDestinationPath: directory.path)
+        let fresh = scanOrphanedLaunchPlists(installed: [])
+        let (phase, actions) = CleanerScanFlowTests.cleanFixture(item, installedApps: [])
+        suite.expect(!fresh.contains { $0.url == plist } && actions.isEmpty && phase == .done(freed: 0, failed: 1),
+                     "an unresolvable executable protects the agent on rescan and before any cleanup action")
     }
 
     /// Scan the same fixture before and after a plugin is installed. Leftovers
@@ -460,6 +491,7 @@ enum CleanerEligibilityTests {
             try manager.createDirectory(at: root, withIntermediateDirectories: true)
             try checkSupportDirectories(suite, home: root)
             try checkOrphanedAgents(suite, home: root)
+            try checkUnresolvableAgentExecutable(suite, home: root)
             let installed: Set<String> = ["editor.test"]
             for category in [CleanerSupport.Category.caches, .logs] {
                 let dir = root.appendingPathComponent(category == .caches ? "Library/Caches" : "Library/Logs")
