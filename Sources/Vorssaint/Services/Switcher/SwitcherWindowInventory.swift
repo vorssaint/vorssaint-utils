@@ -55,6 +55,12 @@ final class SwitcherWindowInventory {
         var completed = false
     }
 
+    private struct FocusProbe: Equatable {
+        let frontmostPID: pid_t
+        let confirmation: UUID
+        let spaceRevision: Int
+    }
+
     private var remembered = WindowEnumerator.WindowList(items: [], sourceItems: [])
     private var observers: [NSObjectProtocol] = []
     private var screenObservers: [NSObjectProtocol] = []
@@ -69,6 +75,7 @@ final class SwitcherWindowInventory {
     private var pendingWindowIDs: [CGWindowID: UUID] = [:]
     private var discoveriesForRefresh: [UUID: CGWindowID] = [:]
     private var unlistedFocus: (ticket: UUID, frontmostPID: pid_t, observation: UUID?)?
+    private var lastFocusProbe: FocusProbe?
     private var groupedSources: [pid_t: GroupedSource] = [:]
     private var discoveryWait: (tickets: Set<UUID>, isPending: () -> Bool, resume: () -> Void)?
     private var destroyedDuringRefresh: Set<CGWindowID> = []
@@ -173,6 +180,7 @@ final class SwitcherWindowInventory {
         pendingWindowIDs = [:]
         discoveriesForRefresh = [:]
         unlistedFocus = nil
+        lastFocusProbe = nil
         groupedSources = [:]
         discoveryWait = nil
         for observer in observers { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
@@ -270,10 +278,13 @@ final class SwitcherWindowInventory {
         if let observed = focus.latest, observed.wasObserved,
            !remembered.items.contains(where: { $0.windowID == observed.windowID }),
            pendingWindowIDs[observed.windowID] == nil, !discoveriesForRefresh.values.contains(observed.windowID) {
-            // AX can see a new document or an excluded inspector before the creation notice.
-            // Let the inventory decide membership before using an older window as the source.
-            discoveriesForRefresh[UUID()] = observed.windowID
-            invalidate(pid: appPID)
+            // An excluded inspector can remain focused across shortcut presses.
+            let probe = FocusProbe(frontmostPID: frontmostPID, confirmation: observed.confirmation, spaceRevision: spaces.revision)
+            if lastFocusProbe != probe {
+                lastFocusProbe = probe
+                discoveriesForRefresh[UUID()] = observed.windowID
+                invalidate(pid: appPID)
+            }
         }
         guard !pendingWindowIDs.isEmpty || !discoveriesForRefresh.isEmpty else { return false }
         let ids = Set(pendingWindowIDs.keys).union(discoveriesForRefresh.values)

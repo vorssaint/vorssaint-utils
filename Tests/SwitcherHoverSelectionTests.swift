@@ -1771,6 +1771,14 @@ enum SwitcherHoverSelectionTests {
             }
 
             let historyBeforePress = tracker.history, focusBeforePress = history.focusHistory.revision
+            func deliverWork() {
+                Work.discoveries.drain()
+                Work.main.deliveries.drain()
+                captureRefresh()
+                Work.main.deliveries.drain()
+                service.frontAppReadQueue.drain()
+                Queue.advance(to: Queue.time)
+            }
             _ = service.route(type: .keyDown, event: key(CGKeyCode(shortcut.keyCode), flags: shortcut.modifiers.cgFlags))
             let generation = service.sessionStartGeneration
             if opening == .publishedBeforeOpening {
@@ -1780,6 +1788,46 @@ enum SwitcherHoverSelectionTests {
                 Work.main.deliveries.drain()
             }
             Queue.advance(to: Queue.time)
+            if opening == .unlistedInspector && mode == .allWindowsSimple {
+                func press() {
+                    _ = service.route(type: .keyDown, event: key(CGKeyCode(shortcut.keyCode), flags: shortcut.modifiers.cgFlags))
+                    Queue.advance(to: Queue.time)
+                }
+                func cancel() {
+                    _ = service.route(type: .keyDown, event: key(CGKeyCode(KeyCode.escape), flags: shortcut.modifiers.cgFlags))
+                    _ = service.route(type: .flagsChanged, event: release)
+                    deliverWork()
+                }
+                Work.scans.drain()
+                suite.expect(FrontAppEnumerator.reads == [pid] && service.routePendingSessionStart?.generation == generation,
+                             "the inspector scan finishes before Escape cancels its pending shortcut")
+                cancel()
+                press()
+                suite.expect(service.sessionActive && Work.scans.pending.isEmpty,
+                             "the same inspector observation opens the second shortcut without another scan")
+                cancel()
+                suite.expect(FrontAppEnumerator.reads == [pid] && Activator.activated == before && service.recordedIDs.isEmpty
+                             && tracker.history == historyBeforePress && history.focusHistory.revision == focusBeforePress,
+                             "both cancelled shortcuts leave window use and focus history untouched")
+
+                FrontAppEnumerator.items = [c, b, a]
+                FrontAppEnumerator.capturedRows = nil
+                Desktop.WindowActivator.focusedWindow = c.windowID
+                WindowUseTracker.shared.recordObservedFocus(windowID: 3, pid: pid)
+                press()
+                _ = service.route(type: .flagsChanged, event: release)
+                deliverWork()
+                suite.expect(FrontAppEnumerator.reads == [pid, pid] && Activator.activated == before + [b.id]
+                             && Activator.lastSourceWindowID == c.windowID && service.recordedIDs == [b.id],
+                             "a new observation still scans C's app and switches from C to B")
+
+                FrontAppEnumerator.items.append(window(93))
+                Desktop.Events.shared.deliver?(.changed(93))
+                deliverWork()
+                suite.expect(FrontAppEnumerator.reads == [pid, pid, pid] && inventory.knownWindowIDs.contains(93),
+                             "a window notification can admit the formerly excluded ID once it becomes switchable")
+                continue
+            }
             if opening == .escapeBeforeNotice {
                 Work.discoveries.drain()
                 Work.main.deliveries.drain()
@@ -1857,14 +1905,6 @@ enum SwitcherHoverSelectionTests {
                 let cancelled = opening == .escapeBeforeNotice, inspector = opening == .unlistedInspector
                 let source = inspector ? b : c, target = inspector ? a : b
                 let expectedIDs = cancelled ? [] : [target.id]
-                func deliverWork() {
-                    Work.discoveries.drain()
-                    Work.main.deliveries.drain()
-                    captureRefresh()
-                    Work.main.deliveries.drain()
-                    service.frontAppReadQueue.drain()
-                    Queue.advance(to: Queue.time)
-                }
                 // Only AX has reported the focus. Deliver worker replies while still withholding the creation notice.
                 deliverWork()
                 let activated = Array(Activator.activated.dropFirst(before.count))
