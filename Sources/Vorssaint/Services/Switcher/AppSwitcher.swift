@@ -1302,17 +1302,17 @@ final class AppSwitcher: ObservableObject {
             }
         }
         frontAppReadQueue.async { [weak self] in
-            let read = {
+            let read = { (isRetry: Bool) in
                 var snapshot = appKitSnapshot
                 snapshot.runningApps = WindowEnumerator.runningApplications()
                 return WindowEnumerator.readFrontAppSelection(
                     snapshot: snapshot, frontmostPID: origin.pid, displayScope: origin.displayScope,
-                    knownWindowIDs: knownIDs, isCancelled: isCancelled)
+                    knownWindowIDs: knownIDs, isRetry: isRetry, isCancelled: isCancelled)
             }
             guard !isCancelled() else { return }
-            let first = read()
+            let first = read(false)
             // AX and the WindowServer may straddle the creation or focus change.
-            let result = first.list.items.isEmpty && !isCancelled() ? read() : first
+            let result = first.list.items.isEmpty && !isCancelled() ? read(true) : first
             DispatchQueue.main.async { [weak self] in
                 guard let self, !isCancelled() else { return }
                 let readSpaces = result.list.capturedVisibleSpaces

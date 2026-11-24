@@ -151,6 +151,7 @@ enum SwitcherRememberedSelectionTests {
             static var focusByRead: [CGWindowID?] = []
             static var stackRows: [[String: Any]]?
             static var capturedRows: [[String: Any]]?
+            static var inventoryCaptureSequence: [() -> [[String: Any]]] = []
             static var rejectedIDs: Set<CGWindowID> = []
             static var apps: [AppSnapshot] = []
             static var reads: [pid_t?] = []
@@ -188,8 +189,10 @@ enum SwitcherRememberedSelectionTests {
                     result.capturedVisibleSpaces = SessionOpening.SpaceWindowBridge.topology()?.visibleSpaces
                     result.rejectedWindowIDs = rejectedIDs
                 }
-                if forFrontAppSession || capturedRows != nil {
-                    let rows = capturedRows ?? captured.filter { $0.windowID != nil }.map { stackRow($0) }
+                let suppliedRows = !forFrontAppSession && filterPID != nil && !inventoryCaptureSequence.isEmpty
+                    ? inventoryCaptureSequence.removeFirst()() : capturedRows
+                if forFrontAppSession || suppliedRows != nil {
+                    let rows = suppliedRows ?? captured.filter { $0.windowID != nil }.map { stackRow($0) }
                     result.activationSnapshot = .init(windowInfo: rows, capturesActivationBaseline: true)
                 }
                 return result
