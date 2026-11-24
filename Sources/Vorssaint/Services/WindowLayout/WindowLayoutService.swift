@@ -2122,8 +2122,8 @@ final class WindowLayoutService: ObservableObject {
         let visible = screen.windowLayoutVisibleFrame
         let frame = WindowLayoutGeometry.rect(for: action, current: visible, visibleFrame: visible,
                                               windowGap: WindowLayoutGaps.windowGap,
-                                              screenGap: WindowLayoutGaps.screenGap,
-                                              marginPercent: WindowLayoutMargin.percent)
+                                              screenInsets: WindowLayoutGaps.screenInsets,
+                                              margin: WindowLayoutMargin.edges)
         return (frame.integral, visible)
     }
 

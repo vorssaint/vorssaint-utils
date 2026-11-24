@@ -138,7 +138,9 @@ final class NotchService: ObservableObject {
     @Published private(set) var dragPlaceholder = false
     weak var directMediaDropWorkspace: MediaWorkspaceSelection?
     @Published private(set) var choosingFileDropDestination = false
-    @Published private(set) var targetsMediaDrop = false
+    @Published private(set) var fileDropZones: [NotchFileToolsSupport.DropZone] = [.shelf]
+    @Published private(set) var fileDropZone: NotchFileToolsSupport.DropZone = .shelf
+    var targetsMediaDrop: Bool { fileDropZone == .media }
     @Published private(set) var selectedMetric: MetricDetailKind?
     @Published private(set) var captureControls: ScreenCaptureSelectionOptions?
     @Published private(set) var captureControlsCollapsed = false
@@ -2430,8 +2432,12 @@ final class NotchService: ObservableObject {
         if MainActor.assumeIsolated({ ConvertService.shared.dragging }) { choosingFileDropDestination = false; return }
         // Anything the converter can turn into something else offers a Convert zone beside the shelf.
         let convertible = MainActor.assumeIsolated { ConvertService.shared.canConvert(pasteboard) }
-        choosingFileDropDestination = convertible || NotchFileToolsService.shared.mediaDropContent(for: pasteboard) != nil
-        targetsMediaDrop = false
+        var zones: [NotchFileToolsSupport.DropZone] = [.shelf]
+        if convertible || NotchFileToolsService.shared.mediaDropContent(for: pasteboard) != nil { zones.append(.media) }
+        if NotchAirDrop.shared.canSend(pasteboard) { zones.append(.airDrop) }
+        fileDropZones = zones
+        choosingFileDropDestination = zones.count > 1
+        fileDropZone = .shelf
         open(.files, takeFocus: false)
     }
 
@@ -2445,14 +2451,19 @@ final class NotchService: ObservableObject {
             MainActor.assumeIsolated { ConvertService.shared.setHover(tile) }
             return true
         }
-        // The two boxes are the island's left and right halves. Only the side is tested, so the
+        // The boxes are equal columns across the island. Only the column is tested, so the
         // highlight follows the file even while the island is still growing under it.
         // The island's width is worked out from many settings, so it is read a few times a second,
         // not on every move of the drag.
         let now = ProcessInfo.processInfo.systemUptime
-        if now - dropSplitReadAt > 0.1 || dropSplitX == 0 { dropSplitX = surfaceSize.width / 2; dropSplitReadAt = now }
-        let targeted = choosingFileDropDestination && point.x >= dropSplitX
-        if targetsMediaDrop != targeted { targetsMediaDrop = targeted }
+        if now - dropSplitReadAt > 0.1 || dropSplitX == 0 { dropSplitX = surfaceSize.width; dropSplitReadAt = now }
+        let zones = fileDropZones
+        var zone = NotchFileToolsSupport.DropZone.shelf
+        if choosingFileDropDestination, zones.count > 1, dropSplitX > 0 {
+            let column = Int(max(0, point.x) / (dropSplitX / CGFloat(zones.count)))
+            zone = zones[min(zones.count - 1, column)]
+        }
+        if fileDropZone != zone { fileDropZone = zone }
         // The Convert zone takes any drop; a media drop it cannot convert fails softly in accept().
         return true
     }
@@ -2461,7 +2472,7 @@ final class NotchService: ObservableObject {
         dropSplitX = 0
         let changed = choosingFileDropDestination
         if changed { choosingFileDropDestination = false }
-        if targetsMediaDrop { targetsMediaDrop = false }
+        if fileDropZone != .shelf { fileDropZone = .shelf }
         if changed, acceptsUserInteraction { refreshPresentation() }
     }
 
@@ -2471,6 +2482,7 @@ final class NotchService: ObservableObject {
     }
 
     func accept(_ pasteboard: NSPasteboard) -> Bool {
+        let zone = choosingFileDropDestination ? fileDropZone : .shelf
         defer { endFileDrop() }
         guard canAcceptFileDrop(pasteboard) else { return false }
         if MainActor.assumeIsolated({ ConvertService.shared.dragging }) {
@@ -2479,8 +2491,15 @@ final class NotchService: ObservableObject {
             else { dismissConvertDrag() }
             return dropped
         }
-        let rightZone = choosingFileDropDestination && targetsMediaDrop
-        // The right zone converts; media the converter cannot take still goes to Optimize.
+        if zone == .airDrop {
+            guard NotchAirDrop.shared.send(pasteboard) else { return false }
+            heldDrag = false
+            dragPlaceholder = false
+            collapse()
+            return true
+        }
+        let rightZone = zone == .media
+        // The Convert zone converts; media the converter cannot take still goes to Optimize.
         let convert = rightZone && MainActor.assumeIsolated { ConvertService.shared.begin(pasteboard) }
         let optimize = rightZone && !convert
         let accepted = convert ? true : optimize

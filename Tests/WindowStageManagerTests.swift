@@ -81,7 +81,7 @@ enum WindowStageManagerTests {
         suite.expect(left.minX == reserved.minX && left.maxX == right.minX && right.maxX == visible.maxX,
                      "two halves tile the reduced frame without padding the opposite edge")
         let gapped = WindowLayoutGeometry.rect(for: .maximize, current: screen,
-                                               visibleFrame: reserved, screenGap: 10)
+                                               visibleFrame: reserved, screenInsets: ScreenGapInsets(all: 10))
         suite.expect(gapped == reserved.insetBy(dx: 10, dy: 10),
                      "existing screen gaps are applied after reserving Stage Manager")
         suite.expect(WindowLayoutGeometry.rect(for: .restore, current: screen, visibleFrame: reserved) == screen

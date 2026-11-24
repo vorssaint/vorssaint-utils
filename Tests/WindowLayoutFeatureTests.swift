@@ -391,7 +391,7 @@ enum WindowLayoutFeatureTests {
                    "\(action.rawValue) needs only a movable window")
             // A window already past the right edge stays where the nudge put it.
             suite.expect(WindowLayoutGeometry.rect(for: action, current: nudgeCurrent, visibleFrame: nudgeVisible,
-                                                   windowGap: 16, screenGap: 32) == nudgeCurrent
+                                                   windowGap: 16, screenInsets: ScreenGapInsets(all: 32)) == nudgeCurrent
                     && WindowLayoutGeometry.anchoredRect(for: action, targetRect: nudgeCurrent,
                                                          actualSize: nudgeCurrent.size,
                                                          visibleFrame: nudgeVisible) == nudgeCurrent,

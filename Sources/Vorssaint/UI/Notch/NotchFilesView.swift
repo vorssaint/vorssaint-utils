@@ -43,10 +43,20 @@ struct NotchFilesView: View {
         VStack(spacing: NotchLayout.rowSpacing) {
             if choosesDropDestination {
                 HStack(spacing: NotchFileToolsSupport.dropSpacing) {
-                    ConvertDropZone(title: FeatureStrings.notch(l10n.language).dropHint, symbol: "tray.and.arrow.down",
-                                    selected: !service.targetsMediaDrop, tint: .white)
-                    ConvertDropZone(title: "Convert here", symbol: "arrow.triangle.2.circlepath", selected: service.targetsMediaDrop,
-                                    tint: Color(red: 1, green: 0.62, blue: 0.3))
+                    ForEach(service.fileDropZones, id: \.self) { zone in
+                        switch zone {
+                        case .shelf:
+                            ConvertDropZone(title: FeatureStrings.notch(l10n.language).dropHint, symbol: "tray.and.arrow.down",
+                                            selected: service.fileDropZone == .shelf, tint: .white)
+                        case .media:
+                            ConvertDropZone(title: "Convert here", symbol: "arrow.triangle.2.circlepath",
+                                            selected: service.fileDropZone == .media,
+                                            tint: Color(red: 1, green: 0.62, blue: 0.3))
+                        case .airDrop:
+                            ConvertDropZone(title: "AirDrop", symbol: "dot.radiowaves.left.and.right",
+                                            selected: service.fileDropZone == .airDrop, tint: .blue)
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if convert.isOpen {
