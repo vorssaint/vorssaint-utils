@@ -58,6 +58,11 @@ struct NotchAgentsView: View {
         NotchAgentSupport.rows(lead?.rest ?? tiles, width: size.width)
     }
 
+    private var showsPeriod: Bool {
+        guard !providers.isEmpty else { return false }
+        return (rows.joined() + (lead.map { [$0.claude] + $0.stack + $0.rest } ?? [])).contains { $0.card.followsPeriod }
+    }
+
     var body: some View {
         Group {
             if !usage.snapshot.loaded && codexAccounts.isEmpty {
@@ -83,13 +88,16 @@ struct NotchAgentsView: View {
                         grid(rows, lead: lead, now: context.date)
                     }
                 }
-                // The period drives several cards, so it sits in the island's
-                // top row, beside the camera, while any of them shows.
-                .notchBand(leading: {
-                    if (rows.joined() + (lead.map { [$0.claude] + $0.stack + $0.rest } ?? [])).contains(where: { $0.card.followsPeriod }) { periodMenu }
-                })
             }
         }
+        // The period drives several cards, so it sits in the island's top row,
+        // beside the camera, while any of them shows. The agents' options sit
+        // opposite it, so everything about the agents is on this page.
+        .notchBand(leading: {
+            if showsPeriod { periodMenu }
+        }, trailing: {
+            NotchAgentOptionsMenu()
+        })
         .frame(width: size.width, height: size.height, alignment: .top)
         .environment(\.locale, l10n.language.formattingLocale())
         .onAppear {
