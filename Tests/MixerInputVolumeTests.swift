@@ -3667,6 +3667,7 @@ enum MixerInputVolumeContract {
     private static func runRestoreRetryLimitTests(_ suite: TestSuite) {
         runMixerRestoreAdjustmentTests(suite)
         runRestoreReadRecoveryTests(suite)
+        runLegacyMixerRestoreEditTests(suite)
         let master = HAL.key(10)
         let channel = HAL.key(10, 1)
         let other = HAL.key(20)
@@ -3793,6 +3794,62 @@ enum MixerInputVolumeContract {
             DispatchQueue.drain()
         }
 
+        for recovers in [true, false] {
+            let service = muted([master: 0.625])
+            HAL.readFails = [master]
+            service.toggle()
+            DispatchQueue.drain()
+            let firstDeadline = service.retryDeadline
+            suite.expect(HAL.writes.isEmpty && firstDeadline != nil && service.hasOutstandingClaims && !service.isMuted,
+                         "an unreadable first restore schedules a check without writing to the mic")
+            if recovers {
+                HAL.readFails = []
+            } else {
+                for _ in 0..<4 {
+                    _ = HAL.notifyIfRegistered(local)
+                    _ = HAL.notifyIfRegistered(system)
+                    DispatchQueue.drain()
+                }
+                suite.expect(service.retryDeadline == firstDeadline && service.warning == .restoreUnconfirmed && HAL.writes.isEmpty,
+                             "early echoes leave the unreadable control's first retry intact")
+            }
+            for _ in 0..<4 { tick(service) }
+            suite.expect(HAL.writes == (recovers ? [master] : []) && HAL.levels[master] == (recovers ? 0.625 : 0)
+                         && service.retryDeadline == nil && service.hasOutstandingClaims == !recovers
+                         && service.warning == (recovers ? nil : .restoreExhausted) && service.inputVolumeAdjustmentLifetime != nil,
+                         "first-read recovery restores the saved gain or finishes with manual guidance")
+            if !recovers {
+                HAL.readFails = []
+                _ = HAL.notifyIfRegistered(system)
+                DispatchQueue.drain()
+                suite.expect(HAL.writes.isEmpty && service.warning == .restoreExhausted && service.retryDeadline == nil,
+                             "a global echo leaves a spent read budget and the user's gain alone")
+            }
+        }
+
+        for absent in [true, false] {
+            let service = muted([master: 0.625])
+            if absent {
+                HAL.levels[master] = nil
+            } else {
+                HAL.readOnly = [master]
+                HAL.readFails = [master]
+            }
+            service.toggle()
+            DispatchQueue.drain()
+            tick(service)
+            suite.expect(HAL.writes.isEmpty && service.retryDeadline == nil && service.hasOutstandingClaims
+                         && service.warning == .restoreUnconfirmed,
+                         "a missing or read-only property waits for topology without a timed restore")
+            HAL.levels[master] = 0
+            HAL.readOnly = []
+            HAL.readFails = []
+            _ = HAL.notifyIfRegistered(local)
+            DispatchQueue.drain()
+            suite.expect(HAL.writes == [master] && HAL.levels[master] == 0.625 && !service.hasOutstandingClaims,
+                         "the pending control restores when it becomes available and writable")
+        }
+
         for (persistent, protectChannel) in [(false, false), (true, false), (false, true)] {
             let service = muted(protectChannel ? [master: 0.625, channel: 0.875] : [master: 0.625])
             HAL.ignoredWrites = [master]
@@ -3876,6 +3933,50 @@ enum MixerInputVolumeContract {
         }
     }
 
+    private static func runLegacyMixerRestoreEditTests(_ suite: TestSuite) {
+        let master = HAL.key(10)
+        let channel = HAL.key(10, 1)
+        let virtual = HAL.key(10, 0, kAudioHardwareServiceDeviceProperty_VirtualMainVolume)
+        let uid = "device-10"
+        for bareElement in [false, true] {
+            HAL.reset()
+            let slider = bareElement ? virtual : master
+            HAL.levels = [slider: 0, channel: 0.25]
+            UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteActive)
+            UserDefaults.standard.set([uid], forKey: DefaultsKey.micMuteMutedDevices)
+            UserDefaults.standard.set([uid: 0.625], forKey: DefaultsKey.micMuteSavedVolumes)
+            if bareElement {
+                UserDefaults.standard.set([uid: ["0": 0.625]], forKey: DefaultsKey.micMuteSavedControls)
+            } else {
+                HAL.readFails = [channel]
+            }
+            HAL.relaunchClient()
+            MicMuteService.shared.toggle()
+            DispatchQueue.drain()
+            let mixer = AudioInputDeviceManager()
+            mixer.start()
+            DispatchQueue.drain()
+            mixer.setInputVolume(0.375)
+            DispatchQueue.drain()
+            suite.expect(HAL.writes == [slider] && HAL.levels[slider] == 0.375,
+                         "the available master accepts a manual edit while the legacy target waits")
+            mixer.stop()
+            HAL.writes = []
+            HAL.readFails = []
+            if bareElement {
+                // The scalar master returns as an alias of the virtual master.
+                HAL.levels[master] = HAL.levels[virtual]
+                HAL.beforeControlWrite = { key, target in if key == master { HAL.levels[virtual] = Float(target) } }
+            }
+            HAL.relaunchClient()
+            MicMuteService.shared.syncWithPreferences()
+            DispatchQueue.drain()
+            suite.expect(HAL.writes.isEmpty && HAL.levels[slider] == 0.375 && HAL.levels[channel] == 0.25
+                         && !MicMuteService.shared.hasOutstandingClaims && MicMuteService.shared.warning == .manualRestore,
+                         "a later legacy \(bareElement ? "element 0" : "UID gain") cannot undo the accepted mixer edit")
+        }
+    }
+
     private static func runMixerRestoreAdjustmentTests(_ suite: TestSuite) {
         let master = HAL.key(10)
         let linked = HAL.key(10, 1)
@@ -3885,6 +3986,7 @@ enum MixerInputVolumeContract {
             var now: TimeInterval = 10
             let service = MicMuteService(uptime: { now })
             MicMuteService.shared = service
+            HAL.devices = Set(levels.keys.map(\.d)).sorted()
             HAL.levels = levels
             service.toggle()
             DispatchQueue.drain()
@@ -3917,45 +4019,160 @@ enum MixerInputVolumeContract {
             DispatchQueue.drain()
         }
 
-        let drag = exhaustedMixer([master: 0.625])
-        HAL.ignoredWrites = []
-        var requests: [Double] = []
-        HAL.beforeControlWrite = { key, target in if key == master { requests.append(target) } }
-        drag.setInputVolume(0.375)
-        drag.setInputVolume(0.75)
-        drag.halQueue.run()
-        suite.expect(requests == [0.375] && HAL.levels[master] == 0.375,
-                     "the driver has accepted the first drag sample with the final sample still queued")
-        // Deliver the first sample's release verification while the final
-        // sample of the same drag is still waiting on the mixer's queue.
-        while !DispatchQueue.main.work.isEmpty { DispatchQueue.main.run() }
-        MicMuteService.shared.halQueue.run()
-        DispatchQueue.drain()
-        suite.expect(requests == [0.375, 0.75] && HAL.levels[master] == 0.75 && drag.inputVolume == 0.75,
-                     "an intervening release check preserves the final queued sample of the user's drag")
-        drag.stop()
+        for ignoresLast in [false, true] {
+            let drag = exhaustedMixer([master: 0.625])
+            HAL.ignoredWrites = []
+            var requests: [Double] = []
+            HAL.beforeControlWrite = { key, target in
+                guard key == master else { return }
+                requests.append(target)
+                if ignoresLast && target == 0.75 { HAL.ignoredWrites.insert(master) }
+            }
+            drag.setInputVolume(0.375)
+            drag.setInputVolume(0.75)
+            drag.halQueue.run()
+            suite.expect(requests == [0.375] && HAL.levels[master] == 0.375,
+                         "the driver has accepted the first drag sample with the final sample still queued")
+            // Verify the first sample while the last one still waits on the mixer queue.
+            while !DispatchQueue.main.work.isEmpty { DispatchQueue.main.run() }
+            MicMuteService.shared.halQueue.run()
+            DispatchQueue.drain()
+            let result: Float = ignoresLast ? 0.375 : 0.75
+            suite.expect(requests == [0.375, 0.75] && HAL.levels[master] == result && drag.inputVolume == Double(result)
+                         && (MicMuteService.shared.warning != nil) == ignoresLast,
+                         "the last queued drag sample gets its own readback even after the first sample was confirmed")
+            relaunch(drag)
+            suite.expect(HAL.writes.isEmpty && HAL.levels[master] == result && (MicMuteService.shared.warning != nil) == ignoresLast,
+                         "neither queued edit can restore the pre-drag target after relaunch")
+        }
 
         let rounded: Float = 0.4
         for accepts in [true, false] {
             let mixer = exhaustedMixer([master: 0.625, linked: 0.25, independent: 0.875])
             if accepts { HAL.ignoredWrites.remove(master) }
+            else { HAL.writeFails = Set(HAL.levels.keys) }
             HAL.minimumGain[master] = rounded
             HAL.afterWrite = { HAL.levels[linked] = HAL.levels[master] }
             mixer.setInputVolume(0.375)
             DispatchQueue.drain()
             let applied: Float = accepts ? rounded : 0
-            suite.expect(HAL.writes == [master] && HAL.levels == [master: applied, linked: applied, independent: 0]
+            suite.expect(HAL.writes == (accepts ? [master] : [master, linked, independent])
+                         && HAL.levels == [master: applied, linked: applied, independent: 0]
                          && mixer.inputVolume == Double(applied) && MicMuteService.shared.hasOutstandingClaims,
                          accepts ? "a rounded mixer edit preserves the actual master and linked channel gains"
-                                 : "a silently ignored mixer edit preserves the pending gains without another setter")
+                                 : "genuine setter errors leave the original gain claims pending")
             relaunch(mixer)
             let expected: [Key: Float] = [master: accepts ? rounded : 0.625,
                                           linked: accepts ? rounded : 0.25, independent: 0.875]
             suite.expect(HAL.levels == expected && HAL.writes == (accepts ? [independent] : [master, linked, independent])
                          && !MicMuteService.shared.hasOutstandingClaims,
                          accepts ? "relaunch preserves the rounded edit and restores only the independent channel"
-                                 : "relaunch restores every original target after the driver ignored the mixer edit")
+                                 : "relaunch restores every original target after all mixer setters failed")
         }
+
+        let ignored = exhaustedMixer([master: 0.625])
+        ignored.setInputVolume(0.375)
+        DispatchQueue.drain()
+        suite.expect(HAL.writes == [master] && ignored.inputVolume == 0 && MicMuteService.shared.warning != nil,
+                     "an accepted edit that the driver ignored displays its actual gain and an unresolved status")
+        relaunch(ignored)
+        suite.expect(HAL.writes.isEmpty && HAL.levels[master] == 0 && MicMuteService.shared.warning != nil,
+                     "an accepted but unconfirmed edit still precludes restoring the superseded gain on relaunch")
+
+        let delayed = exhaustedMixer([master: 0.625])
+        delayed.setInputVolume(0.375)
+        DispatchQueue.drain()
+        delayed.setInputVolume(0.75)
+        DispatchQueue.drain()
+        HAL.levels[master] = 0.375
+        suite.expect(HAL.notifyIfRegistered(master), "the mixer receives the driver's delayed publication")
+        DispatchQueue.drain()
+        suite.expect(delayed.inputVolume == 0.375 && MicMuteService.shared.warning != nil,
+                     "a read matching the first drag sample cannot confirm the latest edit")
+        HAL.levels[master] = 0.75
+        _ = HAL.notifyIfRegistered(master)
+        DispatchQueue.drain()
+        suite.expect(delayed.inputVolume == 0.75 && MicMuteService.shared.warning == nil && HAL.writes == [master, master],
+                     "a later reading of the latest edit on its own UID can confirm the gain without a setter")
+        relaunch(delayed)
+        suite.expect(HAL.levels[master] == 0.75 && HAL.writes.isEmpty && MicMuteService.shared.warning == nil,
+                     "a confirmed late publication leaves no gain or reminder to restore on relaunch")
+
+        let unreadable = exhaustedMixer([master: 0.625])
+        HAL.ignoredWrites = []
+        HAL.afterWrite = { HAL.readFails.insert(master) }
+        unreadable.setInputVolume(0.375)
+        DispatchQueue.drain()
+        suite.expect(HAL.writes == [master] && MicMuteService.shared.warning != nil,
+                     "a failed immediate read of an accepted setter leaves confirmation pending")
+        relaunch(unreadable)
+        suite.expect(MicMuteService.shared.warning != nil && HAL.writes.isEmpty,
+                     "the unconfirmed edit survives relaunch while its gain is still unreadable")
+        HAL.readFails = []
+        let reopened = AudioInputDeviceManager()
+        reopened.start()
+        DispatchQueue.drain()
+        suite.expect(HAL.writes.isEmpty && reopened.inputVolume == 0.375 && HAL.levels[master] == 0.375
+                     && MicMuteService.shared.warning == nil,
+                     "opening the mixer confirms the now-readable edit on its own UID without a gain notification")
+        reopened.stop()
+
+        let other = HAL.key(20)
+        for unreadableBefore in [true, false] {
+            let uncertain = exhaustedMixer([master: 0.625, linked: 0.25, independent: 0.875, other: 0.5])
+            var atReadback: [String: Any]?
+            HAL.ignoredWrites.remove(master)
+            if unreadableBefore { HAL.readFails.insert(linked) }
+            HAL.afterWrite = {
+                HAL.levels[linked] = HAL.levels[master]
+                if unreadableBefore { HAL.readFails.remove(linked) } else { HAL.readFails.insert(linked) }
+                if !unreadableBefore { HAL.afterGainRead[master] = { atReadback = UserDefaults.standard.values } }
+            }
+            uncertain.setInputVolume(0.375)
+            DispatchQueue.drain()
+            HAL.readFails = []
+            relaunch(uncertain)
+            suite.expect(HAL.writes == [independent, other]
+                         && HAL.levels == [master: 0.375, linked: 0.375, independent: 0.875, other: 0.5]
+                         && MicMuteService.shared.warning == .manualRestore,
+                         "a missing \(unreadableBefore ? "before" : "after") read hands only the ambiguous alias to manual review")
+            if !unreadableBefore {
+                // Resume from what was durable during the first post-Set read.
+                suite.expect(atReadback != nil, "the HAL captured the preferences during master readback")
+                if let atReadback {
+                    UserDefaults.standard.values = atReadback
+                    HAL.relaunchClient()
+                    let reader = AudioInputDeviceManager()
+                    reader.start()
+                    DispatchQueue.drain()
+                    suite.expect(reader.inputVolume == 0.375 && HAL.levels[linked] == 0.375
+                                 && MicMuteService.shared.warning == .manualRestore,
+                                 "confirming the master on launch cannot dismiss its interrupted alias check")
+                    reader.stop()
+                }
+            }
+        }
+
+        let replaced = exhaustedMixer([master: 0.625])
+        HAL.ignoredWrites = []
+        HAL.afterWrite = {
+            HAL.uids[10] = "replacement"
+            HAL.levels[master] = 0.875
+        }
+        replaced.setInputVolume(0.375)
+        DispatchQueue.drain()
+        suite.expect(replaced.inputVolume != 0.875 || replaced.effectiveInputDeviceUID == "replacement",
+                     "a read from a reused ID cannot appear under the original microphone's name")
+        HAL.levels[master] = 0.375
+        _ = HAL.notifyIfRegistered(master)
+        DispatchQueue.drain()
+        suite.expect(MicMuteService.shared.warning != nil,
+                     "a replacement with the requested gain cannot confirm the original input's edit")
+        HAL.uids[10] = "device-10"
+        HAL.levels[master] = 0.125
+        relaunch(replaced)
+        suite.expect(HAL.writes.isEmpty && HAL.levels[master] == 0.125 && MicMuteService.shared.warning != nil,
+                     "the accepted edit retired the old UID's target before the object ID changed")
 
         let failed = exhaustedMixer([master: 0.625])
         HAL.writeFails = [master]

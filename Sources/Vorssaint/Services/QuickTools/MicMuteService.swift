@@ -74,21 +74,25 @@ final class MicMuteService: ObservableObject {
     /// Only the serial audio queue updates retry state or runs the timer.
     private typealias ControlRetries = [InputDevice: [String: MicMuteSupport.Retry]]
     private var retries: ControlRetries = [:]
-    /// An unverified setter gets two spaced retries on this connection.
+    /// A writable control gets up to three timed restore opportunities.
     private struct RestoreAttempt {
         let target: Double
         let count: Int
         let deadline: TimeInterval?
+        let hasSubmitted: Bool
 
-        init(target: Double, previous: Self?, now: TimeInterval) {
+        init(target: Double, previous: Self?, submitted: Bool, now: TimeInterval) {
             self.target = target
             count = (previous?.count ?? 0) + 1
             deadline = count < 3 ? now + MicMuteService.recoveryDelays[count - 1] : nil
+            hasSubmitted = submitted || previous?.hasSubmitted == true
         }
 
         func defersWrite(at now: TimeInterval) -> Bool {
             guard let deadline else { return true }
-            return now < deadline
+            // A control that first becomes readable can take its first Set
+            // on that notification, without waiting for an outstanding timer.
+            return hasSubmitted && now < deadline
         }
     }
     private var attemptedRestores: [InputDevice: [String: RestoreAttempt]] = [:]
@@ -159,7 +163,7 @@ final class MicMuteService: ObservableObject {
 
     private init(uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.uptime = uptime
-        if !wantsMute, UserDefaults.standard.bool(forKey: DefaultsKey.micMuteManualCheckNeeded) {
+        if !wantsMute, Self.needsManualCheck {
             warning = .manualRestore
         }
         hotkey.onPress = { [weak self] in self?.toggle() }
@@ -293,17 +297,50 @@ final class MicMuteService: ObservableObject {
         apply(muted: muted, announce: true, newMuteRequest: muted)
     }
 
-    /// The user checked the original input manually. This acknowledgement
+    /// The user checked the input manually. This acknowledgement
     /// dismisses a reminder and never writes to an audio device.
     func acknowledgeManualRestore() {
         guard warning == .manualRestore else { return }
         halQueue.async { [weak self] in
             guard let self else { return }
             UserDefaults.standard.removeObject(forKey: DefaultsKey.micMuteManualCheckNeeded)
-            DispatchQueue.main.async {
-                guard self.warning == .manualRestore else { return }
-                self.warning = self.hasOutstandingClaims ? .restoreUnconfirmed : nil
-            }
+            self.refreshManualWarning()
+        }
+    }
+
+    // The original Boolean reminder requires a human check. When only the
+    // result of a mixer Set is uncertain, the same reminder can name the
+    // values to verify. Neither form is a restore target.
+    private static var mixerChecks: [String: [String: Double]] {
+        UserDefaults.standard.dictionary(forKey: DefaultsKey.micMuteManualCheckNeeded) as? [String: [String: Double]] ?? [:]
+    }
+
+    private static var needsManualCheck: Bool {
+        let reminder = UserDefaults.standard.object(forKey: DefaultsKey.micMuteManualCheckNeeded)
+        return reminder as? Bool == true || (reminder as? [String: [String: Double]])?.isEmpty == false
+    }
+
+    static func hasMixerRecovery(for uid: String) -> Bool {
+        if mixerChecks[uid] != nil { return true }
+        return releasePending && UserDefaults.standard.stringArray(forKey: DefaultsKey.micMuteMutedDevices)?.contains(uid) == true
+    }
+
+    private static func saveMixerChecks(_ checks: [String: [String: Double]]) {
+        let defaults = UserDefaults.standard
+        let key = DefaultsKey.micMuteManualCheckNeeded
+        if checks.isEmpty {
+            if defaults.object(forKey: key) != nil { defaults.removeObject(forKey: key) }
+        } else if checks != mixerChecks {
+            defaults.set(checks, forKey: key)
+        }
+    }
+
+    private func refreshManualWarning() {
+        DispatchQueue.main.async {
+            guard !self.wantsMute else { return }
+            if self.hasOutstandingClaims || Self.releasePending { self.reapplyIfNeeded() }
+            else if Self.needsManualCheck { self.warning = .manualRestore }
+            else if self.warning == .manualRestore { self.warning = nil }
         }
     }
 
@@ -322,40 +359,109 @@ final class MicMuteService: ObservableObject {
         }
     }
 
-    /// A mixer edit may round the requested gain or move linked controls. Read
-    /// only this UID's outstanding controls on either side of the user's write.
-    func adjustInputVolume(lifetime: UUID, uid: String, device: AudioDeviceID, to gain: Float,
-                           write: () -> [AudioObjectPropertyAddress]) {
-        withUnmutedInput(lifetime: lifetime) {
-            let defaults = UserDefaults.standard
-            guard Self.releasePending,
-                  var saved = defaults.dictionary(forKey: DefaultsKey.micMuteSavedControls) as? [String: [String: Double]],
-                  let pending = saved[uid], !pending.isEmpty else {
-                _ = write()
-                return
+    private static func mixerReadings(_ keys: Set<String>, uid: String, device: AudioDeviceID) -> [String: Double] {
+        guard inputUID(of: device) == uid else { return [:] }
+        var result: [String: Double] = [:]
+        for key in keys {
+            if let address = controlAddress(key) { result[key] = controlValue(of: device, at: address) }
+        }
+        return inputUID(of: device) == uid ? result : [:]
+    }
+
+    /// Runs inside withUnmutedInput. A successful setter retires its old
+    /// target before another HAL read, even if the driver publishes later.
+    func adjustInputVolume(uid: String, device: AudioDeviceID, at address: AudioObjectPropertyAddress, to gain: Float,
+                           recovering: Bool, write: () -> OSStatus?) -> OSStatus? {
+        let defaults = UserDefaults.standard
+        let direct = Self.controlKey(address)
+        var reminders = Self.mixerChecks
+        var checks = reminders[uid] ?? [:]
+        guard recovering || Self.releasePending || !checks.isEmpty else { return write() }
+        let recordKey = DefaultsKey.micMuteSavedControls
+        var saved = defaults.dictionary(forKey: recordKey) as? [String: [String: Double]] ?? [:]
+        let pending = saved[uid] ?? [:]
+        // A UID gain without resolved controls cannot identify an independent
+        // channel. Leave it to manual review if the user adjusts this input.
+        let unresolvedGain = saved[uid] == nil && Self.releasePending
+            && defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices)?.contains(uid) == true
+            && (defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes)?[uid] != nil
+                || defaults.dictionary(forKey: DefaultsKey.micMuteSavedChannelVolumes)?[uid] != nil)
+        let affected = Set(pending.keys).union(checks.keys).filter { key in
+            guard let control = Self.controlAddress(key) else {
+                // A bare element is an unresolved historical gain.
+                return Self.isMasterGain(address) || key == String(address.mElement)
             }
-            guard Self.inputUID(of: device) == uid else { return }
-            let addresses = pending.keys.compactMap(Self.controlAddress)
-            func readings() -> [String: Double] {
-                var result: [String: Double] = [:]
-                for address in addresses {
-                    result[Self.controlKey(address)] = Self.controlValue(of: device, at: address)
-                }
-                return result
+            return key == direct || (Self.isMasterGain(address) && control.mSelector != kAudioDevicePropertyMute)
+        }
+        guard recovering || unresolvedGain || !affected.isEmpty else { return write() }
+        let keys = affected.union([direct])
+        let before = Self.mixerReadings(keys, uid: uid, device: device)
+        guard let status = write() else { return nil }
+        let accepted = status == noErr
+        let awaitingEarlierEdit = checks[direct] != nil
+        let reminderKey = DefaultsKey.micMuteManualCheckNeeded
+        let alreadyManual = defaults.object(forKey: reminderKey) as? Bool == true
+        func storeReminder(manual: Bool) {
+            guard !alreadyManual else { return }
+            if manual { defaults.set(true, forKey: reminderKey) }
+            else {
+                reminders[uid] = checks.isEmpty ? nil : checks
+                Self.saveMixerChecks(reminders)
             }
-            let before = readings()
-            let submitted = Set(write().map(Self.controlKey))
-            guard !submitted.isEmpty else { return }
-            let after = readings()
-            guard Self.inputUID(of: device) == uid else { return }
-            for (key, value) in after {
-                let moved = before[key].map { $0 != value } == true
-                if moved || (submitted.contains(key) && Self.controlValuesMatch(value, Double(gain))) {
-                    saved[uid]?[key] = value
-                }
+        }
+        func storeTargets(_ targets: [String: Double]) {
+            guard (saved[uid] != nil || unresolvedGain), saved[uid] != targets else { return }
+            saved[uid] = targets
+            defaults.set(saved, forKey: recordKey)
+        }
+        if accepted {
+            storeTargets(pending.filter { !affected.contains($0.key) })
+            checks[direct] = Double(gain)
+            // If interrupted during readback, a possibly linked channel still
+            // needs a human check even if the master later matches the edit.
+            storeReminder(manual: unresolvedGain || affected.contains { $0 != direct })
+        }
+        let after = Self.mixerReadings(keys, uid: uid, device: device)
+        func moved(_ key: String) -> Bool {
+            guard let previous = before[key], let current = after[key] else { return false }
+            return previous != current
+        }
+        let directMoved = moved(direct) && !awaitingEarlierEdit
+        let confirmed = after[direct].map { Self.controlValuesMatch($0, Double(gain)) } == true
+        if (accepted && confirmed) || directMoved { checks[direct] = nil }
+        var remaining = pending
+        var ambiguous = unresolvedGain && (accepted || directMoved)
+        for key in affected {
+            if moved(key) || (accepted && key == direct) {
+                remaining[key] = nil
+                if key != direct { checks[key] = nil }
+            } else if key != direct && (accepted || directMoved) && !(directMoved && before[key] != nil && after[key] != nil) {
+                // A silent or unreadable alias may still follow the master later.
+                remaining[key] = nil
+                ambiguous = true
             }
-            if saved[uid] != pending { defaults.set(saved, forKey: DefaultsKey.micMuteSavedControls) }
-            scheduleReapply()
+        }
+        if accepted || directMoved || remaining != pending { storeTargets(remaining) }
+        storeReminder(manual: ambiguous)
+        refreshManualWarning()
+        return status
+    }
+
+    /// The mixer's later HAL refresh verifies individual addresses. A channel
+    /// average or an older drag sample cannot confirm the latest edit.
+    func verifyMixerEdits(uid: String, device: AudioDeviceID) {
+        guard Self.mixerChecks[uid] != nil else { return }
+        halQueue.sync {
+            var reminders = Self.mixerChecks
+            guard inputVolumeAdjustmentLifetime != nil, let checks = reminders[uid] else { return }
+            let values = Self.mixerReadings(Set(checks.keys), uid: uid, device: device)
+            let remaining = checks.filter { key, target in
+                values[key].map { Self.controlValuesMatch($0, target) } != true
+            }
+            guard remaining.count != checks.count else { return }
+            reminders[uid] = remaining.isEmpty ? nil : remaining
+            Self.saveMixerChecks(reminders)
+            refreshManualWarning()
         }
     }
 
@@ -403,7 +509,7 @@ final class MicMuteService: ObservableObject {
         if !stillOwed { Self.persistRelease(false) }
         isMuted = false
         var nextWarning: Warning? = stillOwed ? .restoreUnconfirmed : nil
-        if defaults.bool(forKey: DefaultsKey.micMuteManualCheckNeeded) { nextWarning = .manualRestore }
+        if Self.needsManualCheck { nextWarning = .manualRestore }
         if nextWarning != warning {
             warning = nextWarning
             nextWarning?.showHUD()
@@ -847,7 +953,7 @@ final class MicMuteService: ObservableObject {
             outcome.failed = true
             outcome.applied = true
         }
-        outcome.requiresManualLegacyRestore = requiresManualCheck || defaults.bool(forKey: DefaultsKey.micMuteManualCheckNeeded)
+        outcome.requiresManualLegacyRestore = requiresManualCheck
         if let uid = remaining?.uid {
             if !outcome.mutedDevices.contains(uid) { outcome.mutedDevices.append(uid) }
             outcome.failed = true
@@ -902,7 +1008,7 @@ final class MicMuteService: ObservableObject {
             record = outcome
         }
         if let record {
-            if requiresManualCheck && !defaults.bool(forKey: DefaultsKey.micMuteManualCheckNeeded) {
+            if requiresManualCheck && defaults.object(forKey: DefaultsKey.micMuteManualCheckNeeded) as? Bool != true {
                 defaults.set(true, forKey: DefaultsKey.micMuteManualCheckNeeded)
             }
             if savedVolumes != record.savedVolumes {
@@ -1076,7 +1182,7 @@ final class MicMuteService: ObservableObject {
         let nextWarning: Warning?
         if isMuted {
             nextWarning = controlsConfirmed ? nil : .muteUnconfirmed
-        } else if outcome.requiresManualLegacyRestore {
+        } else if outcome.requiresManualLegacyRestore || Self.needsManualCheck {
             nextWarning = .manualRestore
         } else if outcome.restoreAttemptsExhausted {
             nextWarning = .restoreExhausted
@@ -1884,6 +1990,7 @@ final class MicMuteService: ObservableObject {
             let key = controlKey(address)
             let previous = attempts[key].flatMap { $0.target == target ? $0 : nil }
             var submitted = false
+            var checkDue = previous?.deadline.map { $0 <= now } ?? false
             switch writeControl(target, of: device, at: address, isCurrent: isCurrent, prepare: prepare,
                                 deferRestore: previous?.defersWrite(at: now) == true) {
             case .submitted:
@@ -1893,18 +2000,25 @@ final class MicMuteService: ObservableObject {
                 // A failed read alone cannot prove a new control appeared.
                 var address = address
                 var settable = DarwinBoolean(false)
-                if previous != nil, !AudioObjectHasProperty(device.id, &address)
-                    || (AudioObjectIsPropertySettable(device.id, &address, &settable) == noErr && !settable.boolValue) {
+                guard AudioObjectHasProperty(device.id, &address) else {
                     attempts[key] = nil
                     return false
+                }
+                let status = AudioObjectIsPropertySettable(device.id, &address, &settable)
+                if status == noErr {
+                    guard settable.boolValue else {
+                        attempts[key] = nil
+                        return false
+                    }
+                    if previous == nil { checkDue = isCurrent(device) }
                 }
             case .unchanged: break
             case .interrupted: return false
             }
             // A due check can fail before Set, or its final read can still
             // disagree. Each uses one opportunity on this present control.
-            if submitted || previous?.defersWrite(at: now) == false {
-                attempts[key] = RestoreAttempt(target: target, previous: previous, now: now)
+            if submitted || checkDue {
+                attempts[key] = RestoreAttempt(target: target, previous: previous, submitted: submitted, now: now)
             }
             return submitted
         }

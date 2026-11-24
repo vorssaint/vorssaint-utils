@@ -187,6 +187,7 @@ final class AudioInputDeviceManager: ObservableObject {
               volumeDeviceID == device.audioObjectID, inputVolume != nil else { return }
         let clamped = min(max(volume, 0), 1)
         let lifetime = volumeWriteLock.withLock { volumeWriteLifetime }
+        let recovering = MicMuteService.hasMixerRecovery(for: uid)
         volumeRefreshGeneration &+= 1
         if inputVolume != clamped { inputVolume = clamped }
         halQueue.async { [weak self] in
@@ -195,13 +196,17 @@ final class AudioInputDeviceManager: ObservableObject {
             // this adjustment was waiting for the audio device.
             let gain = Float32(clamped)
             let mute = MicMuteService.shared
-            mute.adjustInputVolume(lifetime: muteLifetime, uid: uid, device: device.audioObjectID, to: gain) {
-                Self.setInputVolume(gain, for: device.audioObjectID) {
-                    var deviceUID: CFString = "" as CFString
-                    return Self.defaultInputDeviceUID() == uid
-                        && Self.read(device.audioObjectID, kAudioDevicePropertyDeviceUID, &deviceUID)
-                        && deviceUID as String == uid && mute.inputVolumeAdjustmentLifetime == muteLifetime
-                        && self.volumeWriteLock.withLock { self.volumeWriteLifetime == lifetime }
+            let deviceID = device.audioObjectID
+            mute.withUnmutedInput(lifetime: muteLifetime) {
+                Self.writeInputVolume(on: deviceID) { address in
+                    mute.adjustInputVolume(uid: uid, device: deviceID, at: address, to: gain, recovering: recovering) {
+                        guard Self.defaultInputDeviceID() == deviceID, Self.inputDeviceUID(for: deviceID) == uid,
+                              mute.inputVolumeAdjustmentLifetime == muteLifetime,
+                              self.volumeWriteLock.withLock({ self.volumeWriteLifetime == lifetime }) else { return nil }
+                        var address = address
+                        var value = gain
+                        return AudioObjectSetPropertyData(deviceID, &address, 0, nil, UInt32(MemoryLayout<Float32>.size), &value)
+                    }
                 }
             }
             DispatchQueue.main.async {
@@ -348,12 +353,12 @@ final class AudioInputDeviceManager: ObservableObject {
               let device = devices.first(where: { $0.uid == savedUID }) else {
             let volume = resolution.effectiveUID
                 .flatMap { uid in devices.first(where: { $0.uid == uid }) }
-                .flatMap { inputVolume(for: $0.audioObjectID) }
+                .flatMap { volumeReading(on: $0.audioObjectID, uid: $0.uid)?.gain }
             return RefreshSnapshot(savedUID: savedUID,
                                    currentUID: currentUID,
                                    devices: devices,
                                    resolution: resolution,
-                                   inputVolume: volume.map(Double.init),
+                                   inputVolume: volume,
                                    volumeGeneration: request.volumeGeneration,
                                    applied: nil)
         }
@@ -366,7 +371,7 @@ final class AudioInputDeviceManager: ObservableObject {
                                currentUID: currentUID,
                                devices: devices,
                                resolution: resolution,
-                               inputVolume: inputVolume(for: device.audioObjectID).map(Double.init),
+                               inputVolume: volumeReading(on: device.audioObjectID, uid: device.uid)?.gain,
                                volumeGeneration: request.volumeGeneration,
                                applied: AppliedInput(device: device,
                                                      status: status,
@@ -576,7 +581,7 @@ final class AudioInputDeviceManager: ObservableObject {
     }
 
     private func scheduleVolumeRefresh(for deviceID: AudioObjectID) {
-        guard listenerInstalled, volumeDeviceID == deviceID else { return }
+        guard listenerInstalled, volumeDeviceID == deviceID, let uid = effectiveInputDeviceUID else { return }
         volumeRefreshGeneration &+= 1
         let generation = volumeRefreshGeneration
         // A drag can emit several property notifications for each step. Read
@@ -585,18 +590,29 @@ final class AudioInputDeviceManager: ObservableObject {
             guard let self,
                   self.listenerInstalled,
                   self.volumeDeviceID == deviceID,
+                  self.effectiveInputDeviceUID == uid,
                   self.volumeRefreshGeneration == generation else { return }
             self.halQueue.async { [weak self] in
-                let volume = Self.inputVolume(for: deviceID).map(Double.init)
+                guard let reading = Self.volumeReading(on: deviceID, uid: uid) else { return }
                 DispatchQueue.main.async {
                     guard let self,
                           self.listenerInstalled,
                           self.volumeDeviceID == deviceID,
+                          self.effectiveInputDeviceUID == reading.uid,
                           self.volumeRefreshGeneration == generation else { return }
-                    if self.inputVolume != volume { self.inputVolume = volume }
+                    if self.inputVolume != reading.gain { self.inputVolume = reading.gain }
                 }
             }
         }
+    }
+
+    /// A matching device can legitimately have no readable gain.
+    private static func volumeReading(on deviceID: AudioObjectID, uid: String) -> (uid: String, gain: Double?)? {
+        guard inputDeviceUID(for: deviceID) == uid else { return nil }
+        let gain = inputVolume(for: deviceID).map(Double.init)
+        guard inputDeviceUID(for: deviceID) == uid else { return nil }
+        MicMuteService.shared.verifyMixerEdits(uid: uid, device: deviceID)
+        return (uid, gain)
     }
 
     private static func isSettable(_ deviceID: AudioObjectID,
@@ -637,28 +653,19 @@ final class AudioInputDeviceManager: ObservableObject {
         return min(max(channelVolumes.reduce(0, +) / Float32(channelVolumes.count), 0), 1)
     }
 
-    private static func setInputVolume(_ volume: Float32, for deviceID: AudioObjectID,
-                                       isCurrent: () -> Bool) -> [AudioObjectPropertyAddress] {
-        var submitted: [AudioObjectPropertyAddress] = []
-        func set(_ address: inout AudioObjectPropertyAddress) -> OSStatus {
-            var nextVolume = volume
-            submitted.append(address)
-            return AudioObjectSetPropertyData(deviceID, &address, 0, nil, UInt32(MemoryLayout<Float32>.size), &nextVolume)
-        }
+    private static func writeInputVolume(on deviceID: AudioObjectID,
+                                         write: (AudioObjectPropertyAddress) -> OSStatus?) {
         // Prefer a master control and stop at the first successful selector so
         // devices exposing both master and channels keep their channel balance.
         for var address in mainInputVolumeAddresses() where isSettable(deviceID, &address) {
-            guard isCurrent() else { return submitted }
-            if set(&address) == noErr { return submitted }
+            guard let status = write(address), status != noErr else { return }
         }
 
         // With no usable master, every writable channel must be updated or a
         // channel-only microphone would remain partially unchanged.
         for var address in channelInputVolumeAddresses(for: deviceID) where isSettable(deviceID, &address) {
-            guard isCurrent() else { break }
-            _ = set(&address)
+            guard write(address) != nil else { return }
         }
-        return submitted
     }
 
     private static func inputDevices(defaultUID: String?) -> [MixerInputDevice] {
@@ -693,10 +700,7 @@ final class AudioInputDeviceManager: ObservableObject {
                 continue
             }
 
-            var uidRef: CFString = "" as CFString
-            guard read(deviceID, kAudioDevicePropertyDeviceUID, &uidRef) else { continue }
-            let uid = uidRef as String
-            guard !uid.isEmpty else { continue }
+            guard let uid = inputDeviceUID(for: deviceID) else { continue }
 
             var nameRef: CFString = "" as CFString
             let name = read(deviceID, kAudioObjectPropertyName, &nameRef)
@@ -731,14 +735,23 @@ final class AudioInputDeviceManager: ObservableObject {
             && size >= MemoryLayout<AudioObjectID>.size
     }
 
-    private static func defaultInputDeviceUID() -> String? {
+    private static func defaultInputDeviceID() -> AudioObjectID? {
         var defaultDevice = AudioObjectID(0)
         guard read(AudioObjectID(kAudioObjectSystemObject),
                    kAudioHardwarePropertyDefaultInputDevice, &defaultDevice),
               defaultDevice != 0 else { return nil }
+        return defaultDevice
+    }
+
+    private static func inputDeviceUID(for deviceID: AudioObjectID) -> String? {
         var uidRef: CFString = "" as CFString
-        guard read(defaultDevice, kAudioDevicePropertyDeviceUID, &uidRef) else { return nil }
-        return uidRef as String
+        guard read(deviceID, kAudioDevicePropertyDeviceUID, &uidRef) else { return nil }
+        let uid = uidRef as String
+        return uid.isEmpty ? nil : uid
+    }
+
+    private static func defaultInputDeviceUID() -> String? {
+        defaultInputDeviceID().flatMap(inputDeviceUID(for:))
     }
 
     @discardableResult
