@@ -508,13 +508,14 @@ def main():
               "    private func cancelPendingAudio(",
               "    func requestSpeakers(", "    private func acceptsSpeakerTarget(", "    private func drainPendingAudio(",
               "    private func isCurrentSpeakerChange(", "    private func confirmSliderWrite(",
-              "    private func writeSpeakers(",
+              "    private func writeSpeakers(", "    func confirmDefaultOutputUID(",
               "    func monitorSpeakerOutput(", "    private func confirmsZeroUnmute(", "    private func probeAudio("])
           + "}\n}\n"
           + "extension DisplaySpeakerVolumeTests.DDCWriter {\n"
           + declaration(brightness, "    private func ddcSend(").replace("private func", "func", 1)
           + "}\nextension DisplaySpeakerVolumeTests.PreciseVolumeRollerService {\n"
           + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", "    static func playVolumeFeedback(")
+          + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", "    private static func playVolumeClick(")
           + "}\n")
     write("BrightnessKeyRouting.swift", "import AppKit\nimport os\n"
           + "extension BrightnessKeyRoutingTests {\nfinal class Service: Fixture {\n"
@@ -1388,7 +1389,8 @@ def main():
                         "    private func noteNativeVolumeKey(",
                         "    private static func volumePress(",
                         "    private func routeNotchVolume(", "    private func routeMonitorVolume(",
-                        "    private func applyMonitorVolumeKey(", "    private func playFeedbackIfReady("])
+                        "    private func applyMonitorVolumeKey(", "    private func playFeedbackIfReady(",
+                        "    private static func playVolumeClick("])
           + "}\n}\n")
     mixer_section = "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift"
     write("MixerPercentKey.swift", "import AppKit\nimport SwiftUI\nextension MixerPercentKeyTests {\nfinal class Coordinator: Fixture {\n"

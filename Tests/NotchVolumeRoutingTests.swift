@@ -99,7 +99,7 @@ enum NotchVolumeRoutingTests {
         func reset() -> Service {
             DispatchQueue.main = MixerOutputAdjustmentContract.Queue()
             Hardware.reset()
-            BrightnessService.shared.clicks = 0
+            BrightnessService.shared.clickDeviceUIDs = []
             UserDefaults.precise = false
             Hardware.volume = 0.5
             AppVolumeMixer.shared = MixerOutputAdjustmentContract.Mixer()
@@ -620,7 +620,7 @@ enum NotchVolumeRoutingTests {
         speakers.finish()
         suite.expect(speakers.raw == 3 && NotchService.shared.shownLevels == [0.03] && speakers.clicks == 0,
                      "the monitor shows the confirmed fine level and holds its click until release")
-        speakers.selectedAudioOutput = (32, "Monitor B")
+        speakers.selectedAudioOutput = (32, "Monitor B", "monitor-b")
         speakers.actualDevice = 32
         speakers.audioRoutes[8] = .init(path: "port-b", fingerprint: "fixture-identity",
                                         service: NSObject(), registryEntryID: 2, chipAddress: BrightnessSupport.chipAddress,
@@ -633,20 +633,23 @@ enum NotchVolumeRoutingTests {
         suite.expect(monitorPress(0x0a00, flags: fine) && monitorPress(0x0b00),
                      "a fresh press can start on the newly selected monitor")
         speakers.finish()
-        suite.expect(speakers.writtenIDs == [7, 8] && NotchService.shared.shownLevels.last == 0.04 && speakers.clicks == 1,
+        suite.expect(speakers.writtenIDs == [7, 8] && NotchService.shared.shownLevels.last == 0.04
+                     && speakers.clickDeviceUIDs == ["monitor-b"],
                      "a fresh press released before confirmation clicks once when the new monitor confirms")
         suite.expect(monitorPress(0x0a00, flags: fine) && monitorPress(0x0a01, flags: fine),
                      "the same monitor claims the press and its repeat")
         speakers.finish()
         suite.expect(speakers.raw == 6 && speakers.clicks == 1, "confirmed repeats wait for release")
-        suite.expect(monitorPress(0x0b00) && speakers.clicks == 2, "the held key clicks once on the same monitor")
+        suite.expect(monitorPress(0x0b00) && speakers.clicks == 1, "the release waits for the default-output check")
+        speakers.finish()
+        suite.expect(speakers.clickDeviceUIDs == ["monitor-b", "monitor-b"], "the held key clicks once on the same monitor")
         speakers.displays[0].name = "Monitor B"
         suite.expect(!monitorPress(0x0a00) && !monitorPress(0x0a01) && !monitorPress(0x0b00),
                      "identical names pass a whole press through even if only one endpoint can write")
         speakers.finish()
         suite.expect(speakers.clicks == 2, "a press left to macOS adds no monitor click")
         speakers.displays[0].name = "Monitor A"
-        speakers.selectedAudioOutput = (31, "Monitor A")
+        speakers.selectedAudioOutput = (31, "Monitor A", "monitor-a")
         speakers.actualDevice = 31
         AppVolumeMixer.shared.monitorOutput = speakers.monitorSpeakerOutput()
         speakers.rejectVolume = true
@@ -654,6 +657,47 @@ enum NotchVolumeRoutingTests {
         speakers.finish()
         suite.expect(NotchService.shared.shownLevels.count == 4 && Hardware.writes.isEmpty && speakers.clicks == 2,
                      "a rejected DDC transaction never announces a level, writes HAL or plays a click")
+        DisplaySpeakerVolumeTests.PreciseVolumeRollerService.playVolumeFeedback()
+        suite.expect(speakers.clickDeviceUIDs == ["monitor-b", "monitor-b", nil],
+                     "ordinary volume feedback uses the default output again")
 
+        enum ReleaseChange: CaseIterable {
+            case defaultBeforeRelease, reusedDeviceID, missingUID, newKeyAfterRead, routeAfterRead, defaultAfterRead
+        }
+        for change in ReleaseChange.allCases {
+            service = reset()
+            let mixer = AppVolumeMixer.shared
+            let display = DisplaySpeakerVolumeTests.connect(mixer, raw: 2)
+            let down = route(.volumeUp, states: [0x0a00], flags: fine)
+            display.finish()
+            suite.expect(down.consumed == [true] && display.writtenIDs == [7] && display.raw == 3 && display.clicks == 0,
+                         "the held monitor key confirms its write before the output changes (\(change))")
+            if change == .defaultBeforeRelease { display.actualDevice = 32 }
+            if change == .reusedDeviceID { display.outputUIDs[31] = "monitor-b" }
+            if change == .missingUID { display.outputUIDs[31] = nil }
+            let up = route(.volumeUp, states: [0x0b00])
+            suite.expect(up.consumed == [true] && mixer.monitorOutput?.target.deviceID == 31
+                         && display.defaultOutputReads == 0 && display.clicks == 0 && display.audioOutputQueue.jobs.count == 1,
+                         "release queues the hardware check without reading CoreAudio in the event tap (\(change))")
+            if !display.audioOutputQueue.jobs.isEmpty { display.audioOutputQueue.runOne() }
+            suite.expect(display.defaultOutputReads > 0 && display.clicks == 0, "the HAL reply waits for the main queue (\(change))")
+            switch change {
+            case .newKeyAfterRead:
+                let shortcut = route(.volumeDown, states: tap, flags: [.maskAlternate])
+                suite.expect(shortcut.consumed == [false, false] && shortcut.events.allSatisfy { $0.posts == 0 },
+                             "the newer Option-volume shortcut still reaches macOS")
+            case .routeAfterRead:
+                display.selectedAudioOutput = nil
+                mixer.monitorOutput = display.monitorSpeakerOutput()
+            case .defaultAfterRead:
+                // The listener has not published the new default yet.
+                display.actualDevice = 32
+            case .defaultBeforeRelease, .reusedDeviceID, .missingUID: break
+            }
+            display.finish()
+            let clickedOnConfirmedOutput = change == .defaultAfterRead && display.clickDeviceUIDs == ["monitor-a"]
+            suite.expect((display.clicks == 0 || clickedOnConfirmedOutput) && display.writtenIDs == [7],
+                         "a current release can play only on the UID confirmed for its write (\(change))")
+        }
     }
 }

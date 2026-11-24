@@ -280,7 +280,7 @@ final class BrightnessService: ObservableObject {
     /// The tap is on the main run loop. All HAL reads run off that loop.
     private let audioOutputQueue = DispatchQueue(label: "com.vorssaint.utils.display-audio")
     private var audioOutputGeneration = 0
-    private var selectedAudioOutput: (id: AudioObjectID, name: String)?
+    private var selectedAudioOutput: (id: AudioObjectID, name: String, uid: String?)?
     private var audioOutputListener: AudioObjectPropertyListenerBlock?
     private var writeSequence: UInt64 = 0
     /// Keeps fast system-key repeats based on the newest requested value while
@@ -3441,16 +3441,27 @@ final class BrightnessService: ObservableObject {
         invalidateSelectedAudioOutput()
         let generation = audioOutputGeneration
         audioOutputQueue.async {
-            let selected = Self.defaultOutputDevice().flatMap { output -> (id: AudioObjectID, name: String)? in
+            let selected = Self.defaultOutputDevice().flatMap { output -> (id: AudioObjectID, name: String, uid: String?)? in
                 guard BrightnessSupport.isDisplayAudioTransport(output.transport),
                       !AppVolumeMixer.hasSettableOutputVolume(for: output.id) else { return nil }
-                return (output.id, output.name)
+                return (output.id, output.name, AppVolumeMixer.outputDeviceUID(for: output.id))
             }
             DispatchQueue.main.async {
                 guard self.audioOutputListener != nil, self.audioOutputGeneration == generation else { return }
                 self.selectedAudioOutput = selected
                 AppVolumeMixer.shared.refreshMonitorOutput()
             }
+        }
+    }
+
+    /// A key release can precede the default-output notification on the main queue.
+    func confirmDefaultOutputUID(for device: AudioObjectID, completion: @escaping (String?) -> Void) {
+        guard let selected = selectedAudioOutput, selected.id == device,
+              let expectedUID = selected.uid, !expectedUID.isEmpty else { completion(nil); return }
+        audioOutputQueue.async {
+            let uid = AppVolumeMixer.outputDeviceUID(for: device)
+            let confirmedUID = AppVolumeMixer.defaultOutputDeviceID() == device && uid == expectedUID ? uid : nil
+            DispatchQueue.main.async { completion(confirmedUID) }
         }
     }
 
