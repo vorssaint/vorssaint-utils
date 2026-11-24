@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 7
+    private static let format = 8
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -383,6 +383,10 @@ enum AgentUsageArchive {
                     writer.optional(gap.undatedThrough) { $0.date($1) }
                 }
             }
+            if provider == .antigravity {
+                bool(value.antigravitySubagent)
+                string(value.antigravityParent)
+            }
         }
     }
 
@@ -572,6 +576,10 @@ enum AgentUsageArchive {
                         && (gap.minute == nil) != (gap.undatedThrough == nil) && gap.minute != Int.max
                 }) else { throw Malformed() }
                 value.restoreUnmeteredResponses(responses)
+            }
+            if provider == .antigravity {
+                value.antigravitySubagent = try bool()
+                value.antigravityParent = try string()
             }
             return value
         }

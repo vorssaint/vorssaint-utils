@@ -19,6 +19,7 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
     @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
+    @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
@@ -33,7 +34,7 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        _ = (claude, codex, opencode, copilot, cursor)
+        _ = (claude, codex, opencode, copilot, cursor, antigravity)
         return NotchAgentSupport.pageProviders(snapshot: usage.snapshot, hasCodexAccounts: !codexAccounts.isEmpty,
                                                hasClaudeAccount: !usage.claudeProfile.isDefault)
     }
@@ -119,7 +120,11 @@ struct NotchAgentsView: View {
                 NotchAgentLimitsCard(provider: provider, snapshot: snapshot, now: now,
                                      display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text,
                                      account: account(tile, now: now),
-                                     accountName: provider == .claude ? claudeAccountName : nil)
+                                     accountName: provider == .claude ? claudeAccountName : nil,
+                                     antigravityChecking: provider == .antigravity ? usage.antigravityAccountChecking : false,
+                                     antigravityFailure: provider == .antigravity ? usage.antigravityAccountFailure : nil,
+                                     antigravityCheckLabel: FeatureStrings.codexAccounts(l10n.language).check,
+                                     onRefreshAntigravity: provider == .antigravity ? usage.checkAntigravityAccount : nil)
             }
         case .spend:
             NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
@@ -258,6 +263,11 @@ private struct NotchAgentLimitsCard: View {
     let text: NotchAgentStrings
     var account: NotchAgentAccount? = nil
     var accountName: String? = nil
+    var antigravityChecking = false
+    var antigravityFailure: AgentAntigravityServer.Failure? = nil
+    var antigravityCheckLabel = ""
+    var onRefreshAntigravity: (() -> Void)? = nil
+    @State private var selectedGroupID: String?
     @Environment(\.locale) private var locale
 
     private var limits: AgentLimits? {
@@ -271,18 +281,31 @@ private struct NotchAgentLimitsCard: View {
         NotchAgentSupport.limitsAreStale(limits, provider: provider, account: account != nil, now: now)
     }
 
-    /// Two rows fit: the session and whichever longer window binds first.
+    private var groups: [NotchAgentLimitGroup] {
+        NotchAgentSupport.limitGroups(in: limits, now: now)
+    }
+
+    private var activeGroup: NotchAgentLimitGroup? {
+        guard !groups.isEmpty else { return nil }
+        if let selectedGroupID, let chosen = groups.first(where: { $0.id == selectedGroupID }) {
+            return chosen
+        }
+        let activeModel = snapshot.working(provider).first?.model
+        return NotchAgentSupport.defaultLimitGroup(in: groups, activeModel: activeModel)
+    }
+
+    /// Two rows fit: the session and whichever longer window binds first,
+    /// scoped to the active model pool for multi-pool providers.
     private var windows: [AgentLimitWindow] {
-        let all = (limits?.windows ?? []).map { AgentLimitSupport.current($0, at: now) }
-        let session = all.first { $0.kind == .session }
-        let longer = all.filter { $0.kind != .session }.max { $0.usedPercent < $1.usedPercent }
-        return [session, longer].compactMap { $0 }
+        activeGroup?.windows ?? NotchAgentSupport.cardWindows(in: limits, now: now)
     }
 
     var body: some View {
+        let groups = groups
+        let activeGroup = activeGroup
         let windows = windows
         NotchAgentCardChrome {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 5) {
                 NotchAgentCardHeader(title: (account?.name ?? accountName).map { provider.displayName + " · " + $0 }
                                         ?? provider.displayName,
                                      symbol: provider.symbol, tint: provider.tint, provider: provider) {
@@ -301,8 +324,52 @@ private struct NotchAgentLimitsCard: View {
                                 .accessibilityLabel(account.checkLabel)
                             }
                         } else {
+                            if let activeGroup, groups.count >= 2 {
+                                NotchAgentPoolSwitcher(groups: groups, active: activeGroup, tint: provider.tint,
+                                                       helpText: poolHelp(groups)) { next in
+                                    selectedGroupID = next
+                                }
+                            }
                             if let plan = snapshot.plans[provider] { NotchAgentChip(text: plan.name, tint: provider.tint) }
-                            if !snapshot.working(provider).isEmpty { NotchAgentPulse(tint: provider.tint, size: 5) }
+                            if !snapshot.working(provider).isEmpty, !stale {
+                                NotchAgentPulse(tint: provider.tint, size: groups.count >= 2 ? 4.5 : 5)
+                            }
+                            if provider == .antigravity {
+                                if antigravityChecking, !windows.isEmpty {
+                                    ProgressView().controlSize(.mini).scaleEffect(0.65).frame(width: 12, height: 12)
+                                } else if stale, let onRefreshAntigravity {
+                                    Button(action: onRefreshAntigravity) {
+                                        HStack(spacing: 2.5) {
+                                            if let age = staleAge {
+                                                Text(age)
+                                                    .font(.system(size: 8.5, weight: .medium))
+                                                    .monospacedDigit()
+                                            }
+                                            Image(systemName: "arrow.clockwise")
+                                                .font(.system(size: 8, weight: .semibold))
+                                        }
+                                        .foregroundStyle(.white.opacity(0.68))
+                                        .padding(.horizontal, 5)
+                                        .frame(height: 15)
+                                        .background(.white.opacity(0.09), in: Capsule(style: .continuous))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help(staleHelp)
+                                    .accessibilityLabel(antigravityCheckLabel)
+                                } else if windows.isEmpty, antigravityFailure != nil, let onRefreshAntigravity {
+                                    Button(action: onRefreshAntigravity) {
+                                        Image(systemName: "arrow.clockwise")
+                                            .font(.system(size: 8, weight: .semibold))
+                                            .foregroundStyle(.white.opacity(0.72))
+                                            .padding(.horizontal, 5)
+                                            .frame(height: 15)
+                                            .background(.white.opacity(0.09), in: Capsule(style: .continuous))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help(antigravityCheckLabel)
+                                    .accessibilityLabel(antigravityCheckLabel)
+                                }
+                            }
                         }
                     }
                 }
@@ -336,10 +403,28 @@ private struct NotchAgentLimitsCard: View {
     }
 
     private func meters(_ windows: [AgentLimitWindow]) -> some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 4) {
             ForEach(windows) { row($0) }
         }
-        .opacity(stale ? 0.6 : 1)
+    }
+
+    private var staleAge: String? {
+        guard let observed = limits?.observedAt else { return nil }
+        let seconds = max(60, now.timeIntervalSince(observed))
+        return AgentFormat.duration(seconds, locale: locale, units: 1)
+    }
+
+    private var staleHelp: String {
+        guard let observed = limits?.observedAt else { return antigravityCheckLabel }
+        let updated = text.updated(observed.formatted(.relative(presentation: .named).locale(locale)))
+        return antigravityCheckLabel.isEmpty ? updated : "\(updated) · \(antigravityCheckLabel)"
+    }
+
+    private func poolHelp(_ groups: [NotchAgentLimitGroup]) -> String {
+        groups.compactMap { group in
+            guard let peak = group.windows.max(by: { $0.usedFraction < $1.usedFraction }) else { return nil }
+            return "\(group.label): \(NotchAgentSupport.limitShare(peak, display: display, text: text))"
+        }.joined(separator: " · ")
     }
 
     /// How old a reading is, once it is old enough to have missed use elsewhere.
@@ -363,21 +448,26 @@ private struct NotchAgentLimitsCard: View {
         let reset = AgentLimitSupport.displayedReset(window, now: now).map {
             (window.estimatedResetsAt == nil ? "" : "≈ ") + countdown(to: $0)
         }
-        return VStack(alignment: .leading, spacing: 2) {
-            NotchAgentLimitReading(title: label(window),
+        return VStack(alignment: .leading, spacing: 1) {
+            NotchAgentLimitReading(title: label(window, includeScope: activeGroup == nil),
                                   share: NotchAgentSupport.limitShare(window, display: display, text: text),
                                   countdown: reset, tint: tint == provider.tint ? Color.white : tint)
+                .opacity(stale ? 0.78 : 1)
             NotchAgentMeter(value: fraction, pace: pace.map { remaining ? 1 - $0.elapsed : $0.elapsed },
-                            tint: tint, height: 4)
+                            tint: tint, height: 4, dimmed: stale)
         }
         .help(help(window))
     }
 
-    /// What the window covers: its length, or the model it is kept for.
-    private func label(_ window: AgentLimitWindow) -> String {
+    /// What the window covers: its length, or the model pool it belongs to.
+    /// When the header switcher already identifies the active pool, rows keep
+    /// concise `Session` and `Week` headings so countdowns keep their room.
+    private func label(_ window: AgentLimitWindow, includeScope: Bool = true) -> String {
         switch window.kind {
-        case .session: return text.session
-        case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
+        case .session:
+            return includeScope ? (window.scope.map { "\(text.session) · \($0)" } ?? text.session) : text.session
+        case .weekly:
+            return includeScope ? (window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly) : text.weekly
         case .other:
             guard let minutes = window.minutes else { return window.scope ?? text.readoutLimit }
             return AgentFormat.duration(TimeInterval(minutes) * 60, locale: locale, units: 1)
@@ -393,7 +483,7 @@ private struct NotchAgentLimitsCard: View {
     }
 
     private func help(_ window: AgentLimitWindow) -> String {
-        var parts = [label(window), text.usedShare(AgentFormat.percent(window.usedFraction)),
+        var parts = [label(window, includeScope: true), text.usedShare(AgentFormat.percent(window.usedFraction)),
                      text.left(AgentFormat.percent(window.remainingFraction))]
         if let resets = AgentLimitSupport.displayedReset(window, now: now) {
             parts.append(resets.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale)))
@@ -434,6 +524,46 @@ private struct NotchAgentLimitsCard: View {
         } else if provider == .claude {
             Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
             setUpLimits
+        } else if provider == .antigravity {
+            if antigravityChecking {
+                VStack(alignment: .leading, spacing: 5) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 5) {
+                            ProgressView().controlSize(.mini).scaleEffect(0.75).frame(width: 11, height: 11)
+                            Text(text.loading)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.72))
+                                .lineLimit(1)
+                        }
+                        Capsule(style: .continuous).fill(.white.opacity(0.1)).frame(height: 4)
+                            .padding(.vertical, 2.5)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Capsule(style: .continuous).fill(.white.opacity(0.08)).frame(width: 44, height: 7)
+                        Capsule(style: .continuous).fill(.white.opacity(0.07)).frame(height: 4)
+                            .padding(.vertical, 2.5)
+                    }
+                    .accessibilityHidden(true)
+                }
+            } else if let failure = antigravityFailure {
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack(alignment: .top, spacing: 5) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                            .padding(.top, 1)
+                        Text(text.antigravityCLI(failure))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.white.opacity(0.86))
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    setUpLimits
+                }
+            } else {
+                Text(text.waitingForLimits).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
+                lastUsed
+            }
         } else if provider == .opencode {
             let todayUsage = snapshot.usage(.today).byProvider[.opencode]
             if let todayUsage, todayUsage.tokens.total > 0 || todayUsage.requests > 0 || todayUsage.cost > 0 {
@@ -481,7 +611,7 @@ private struct NotchAgentLimitsCard: View {
         } label: {
             Label(text.claudeLimitsHint, systemImage: "arrow.up.forward")
                 .labelStyle(NotchAgentInlineLabel())
-                .font(.system(size: 9.5, weight: .medium))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(provider.tint)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
@@ -496,6 +626,62 @@ private struct NotchAgentLimitsCard: View {
                 .font(.system(size: 9.5))
                 .foregroundStyle(.tertiary)
         }
+    }
+}
+
+/// Compact pool selector for multi-pool quota cards such as Antigravity
+/// (`Gemini` vs `Claude/GPT`). Uses one consistent pill chip across every card
+/// width and falls back to an abbreviated pool name only when tight space
+/// (such as a 190 pt paired card or a stale age badge) requires it.
+private struct NotchAgentPoolSwitcher: View {
+    let groups: [NotchAgentLimitGroup]
+    let active: NotchAgentLimitGroup
+    let tint: Color
+    var helpText = ""
+    let onSelect: (String) -> Void
+
+    /// Abbreviated pool tag used only when a narrow paired card cannot fit the
+    /// full pool name beside the provider title.
+    private func compactLabel(for group: NotchAgentLimitGroup) -> String {
+        let lower = group.label.lowercased()
+        if lower.contains("claude") && lower.contains("gpt") { return "C/GPT" }
+        if lower == "gemini" { return "Gemini" }
+        return String(group.label.prefix(5))
+    }
+
+    private func cycle() {
+        if let index = groups.firstIndex(where: { $0.id == active.id }) {
+            onSelect(groups[(index + 1) % groups.count].id)
+        }
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            cyclingChip(label: active.label)
+            cyclingChip(label: compactLabel(for: active))
+        }
+        .help(helpText)
+        .accessibilityLabel(helpText.isEmpty ? active.label : helpText)
+    }
+
+    private func cyclingChip(label: String) -> some View {
+        Button(action: cycle) {
+            HStack(spacing: 3) {
+                Text(label)
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundStyle(tint.opacity(0.95))
+                    .lineLimit(1)
+                    .fixedSize()
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 6, weight: .semibold))
+                    .foregroundStyle(tint.opacity(0.75))
+            }
+            .padding(.horizontal, 5.5)
+            .frame(height: 15)
+            .background(tint.opacity(0.15), in: Capsule(style: .continuous))
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -614,8 +800,9 @@ private struct NotchAgentLiveCard: View {
 
     var body: some View {
         let live = snapshot.live.filter { providers.contains($0.provider) }
+        let compact = live.count > 1
         NotchAgentCardChrome {
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: compact ? 3 : 7) {
                 NotchAgentCardHeader(title: text.liveCard, symbol: NotchAgentCard.live.symbol,
                                      tint: live.first?.provider.tint ?? .secondary) {
                     HStack(spacing: 4) {
@@ -629,8 +816,16 @@ private struct NotchAgentLiveCard: View {
                     }
                 } else {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        VStack(alignment: .leading, spacing: 5) {
-                            ForEach(live.prefix(2)) { row($0, now: context.date) }
+                        let shown = Array(live.prefix(2))
+                        VStack(alignment: .leading, spacing: compact ? 3 : 5) {
+                            ForEach(Array(shown.enumerated()), id: \.element.id) { index, session in
+                                if compact && index > 0 {
+                                    Rectangle()
+                                        .fill(.white.opacity(0.07))
+                                        .frame(height: 0.5)
+                                }
+                                row(session, now: context.date, compact: compact)
+                            }
                         }
                     }
                 }
@@ -638,17 +833,17 @@ private struct NotchAgentLiveCard: View {
         }
     }
 
-    private func row(_ session: AgentLiveSession, now: Date) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+    private func row(_ session: AgentLiveSession, now: Date, compact: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: compact ? 0 : 1) {
             HStack(spacing: 4) {
-                NotchAgentGlyph(provider: session.provider, size: 9)
+                NotchAgentGlyph(provider: session.provider, size: compact ? 8 : 9)
                 Text(session.project.isEmpty ? session.provider.displayName : session.project)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: compact ? 10.5 : 11, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: 4)
                 Text(AgentFormat.clock(now.timeIntervalSince(session.started)))
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: compact ? 10.5 : 11, weight: .medium))
                     .monospacedDigit()
                     .foregroundStyle(session.provider.tint)
             }
@@ -660,7 +855,7 @@ private struct NotchAgentLiveCard: View {
                       session.tokens.output > 0 ? text.written(AgentFormat.tokens(session.tokens.output)) : "",
                       session.cost > 0 ? AgentFormat.cost(session.cost) : ""]
                         .filter { !$0.isEmpty }.joined(separator: " · "))
-                    .font(.system(size: 9.5))
+                    .font(.system(size: compact ? 9 : 9.5))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }

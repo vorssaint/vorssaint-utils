@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import SQLite3
 
 typealias AgentUsageProductionLogReader = AgentLogReader
 typealias AgentUsageReadProductionArchive = AgentUsageArchive
@@ -76,6 +77,7 @@ enum AgentUsageReadTests {
         var store = AgentUsageStore()
         var enabled: Set<AgentProvider> = []
         var readerClaudeProfile = ClaudeAccountProfile()
+        var antigravityIndex = AgentAntigravityIndex()
         var previousLimits: [AgentProvider: AgentLimits] = [:]
         var budgetDay: Date?
         var snapshot = AgentUsageSnapshot()
@@ -88,6 +90,7 @@ enum AgentUsageReadTests {
         func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool) {}
         func readClaudePlan() {}
         func readClaudeApp(now: Date) {}
+        func refreshStoredAntigravityLimits(now: Date) {}
         func watch(_ roots: [AgentLogRoot]) { watchedRoots = roots }
         func startPolling() {}
         func syncPolling() {}
@@ -135,6 +138,12 @@ enum AgentUsageReadTests {
                 #"{"id":"end","timestamp":\#(timestamp),"type":"assistant.turn_end","data":{"turnId":"0"}}"#,
                 #"{"id":"usage","timestamp":\#(timestamp),"type":"session.shutdown","data":{"modelMetrics":{"gpt-6-sol":{"requests":{"count":1},"tokenDetails":{"input":{"tokenCount":10},"cache_read":{"tokenCount":20},"cache_write":{"tokenCount":0},"output":{"tokenCount":5}},"usage":{"reasoningTokens":2}}}}}"#,
                 #"{"id":"final-checkpoint","timestamp":\#(timestamp),"type":"session.usage_checkpoint","data":{}}"#
+            ]),
+            (.antigravity, [
+                #"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"\#(ISO8601DateFormatter().string(from: now))","content":"<USER_REQUEST>work</USER_REQUEST>"}"#,
+                #"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ISO8601DateFormatter().string(from: now))","model":"gemini-4-neon-high","input_tokens":100,"cache_read_tokens":50,"output_tokens":20,"tool_calls":[{"id":"c1","name":"run_command"}]}"#,
+                #"{"step_index":2,"type":"CHECKPOINT","status":"DONE","created_at":"\#(ISO8601DateFormatter().string(from: now))","input_tokens":80,"cache_read_tokens":40,"output_tokens":10}"#,
+                #"{"step_index":3,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ISO8601DateFormatter().string(from: now))","model":"gemini-4-neon-high","input_tokens":120,"cache_read_tokens":60,"output_tokens":30}"#
             ])
         ]
         for (provider, lines) in cases {
@@ -152,6 +161,7 @@ enum AgentUsageReadTests {
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
                 case .cursor: entries += AgentLogParser.parseCursor(line, state: &cursor.state, now: now)
+                case .antigravity: entries += AgentLogParser.parseAntigravity(line, state: &cursor.state, now: now)
                 }
             }
             if provider == .copilot {
@@ -187,6 +197,7 @@ enum AgentUsageReadTests {
         startup(suite, folder: folder.appending(path: "home"), cases: cases)
         codexThreads(suite, folder: folder)
         cursorPolling(suite, folder: folder, now: now)
+        antigravityIndexOnFirstRead(suite, folder: folder, now: now)
 
         let openFile = folder.appending(path: "copilot-open.jsonl")
         let openLines = [
@@ -453,7 +464,8 @@ enum AgentUsageReadTests {
                 suite.expect(false, "the startup fixture has a root for \(provider)")
                 return
             }
-            let file = root.url.appending(path: "session/events.jsonl")
+            let relative = provider == .antigravity ? "session/.system_generated/logs/transcript.jsonl" : "session/events.jsonl"
+            let file = root.url.appending(path: relative)
             do {
                 try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)
@@ -506,5 +518,57 @@ enum AgentUsageReadTests {
         empty.start(session: 1, providers: Set(AgentProvider.allCases), cancellation: Cancellation())
         suite.expect(empty.publications.count == 1 && empty.snapshot.loaded && empty.snapshot.seen.isEmpty,
                      "a completed pass with genuinely no history leaves the loading state")
+    }
+
+    /// Index metadata (workspace project and parent conversation) must survive
+    /// `cursor.startOver` on the very first read of an Antigravity transcript.
+    private static func antigravityIndexOnFirstRead(_ suite: TestSuite, folder: URL, now: Date) {
+        let dataDir = folder.appending(path: "agy-first-read/.gemini/antigravity-cli")
+        let brain = dataDir.appending(path: "brain")
+        let parentID = "11111111-1111-4111-8111-111111111111"
+        let childID = "22222222-2222-4222-8222-222222222222"
+        let parentFile = brain.appending(path: "\(parentID)/.system_generated/logs/transcript.jsonl")
+        let childFile = brain.appending(path: "\(childID)/.system_generated/logs/transcript.jsonl")
+        do {
+            try FileManager.default.createDirectory(at: parentFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: childFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let dbPath = dataDir.appending(path: "conversation_summaries.db").path
+            var db: OpaquePointer?
+            guard sqlite3_open(dbPath, &db) == SQLITE_OK, let db else {
+                suite.expect(false, "opens temporary Antigravity index DB")
+                return
+            }
+            defer { sqlite3_close(db) }
+            let sql = """
+            CREATE TABLE conversation_summaries (conversation_id TEXT PRIMARY KEY, workspace_uris TEXT, parent_conversation_id TEXT);
+            INSERT INTO conversation_summaries VALUES
+              ('\(parentID)', '["file:///Users/me/code/live-proj"]', ''),
+              ('\(childID)', '["file:///Users/me/code/live-proj"]', '\(parentID)');
+            """
+            suite.expect(sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK, "seeds Antigravity index fixture")
+            let ts = ISO8601DateFormatter().string(from: now)
+            let parentLines = [
+                #"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"\#(ts)","content":"<USER_REQUEST>go</USER_REQUEST>"}"#,
+                #"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":100,"output_tokens":40,"tool_calls":[{"id":"t1","name":"invoke_subagent"}]}"#,
+            ]
+            let childLines = [
+                #"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"\#(ts)","content":"<USER_REQUEST>subtask</USER_REQUEST>"}"#,
+                #"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"#,
+            ]
+            try Data((parentLines.joined(separator: "\n") + "\n").utf8).write(to: parentFile)
+            try Data((childLines.joined(separator: "\n") + "\n").utf8).write(to: childFile)
+            let host = Host()
+            suite.expect(host.read(parentFile.path, provider: .antigravity)
+                            && host.read(childFile.path, provider: .antigravity),
+                         "first-read Antigravity transcripts parse cleanly")
+            suite.expect(host.store.records.allSatisfy { $0.project == "live-proj" }
+                            && host.store.live.count == 1
+                            && host.store.live.first?.id == parentFile.path
+                            && host.store.live.first?.project == "live-proj"
+                            && host.store.live.first?.tokens.total == 210,
+                         "index project and DB-only subagent parent survive initial cursor startOver and roll up into parent turn")
+        } catch {
+            suite.expect(false, "Antigravity first-read index fixture failed: \(error)")
+        }
     }
 }

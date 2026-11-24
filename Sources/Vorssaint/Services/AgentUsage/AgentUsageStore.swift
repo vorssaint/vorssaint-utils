@@ -606,7 +606,10 @@ struct AgentLogRoot: Equatable {
         } : []
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
          (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
-         (.cursor, ".cursor/projects")].compactMap { provider, path in
+         (.cursor, ".cursor/projects"),
+         (.antigravity, ".gemini/antigravity-cli/brain"),
+         (.antigravity, ".gemini/antigravity/brain"),
+         (.antigravity, ".gemini/antigravity-ide/brain")].compactMap { provider, path in
             guard providers.contains(provider) else { return nil }
             return AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
@@ -640,6 +643,10 @@ struct AgentLogRoot: Equatable {
             guard (3...4).contains(parts.count), !parts[0].isEmpty, !parts[0].hasPrefix("."),
                   parts[1] == "agent-transcripts", !parts[2].isEmpty, !parts[2].hasPrefix(".") else { return false }
             return parts.count == 3 || parts[3] == parts[2] + ".jsonl"
+        }
+        if provider == .antigravity {
+            return parts.count == 4 && !parts[0].isEmpty && !parts[0].hasPrefix(".")
+                && parts[1] == ".system_generated" && parts[2] == "logs" && parts[3] == "transcript.jsonl"
         }
         return true
     }
@@ -742,7 +749,12 @@ final class AgentLogCursor {
     let cursorAccess: CursorTranscriptAccess?
     /// Subagents report to a turn another file tracks.
     var tracksTurns: Bool {
-        provider == .claude ? parent == nil : (provider == .codex ? !state.codexSubagent : true)
+        switch provider {
+        case .claude: return parent == nil
+        case .codex: return !state.codexSubagent
+        case .antigravity: return !state.antigravitySubagent
+        case .opencode, .copilot, .cursor: return true
+        }
     }
     /// The session log a Claude subagent works for.
     let parent: String?
@@ -769,6 +781,8 @@ final class AgentLogCursor {
     /// there were when it was looked for. Not saved: a relaunch looks again.
     private var codexParentLog: String?
     private var codexParentSearch = -1
+    private var antigravityParentLog: String?
+    private var antigravityParentSearch = -1
 
     init(path: String, provider: AgentProvider, cursorRoot: URL? = nil) {
         self.path = path
@@ -777,6 +791,7 @@ final class AgentLogCursor {
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
         if provider == .cursor { CursorReader.adopt(path: path, into: &state) }
+        if provider == .antigravity { AntigravityReader.adopt(path: path, into: &state) }
     }
 
     /// The log whose turn a Codex subagent's responses count toward. It can
@@ -792,6 +807,18 @@ final class AgentLogCursor {
                 .max { $0.modified < $1.modified }?.path
         }
         return codexParentLog
+    }
+
+    /// The transcript whose turn an Antigravity subagent rolls up into.
+    func antigravityParent(among cursors: [String: AgentLogCursor]) -> String? {
+        guard provider == .antigravity, !state.antigravityParent.isEmpty, !tracksTurns else { return nil }
+        if antigravityParentSearch != cursors.count || antigravityParentLog.map({ cursors[$0] == nil }) == true {
+            antigravityParentSearch = cursors.count
+            antigravityParentLog = cursors.values
+                .filter { $0.provider == .antigravity && $0.tracksTurns && $0.state.session == state.antigravityParent }
+                .max { $0.modified < $1.modified }?.path
+        }
+        return antigravityParentLog
     }
 
     /// Resolving missing response IDs against other copies is necessary only after a change.
@@ -850,8 +877,10 @@ final class AgentLogCursor {
         cursorPrefix = CursorTranscriptPrefix()
         cachedCoverage = nil
         if provider == .cursor { CursorReader.adopt(path: path, into: &state) }
+        if provider == .antigravity { AntigravityReader.adopt(path: path, into: &state) }
         fingerprinted = nil
         codexParentSearch = -1
+        antigravityParentSearch = -1
     }
 
     private func fingerprint(upTo end: UInt64, descriptor: Int32? = nil) -> UInt64? {
@@ -1122,6 +1151,17 @@ enum AgentLogReader {
                 let sessions = (try? FileManager.default.contentsOfDirectory(
                     at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
+                continue
+            }
+            // Antigravity keeps scratch artifacts, chunks, full logs and step
+            // outputs beside each compact transcript. Probe only the single
+            // expected transcript path inside each session directory.
+            if root.provider == .antigravity {
+                let sessions = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                for session in sessions {
+                    include(session.appending(path: ".system_generated/logs/transcript.jsonl"), from: root)
+                }
                 continue
             }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,

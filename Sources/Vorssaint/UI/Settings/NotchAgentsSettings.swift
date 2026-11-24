@@ -14,6 +14,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
     @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
+    @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
@@ -52,6 +53,7 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
             providerRow(.cursor, isOn: $cursor)
+            providerRow(.antigravity, isOn: $antigravity)
             if claude { ClaudeAccountSettings() }
             if codex { CodexAccountsSettings() }
 
@@ -103,7 +105,7 @@ struct NotchAgentsSettingsControls: View {
                                       display: NotchAgentLimitDisplay(rawValue: limitDisplay) ?? .remaining,
                                       focus: NotchAgentLimitFocus(rawValue: limitFocus) ?? .mostUsed,
                                       provider: claude ? .claude : codex ? .codex : opencode ? .opencode
-                                        : copilot ? .copilot : .cursor)
+                                        : copilot ? .copilot : cursor ? .cursor : .antigravity)
                     .padding(.leading, settingsRowTextInset)
             }
 
@@ -151,6 +153,16 @@ struct NotchAgentsSettingsControls: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            if antigravity {
+                Divider()
+                Text(text.antigravityLimitsTitle).font(.subheadline.weight(.medium))
+                TimelineView(.periodic(from: .now, by: 30)) { context in
+                    antigravityLimitsStatus(now: context.date)
+                }
+                if usage.antigravityAccountChecking { ProgressView().controlSize(.small) }
+                Text(text.antigravityLimitsPrivacy).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .toggleStyle(.switch)
         .onAppear {
@@ -168,7 +180,7 @@ struct NotchAgentsSettingsControls: View {
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot),
-                       String(cursor), String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
+                       String(cursor), String(antigravity), String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
     }
@@ -224,6 +236,37 @@ struct NotchAgentsSettingsControls: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
+    /// Where Antigravity's plan limits stand via the `agy` CLI.
+    @ViewBuilder private func antigravityLimitsStatus(now: Date) -> some View {
+        let reading = usage.snapshot.limits[.antigravity]
+        let observed = reading?.observedAt
+        let fresh = observed.map { now.timeIntervalSince($0) < NotchAgentSupport.accountStaleness } ?? false
+        let failure = fresh ? nil : usage.antigravityAccountFailure.map { text.antigravityCLI($0) }
+        HStack(alignment: .top, spacing: 10) {
+            if let observed {
+                Image(systemName: fresh ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                    .foregroundStyle(fresh ? .green : .orange)
+                explained(failure) { Text("Antigravity CLI · " + text.updated(relative(observed, now: now))) }
+                Spacer(minLength: 8)
+            } else if let failure {
+                Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
+                Text(failure)
+                Spacer(minLength: 8)
+            } else {
+                Image(systemName: "info.circle.fill").foregroundStyle(.secondary)
+                Text(text.antigravityLimitsHint)
+                Spacer(minLength: 8)
+            }
+            if !usage.antigravityAccountChecking {
+                Button(FeatureStrings.codexAccounts(l10n.language).check) {
+                    usage.checkAntigravityAccount()
+                }
+            }
+        }
+        .font(.callout)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
     /// A status's words, and why Claude Code could not check when it failed.
     private func explained<Content: View>(_ failure: String?, @ViewBuilder _ status: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -263,13 +306,19 @@ struct NotchAgentsSettingsControls: View {
             Spacer(minLength: 12)
             // One agent stays on; turning the section off stops all.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot, cursor].filter { $0 }.count <= 1)
+                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot, cursor, antigravity].filter { $0 }.count <= 1)
         }
     }
 
     /// Where the logs live is checked when the page opens, not on every draw.
     private func findRoots() {
-        let found = AgentLogRoot.all(claudeProfile: ClaudeAccountProfile(directory: claudeProfile)).filter(\.exists).map(\.provider)
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        var found = Set(AgentLogRoot.all(home: home, claudeProfile: ClaudeAccountProfile(directory: claudeProfile))
+            .filter(\.exists).map(\.provider))
+        if !found.contains(.antigravity),
+           AgentAntigravityServer.executable(home: home, searchPath: ProcessInfo.processInfo.environment["PATH"]) != nil {
+            found.insert(.antigravity)
+        }
         roots = Dictionary(uniqueKeysWithValues: AgentProvider.allCases.map { ($0, found.contains($0)) })
     }
 

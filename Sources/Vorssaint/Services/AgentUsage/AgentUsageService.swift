@@ -26,6 +26,8 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAppChecked: Date?
     @Published private(set) var claudeAccountChecking = false
     @Published private(set) var claudeAccountFailure: AgentClaudeServer.Failure?
+    @Published private(set) var antigravityAccountChecking = false
+    @Published private(set) var antigravityAccountFailure: AgentAntigravityServer.Failure?
     @Published private(set) var claudeProfile = ClaudeAccountProfile()
     @Published private(set) var claudeAccountIdentity: ClaudeAccountProfile.Identity?
     /// The day of the price list in use.
@@ -76,6 +78,10 @@ final class AgentUsageService: ObservableObject {
     /// Checks in a row that Claude Code did not answer, counted again from
     /// zero once the Mac is back online.
     private var claudeAccountUnreachable = 0
+    private let antigravityAccountQueue = DispatchQueue(label: "com.vorssaint.antigravity-limits", qos: .utility)
+    private var antigravityAccountRequest: AgentAntigravityServer.Request?
+    private var antigravityAccountAttempted = Date.distantPast
+    private var antigravityAccountUnreachable = 0
     /// Whether the Mac has a network, as the reading queue last heard.
     private var online = true
     /// The AI page is on the island, which asks Claude Code more often.
@@ -107,6 +113,8 @@ final class AgentUsageService: ObservableObject {
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
     private var claudeAccountLimits: AgentLimits?
+    private var antigravityAccountLimits: AgentLimits?
+    private var antigravityIndex = AgentAntigravityIndex()
     private var shippedPrices: AgentPriceList?
     private var previousLimits: [AgentProvider: AgentLimits] = [:]
     /// Warned windows, each waiting for its renewal.
@@ -147,6 +155,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        refreshAntigravityLimits()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -160,6 +169,7 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
+        cancelAntigravityLimits()
         timer?.invalidate()
         timer = nil
         queue.async { [self] in
@@ -194,9 +204,13 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         running = false
         cancelClaudeLimits()
+        cancelAntigravityLimits()
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
         claudeAccountUnreachable = 0
+        antigravityAccountAttempted = .distantPast
+        antigravityAccountFailure = nil
+        antigravityAccountUnreachable = 0
         online = true
         paused = false
         session += 1
@@ -232,6 +246,8 @@ final class AgentUsageService: ObservableObject {
             claudeAppModified = nil
             claudeAppSamples = []
             claudeAccountLimits = nil
+            antigravityAccountLimits = nil
+            antigravityIndex.clear()
             savedMark = nil
             lastSave = .distantPast
         }
@@ -255,10 +271,13 @@ final class AgentUsageService: ObservableObject {
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
+        refreshAntigravityLimits(pageShows: true)
         queue.async { [self] in
             guard readerSession >= 0 else { return }
+            let now = Date()
             readClaudePlan()
-            readClaudeApp(now: Date())
+            readClaudeApp(now: now)
+            refreshStoredAntigravityLimits(now: now)
             checkLimits()
             publish()
         }
@@ -273,6 +292,13 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused, claudeAccountRequest == nil else { return }
         claudeAccountAttempted = .distantPast
         refreshClaudeLimits(pageShows: true)
+    }
+
+    /// A deliberate retry for Antigravity quota checks after installing or signing in to `agy`.
+    func checkAntigravityAccount() {
+        guard running, !paused, antigravityAccountRequest == nil else { return }
+        antigravityAccountAttempted = .distantPast
+        refreshAntigravityLimits(pageShows: true)
     }
 
     // MARK: Reading
@@ -326,6 +352,7 @@ final class AgentUsageService: ObservableObject {
             // The account Claude Code uses picks the Claude app's readings.
             readClaudePlan()
             readClaudeApp(now: now)
+            refreshStoredAntigravityLimits(now: now)
             store.reportsTransitions = true
             previousLimits = store.limits
             // A budget already passed before launch is history, not news.
@@ -561,9 +588,23 @@ final class AgentUsageService: ObservableObject {
         }
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
+        let antigravityMetadata = provider == .antigravity
+            ? antigravityIndex.entry(forSession: AgentLogParser.antigravitySession(from: path), transcriptPath: path)
+            : nil
         let now = Date()
         var changed = false
         let consume: (Data) -> Void = { [self] line in
+            // Re-apply index metadata inside the line handler so it survives
+            // `cursor.startOver` on the first read or after a file replacement.
+            if let metadata = antigravityMetadata {
+                if cursor.state.project.isEmpty && !metadata.project.isEmpty {
+                    cursor.state.project = metadata.project
+                }
+                if cursor.state.antigravityParent.isEmpty && !metadata.parentSession.isEmpty {
+                    cursor.state.antigravityParent = metadata.parentSession
+                    cursor.state.antigravitySubagent = true
+                }
+            }
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.
             let entries = provider.reader.parse(line, state: &cursor.state, now: now)
@@ -573,7 +614,7 @@ final class AgentUsageService: ObservableObject {
             let turnFile = provider == .opencode && !cursor.state.session.isEmpty ? "\(path)#\(cursor.state.session)" : path
             let tracksTurns = isSubagent ? false : cursor.tracksTurns
             let parent = isSubagent ? "\(path)#\(cursor.state.parentSession)"
-                : cursor.parent ?? cursor.codexParent(among: cursors)
+                : cursor.parent ?? cursor.codexParent(among: cursors) ?? cursor.antigravityParent(among: cursors)
             let finished = store.apply(entries, file: turnFile, provider: provider, tracksTurns: tracksTurns,
                                        parent: parent, modified: cursor.modified, now: now)
             finished.forEach(report)
@@ -647,6 +688,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         syncPrices()
         refreshClaudeLimits()
+        refreshAntigravityLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -673,6 +715,7 @@ final class AgentUsageService: ObservableObject {
             }
             readClaudePlan()
             readClaudeApp(now: now)
+            refreshStoredAntigravityLimits(now: now)
             checkLimits()
             reportRenewals(now: now)
             if now.timeIntervalSince(lastSave) >= Self.saveInterval { saveProgress(now: now) }
@@ -943,7 +986,87 @@ final class AgentUsageService: ObservableObject {
     private func networkChanged(online: Bool) {
         guard online != self.online else { return }
         self.online = online
-        if online { claudeAccountUnreachable = 0 }
+        if online {
+            claudeAccountUnreachable = 0
+            antigravityAccountUnreachable = 0
+        }
+    }
+
+    // MARK: Antigravity limits
+
+    /// Keeps only unexpired Antigravity quota windows. Runs on `queue`.
+    private func refreshStoredAntigravityLimits(now: Date) {
+        guard enabled.contains(.antigravity) else {
+            store.clearLimits(.antigravity)
+            antigravityAccountLimits = nil
+            return
+        }
+        let candidate = antigravityAccountLimits ?? store.limits[.antigravity]
+        if let active = AgentAntigravityServer.current(candidate, now: now) {
+            store.setLimits(active)
+        } else {
+            store.clearLimits(.antigravity)
+        }
+    }
+
+    // Main thread. Polls `agy --output-format json --print /usage` on the same
+    // cadence and backoff policy as Claude Code.
+    func refreshAntigravityLimits(now: Date = Date(), pageShows: Bool = false) {
+        guard antigravityLimitsDue(at: now, pageShows: pageShows) else { return }
+        antigravityAccountAttempted = now
+        antigravityAccountChecking = true
+        let request = AgentAntigravityServer.Request()
+        antigravityAccountRequest = request
+        let session = self.session
+        let home = self.home
+        antigravityAccountQueue.async { [weak self] in
+            let result: Result<AgentLimits, AgentAntigravityServer.Failure>
+            if let executable = AgentAntigravityServer.executable(home: home,
+                                                                  searchPath: ProcessInfo.processInfo.environment["PATH"]) {
+                result = request.run(executable, home: home, environment: ProcessInfo.processInfo.environment)
+            } else {
+                result = .failure(.missing)
+            }
+            DispatchQueue.main.async {
+                guard let self, self.running, !self.paused, self.session == session,
+                      self.antigravityAccountRequest === request else { return }
+                self.antigravityAccountRequest = nil
+                self.antigravityAccountChecking = false
+                switch result {
+                case .failure(let failure):
+                    self.noteAntigravityCheck(failure)
+                case .success(let limits):
+                    self.noteAntigravityCheck(nil)
+                    self.queue.async {
+                        guard self.readerSession == session, self.enabled.contains(.antigravity) else { return }
+                        self.antigravityAccountLimits = limits
+                        self.refreshStoredAntigravityLimits(now: Date())
+                        self.checkLimits()
+                        self.schedulePublish()
+                    }
+                }
+            }
+        }
+    }
+
+    private func cancelAntigravityLimits() {
+        guard let request = antigravityAccountRequest else { return }
+        request.cancel()
+        antigravityAccountRequest = nil
+        antigravityAccountChecking = false
+        antigravityAccountAttempted = .distantPast
+    }
+
+    private func antigravityLimitsDue(at now: Date, pageShows: Bool) -> Bool {
+        guard running, !paused, online, providers.contains(.antigravity), antigravityAccountRequest == nil,
+              NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows) else { return false }
+        return now.timeIntervalSince(antigravityAccountAttempted) >= AgentAntigravityServer.interval(
+            after: antigravityAccountFailure, repeated: antigravityAccountUnreachable, pageVisible: pageVisible)
+    }
+
+    private func noteAntigravityCheck(_ failure: AgentAntigravityServer.Failure?) {
+        antigravityAccountFailure = failure
+        antigravityAccountUnreachable = failure == .unreachable ? antigravityAccountUnreachable + 1 : 0
     }
 
     // MARK: Prices
