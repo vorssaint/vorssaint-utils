@@ -5,6 +5,9 @@ import SwiftUI
 
 struct NotchLyricsView: View {
     let playback: NotchPlayback
+    /// Whether the player can move its position, which makes every verse a
+    /// place to jump to.
+    let canSeek: Bool
     @ObservedObject private var service = NotchLyricsService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchLyricsOnline) private var online = false
@@ -125,12 +128,7 @@ struct NotchLyricsView: View {
                         // Every verse keeps one size, so the lines never
                         // rewrap as the song moves. The sung one lights up.
                         ForEach(Array(lyrics.lines.enumerated()), id: \.element.id) { index, line in
-                            Text(line.text.isEmpty ? "♪" : line.text)
-                                .font(.system(size: 17, weight: .bold))
-                                .foregroundStyle(.white.opacity(index == active ? 1 : 0.35))
-                                .animation(reduceMotion ? nil : .smooth(duration: 0.28), value: index == active)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .fixedSize(horizontal: false, vertical: true)
+                            verse(line, index: index, active: active, lyrics: lyrics)
                                 .id(index)
                         }
                     }.padding(.vertical, 6)
@@ -144,5 +142,29 @@ struct NotchLyricsView: View {
                 }
             }
         }
+    }
+
+    /// A verse the singer can jump to: when the player can move its position,
+    /// clicking the verse seeks there rather than only marking where the song is.
+    @ViewBuilder
+    private func verse(_ line: NotchLyricLine, index: Int, active: Int?, lyrics: NotchLyrics) -> some View {
+        let label = Text(line.text.isEmpty ? "♪" : line.text)
+            .font(.system(size: 17, weight: .bold))
+            .foregroundStyle(.white.opacity(index == active ? 1 : 0.35))
+            .animation(reduceMotion ? nil : .smooth(duration: 0.28), value: index == active)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+        if canSeek {
+            Button { seek(to: index, in: lyrics) } label: { label.contentShape(Rectangle()) }
+                .buttonStyle(.plain)
+        } else {
+            label
+        }
+    }
+
+    private func seek(to index: Int, in lyrics: NotchLyrics) {
+        guard let target = lyrics.seekPosition(for: index, offset: service.offset,
+                                               into: playback, allowed: canSeek) else { return }
+        NotchMusicService.shared.seek(to: target, in: playback.track, context: playback.commandContext)
     }
 }
