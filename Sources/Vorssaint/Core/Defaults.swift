@@ -397,6 +397,7 @@ enum DefaultsKey {
     static let panelShowControls = "panelShowControls"
     static let panelShowToggles = "panelShowToggles"
     static let panelShowWallpaper = "panelShowWallpaper"
+    static let panelShowGameController = "panelShowGameController"
     // Quick toggles tab: per-action visibility (the order lives in panelToggleOrder).
     static let panelToggleDarkMode = "panelToggleDarkMode"
     static let panelToggleKeyboardLight = "panelToggleKeyboardLight"
@@ -1687,6 +1688,7 @@ enum Defaults {
         DefaultsKey.panelShowControls: true,
         DefaultsKey.panelShowToggles: true,
         DefaultsKey.panelShowWallpaper: true,
+        DefaultsKey.panelShowGameController: true,
         DefaultsKey.panelToggleDarkMode: true,
         DefaultsKey.panelToggleKeyboardLight: true,
         DefaultsKey.panelToggleMicMute: true,

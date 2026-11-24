@@ -417,6 +417,9 @@ extension AppFeature {
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)
         case .wallpaper:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .wallpaper)
+        // No settings of its own: the panel editor hides and reorders its tab.
+        case .gameController:
+            return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         case .notch: return FeatureSettingsDestination(.notch)
         case .notchCalendar: return FeatureSettingsDestination(notch: .module(.calendar))
         case .notchNotifications: return FeatureSettingsDestination(notch: .module(.notifications))
