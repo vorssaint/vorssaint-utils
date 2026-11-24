@@ -416,7 +416,7 @@ def main():
               "    func markExported()", "    private func recordCleanState()", "    private func refreshDirtyState()",
               "    private func registerUndo(", "    private func trimHistory(",
               "    func applyCrop()", "    func undo()", "    func redo()",
-              "    private func restore(", "    private func refreshUndoFlags()",
+              "    private func restore(", "    var canUndo:", "    var canRedo:",
               "    func cancelCanvasExpansion()", "    func leaveCanvasExpansion()", "    func hitTest(",
               "    func beginDrag(", "    func continueDrag(", "    func endDrag(",
               "    private func finishDrawing(", "    private func updateDraft(",
