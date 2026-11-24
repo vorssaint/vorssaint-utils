@@ -13,6 +13,8 @@ extension AgentProvider {
         case .opencode: return Color(red: 0.06, green: 0.73, blue: 0.51)
         case .copilot: return Color(red: 0.30, green: 0.78, blue: 0.68)
         case .cursor: return Color(red: 0.42, green: 0.48, blue: 0.78)
+        case .antigravity: return Color(red: 0.26, green: 0.52, blue: 0.96)
+        case .gemini: return Color(red: 0.72, green: 0.45, blue: 0.92)
         }
     }
 }
@@ -380,6 +382,8 @@ private extension AgentProvider {
         case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
         case .copilot: return ["com.github.githubapp"]
         case .cursor: return ["com.todesktop.230313mzl4w4u92"]
+        case .antigravity: return ["com.google.antigravity", "com.google.antigravity-ide", "com.google.antigravity.ide"]
+        case .gemini: return ["com.google.GeminiMacOS"]
         }
     }
 
@@ -394,8 +398,7 @@ private extension AgentProvider {
         case .codex: return ["chatgptTemplate"]
         // The OpenCode app shows nothing in the menu bar; its icon stands in.
         case .opencode: return []
-        case .copilot: return []
-        case .cursor: return []
+        case .copilot, .cursor, .gemini, .antigravity: return []
         }
     }
 }

@@ -364,6 +364,12 @@ final class AgentUsageStore {
         summary.invalidate()
         for position in records.indices {
             guard !records[position].reportedCost else { continue }
+            if records[position].provider == .antigravity,
+               billables[position].tokens.total == 0, billables[position].webSearches == 0 {
+                records[position].cost = nil
+                records[position].savings = 0
+                continue
+            }
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
             // A zero OpenCode recorded for a model the list still does not
             // know stays that reply's cost.
@@ -405,14 +411,18 @@ final class AgentUsageStore {
     /// A turn whose last step ended expecting more, with nothing after it
     /// for a while, stopped there, as when OpenCode's loop stops on a
     /// rejected tool call: it ends without a notice, since nothing finished.
-    /// True when one was showing.
+    /// A Gemini CLI turn goes quiet this way after its last reply, which no
+    /// line tells from one whose tools still run: it waits aside, and work
+    /// that follows goes on with it. True when one was showing.
     @discardableResult
     func closeSettledTurns(now: Date) -> Bool {
         var removed = false
-        for (file, date) in settled where now.timeIntervalSince(date) >= AgentLogParser.openCodeSettle {
+        for (file, date) in settled where now.timeIntervalSince(date) >= AgentLogParser.settle {
             settled[file] = nil
-            waiting[file] = nil
-            if turns.removeValue(forKey: file) != nil { removed = true }
+            let quiet = waiting.removeValue(forKey: file)
+            guard let turn = turns.removeValue(forKey: file) ?? quiet else { continue }
+            if quiet == nil { removed = true }
+            if turn.provider == .gemini { waiting[file] = turn }
         }
         return removed
     }
@@ -497,8 +507,13 @@ final class AgentUsageStore {
         return Saved(records: kept,
                      limits: limits.values.sorted { $0.provider.rawValue < $1.provider.rawValue },
                      codexPlan: codexPlan, codexPlanObserved: codexPlanObserved,
-                     turns: turns.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id },
-                     waiting: waiting.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id })
+                     turns: turns.values.filter { $0.provider != .opencode && settled[$0.id] == nil }.sorted { $0.id < $1.id },
+                     // The wait after a step that may have been the turn's
+                     // last is not kept: the turn comes back quiet, and work
+                     // that follows goes on with it.
+                     waiting: (waiting.values.filter { $0.provider != .opencode }
+                               + turns.values.filter { $0.provider != .opencode && settled[$0.id] != nil })
+                        .sorted { $0.id < $1.id })
     }
 
     convenience init(saved: Saved) {
@@ -606,7 +621,11 @@ struct AgentLogRoot: Equatable {
         } : []
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
          (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
-         (.cursor, ".cursor/projects")].compactMap { provider, path in
+         (.cursor, ".cursor/projects"),
+         (.antigravity, ".gemini/antigravity/brain"), (.antigravity, ".gemini/antigravity-ide/brain"),
+         (.antigravity, ".gemini/antigravity-cli/brain"),
+         // Gemini CLI in macOS's sandbox uses the cache folder instead.
+         (.gemini, ".gemini/tmp"), (.gemini, ".cache/.gemini/tmp")].compactMap { provider, path in
             guard providers.contains(provider) else { return nil }
             return AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
@@ -633,15 +652,24 @@ struct AgentLogRoot: Equatable {
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
-        if provider == .copilot {
+        switch provider {
+        case .antigravity:
+            return parts.count == 4 && !parts[0].isEmpty && !parts[0].hasPrefix(".")
+                && parts[1] == ".system_generated" && parts[2] == "logs" && parts[3] == "transcript.jsonl"
+        case .copilot:
             return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
-        }
-        if provider == .cursor {
+        case .cursor:
             guard (3...4).contains(parts.count), !parts[0].isEmpty, !parts[0].hasPrefix("."),
                   parts[1] == "agent-transcripts", !parts[2].isEmpty, !parts[2].hasPrefix(".") else { return false }
             return parts.count == 3 || parts[3] == parts[2] + ".jsonl"
+        case .gemini:
+            // `<project>/chats/<session>.jsonl`, and a subagent's in a folder
+            // named after the session that started it.
+            return (3...4).contains(parts.count) && parts[1] == "chats"
+                && parts.allSatisfy { !$0.isEmpty && !$0.hasPrefix(".") }
+        case .claude, .codex, .opencode:
+            return true
         }
-        return true
     }
 }
 
@@ -742,10 +770,21 @@ final class AgentLogCursor {
     let cursorAccess: CursorTranscriptAccess?
     /// Subagents report to a turn another file tracks.
     var tracksTurns: Bool {
-        provider == .claude ? parent == nil : (provider == .codex ? !state.codexSubagent : true)
+        if provider == .gemini { return !GeminiReader.isSubagent(path) }
+        return provider == .claude ? parent == nil : (provider == .antigravity ? !state.antigravitySubagent : (provider == .codex ? !state.codexSubagent : true))
     }
-    /// The session log a Claude subagent works for.
-    let parent: String?
+    private let claudeParent: String?
+    private let antigravitySession: String?
+    /// The session log a Claude or Antigravity subagent works for.
+    var parent: String? {
+        if provider == .claude { return claudeParent }
+        if provider == .antigravity, state.antigravitySubagent, !state.antigravityRoot.isEmpty {
+            return Self.antigravityParent(of: path, root: state.antigravityRoot)
+        }
+        return nil
+    }
+    /// What the log tells about itself before its first line.
+    private let initial: AgentLogState
     /// Replies still being written and the rows read last, for a database.
     var openCode = AgentOpenCodeProgress()
     var offset: UInt64 = 0
@@ -769,13 +808,21 @@ final class AgentLogCursor {
     /// there were when it was looked for. Not saved: a relaunch looks again.
     private var codexParentLog: String?
     private var codexParentSearch = -1
+    /// The same for a Gemini CLI subagent, whose folder names its session.
+    private var geminiParentLog: String?
+    private var geminiParentSearch = -1
 
     init(path: String, provider: AgentProvider, cursorRoot: URL? = nil) {
         self.path = path
         self.provider = provider
         cursorAccess = provider == .cursor ? cursorRoot.map { CursorTranscriptAccess(root: $0) } : nil
-        let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
-        self.parent = parent
+        self.claudeParent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
+        let session = provider == .antigravity ? AgentLogCursor.antigravitySession(of: path) : nil
+        self.antigravitySession = session
+        var initial = provider.reader.initialState(forLog: path)
+        if let session { initial.session = session }
+        self.initial = initial
+        state = initial
         if provider == .cursor { CursorReader.adopt(path: path, into: &state) }
     }
 
@@ -812,6 +859,20 @@ final class AgentLogCursor {
         return true
     }
 
+    /// The log of the session a Gemini CLI subagent works for, looked for
+    /// again when a log turns up or the one found goes away.
+    func geminiParent(among cursors: [String: AgentLogCursor]) -> String? {
+        guard provider == .gemini, !tracksTurns else { return nil }
+        if geminiParentSearch != cursors.count || geminiParentLog.map({ cursors[$0] == nil }) == true {
+            geminiParentSearch = cursors.count
+            let session = GeminiReader.parentSession(of: path)
+            geminiParentLog = cursors.values
+                .filter { $0.provider == .gemini && $0.tracksTurns && $0.state.session == session }
+                .max(by: { $0.modified < $1.modified })?.path
+        }
+        return geminiParentLog
+    }
+
     /// Where reading stopped, at a line boundary: a line still being written
     /// is read again whole from the file.
     struct Saved: Equatable {
@@ -845,13 +906,14 @@ final class AgentLogCursor {
         offset = 0
         pending = Data()
         discarding = false
-        state = AgentLogState()
+        state = initial
         cursorPromptFingerprint = nil
         cursorPrefix = CursorTranscriptPrefix()
         cachedCoverage = nil
         if provider == .cursor { CursorReader.adopt(path: path, into: &state) }
         fingerprinted = nil
         codexParentSearch = -1
+        geminiParentSearch = -1
     }
 
     private func fingerprint(upTo end: UInt64, descriptor: Int32? = nil) -> UInt64? {
@@ -922,6 +984,7 @@ final class AgentLogCursor {
         discarding = saved.discarding
         modified = saved.modified
         state = saved.state
+        if state.session.isEmpty, let session = antigravitySession { state.session = session }
         fingerprinted = (saved.offset, saved.identity, sample)
         if provider == .cursor { cursorPrefix = CursorTranscriptPrefix(restoring: saved.fingerprint) }
     }
@@ -931,6 +994,27 @@ final class AgentLogCursor {
     static func parent(of path: String) -> String? {
         guard let range = path.range(of: "/subagents/", options: .backwards) else { return nil }
         return String(path[..<range.lowerBound]) + ".jsonl"
+    }
+
+    private static let antigravityTranscriptSuffix = "/.system_generated/logs/transcript.jsonl"
+
+    static func antigravitySession(of path: String) -> String? {
+        guard path.hasSuffix(antigravityTranscriptSuffix) else { return nil }
+        let folder = String(path.dropLast(antigravityTranscriptSuffix.count))
+        let id = (folder as NSString).lastPathComponent
+        guard !id.isEmpty, !id.hasPrefix("."), folder.contains("/") else { return nil }
+        return AgentLogParser.native(id)
+    }
+
+    static func antigravityParent(of path: String, root: String) -> String? {
+        guard path.hasSuffix(antigravityTranscriptSuffix),
+              !root.isEmpty, !root.hasPrefix("."), !root.contains("/") else { return nil }
+        let folder = String(path.dropLast(antigravityTranscriptSuffix.count))
+        let session = (folder as NSString).lastPathComponent
+        guard session != root else { return nil }
+        let brainRoot = (folder as NSString).deletingLastPathComponent
+        guard !brainRoot.isEmpty else { return nil }
+        return (brainRoot as NSString).appendingPathComponent(root) + antigravityTranscriptSuffix
     }
 }
 
@@ -1072,9 +1156,9 @@ enum AgentLogReader {
     }
 
     /// Log files changed since `horizon`, newest last so live turns settle
-    /// on the most recent state. Claude subagents come after every session,
-    /// so the turn each one works for already stands when its responses are
-    /// read.
+    /// on the most recent state. Claude, Antigravity and Gemini CLI subagents come after
+    /// every session, so the turn each one works for already stands when its
+    /// responses are read.
     static func discover(_ roots: [AgentLogRoot], since horizon: Date) -> [(path: String, provider: AgentProvider)] {
         var found: [(path: String, provider: AgentProvider, modified: Date, subagent: Bool)] = []
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
@@ -1082,7 +1166,8 @@ enum AgentLogReader {
             guard root.accepts(url.path),
                   let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
                   let modified = values.contentModificationDate, modified >= horizon else { return }
-            let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
+            let subagent = root.provider == .claude ? AgentLogCursor.parent(of: url.path) != nil
+                : root.provider == .gemini && GeminiReader.isSubagent(url.path)
             found.append((url.path, root.provider, modified, subagent))
         }
         for root in roots {
@@ -1122,6 +1207,50 @@ enum AgentLogReader {
                 let sessions = (try? FileManager.default.contentsOfDirectory(
                     at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
+                continue
+            }
+            // An Antigravity brain folder holds `scratch/` workspaces and media
+            // beside `.system_generated/logs/transcript.jsonl`. Probe the fixed
+            // shallow path directly and peek at its header so subagents sort
+            // after root conversations.
+            if root.provider == .antigravity {
+                let sessions = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                for session in sessions {
+                    let transcript = session.appending(path: ".system_generated/logs/transcript.jsonl")
+                    guard root.accepts(transcript.path),
+                          let values = try? transcript.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
+                          let modified = values.contentModificationDate, modified >= horizon else { continue }
+                    var subagent = false
+                    if let handle = try? FileHandle(forReadingFrom: transcript) {
+                        defer { try? handle.close() }
+                        if let head = try? handle.read(upToCount: 512),
+                           AgentLogParser.contains(head, "SYSTEM_MESSAGE"),
+                           AgentLogParser.contains(head, "sender=") {
+                            subagent = true
+                        }
+                    }
+                    found.append((transcript.path, root.provider, modified, subagent))
+                }
+                continue
+            }
+            // Gemini CLI keeps checkpoints, plans and shell history beside
+            // each project's chats; only the chats and their subagent folders
+            // are listed.
+            if root.provider == .gemini {
+                func entries(_ url: URL) -> [URL] {
+                    (try? FileManager.default.contentsOfDirectory(
+                        at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
+                }
+                for project in entries(root.url) {
+                    for entry in entries(project.appending(path: "chats")) {
+                        if (try? entry.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
+                            entries(entry).forEach { include($0, from: root) }
+                        } else {
+                            include(entry, from: root)
+                        }
+                    }
+                }
                 continue
             }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,

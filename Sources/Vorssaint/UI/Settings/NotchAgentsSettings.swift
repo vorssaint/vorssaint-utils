@@ -14,6 +14,8 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
     @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
+    @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = true
+    @AppStorage(DefaultsKey.notchAgentsGemini) private var gemini = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
@@ -52,6 +54,8 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
             providerRow(.cursor, isOn: $cursor)
+            providerRow(.antigravity, isOn: $antigravity)
+            providerRow(.gemini, isOn: $gemini)
             if claude { ClaudeAccountSettings() }
             if codex { CodexAccountsSettings() }
 
@@ -103,7 +107,7 @@ struct NotchAgentsSettingsControls: View {
                                       display: NotchAgentLimitDisplay(rawValue: limitDisplay) ?? .remaining,
                                       focus: NotchAgentLimitFocus(rawValue: limitFocus) ?? .mostUsed,
                                       provider: claude ? .claude : codex ? .codex : opencode ? .opencode
-                                        : copilot ? .copilot : .cursor)
+                                        : copilot ? .copilot : cursor ? .cursor : antigravity ? .antigravity : .gemini)
                     .padding(.leading, settingsRowTextInset)
             }
 
@@ -151,6 +155,16 @@ struct NotchAgentsSettingsControls: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            if antigravity {
+                Divider()
+                Text(text.antigravityLimitsTitle).font(.subheadline.weight(.medium))
+                TimelineView(.periodic(from: .now, by: 30)) { context in
+                    antigravityLimitsStatus(now: context.date)
+                }
+                if usage.antigravityAccountChecking { ProgressView().controlSize(.small) }
+                Text(text.antigravityLimitsPrivacy).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .toggleStyle(.switch)
         .onAppear {
@@ -168,7 +182,7 @@ struct NotchAgentsSettingsControls: View {
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot),
-                       String(cursor), String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
+                       String(cursor), String(antigravity), String(gemini), String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
     }
@@ -224,6 +238,31 @@ struct NotchAgentsSettingsControls: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
+    @ViewBuilder private func antigravityLimitsStatus(now: Date) -> some View {
+        let account = usage.snapshot.limits[.antigravity]?.observedAt
+        let fresh = account.map { now.timeIntervalSince($0) < AgentClaudeAppUsage.freshness } == true
+        let failure = fresh ? nil : usage.antigravityAccountFailure.map { text.antigravity($0) }
+        HStack(alignment: .top, spacing: 10) {
+            if let account {
+                Image(systemName: fresh ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                    .foregroundStyle(fresh ? .green : .orange)
+                explained(failure) { Text("Antigravity CLI · " + text.updated(relative(account, now: now))) }
+                Spacer(minLength: 0)
+            } else if let failure {
+                Image(systemName: usage.antigravityAccountFailure == .missing ? "info.circle.fill" : "exclamationmark.circle.fill")
+                    .foregroundStyle(usage.antigravityAccountFailure == .missing ? Color.secondary : Color.orange)
+                Text(failure)
+                Spacer(minLength: 0)
+            } else {
+                Image(systemName: "info.circle.fill").foregroundStyle(.secondary)
+                Text(text.waitingForLimits)
+                Spacer(minLength: 0)
+            }
+        }
+        .font(.callout)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
     /// A status's words, and why Claude Code could not check when it failed.
     private func explained<Content: View>(_ failure: String?, @ViewBuilder _ status: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -263,7 +302,7 @@ struct NotchAgentsSettingsControls: View {
             Spacer(minLength: 12)
             // One agent stays on; turning the section off stops all.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot, cursor].filter { $0 }.count <= 1)
+                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot, cursor, antigravity, gemini].filter { $0 }.count <= 1)
         }
     }
 

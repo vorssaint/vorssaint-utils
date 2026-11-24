@@ -107,6 +107,13 @@ struct NotchAgentStrings {
     let kiloEmpty: String
     let kiloSignedOut: String
     let kiloHelp: String
+    // Antigravity's account check; every language reads these until it is translated.
+    var antigravityLimitsTitle = "Antigravity plan limits"
+    var antigravityLimitsPrivacy = "The agy CLI checks your account’s limits, including use on other machines, with your Antigravity sign-in, which Vorssaint never reads. No prompt is sent."
+    var antigravityMissing = "The agy CLI was not found on this Mac."
+    var antigravitySignedOut = "Sign in to Antigravity so agy can check your account’s limits."
+    var antigravityOutdated = "Update Antigravity so agy can check your account’s limits."
+    var antigravityUnreachable = "Antigravity could not check your account’s limits. It tries again later."
 
     func tokens(_ count: String) -> String { String(format: tokensFormat, count) }
     func cached(_ share: String) -> String { String(format: cachedFormat, share) }
@@ -132,6 +139,16 @@ struct NotchAgentStrings {
         case .needsSignIn: return claudeCodeSignedOut
         case .outdated: return claudeCodeOutdated
         case .unreachable: return claudeCodeUnreachable
+        }
+    }
+
+    /// Why Antigravity could not check the account's limits.
+    func antigravity(_ failure: AgentAntigravityServer.Failure) -> String {
+        switch failure {
+        case .missing: return antigravityMissing
+        case .needsSignIn: return antigravitySignedOut
+        case .outdated: return antigravityOutdated
+        case .unreachable: return antigravityUnreachable
         }
     }
 
@@ -200,7 +217,7 @@ extension FeatureStrings {
 extension NotchAgentStrings {
     static let enUS = NotchAgentStrings(
         title: "AI Agents",
-        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode, GitHub Copilot and Cursor in the Dynamic Island.",
+        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode, GitHub Copilot, Cursor, Gemini CLI and Antigravity in the Dynamic Island.",
         settingsDescription: "Reads the usage Claude Code, Codex, OpenCode, GitHub Copilot and Cursor record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
         restingTitle: "AI limits",
         limitsCard: "Limits",
