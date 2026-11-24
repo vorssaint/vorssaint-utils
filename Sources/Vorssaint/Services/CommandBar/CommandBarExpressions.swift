@@ -1210,8 +1210,8 @@ enum CommandBarExpressions {
                          percentRaw: value.percentRaw.map { -$0 }, hasNumber: value.hasNumber)
         }
 
-        private func displayValue(_ value: Value) -> Double {
-            guard let unit = value.unit else { return value.si }
+        private func displayValue(_ value: Value, in target: CommandBarUnitCatalog.Unit? = nil) -> Double {
+            guard let unit = target ?? value.unit else { return value.si }
             let displayed = unit.displayValue(siValue: value.si)
             // An integral reading can gain a fractional bit on its return trip
             // from SI. Keep floor(29 cm) at 29 when that integer maps to the same SI value.
@@ -1254,7 +1254,7 @@ enum CommandBarExpressions {
                            larger: CommandBarUnitCatalog.Unit,
                            smaller: CommandBarUnitCatalog.Unit) -> Outcome? {
             guard value.dims == larger.dimensions, larger.dimensions == smaller.dimensions else { return nil }
-            let largerTotal = (value.si - larger.offset) / larger.scale
+            let largerTotal = displayValue(value, in: larger)
             let whole = largerTotal >= 0 ? largerTotal.rounded(.down) : largerTotal.rounded(.up)
             let remainderLarger = largerTotal - whole
             let smallerValue = remainderLarger * larger.scale / smaller.scale
