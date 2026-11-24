@@ -24,6 +24,7 @@ enum SwitcherQuickCommitTests {
         var windowHistory: [CGWindowID] = [1, 2]
         var appHistory: [pid_t] = [1]
         var focusHistory = WindowFocusHistory()
+        var readAXFocus: (pid_t) -> CGWindowID? = { _ in nil }
         var windows: [CGWindowID] { windowHistory }
         var apps: [pid_t] { appHistory }
     }
@@ -188,5 +189,108 @@ enum SwitcherQuickCommitTests {
                           running: [11], revision: history.focusHistory.revision)
         suite.expect(history.windows == [3, 4] && history.apps == [11],
                      "a current capture still removes closed windows and terminated apps")
+
+        newEmbeddedOwner(suite)
+        frontAppSources(suite, snapshot: snapshot)
+    }
+
+    private static func frontAppSources(_ suite: TestSuite, snapshot: Enumerator.Snapshot) {
+        typealias Opening = SwitcherRememberedSelectionTests.SessionOpening
+        typealias Reader = Opening.WindowEnumerator
+        let tracker = SwitcherFullscreenScopeTests.Tracker.shared
+        let items = Reader.items, reads = Reader.reads, focus = Opening.WindowActivator.focusedWindow
+        let history = tracker.history
+        let physicalOrder = Opening.WindowUseTracker.physicalOrder, hint = Opening.WindowUseTracker.confirmedFocus
+        defer {
+            Reader.items = items
+            Reader.reads = reads
+            Opening.WindowActivator.focusedWindow = focus
+            Opening.WindowUseTracker.physicalOrder = physicalOrder
+            Opening.WindowUseTracker.confirmedFocus = hint
+            tracker.history = history
+        }
+        let host: pid_t = 1
+        let minimized = SwitcherItem.window(id: 41, title: "Minimized", appName: "Editor", pid: host,
+                                            isOnScreen: false, isMinimized: true, frame: frame)
+        let parked = SwitcherItem.window(id: 42, title: "Other Space", appName: "Editor", pid: host,
+                                         isOnScreen: false, frame: frame).withHiddenSpaceState(true)
+        Reader.items = [minimized, parked]
+        tracker.history = [41, 42]
+        Opening.WindowUseTracker.physicalOrder = []
+        Opening.WindowUseTracker.confirmedFocus = nil
+        Opening.WindowActivator.focusedWindow = nil
+        let parkedResult = Reader.readFrontAppSelection(snapshot: snapshot, frontmostPID: host, displayScope: nil,
+                                                        knownWindowIDs: [41, 42], isCancelled: { false })
+        suite.expect(parkedResult.focusedWindowID == nil && parkedResult.list.sourceItems.isEmpty
+                     && parkedResult.list.items.map(\.id) == [minimized.id, parked.id] && parkedResult.focusStillCurrent(),
+                     "minimized and parked windows remain destinations when the front app has no visible source")
+
+        let source = SwitcherItem.window(id: 43, title: "Renderer", appName: "Editor", pid: host,
+                                         windowOwnerPID: 21, isOnScreen: true, frame: frame)
+        let destination = SwitcherItem.window(id: 44, title: "Document", appName: "Editor", pid: host,
+                                              isOnScreen: true, frame: frame.offsetBy(dx: 900, dy: 0))
+        Reader.items = [source, destination]
+        tracker.history = [43, 44]
+        Opening.WindowUseTracker.confirmedFocus = 43
+        let display = Reader.DisplayScope(bounds: [frame, destination.frame], targetIndex: 1)
+        let scoped = Reader.readFrontAppSelection(snapshot: snapshot, frontmostPID: host, displayScope: display,
+                                                  knownWindowIDs: [44], isCancelled: { false })
+        suite.expect(scoped.list.items.map(\.id) == [destination.id] && scoped.focusedWindowID == 43
+                     && scoped.list.sourceItems.first(where: { $0.windowID == 43 })?.windowOwnerPID == 21,
+                     "a confirmed renderer focus remains the source without AX or z-order and outside the destination display")
+        Opening.WindowUseTracker.confirmedFocus = nil
+        let unconfirmed = Reader.readFrontAppSelection(snapshot: snapshot, frontmostPID: host, displayScope: nil,
+                                                       knownWindowIDs: [43, 44], isCancelled: { false })
+        suite.expect(unconfirmed.list.items.isEmpty && !unconfirmed.focusStillCurrent(),
+                     "an MRU entry alone cannot confirm the source when neither AX nor z-order answers")
+        Opening.WindowUseTracker.physicalOrder = [43, 44]
+        Opening.WindowUseTracker.confirmedFocus = 44
+        let inventories: [Set<CGWindowID>] = [[43, 44], [44]]
+        for known in inventories {
+            let ambiguous = Reader.readFrontAppSelection(snapshot: snapshot, frontmostPID: host, displayScope: nil,
+                                                         knownWindowIDs: known, isCancelled: { false })
+            suite.expect(ambiguous.list.items.isEmpty && !ambiguous.focusStillCurrent(),
+                         "an ordered-front window cannot displace confirmed focus without an AX answer")
+        }
+        let raised = SwitcherItem.window(id: 45, title: "Raised without focus", appName: "Editor", pid: host,
+                                         isOnScreen: true, frame: frame)
+        Reader.items = [source, raised, destination]
+        tracker.history = [44]
+        Opening.WindowUseTracker.physicalOrder = nil
+        Opening.WindowUseTracker.confirmedFocus = 44
+        Opening.WindowActivator.focusedWindow = 43
+        let reordered = Reader.readFrontAppSelection(snapshot: snapshot, frontmostPID: host, displayScope: nil,
+                                                     knownWindowIDs: [44, 45], isCancelled: { false })
+        suite.expect(reordered.list.items.map(\.id) == [source.id, destination.id, raised.id],
+                     "raising an already known window without focusing it preserves the observed previous window")
+    }
+
+    private static func newEmbeddedOwner(_ suite: TestSuite) {
+        let host = Enumerator.AppSnapshot(pid: 20, bundleIdentifier: "test.editor", localizedName: "Editor",
+                                          isRegular: true, isHidden: false, bundlePath: "/Applications/Editor.app",
+                                          executablePath: nil)
+        let helper: pid_t = 21
+        let agent: pid_t = 22
+        Enumerator.RunningApplication.apps[helper] = .init(isRegular: false,
+            bundlePath: "/Applications/Editor.app/Contents/Helpers/Renderer.app")
+        Enumerator.RunningApplication.apps[agent] = .init(isRegular: false, bundlePath: "/Applications/Editor.app2/Agent.app")
+        let hostPID = Enumerator.appPID(forWindowOwner: helper, runningApps: [host])
+        suite.expect(hostPID == host.pid && Enumerator.appPID(forWindowOwner: agent, runningApps: [host]) == nil,
+                     "a new embedded owner maps to its running host while an unrelated agent has no host")
+        guard let hostPID else { return }
+
+        let snapshot = Enumerator.Snapshot(accessibilityGranted: true, runningApps: [host],
+                                           ownWindowTitles: [:], screenFrames: [frame], displayIDsByUUID: [:])
+        Enumerator.raw = [surface(id: 31, owner: host.pid), surface(id: 32, owner: helper), surface(id: 34, owner: agent)]
+        Enumerator.answers = [host.pid: described([31]), helper: described([32, 33]), agent: described([34])]
+        let warm = Enumerator.rememberSwitcherWindows(snapshot: snapshot, filterPID: hostPID, isCancelled: { false })
+        suite.expect(warm.items.compactMap(\.windowID) == [31],
+                     "an ordinary host refresh keeps the existing policy for owners missing from the workspace")
+        let windows = Enumerator.rememberSwitcherWindows(snapshot: snapshot, filterPID: hostPID,
+                                                        forFrontAppSession: true, isCancelled: { false }).items
+        suite.expect(Set(windows.compactMap(\.windowID)) == [31, 32, 33]
+                     && windows.allSatisfy { $0.pid == hostPID }
+                     && Set(windows.filter { $0.windowOwnerPID == helper }.compactMap(\.windowID)) == [32, 33],
+                     "a host refresh includes both CG and AX-only windows of a helper missing from the workspace snapshot")
     }
 }

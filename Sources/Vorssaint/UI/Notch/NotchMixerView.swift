@@ -162,6 +162,8 @@ private struct NotchEditablePercent: View {
     let editorID: String
     @Binding var editingID: String?
     let label: String
+    var valueLabel: String?
+    var inputVolume: Double?
     var tint: Color = .secondary
     var boosting = false
     var width: CGFloat = 40
@@ -171,12 +173,13 @@ private struct NotchEditablePercent: View {
 
     var body: some View {
         EditableVolumePercent(currentPercent: percent, maximumPercent: maximum, width: width, height: height,
-                              editorID: editorID, editingID: $editingID, accessibilityLabel: label) {
+                              editorID: editorID, editingID: $editingID, accessibilityLabel: label,
+                              valueLabel: valueLabel, inputVolume: inputVolume) {
             HStack(spacing: 1) {
                 if boosting {
                     Image(systemName: "bolt.fill").font(.system(size: 7, weight: .bold)).foregroundStyle(tint)
                 }
-                Text("\(percent)%")
+                Text(valueLabel ?? "\(percent)%")
                     .font(.system(size: height > 18 ? 12 : 10, weight: .medium)).monospacedDigit()
                     .foregroundStyle(tint)
                     .contentTransition(.numericText())
@@ -257,22 +260,25 @@ private struct NotchMicrophoneFader: View {
             // plain icon the options row shows.
             if AppFeature.micMute.isAvailable {
                 Button(action: micMute.toggle) {
-                    icon(muted: micMute.isMuted).foregroundStyle(micMute.isMuted ? Color.red : Color.white)
+                    icon(micMute.controlSymbol).foregroundStyle(micMute.isMuted ? Color.red : Color.white)
                 }
                 .buttonStyle(NotchButtonStyle(cornerRadius: 14))
                 .accessibilityLabel(micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName)
+                .accessibilityValue(micMute.warning?.message ?? "")
+                .help(micMute.warning?.message ?? l10n.s.mixerInputTitle)
             } else {
-                icon(muted: (input.inputVolume ?? 0) <= 0.001).foregroundStyle(.secondary)
+                icon(input.inputVolume == 0 ? "mic.slash.fill" : "mic.fill").foregroundStyle(.secondary)
                     .accessibilityHidden(true)
             }
             if let volume = input.inputVolume {
+                let valueLabel = MixerRoutingSupport.inputPercentText(forVolume: volume)
                 NotchLevelSlider(value: Binding(get: { volume }, set: { input.setInputVolume($0) }),
-                                 label: l10n.s.mixerInputTitle, vertical: true, trackThickness: 28)
+                                 label: l10n.s.mixerInputTitle, vertical: true, trackThickness: 28, valueLabel: valueLabel)
                     .frame(width: 40, height: NotchMixerFaderLayout.trackHeight(in: height))
                     .disabled(micMute.isMuted)
                 NotchEditablePercent(percent: MixerRoutingSupport.displayPercent(forVolume: volume), maximum: 100,
                                      editorID: "notch-microphone-fader", editingID: $editingVolumeID,
-                                     label: l10n.s.mixerInputTitle, height: 28) {
+                                     label: l10n.s.mixerInputTitle, valueLabel: valueLabel, inputVolume: volume, height: 28) {
                     input.setInputVolume($0)
                 }
                 .disabled(micMute.isMuted)
@@ -282,11 +288,11 @@ private struct NotchMicrophoneFader: View {
         .frame(height: height, alignment: .top)
     }
 
-    private func icon(muted: Bool) -> some View {
-        Image(systemName: muted ? "mic.slash.fill" : "mic.fill")
+    private func icon(_ symbol: String) -> some View {
+        Image(systemName: symbol)
             .font(.system(size: 15, weight: .medium))
             .contentTransition(.symbolEffect(.replace))
-            .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: muted)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: symbol)
             .frame(width: 32, height: 32)
             .contentShape(Circle())
     }
@@ -399,7 +405,7 @@ private struct NotchMixerOptions: View {
     }
 
     @ViewBuilder private var microphone: some View {
-        row(l10n.s.mixerInputTitle, symbol: micMute.isMuted ? "mic.slash" : "mic") {
+        row(l10n.s.mixerInputTitle, symbol: micMute.controlSymbol) {
             NotchDeviceMenu(title: l10n.s.mixerInputTooltip, current: microphoneName, width: 200, lines: 1, alignment: .trailing,
                             items: [NotchMenuItem(title: l10n.s.mixerOutputDefault, checked: selectedMicrophoneUID == nil) {
                                 guard !audioPriority.inputPriorityEnabled else { return }
@@ -417,12 +423,13 @@ private struct NotchMixerOptions: View {
                                  ? [NotchMenuItem(title: l10n.s.mixerInputUnavailable, checked: true)] : []))
         }
         if let volume = input.inputVolume {
+            let valueLabel = MixerRoutingSupport.inputPercentText(forVolume: volume)
             HStack(spacing: 8) {
                 // The mute is its own feature; without it the row keeps the
                 // plain icon the panel's row shows.
                 if AppFeature.micMute.isAvailable {
                     Button(action: micMute.toggle) {
-                        Image(systemName: micMute.isMuted ? "mic.slash.fill" : "mic.fill")
+                        Image(systemName: micMute.controlSymbol)
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(micMute.isMuted ? Color.red : Color.white)
                             .frame(width: 18, height: 18)
@@ -431,19 +438,19 @@ private struct NotchMixerOptions: View {
                     .buttonStyle(NotchButtonStyle(cornerRadius: 6))
                     .accessibilityLabel(micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName)
                 } else {
-                    Image(systemName: volume <= 0.001 ? "mic.slash.fill" : "mic.fill")
+                    Image(systemName: volume == 0 ? "mic.slash.fill" : "mic.fill")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                         .frame(width: 18, height: 18)
                         .accessibilityHidden(true)
                 }
                 NotchLevelSlider(value: Binding(get: { volume }, set: { input.setInputVolume($0) }),
-                                 label: l10n.s.mixerInputTitle)
+                                 label: l10n.s.mixerInputTitle, valueLabel: valueLabel)
                     .frame(height: 22)
                     .disabled(micMute.isMuted)
                 NotchEditablePercent(percent: MixerRoutingSupport.displayPercent(forVolume: volume), maximum: 100,
                                      editorID: "notch-microphone-input", editingID: $editingVolumeID,
-                                     label: l10n.s.mixerInputTitle) {
+                                     label: l10n.s.mixerInputTitle, valueLabel: valueLabel, inputVolume: volume) {
                     input.setInputVolume($0)
                 }
                 .disabled(micMute.isMuted)
@@ -456,6 +463,9 @@ private struct NotchMixerOptions: View {
             message(l10n.s.mixerInputFallback, systemImage: "mic.badge.xmark")
         } else if let lastError = input.lastError {
             message(String(format: l10n.s.mixerInputErrorFormat, lastError), systemImage: "exclamationmark.triangle")
+        }
+        if let warning = micMute.warning {
+            message(warning.message, systemImage: "exclamationmark.triangle")
         }
     }
 

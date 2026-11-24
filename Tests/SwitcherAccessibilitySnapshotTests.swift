@@ -160,6 +160,12 @@ enum SwitcherAccessibilitySnapshotTests {
         suite.expect(ordinary?.everyWindowUnanswered == false && keeps(1, in: ordinary)
                         && !keeps(2, in: ordinary),
                      "fully answered snapshots still reject unmatched current-space surfaces")
+        let panel = Window(3, attributes: [kAXSubroleAttribute as String: "AXFloatingWindow"])
+        Reader.windows = [Window(1), panel, Window(4, .unanswered)]
+        let classified = Reader.accessibilityWindows(for: 1, normalLevelWindowIDs: [1, 2, 3, 4],
+                                                     screenFrames: [], isCancelled: { false })
+        suite.expect(classified?.rejectedWindowIDs == [3] && classified?.unansweredIDs == [4],
+                     "only the explicitly classified normal-level panel is vetoed beside an omitted CG window and a timed-out sibling")
         let maximized = snapshot([Window(1)],
                                  screenFrames: [CGRect(x: 0, y: 0, width: 600, height: 400)])?.byID[1]
         suite.expect(maximized?.isFullscreen == true && maximized?.isNativeFullscreen == false,

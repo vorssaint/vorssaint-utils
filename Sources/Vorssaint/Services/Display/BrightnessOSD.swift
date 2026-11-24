@@ -161,6 +161,8 @@ struct BrightnessOSDView: View {
     }
 
     var body: some View {
+        let language = L10n.shared.language
+        let labels = FeatureStrings.notch(language)
         VStack(spacing: 11) {
             Image(systemName: symbol)
                 .font(.system(size: 39, weight: .regular))
@@ -200,7 +202,8 @@ struct BrightnessOSDView: View {
         )
         .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(percentage)%")
-        .accessibilityValue("\(percentage)%")
+        .accessibilityLabel(kind == .brightness ? labels.brightness : labels.volume)
+        .accessibilityValue(kind == .mutedVolume
+            ? FeatureStrings.brightness(language).mutedVolumeDescription(percent: percentage) : "\(percentage)%")
     }
 }

@@ -6,6 +6,7 @@ import UserNotifications
 
 struct MonitorAlertsControls: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     let compact: Bool
     @State private var notificationsDenied = false
     @AppStorage(DefaultsKey.monitorAlertCPU) private var alertCPU = false
@@ -92,14 +93,12 @@ struct MonitorAlertsControls: View {
                 }
             }
             .monitorTokenGroup()
-            // One interval for every alert, each timed on its own, so it sits
-            // outside the alerts box rather than under the last of them.
             SettingsRow(symbol: "bell.badge", title: text.cooldown) {
                 cooldownPicker
                     .labelsHidden()
                     .fixedSize()
             }
-            .disabled(!anyAlertEnabled)
+            .disabled(!repeatSettingApplies)
             if notificationsDenied, anyAlertEnabled {
                 Text(text.notificationsDenied)
                     .font(.caption)
@@ -193,7 +192,7 @@ struct MonitorAlertsControls: View {
                             step: 5)
                 }
             }
-            if anyAlertEnabled {
+            if repeatSettingApplies {
                 cooldownPicker
             }
             // Alerts silently cannot fire when macOS notifications are denied
@@ -212,8 +211,11 @@ struct MonitorAlertsControls: View {
     }
 
     private var anyAlertEnabled: Bool {
-        alertCPU || alertCPUTemperature || alertMemory || alertDisk
-            || (PowerSampler.hasInternalBattery && (alertBatteryTemperature || alertBattery))
+        MonitorAlertService.anyEnabled(in: .standard)
+    }
+
+    private var repeatSettingApplies: Bool {
+        MonitorAlertService.anyEnabled(in: .standard, includingDisk: false)
     }
 
     /// Checked slightly delayed so a just-fired authorization prompt has a
