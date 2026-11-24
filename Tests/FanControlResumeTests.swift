@@ -609,7 +609,8 @@ enum FanControlResumeContract {
             reset(resume: panelOpen, stored: nil)
             MainActor.assumeIsolated { checkCardFeedback(suite, scenario: .sensorStop(panelOpen: panelOpen)) }
         }
-        for scenario: CardScenario in [.activeConnectionLost(statusInFlight: false), .activeConnectionLost(statusInFlight: true),
+        for scenario: CardScenario in [.applyAvailability(.manual), .applyAvailability(.curve),
+                                       .activeConnectionLost(statusInFlight: false), .activeConnectionLost(statusInFlight: true),
                                        .failedFirstApply, .acceptedApplyReplyLost(sleepDuringApply: false),
                                        .acceptedApplyReplyLost(sleepDuringApply: true), .confirm(.missingReason),
                                        .confirm(.unobservedSession), .confirm(.knownReason)] {
@@ -622,7 +623,7 @@ enum FanControlResumeContract {
     private enum Confirmation { case missingReason, unobservedSession, knownReason }
     private enum CardScenario {
         case sensorStop(panelOpen: Bool), failedFirstApply, acceptedApplyReplyLost(sleepDuringApply: Bool), confirm(Confirmation)
-        case activeConnectionLost(statusInFlight: Bool)
+        case activeConnectionLost(statusInFlight: Bool), applyAvailability(FanControlMode)
     }
 
     @MainActor private static func checkCardFeedback(_ suite: TestSuite, scenario: CardScenario) {
@@ -654,7 +655,7 @@ enum FanControlResumeContract {
                 set: { defaults.set($0, forKey: DefaultsKey.fanControlMode) }
             )).modeBinding
         }
-        func renderCard() -> NSHostingView<FanControlCardContent> {
+        func renderCard(apply: ((FanControlConfiguration) -> Void)? = nil) -> NSHostingView<FanControlCardContent> {
             let card = FanControlCardContent(
                 strings: strings, betaLabel: "Beta", snapshot: service.snapshot, fallbackFanSpeeds: [],
                 accessState: service.accessState, error: service.error, isWorking: service.isWorking,
@@ -662,14 +663,27 @@ enum FanControlResumeContract {
                 mode: mode, coolingLevel: .constant(defaults.values[DefaultsKey.fanControlCoolingLevel] as? Int ?? 100),
                 curves: .constant([FanControlConfiguration.defaultCurve]),
                 resume: .constant(defaults.bool(forKey: DefaultsKey.fanControlResume)),
-                temperatureUnit: .celsius, authorize: {}, applyConfiguration: service.applyConfiguration,
+                temperatureUnit: .celsius, authorize: {}, applyConfiguration: apply ?? service.applyConfiguration,
                 stopCooling: service.returnToSystem
             )
-            let host = NSHostingView(rootView: card)
-            window.contentView = host
+            let host: NSHostingView<FanControlCardContent>
+            if let mounted = window.contentView as? NSHostingView<FanControlCardContent> {
+                host = mounted
+                host.rootView = card
+            } else {
+                host = NSHostingView(rootView: card)
+                window.contentView = host
+            }
             host.layoutSubtreeIfNeeded()
             RunLoop.main.run(until: Date().addingTimeInterval(0.05))
             return host
+        }
+        func button(labeled label: String, in node: AnyObject) -> AnyObject? {
+            if node.accessibilityRole?() == .button, node.accessibilityLabel?() == label { return node }
+            for child in node.accessibilityChildren?() ?? [] {
+                if let match = button(labeled: label, in: child as AnyObject) { return match }
+            }
+            return nil
         }
         func expectFeedback(status: String, message: String?, _ context: String) {
             let warnings = [strings.temperatureUnavailable, strings.safetyStopped, strings.failed, strings.applyFailed,
@@ -692,6 +706,43 @@ enum FanControlResumeContract {
 
         let panelOpen: Bool
         switch scenario {
+        case .applyAvailability(let selection):
+            mode.wrappedValue = selection
+            defaults.set(65, forKey: DefaultsKey.fanControlCoolingLevel)
+            let controller = FanControlRecoveryContract.Controller()
+            let active = controller.statusResponse()
+            let manual = selection == .manual
+            let label = manual ? strings.applyManual : strings.applyCurve
+            let configuration = manual ? FanControlConfiguration.manual(level: 65) : .curve([FanControlConfiguration.defaultCurve])
+            func expectApply(enabled: Bool, _ context: String) {
+                var applications: [FanControlConfiguration] = []
+                let host = renderCard { applications.append($0) }
+                guard let apply = button(labeled: label, in: host) else {
+                    suite.expect(false, "\(label) is missing \(context)")
+                    return
+                }
+                suite.expect(apply.isAccessibilityEnabled?() == enabled, "\(label) reports the wrong availability \(context)")
+                _ = apply.accessibilityPerformPress?()
+                RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+                suite.expect(applications == (enabled ? [configuration] : []), "\(label) dispatched \(applications) \(context)")
+            }
+            service.applyStatus(active)
+            expectApply(enabled: true, "during normal control")
+            service.observeFailedHandoff(nil)
+            // A relaunched service remembers the pending handoff independently of isWorking.
+            Service.shared = Service()
+            service.applyStatus(active)
+            suite.expect(service.awaitingSystemControl && !service.isWorking, "the card awaits confirmation with no work in flight")
+            expectApply(enabled: false, "while system control is unconfirmed")
+            _ = controller.performRestore(reason: nil)
+            service.applyStatus(controller.statusResponse())
+            expectApply(enabled: true, "after confirmed automatic control")
+            service.isWorking = true
+            expectApply(enabled: false, "while a request is in progress")
+            service.isWorking = false
+            service.snapshot.temperatures = []
+            expectApply(enabled: manual, "without a curve sensor")
+            return
         case .activeConnectionLost(let statusInFlight):
             checkActiveConnectionLoss(suite, statusInFlight: statusInFlight, expect: expectFeedback, poll: pollUntilStatusRead)
             return
@@ -847,14 +898,7 @@ enum FanControlResumeContract {
         manuallyControlled.coolingLevel = 65
         service.statusResponse = .success(manuallyControlled)
         let previousWrites = service.proxy.writes
-        func manualButton(_ node: AnyObject) -> AnyObject? {
-            if node.accessibilityRole?() == .button, node.accessibilityLabel?() == strings.applyManual { return node }
-            for child in node.accessibilityChildren?() ?? [] {
-                if let button = manualButton(child as AnyObject) { return button }
-            }
-            return nil
-        }
-        let pressed = manualButton(renderCard())?.accessibilityPerformPress?() ?? false
+        let pressed = button(labeled: strings.applyManual, in: renderCard())?.accessibilityPerformPress?() ?? false
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
         suite.expect(pressed && service.proxy.writes == previousWrites + [manual] && service.interruptedStop == nil
                         && FanControlConfiguration.decodeResume(defaults.string(forKey: DefaultsKey.fanControlResumeConfiguration) ?? "")
