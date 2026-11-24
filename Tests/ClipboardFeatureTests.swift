@@ -990,10 +990,10 @@ enum ClipboardFeatureTests {
                                      backing: .buffered, defer: true)
         let placementScreen = PanelPlacementHost.Screen.pointerVisibleFrame
         let expectedShelfFrames: [ClipboardShelfEdge: NSRect] = [
-            .bottom: NSRect(x: 0, y: 25, width: 1512, height: 366),
-            .top: NSRect(x: 0, y: 579, width: 1512, height: 366),
-            .left: NSRect(x: 0, y: 25, width: 336, height: 920),
-            .right: NSRect(x: 1176, y: 25, width: 336, height: 920),
+            .bottom: NSRect(x: 0, y: 25, width: 1512, height: 324),
+            .top: NSRect(x: 0, y: 621, width: 1512, height: 324),
+            .left: NSRect(x: 0, y: 25, width: 280, height: 920),
+            .right: NSRect(x: 1232, y: 25, width: 280, height: 920),
         ]
         for edge in ClipboardShelfEdge.allCases {
             placement.quickShelfEdge = edge
@@ -2388,8 +2388,8 @@ enum ClipboardPreviewContract {
 
     private static func shelfCardSizing(_ suite: TestSuite) {
         let layouts: [(viewport: CGSize, vertical: Bool, side: CGFloat)] = [
-            (CGSize(width: 1200, height: 288), false, 264),
-            (CGSize(width: 336, height: 840), true, 312),
+            (CGSize(width: 1200, height: 280), false, 232),
+            (CGSize(width: 280, height: 840), true, 232),
         ]
         for (viewport, vertical, side) in layouts {
             let square = CGSize(width: side, height: side)
@@ -2404,9 +2404,9 @@ enum ClipboardPreviewContract {
                          "cards stay square when the legacy scrollbar needs room")
         }
 
-        let tight = ClipboardShelfCardLayout.cardSize(in: CGSize(width: 1084, height: 288), entryCount: 4,
+        let tight = ClipboardShelfCardLayout.cardSize(in: CGSize(width: 1040, height: 280), entryCount: 4,
                                                      vertical: false, legacyScrollerWidth: 15)
-        suite.expect(tight == CGSize(width: 257.5, height: 257.5),
+        suite.expect(tight == CGSize(width: 230, height: 230),
                      "slightly smaller squares fit the whole row when that avoids a legacy scrollbar")
     }
 

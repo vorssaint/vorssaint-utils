@@ -32,8 +32,8 @@ enum ClipboardSourceTint {
 
         guard total >= 1 else { return nil }
         var rgb = weighted / total
-        // Leave enough contrast for the white labels even on a yellow or green icon.
-        while luminance(rgb) > 0.175 { rgb *= 0.94 }
+        // Keep the smaller, slightly translucent timestamp legible as well as the title.
+        while luminance(rgb) > 0.15 { rgb *= 0.94 }
         return Color(red: rgb.x, green: rgb.y, blue: rgb.z)
     }
 

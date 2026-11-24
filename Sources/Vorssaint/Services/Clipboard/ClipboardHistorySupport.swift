@@ -29,8 +29,8 @@ enum ClipboardShelfEdge: String, CaseIterable {
     var isVertical: Bool { self == .left || self == .right }
 
     func frame(in screen: CGRect, topInset: CGFloat = 0) -> CGRect {
-        let width = isVertical ? min(336, screen.width) : screen.width
-        let height = isVertical ? screen.height : min(366 + topInset, screen.height)
+        let width = isVertical ? min(280, screen.width) : screen.width
+        let height = isVertical ? screen.height : min(324 + topInset, screen.height)
         let x = self == .right ? screen.maxX - width : screen.minX
         let y = self == .top ? screen.maxY - height : screen.minY
         return CGRect(x: x, y: y, width: width, height: height)
@@ -79,8 +79,8 @@ enum ClipboardShelfWebAddress {
 }
 
 enum ClipboardShelfCardLayout {
-    static let inset: CGFloat = 12
-    static let spacing: CGFloat = 10
+    static let inset: CGFloat = 24
+    static let spacing: CGFloat = 24
 
     static func cardSize(in viewport: CGSize, entryCount: Int, vertical: Bool,
                          legacyScrollerWidth: CGFloat = 0) -> CGSize {

@@ -62,6 +62,7 @@ final class ClipboardHistoryService: ObservableObject {
             }
         }
     }
+    @Published var quickShelfSearchExpanded = false
     @Published var quickSourcePickerPresented = false
     @Published var quickTypePickerPresented = false
     @Published private(set) var quickFilter = ClipboardShelfFilter()
@@ -563,6 +564,32 @@ final class ClipboardHistoryService: ObservableObject {
         // A changed filter must not leave an invisible batch as Return's target.
         clearQuickBatchSelection()
         resetQuickSelection()
+    }
+
+    func beginQuickShelfSearch() {
+        quickShelfSearchExpanded = true
+        resetQuickSelection()
+    }
+
+    func clearQuickShelfSearch() {
+        quickQuery = ""
+        setQuickFilter(ClipboardShelfFilter(collection: quickFilter.collection))
+        quickSourcePickerPresented = false
+        quickTypePickerPresented = false
+        quickShelfSearchExpanded = false
+    }
+
+    private func dismissQuickShelfSearch() -> Bool {
+        guard quickLayout == .cards else { return false }
+        if quickSourcePickerPresented || quickTypePickerPresented {
+            quickSourcePickerPresented = false
+            quickTypePickerPresented = false
+            return true
+        }
+        guard quickShelfSearchExpanded || !quickQuery.isEmpty
+                || quickSourceBundleID != nil || quickFilter.type != nil else { return false }
+        clearQuickShelfSearch()
+        return true
     }
 
     func selectQuickEntry(_ entry: ClipboardHistoryEntry) {
@@ -1583,6 +1610,7 @@ final class ClipboardHistoryService: ObservableObject {
         refreshQuickLayout()
 
         quickSourceAppsCache = nil
+        quickShelfSearchExpanded = false
         quickSourcePickerPresented = false
         quickTypePickerPresented = false
         setQuickFilter(ClipboardShelfFilter())
@@ -1605,6 +1633,7 @@ final class ClipboardHistoryService: ObservableObject {
         // A copy made just before opening is read while the panel does not
         // hold the keys yet, so it keeps the app it came from.
         captureIfChanged()
+        if hasShelf, let first = selectedQuickEntry { selectQuickEntry(first) }
         panel.alphaValue = 1
         panel.orderFrontRegardless()
         panel.makeKey()
@@ -1937,6 +1966,7 @@ final class ClipboardHistoryService: ObservableObject {
             }
 
             if event.keyCode == UInt16(kVK_Escape) {
+                if self.dismissQuickShelfSearch() { return nil }
                 switch ClipboardHistoryEscape.action(batchCount: self.quickBatchCount) {
                 case .clearBatchSelection: self.clearQuickBatchSelection()
                 case .hideWindow: self.hideHistoryWindow()
@@ -2005,6 +2035,12 @@ final class ClipboardHistoryService: ObservableObject {
                let index = Self.digitIndex(for: event.keyCode) {
                 self.copyQuickEntry(at: index)
                 return nil
+            }
+            // Expand before the field editor processes the first character, including marked text.
+            if self.quickLayout == .cards, !self.quickShelfSearchExpanded,
+               textEditor?.isFieldEditor == true, event.specialKey == nil,
+               modifiers.isDisjoint(with: [.command, .control]) {
+                self.quickShelfSearchExpanded = true
             }
             return event
         }

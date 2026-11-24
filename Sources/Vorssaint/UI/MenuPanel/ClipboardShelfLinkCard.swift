@@ -35,23 +35,23 @@ struct ClipboardShelfLinkCard: View {
     }
 
     private var artwork: some View {
-        GeometryReader { geometry in
+        Group {
             if let image = visibleSnapshot?.image {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .background(.quaternary.opacity(0.32))
-                    .accessibilityHidden(true)
             } else {
                 Image(systemName: "globe")
                     .font(.system(size: 32, weight: .light))
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(.quaternary.opacity(0.32))
-                    .accessibilityHidden(true)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .accessibilityHidden(true)
+        .padding(.horizontal, 11)
+        .padding(.top, 9)
     }
 
     private var details: some View {
@@ -68,8 +68,8 @@ struct ClipboardShelfLinkCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             if enabled { previewButton }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 11)
+        .padding(.top, 7)
     }
 
     private var previewButton: some View {

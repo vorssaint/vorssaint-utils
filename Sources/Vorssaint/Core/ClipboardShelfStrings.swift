@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Foundation
+
 struct ClipboardShelfStrings {
     let edge: String
     let click: String
@@ -35,6 +37,8 @@ struct ClipboardShelfStrings {
     private let color: String
     private let image: String
     private let file: String
+    private let characterCount: String
+    private var singleCharacterCount: String? = nil
 
     static func forLanguage(_ language: AppLanguage) -> ClipboardShelfStrings {
         switch language {
@@ -70,6 +74,11 @@ struct ClipboardShelfStrings {
         case .select: return clickToSelect
         case .paste: return clickToPaste
         }
+    }
+
+    func characters(_ count: Int, locale: Locale) -> String {
+        let format = count == 1 ? singleCharacterCount ?? characterCount : characterCount
+        return String(format: format, count.formatted(.number.locale(locale)))
     }
 
     func typeName(_ type: ClipboardShelfContentType) -> String {
@@ -108,7 +117,8 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "Skips copies marked temporary. Copies marked concealed are always skipped.",
         top: "Top", bottom: "Bottom", left: "Left", right: "Right",
         clickToSelect: "Click to select", clickToPaste: "Click to paste",
-        text: "Text", link: "Link", color: "Color", image: "Image", file: "File"
+        text: "Text", link: "Link", color: "Color", image: "Image", file: "File",
+        characterCount: "%@ characters", singleCharacterCount: "%@ character"
     )
 
     static let ptBR = ClipboardShelfStrings(
@@ -135,7 +145,8 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "Ignora cópias marcadas como temporárias. Cópias marcadas como ocultas são sempre ignoradas.",
         top: "Superior", bottom: "Inferior", left: "Esquerda", right: "Direita",
         clickToSelect: "Clicar para selecionar", clickToPaste: "Clicar para colar",
-        text: "Texto", link: "Link", color: "Cor", image: "Imagem", file: "Arquivo"
+        text: "Texto", link: "Link", color: "Cor", image: "Imagem", file: "Arquivo",
+        characterCount: "%@ caracteres", singleCharacterCount: "%@ caractere"
     )
 
     static let tr = ClipboardShelfStrings(
@@ -162,7 +173,8 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "Geçici olarak işaretlenen kopyalar atlanır. Gizli olarak işaretlenen kopyalar her zaman atlanır.",
         top: "Üst", bottom: "Alt", left: "Sol", right: "Sağ",
         clickToSelect: "Tıklayarak seç", clickToPaste: "Tıklayarak yapıştır",
-        text: "Metin", link: "Bağlantı", color: "Renk", image: "Görsel", file: "Dosya"
+        text: "Metin", link: "Bağlantı", color: "Renk", image: "Görsel", file: "Dosya",
+        characterCount: "%@ karakter"
     )
 
     static let ru = ClipboardShelfStrings(
@@ -189,7 +201,8 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "Копии, отмеченные как временные, пропускаются. Копии, отмеченные как скрытые, пропускаются всегда.",
         top: "Сверху", bottom: "Снизу", left: "Слева", right: "Справа",
         clickToSelect: "Выбрать щелчком", clickToPaste: "Вставить щелчком",
-        text: "Текст", link: "Ссылка", color: "Цвет", image: "Изображение", file: "Файл"
+        text: "Текст", link: "Ссылка", color: "Цвет", image: "Изображение", file: "Файл",
+        characterCount: "%@ симв."
     )
 
     static let es = ClipboardShelfStrings(
@@ -216,7 +229,8 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "Omite las copias marcadas como temporales. Las copias marcadas como ocultas se omiten siempre.",
         top: "Arriba", bottom: "Abajo", left: "Izquierda", right: "Derecha",
         clickToSelect: "Clic para seleccionar", clickToPaste: "Clic para pegar",
-        text: "Texto", link: "Enlace", color: "Color", image: "Imagen", file: "Archivo"
+        text: "Texto", link: "Enlace", color: "Color", image: "Imagen", file: "Archivo",
+        characterCount: "%@ caracteres", singleCharacterCount: "%@ carácter"
     )
 
     static let sk = ClipboardShelfStrings(
@@ -243,7 +257,8 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "Preskočí kópie označené ako dočasné. Kópie označené ako skryté sa vždy preskočia.",
         top: "Hore", bottom: "Dole", left: "Vľavo", right: "Vpravo",
         clickToSelect: "Vybrať kliknutím", clickToPaste: "Vložiť kliknutím",
-        text: "Text", link: "Odkaz", color: "Farba", image: "Obrázok", file: "Súbor"
+        text: "Text", link: "Odkaz", color: "Farba", image: "Obrázok", file: "Súbor",
+        characterCount: "%@ zn."
     )
 
     static let de = ClipboardShelfStrings(
@@ -270,7 +285,8 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "Überspringt als vorübergehend markierte Kopien. Als verborgen markierte Kopien werden immer übersprungen.",
         top: "Oben", bottom: "Unten", left: "Links", right: "Rechts",
         clickToSelect: "Per Klick auswählen", clickToPaste: "Per Klick einfügen",
-        text: "Text", link: "Link", color: "Farbe", image: "Bild", file: "Datei"
+        text: "Text", link: "Link", color: "Farbe", image: "Bild", file: "Datei",
+        characterCount: "%@ Zeichen"
     )
 
     static let fr = ClipboardShelfStrings(
@@ -297,7 +313,8 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "Ignore les copies marquées comme temporaires. Les copies marquées comme masquées sont toujours ignorées.",
         top: "En haut", bottom: "En bas", left: "À gauche", right: "À droite",
         clickToSelect: "Cliquer pour sélectionner", clickToPaste: "Cliquer pour coller",
-        text: "Texte", link: "Lien", color: "Couleur", image: "Image", file: "Fichier"
+        text: "Texte", link: "Lien", color: "Couleur", image: "Image", file: "Fichier",
+        characterCount: "%@ caractères", singleCharacterCount: "%@ caractère"
     )
 
     static let it = ClipboardShelfStrings(
@@ -324,7 +341,8 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "Ignora le copie contrassegnate come temporanee. Le copie contrassegnate come nascoste vengono sempre ignorate.",
         top: "In alto", bottom: "In basso", left: "A sinistra", right: "A destra",
         clickToSelect: "Clic per selezionare", clickToPaste: "Clic per incollare",
-        text: "Testo", link: "Link", color: "Colore", image: "Immagine", file: "File"
+        text: "Testo", link: "Link", color: "Colore", image: "Immagine", file: "File",
+        characterCount: "%@ caratteri", singleCharacterCount: "%@ carattere"
     )
 
     static let ja = ClipboardShelfStrings(
@@ -351,7 +369,8 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "一時的としてマークされたコピーを除外します。非公開としてマークされたコピーは常に除外します。",
         top: "上", bottom: "下", left: "左", right: "右",
         clickToSelect: "クリックで選択", clickToPaste: "クリックでペースト",
-        text: "テキスト", link: "リンク", color: "カラー", image: "画像", file: "ファイル"
+        text: "テキスト", link: "リンク", color: "カラー", image: "画像", file: "ファイル",
+        characterCount: "%@文字"
     )
 
     static let ko = ClipboardShelfStrings(
@@ -378,7 +397,8 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "임시로 표시된 복사는 건너뜁니다. 숨김으로 표시된 복사는 항상 건너뜁니다.",
         top: "상단", bottom: "하단", left: "왼쪽", right: "오른쪽",
         clickToSelect: "클릭하여 선택", clickToPaste: "클릭하여 붙여넣기",
-        text: "텍스트", link: "링크", color: "색상", image: "이미지", file: "파일"
+        text: "텍스트", link: "링크", color: "색상", image: "이미지", file: "파일",
+        characterCount: "%@자"
     )
 
     static let uk = ClipboardShelfStrings(
@@ -405,7 +425,8 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "Копії з позначкою «тимчасова» пропускаються. Копії з позначкою «прихована» пропускаються завжди.",
         top: "Вгорі", bottom: "Внизу", left: "Ліворуч", right: "Праворуч",
         clickToSelect: "Клік для вибору", clickToPaste: "Клік для вставлення",
-        text: "Текст", link: "Посилання", color: "Колір", image: "Зображення", file: "Файл"
+        text: "Текст", link: "Посилання", color: "Колір", image: "Зображення", file: "Файл",
+        characterCount: "%@ симв."
     )
 
     static let zhHans = ClipboardShelfStrings(
@@ -432,7 +453,8 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "跳过标记为临时的拷贝。标记为隐藏的拷贝始终会被跳过。",
         top: "顶部", bottom: "底部", left: "左侧", right: "右侧",
         clickToSelect: "单击选择", clickToPaste: "单击粘贴",
-        text: "文本", link: "链接", color: "颜色", image: "图像", file: "文件"
+        text: "文本", link: "链接", color: "颜色", image: "图像", file: "文件",
+        characterCount: "%@ 个字符"
     )
 
     static let zhTW = ClipboardShelfStrings(
@@ -459,7 +481,8 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "略過標示為暫時的複製項目。標示為隱藏的複製項目一律略過。",
         top: "頂端", bottom: "底端", left: "左側", right: "右側",
         clickToSelect: "點一下來選取", clickToPaste: "點一下來貼上",
-        text: "文字", link: "連結", color: "顏色", image: "影像", file: "檔案"
+        text: "文字", link: "連結", color: "顏色", image: "影像", file: "檔案",
+        characterCount: "%@ 個字元"
     )
 
     static let zhHK = ClipboardShelfStrings(
@@ -486,6 +509,7 @@ private extension ClipboardShelfStrings {
         ignoreTransientCaption: "略過標記為暫時的複製項目。標記為隱藏的複製項目一律略過。",
         top: "頂部", bottom: "底部", left: "左側", right: "右側",
         clickToSelect: "單按選取", clickToPaste: "單按貼上",
-        text: "文字", link: "連結", color: "顏色", image: "影像", file: "檔案"
+        text: "文字", link: "連結", color: "顏色", image: "影像", file: "檔案",
+        characterCount: "%@ 個字元"
     )
 }

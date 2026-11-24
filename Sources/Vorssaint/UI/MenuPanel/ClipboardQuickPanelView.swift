@@ -14,6 +14,8 @@ struct ClipboardQuickPanelView: View {
 
     private enum FilterChoice: Hashable {
         case source(String)
+        case collection(ClipboardShelfCollection)
+        case search, closeSearch, filters, addBoard, actions
         case type(ClipboardShelfContentType?)
     }
     @State private var previewSelection = QuickPreviewSelection()
@@ -100,12 +102,18 @@ struct ClipboardQuickPanelView: View {
 
     private var shelfContent: some View {
         VStack(spacing: 0) {
-            toolbar.disabled(boardEditor != nil)
-            if layout == .list { filterChoices }
-            Divider()
+            toolbar
+                .disabled(boardEditor != nil)
+                .modifier(ClipboardClearRecentConfirmation(entryIDs: $clearingIDs))
+            if layout == .list {
+                filterChoices
+                Divider()
+            }
             shelfResults
-            Divider()
-            footer.disabled(boardEditor != nil)
+            if layout == .list {
+                Divider()
+                footer.disabled(boardEditor != nil)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .alert(shelfText.deletePinboard, isPresented: showingBoardDeletion, presenting: deletingBoard) { board in
@@ -157,12 +165,45 @@ struct ClipboardQuickPanelView: View {
     @ViewBuilder
     private var filterFlyout: some View {
         if layout == .cards, boardEditor == nil, hasFilterChoices {
-            filterChoices
-                .padding(.vertical, 8)
-                .background(ShelfFlyout())
-                .frame(maxWidth: vertical ? nil : 480)
-                .padding(8)
+            Group {
+                if history.quickSourcePickerPresented || history.quickTypePickerPresented {
+                    shelfFilterPicker
+                } else {
+                    sourceChoices.padding(.vertical, 8)
+                }
+            }
+            .frame(maxWidth: vertical ? .infinity : 430)
+            .background(ShelfFlyout())
+            .padding(.horizontal, 12)
         }
+    }
+
+    private var shelfFilterPicker: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(shelfText.filterByType).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                LazyVGrid(columns: filterColumns, alignment: .leading, spacing: 6) {
+                    typeChoice(nil, label: shelfText.allTypes)
+                    ForEach(ClipboardShelfContentType.allCases, id: \.self) { type in
+                        typeChoice(type, label: shelfText.typeName(type))
+                    }
+                }
+                if !history.quickSourceApps.isEmpty {
+                    Text(text.filterBySourceApp).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    LazyVGrid(columns: filterColumns, alignment: .leading, spacing: 6) {
+                        ForEach(history.quickSourceApps) { app in
+                            sourceChoice(app, isCompletion: false, showTabKey: false)
+                        }
+                    }
+                }
+            }
+            .padding(12)
+        }
+        .frame(height: 205)
+    }
+
+    private var filterColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: 110), spacing: 5, alignment: .leading)]
     }
 
     private var showsSourceSuggestions: Bool { searchFocused || filterChoiceFocus != nil }
@@ -227,27 +268,103 @@ struct ClipboardQuickPanelView: View {
         }
     }
 
+    @ViewBuilder
     private var toolbar: some View {
-        HStack(spacing: 6) {
-            if layout == .cards && !vertical {
-                searchField.frame(minWidth: 120, idealWidth: 220, maxWidth: 280)
-                pinboardBar
-            } else {
-                searchField.layoutPriority(1)
-                if vertical { compactPinboardMenu }
-            }
-
-            if vertical {
+        if layout == .cards {
+            HStack(spacing: 6) {
+                shelfSearch
+                if vertical && shelfSearchExpanded {
+                    compactPinboardMenu
+                } else {
+                    pinboardBar
+                }
                 compactActions
-            } else {
+            }
+            .padding(.horizontal, vertical ? 10 : 18)
+            .frame(height: 44)
+        } else {
+            HStack(spacing: 6) {
+                searchField.layoutPriority(1)
                 sourceFilter
                 typeFilter
                 previewButton
+                closeButton
             }
-            closeButton
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
+    }
+
+    private var shelfSearchExpanded: Bool {
+        history.quickShelfSearchExpanded || !history.quickQuery.isEmpty
+            || history.quickSourceBundleID != nil || history.quickFilter.type != nil
+            || history.quickTypePickerPresented
+    }
+
+    private var shelfSearch: some View {
+        let expanded = shelfSearchExpanded
+        return HStack(spacing: expanded ? 5 : 0) {
+            Button {
+                history.beginQuickShelfSearch()
+                searchFocused = true
+            } label: {
+                Image(systemName: "magnifyingglass").frame(width: 26, height: 26)
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("f")
+            .help(text.search)
+            .accessibilityLabel(text.search)
+            .focused($filterChoiceFocus, equals: .search)
+
+            // Keep the native editor focused while collapsed so the first keystroke,
+            // including the start of an IME composition, still goes to search.
+            TextField(expanded ? text.search : "", text: $history.quickQuery)
+                .textFieldStyle(.plain)
+                .accessibilityLabel(text.search)
+                .focused($searchFocused)
+                .frame(width: expanded ? nil : 1)
+                .opacity(expanded ? 1 : 0.01)
+            if expanded {
+                shelfFilterButton
+                Button {
+                    history.clearQuickShelfSearch()
+                    searchFocused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(l10n.s.menuClose)
+                .accessibilityLabel(l10n.s.menuClose)
+                .focused($filterChoiceFocus, equals: .closeSearch)
+            }
+        }
+        .padding(.horizontal, expanded ? 6 : 0)
+        .frame(width: expanded ? (vertical ? 165 : 260) : 28, height: 28)
+        .background(expanded ? Color.primary.opacity(0.09) : .clear, in: Capsule())
+    }
+
+    private var shelfFilterButton: some View {
+        let name = history.quickSourceBundleID.map { bundleID in
+            history.quickSourceApps.first { $0.id == bundleID }?.name ?? bundleID
+        }
+        let type = history.quickFilter.type.map(shelfText.typeName)
+        let active = [name, type].compactMap { $0 }.joined(separator: " · ")
+        return Button {
+            history.quickTypePickerPresented.toggle()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: active.isEmpty ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+                if !active.isEmpty && !vertical { Text(active).lineLimit(1).frame(maxWidth: 100) }
+            }
+            .foregroundStyle(active.isEmpty ? Color.secondary : Color.accentColor)
+            .padding(.horizontal, 5)
+            .frame(height: 26)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(shelfText.filterByType + ", " + text.filterBySourceApp)
+        .accessibilityValue(active)
+        .help(active.isEmpty ? shelfText.filterByType + " · " + text.filterBySourceApp : active)
+        .focused($filterChoiceFocus, equals: .filters)
     }
 
     private var searchField: some View {
@@ -286,10 +403,10 @@ struct ClipboardQuickPanelView: View {
 
     private var compactPinboardMenu: some View {
         Menu {
-            Button(shelfText.history, systemImage: "clock") { history.setQuickCollection(.history) }
-            Button(text.pinned, systemImage: "pin") { history.setQuickCollection(.pinned) }
+            Button(shelfText.history, systemImage: "clock") { selectCollection(.history) }
+            Button(text.pinned, systemImage: "pin") { selectCollection(.pinned) }
             ForEach(history.pinboards) { board in
-                Button(board.label) { history.setQuickCollection(.pinboard(board.id)) }
+                Button(board.label) { selectCollection(.pinboard(board.id)) }
             }
             Divider()
             Button(shelfText.newPinboard, systemImage: "plus") { editPinboard(nil) }
@@ -298,8 +415,8 @@ struct ClipboardQuickPanelView: View {
                 Button(shelfText.deletePinboard, role: .destructive) { deletingBoard = board }
             }
         } label: {
-            if let emoji = activePinboard?.emoji {
-                Text(emoji)
+            if let board = activePinboard {
+                Text(board.emoji ?? "📌")
             } else {
                 Image(systemName: history.quickFilter.collection == .pinned ? "pin" : "square.on.square")
             }
@@ -313,27 +430,28 @@ struct ClipboardQuickPanelView: View {
 
     private var compactActions: some View {
         Menu {
-            if history.quickSourceBundleID != nil {
-                Button(text.clearAppFilter) { selectSourceApp(nil) }
-            } else {
-                Button(text.filterBySourceApp, systemImage: "line.3.horizontal.decrease.circle") {
-                    history.quickTypePickerPresented = false
-                    history.quickSourcePickerPresented.toggle()
-                }
-                .disabled(!history.hasQuickSourceApps)
+            if history.quickBatchCount > 0 {
+                batchActions
+                Divider()
             }
-            Button(shelfText.filterByType, systemImage: "slider.horizontal.3") {
-                history.quickSourcePickerPresented = false
-                history.quickTypePickerPresented.toggle()
-            }
+            Button(shelfText.newPinboard, systemImage: "plus") { editPinboard(nil) }
             Button(text.previewLabel, systemImage: "eye") { history.previewQuickSelection() }
                 .disabled(history.selectedQuickEntry == nil)
+            Button(text.clearRecent, systemImage: "trash") { clearingIDs = history.recentEntriesSnapshot }
+                .disabled(history.recentEntries.isEmpty)
+            Divider()
+            Button(l10n.s.menuClose) { history.hideHistoryWindow() }
         } label: {
-            Image(systemName: "ellipsis")
-                .foregroundStyle(history.quickSearchIsActive ? Color.accentColor : Color.primary)
+            HStack(spacing: 3) {
+                if history.quickBatchCount > 0 { Text("\(history.quickBatchCount)") }
+                Image(systemName: "ellipsis")
+            }
+            .frame(minWidth: 22, minHeight: 24)
         }
-        .controlSize(.small)
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
         .fixedSize()
+        .focused($filterChoiceFocus, equals: .actions)
         .accessibilityLabel(FeatureStrings.mixer(l10n.language).actions)
         .help(FeatureStrings.mixer(l10n.language).actions)
     }
@@ -369,30 +487,35 @@ struct ClipboardQuickPanelView: View {
     }
 
     private var pinboardBar: some View {
-        HStack(spacing: 8) {
-            ScrollView(.horizontal) {
-                HStack(spacing: 6) {
-                    collectionButton(shelfText.history, symbol: "clock", collection: .history)
-                    collectionButton(text.pinned, symbol: "pin", collection: .pinned)
-                    ForEach(history.pinboards, content: pinboardButton)
+        ScrollView(.horizontal) {
+            HStack(spacing: 6) {
+                collectionButton(shelfText.history, symbol: "clock.arrow.circlepath", collection: .history)
+                collectionButton(text.pinned, symbol: "pin", collection: .pinned)
+                ForEach(history.pinboards, content: pinboardButton)
+                Button { editPinboard(nil) } label: {
+                    Image(systemName: "plus").frame(width: 24, height: 26)
                 }
+                .buttonStyle(.plain)
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+                .focused($filterChoiceFocus, equals: .addBoard)
+                .help(shelfText.newPinboard)
+                .accessibilityLabel(shelfText.newPinboard)
             }
-            .scrollIndicators(.hidden)
-            Button { editPinboard(nil) } label: {
-                Image(systemName: "plus")
-            }
-            .buttonStyle(.bordered)
-            .help(shelfText.newPinboard)
-            .accessibilityLabel(shelfText.newPinboard)
         }
-        .controlSize(.small)
+        .scrollIndicators(.hidden)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(shelfText.pinboards)
     }
 
+    private func selectCollection(_ collection: ClipboardShelfCollection) {
+        history.setQuickCollection(collection)
+        if let first = history.selectedQuickEntry { history.selectQuickEntry(first) }
+        searchFocused = true
+    }
+
     private func pinboardButton(_ board: ClipboardPinboard) -> some View {
         collectionButton(board.name, symbol: "square.on.square",
-                         collection: .pinboard(board.id), emoji: board.emoji)
+                         collection: .pinboard(board.id), emoji: board.emoji ?? "📌")
             .contextMenu {
                 Button(shelfText.renamePinboard) { editPinboard(board) }
                 Button(shelfText.deletePinboard, role: .destructive) { deletingBoard = board }
@@ -403,7 +526,7 @@ struct ClipboardQuickPanelView: View {
                                   collection: ClipboardShelfCollection, emoji: String? = nil) -> some View {
         let selected = history.quickFilter.collection == collection
         return Button {
-            history.setQuickCollection(collection)
+            selectCollection(collection)
         } label: {
             HStack(spacing: 4) {
                 if let emoji {
@@ -411,16 +534,19 @@ struct ClipboardQuickPanelView: View {
                 } else {
                     Image(systemName: symbol).accessibilityHidden(true)
                 }
-                Text(name)
+                if emoji == nil && !vertical && collection == .history { Text(name) }
             }
-            .font(.system(size: 11, weight: selected ? .semibold : .regular))
+            .font(.system(size: emoji == nil ? 12 : 16, weight: selected ? .semibold : .regular))
             .lineLimit(1)
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(selected ? Color.accentColor.opacity(0.17) : .clear, in: Capsule())
+            .background(selected ? Color.primary.opacity(0.14) : .clear, in: Capsule())
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .help(name)
+        .accessibilityLabel(name)
+        .focused($filterChoiceFocus, equals: .collection(collection))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
@@ -474,6 +600,7 @@ struct ClipboardQuickPanelView: View {
     private func selectContentType(_ type: ClipboardShelfContentType?) {
         history.setQuickContentType(type)
         history.quickTypePickerPresented = false
+        history.quickSourcePickerPresented = false
         searchFocused = true
     }
 
@@ -508,6 +635,9 @@ struct ClipboardQuickPanelView: View {
         Button { selectSourceApp(app.id, completingQuery: isCompletion) } label: {
             HStack(spacing: 4) {
                 sourceAppLabel(app)
+                if app.id == history.quickSourceBundleID {
+                    Image(systemName: "checkmark").accessibilityHidden(true)
+                }
                 if showTabKey { Text("⇥").foregroundStyle(.secondary) }
             }
         }
@@ -518,6 +648,7 @@ struct ClipboardQuickPanelView: View {
             selectSourceApp(app.id, completingQuery: isCompletion)
             return .handled
         }
+        .accessibilityAddTraits(app.id == history.quickSourceBundleID ? .isSelected : [])
         .help(text.filterBySourceApp)
     }
 
@@ -536,7 +667,10 @@ struct ClipboardQuickPanelView: View {
     }
 
     private func selectSourceApp(_ bundleID: String?, completingQuery: Bool = false) {
-        history.setQuickSourceApp(bundleID, completingQuery: completingQuery)
+        let deselecting = layout == .cards && !completingQuery && bundleID == history.quickSourceBundleID
+        history.setQuickSourceApp(deselecting ? nil : bundleID, completingQuery: completingQuery)
+        history.quickSourcePickerPresented = false
+        history.quickTypePickerPresented = false
         searchFocused = true
     }
 
@@ -794,22 +928,27 @@ struct ClipboardQuickPanelView: View {
     }
 
 
+    @ViewBuilder
+    private var batchActions: some View {
+        Button(String(format: text.pasteSelectedFormat, history.quickBatchCount)) {
+            history.copySelectedQuickEntry()
+        }
+        .buttonStyle(.borderedProminent)
+        Button(String(format: text.copySelectedFormat, history.quickBatchCount)) {
+            history.copySelectedQuickEntryOnly()
+        }
+        Button(String(format: text.deleteSelectedFormat, history.quickBatchCount), role: .destructive) {
+            history.removeSelectedQuickEntries()
+        }
+        Button(text.clearSelection) {
+            history.clearQuickBatchSelection()
+        }
+    }
+
     private var footer: some View {
         HStack(spacing: 8) {
             if history.quickBatchCount > 0 {
-                Button(String(format: text.pasteSelectedFormat, history.quickBatchCount)) {
-                    history.copySelectedQuickEntry()
-                }
-                .buttonStyle(.borderedProminent)
-                Button(String(format: text.copySelectedFormat, history.quickBatchCount)) {
-                    history.copySelectedQuickEntryOnly()
-                }
-                Button(String(format: text.deleteSelectedFormat, history.quickBatchCount), role: .destructive) {
-                    history.removeSelectedQuickEntries()
-                }
-                Button(text.clearSelection) {
-                    history.clearQuickBatchSelection()
-                }
+                batchActions
             } else {
                 Button {
                     clearingIDs = history.recentEntriesSnapshot
@@ -817,7 +956,6 @@ struct ClipboardQuickPanelView: View {
                     Label(text.clearRecent, systemImage: "trash")
                 }
                 .disabled(history.recentEntries.isEmpty)
-                .modifier(ClipboardClearRecentConfirmation(entryIDs: $clearingIDs))
             }
             Spacer()
             HStack(spacing: 5) {
@@ -958,7 +1096,7 @@ private struct PinboardEditor: View {
             }
         }
         .padding(14)
-        .frame(width: 288)
+        .frame(maxWidth: 288)
         .onExitCommand(perform: onCancel)
         .onAppear {
             name = mode.board?.name ?? ""
@@ -1124,9 +1262,9 @@ private struct QuickEntryView: View, Equatable {
                     .help(app.name)
                     .accessibilityLabel(app.name)
             }
-            entryContent(entry)
+            rowContent(entry)
             Spacer(minLength: 8)
-            entryTrailing(entry, isHovered: isHovered)
+            rowTrailing(entry)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -1146,30 +1284,25 @@ private struct QuickEntryView: View, Equatable {
     }
 
     private var card: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let shape = RoundedRectangle(cornerRadius: 15, style: .continuous)
+        let selected = isSelected || isBatchSelected
+        return VStack(spacing: 0) {
             cardHeader
-            Divider()
             cardContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
-            Divider()
-            cardFooter
         }
         .frame(width: cardSize.width, height: cardSize.height)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(rowBackground(isSelected: isSelected,
-                                        isBatchSelected: isBatchSelected,
-                                        isHovered: isHovered)))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(isBatchSelected || isSelected ? Color.accentColor : Color.primary.opacity(0.1),
-                              lineWidth: isBatchSelected || isSelected ? 2.5 : 0.5)
-        )
+        .background(Color(white: 0.16))
+        .overlay(alignment: .bottom) { cardAccessories }
+        .clipShape(shape)
+        .overlay {
+            shape.strokeBorder(
+                selected ? Color.accentColor : Color.primary.opacity(isHovered ? 0.20 : 0.10),
+                lineWidth: selected ? 3.5 : 1
+            )
+            .allowsHitTesting(false)
+        }
     }
 
     @ViewBuilder
@@ -1183,9 +1316,175 @@ private struct QuickEntryView: View, Equatable {
                 history.selectQuickEntry(entry)
                 history.showShelfPreview(entry, loadLinkImmediately: load)
             }
+            .padding(.bottom, cardAccessoryHeight)
         } else {
-            entryContent(entry).padding(10)
+            switch entry.kind {
+            case .text:
+                cardText
+            case .image:
+                cardImage.padding(.bottom, cardAccessoryHeight)
+            case .files:
+                cardFiles.padding(.bottom, cardAccessoryHeight)
+            }
         }
+    }
+
+    private var cardHeaderHeight: CGFloat { min(48, cardSize.height * 0.44) }
+    private var cardAccessoryHeight: CGFloat { min(37, (cardSize.height - cardHeaderHeight) * 0.42) }
+
+    private var cardHeader: some View {
+        let app = sourceApp
+        let tint = app?.tint
+        let locale = language.formattingLocale()
+        let iconSize = max(1, cardHeaderHeight - 9)
+        return HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                cardTitle
+                TimelineView(.everyMinute) { _ in
+                    Text(entry.copiedAt.formatted(.relative(presentation: .named).locale(locale)))
+                }
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(tint == nil ? Color.secondary : Color.white.opacity(0.92))
+                    .lineLimit(1)
+                    .help(entry.copiedAt.formatted(.dateTime.locale(locale)))
+                    .environment(\.locale, locale)
+            }
+            Spacer(minLength: 0)
+            if let app {
+                Image(nsImage: app.icon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: iconSize, height: iconSize)
+                    .help(app.name)
+                    .accessibilityLabel(app.name)
+            }
+        }
+        .padding(.leading, 13)
+        .padding(.trailing, 9)
+        .frame(height: cardHeaderHeight)
+        .foregroundStyle(tint == nil ? Color.primary : Color.white)
+        .background(tint ?? Color.primary.opacity(0.045))
+    }
+
+    private var cardTitle: some View {
+        let type = ClipboardShelfStrings.forLanguage(language).typeName(entry.shelfContentType)
+        return HStack(spacing: 5) {
+            Text(type)
+                .font(.system(size: 14, weight: .semibold))
+                .lineLimit(1)
+            if entry.isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 9, weight: .semibold))
+                    .accessibilityLabel(text.pinned)
+            }
+        }
+    }
+
+    private var cardText: some View {
+        VStack(spacing: 0) {
+            SearchHighlightText.text(entry.cardPreview, tokens: tokens, fontSize: 13)
+                .font(.system(size: 13))
+                .lineLimit(8)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.horizontal, 13)
+                .padding(.top, 11)
+            ClipboardShelfCharacterCount(content: entry.text, language: language)
+                .opacity(isHovered || isBatchSelected ? 0 : 1)
+                .accessibilityHidden(isHovered || isBatchSelected)
+                .padding(.horizontal, 46)
+                .frame(height: cardAccessoryHeight)
+        }
+    }
+
+    private var cardImage: some View {
+        VStack(spacing: 5) {
+            if let name = entry.imageFile {
+                cardThumbnail(.stored(name: name), aspectRatio: entry.imageAspectRatio)
+            }
+            if !entry.imageDimensionsLabel.isEmpty {
+                Text(entry.imageDimensionsLabel)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 11)
+        .padding(.top, 9)
+    }
+
+    private var cardFiles: some View {
+        let path = entry.filePaths.count == 1 ? entry.filePaths.first : nil
+        let subtitle = path.map {
+            let folder = ($0 as NSString).deletingLastPathComponent
+            return (folder as NSString).abbreviatingWithTildeInPath
+        } ?? entry.preview
+        return VStack(spacing: 5) {
+            cardFileArtwork(path: path)
+            SearchHighlightText.text(fileTitle(entry), tokens: path == nil ? [] : tokens, fontSize: 12)
+                .font(.system(size: 12, weight: .semibold))
+                .lineLimit(1)
+                .truncationMode(.middle)
+            SearchHighlightText.text(subtitle, tokens: path == nil ? tokens : [], fontSize: 10.5)
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(path == nil ? .tail : .middle)
+        }
+        .padding(.horizontal, 11)
+        .padding(.top, 9)
+        .help(entry.filePaths.joined(separator: "\n"))
+    }
+
+    private func cardFileArtwork(path: String?) -> some View {
+        Group {
+            if let path, ClipboardImageStore.isImageFile(atPath: path) {
+                cardThumbnail(.file(path: path))
+            } else if path != nil, let icon = fileIcon(for: entry) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 62, height: 62)
+                    .accessibilityHidden(true)
+            } else {
+                Image(systemName: path == nil ? "doc.on.doc" : "doc")
+                    .font(.system(size: 39, weight: .light))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func cardThumbnail(_ source: ClipboardImageStore.ThumbnailSource,
+                               aspectRatio: CGFloat? = nil) -> some View {
+        ClipboardThumbnailImage(source: source, aspectRatio: aspectRatio)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var cardAccessories: some View {
+        HStack(spacing: 4) {
+            if isHovered || isBatchSelected {
+                HStack(spacing: 2) {
+                    selectionButton
+                    if isHovered { entryHoverActions(entry) }
+                }
+                .padding(2)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+            }
+            Spacer(minLength: 0)
+            if let shortcutIndex {
+                Text("⌘\(shortcutIndex + 1)")
+                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(.regularMaterial, in: Capsule())
+                    .allowsHitTesting(false)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.bottom, 7)
     }
 
     private var selectionButton: some View {
@@ -1200,36 +1499,6 @@ private struct QuickEntryView: View, Equatable {
         .help(isBatchSelected ? text.unselectMultiple : text.selectMultiple)
     }
 
-    private var cardHeader: some View {
-        let app = sourceApp
-        let type = ClipboardShelfStrings.forLanguage(language).typeName(entry.shelfContentType)
-        return HStack(spacing: 7) {
-            if let app {
-                Image(nsImage: app.icon)
-                    .resizable()
-                    .frame(width: 20, height: 20)
-                    .accessibilityHidden(true)
-            } else {
-                Image(systemName: entry.shelfContentType.symbol).frame(width: 20)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(app?.name ?? type)
-                    .font(.system(size: 11, weight: .semibold))
-                    .lineLimit(1)
-                if app != nil {
-                    Text(type).font(.system(size: 10)).lineLimit(1)
-                }
-            }
-            Spacer(minLength: 1)
-            entryTrailing(entry, isHovered: isHovered)
-            if isBatchSelected || isHovered { selectionButton }
-        }
-        .padding(.horizontal, 9)
-        .frame(height: 42)
-        .foregroundStyle(app?.tint == nil ? Color.primary : Color.white)
-        .background(app?.tint ?? Color(nsColor: .controlBackgroundColor))
-    }
-
     private static var sourceApps: [String: (name: String, icon: NSImage, tint: Color?)] = [:]
 
     private var sourceApp: (name: String, icon: NSImage, tint: Color?)? {
@@ -1242,54 +1511,24 @@ private struct QuickEntryView: View, Equatable {
         return app
     }
 
-    private var cardFooter: some View {
-        HStack(spacing: 6) {
-            Text(entry.copiedAt, style: .time)
-            Spacer(minLength: 4)
-            if let shortcutIndex {
-                Text("⌘\(shortcutIndex + 1)")
-                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .font(.system(size: 9.5))
-        .foregroundStyle(.tertiary)
-        .padding(.horizontal, 10)
-        .frame(height: 26)
-    }
-
-    /// A row puts a picture beside its label, a card above it.
-    private var pictureStack: AnyLayout {
-        isRow ? AnyLayout(HStackLayout(alignment: .center, spacing: 8))
-            : AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
-    }
-
-    /// A row keeps its picture small, a card gives it the room it has.
-    private var pictureMaxSize: CGSize {
-        isRow ? CGSize(width: 240, height: 120) : CGSize(width: CGFloat.infinity, height: .infinity)
-    }
-
     @ViewBuilder
-    private func entryContent(_ entry: ClipboardHistoryEntry) -> some View {
+    private func rowContent(_ entry: ClipboardHistoryEntry) -> some View {
         switch entry.kind {
         case .text:
-            HStack(alignment: isRow ? .center : .top, spacing: 8) {
+            HStack(spacing: 8) {
                 if let color = entry.color {
                     ColorSwatch(color: color)
                 }
-                SearchHighlightText.text(isRow ? entry.preview : entry.cardPreview, tokens: tokens, fontSize: 12)
+                SearchHighlightText.text(entry.preview, tokens: tokens, fontSize: 12)
                     .font(.system(size: 12))
-                    .lineLimit(isRow ? 2 : 7)
+                    .lineLimit(2)
                     .truncationMode(.tail)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         case .image:
-            pictureStack {
+            HStack(spacing: 8) {
                 if let name = entry.imageFile {
-                    ClipboardThumbnailImage(source: .stored(name: name),
-                                            aspectRatio: entry.imageAspectRatio)
-                        .frame(maxWidth: pictureMaxSize.width, maxHeight: pictureMaxSize.height)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    rowThumbnail(.stored(name: name), aspectRatio: entry.imageAspectRatio)
                 }
                 SearchHighlightText.text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)",
                                          tokens: tokens, fontSize: 11.5)
@@ -1299,90 +1538,57 @@ private struct QuickEntryView: View, Equatable {
             .frame(maxWidth: .infinity, alignment: .leading)
             .help("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
         case .files:
-            if entry.filePaths.count == 1,
-               let path = entry.filePaths.first,
-               ClipboardImageStore.isImageFile(atPath: path) {
-                pictureStack {
-                    ClipboardThumbnailImage(source: .file(path: path),
-                                            aspectRatio: ClipboardImageStore.imageAspectRatio(atPath: path))
-                        .frame(maxWidth: pictureMaxSize.width, maxHeight: pictureMaxSize.height)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    VStack(alignment: .leading, spacing: 2) {
-                        SearchHighlightText.text(entry.fileNames.first ?? entry.preview, tokens: tokens, fontSize: 12)
-                            .font(.system(size: 12))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        if let dim = ClipboardImageStore.imageDimensionsLabel(atPath: path) {
-                            Text("\(text.imageEntryLabel) · \(dim)")
-                                .font(.system(size: 11.5))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .help(path)
-            } else {
-                VStack(alignment: .leading, spacing: 2) {
-                    // A count of several files is no text the search reads.
-                    SearchHighlightText.text(fileTitle(entry),
-                                             tokens: entry.filePaths.count == 1 ? tokens : [],
-                                             fontSize: 12)
-                        .font(.system(size: 12))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    if entry.filePaths.count > 1 {
-                        SearchHighlightText.text(entry.preview, tokens: tokens, fontSize: 10)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(isRow ? 1 : 5)
-                            .truncationMode(.tail)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .help(entry.filePaths.joined(separator: "\n"))
-            }
+            rowFiles(entry)
         }
     }
 
-    @ViewBuilder
-    private func entryTrailing(_ entry: ClipboardHistoryEntry, isHovered: Bool) -> some View {
-        if isHovered {
-            HStack(spacing: 4) {
-                if entry.kind == .image, AppFeature.screenshot.isAvailable {
-                    Button { history.editImage(entry) } label: {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 10.5, weight: .semibold))
-                            .frame(width: 24, height: 24)
-                            .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 6))
-                    }
-                    .buttonStyle(.plain)
-                    .help(text.edit)
-                    .accessibilityLabel(text.edit)
-                }
-                Button {
-                    history.copyOnlyQuickEntry(entry)
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .frame(width: 24, height: 24)
-                        .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 6))
-                }
-                .buttonStyle(.plain)
-                .help(text.copy)
-                Menu {
-                    entryActions(entry)
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 11, weight: .semibold))
-                        .frame(width: 24, height: 24)
-                        .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 6))
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
+    private func rowFiles(_ entry: ClipboardHistoryEntry) -> some View {
+        let path = entry.filePaths.count == 1 ? entry.filePaths.first : nil
+        let imagePath = path.flatMap { ClipboardImageStore.isImageFile(atPath: $0) ? $0 : nil }
+        return HStack(spacing: 8) {
+            if let imagePath {
+                rowThumbnail(.file(path: imagePath),
+                             aspectRatio: ClipboardImageStore.imageAspectRatio(atPath: imagePath))
             }
-        } else if isRow {
-            // A card shows these in its footer.
+            VStack(alignment: .leading, spacing: 2) {
+                SearchHighlightText.text(fileTitle(entry), tokens: path == nil ? [] : tokens, fontSize: 12)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                rowFileDetail(entry, imagePath: imagePath)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .help(entry.filePaths.joined(separator: "\n"))
+    }
+
+    @ViewBuilder
+    private func rowFileDetail(_ entry: ClipboardHistoryEntry, imagePath: String?) -> some View {
+        if let imagePath, let dimensions = ClipboardImageStore.imageDimensionsLabel(atPath: imagePath) {
+            Text("\(text.imageEntryLabel) · \(dimensions)")
+                .font(.system(size: 11.5))
+                .foregroundStyle(.secondary)
+        } else if entry.filePaths.count > 1 {
+            SearchHighlightText.text(entry.preview, tokens: tokens, fontSize: 10)
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+    }
+
+    private func rowThumbnail(_ source: ClipboardImageStore.ThumbnailSource,
+                              aspectRatio: CGFloat?) -> some View {
+        ClipboardThumbnailImage(source: source, aspectRatio: aspectRatio)
+            .frame(maxWidth: 240, maxHeight: 120)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func rowTrailing(_ entry: ClipboardHistoryEntry) -> some View {
+        if isHovered {
+            entryHoverActions(entry)
+        } else {
             VStack(alignment: .trailing, spacing: 3) {
                 Text(entry.copiedAt, style: .time)
                     .font(.system(size: 9.5))
@@ -1393,11 +1599,42 @@ private struct QuickEntryView: View, Equatable {
                         .foregroundStyle(.secondary)
                 }
             }
-        } else if entry.isPinned {
-            Image(systemName: "pin.fill")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
         }
+    }
+
+    private func entryHoverActions(_ entry: ClipboardHistoryEntry) -> some View {
+        HStack(spacing: 4) {
+            if entry.kind == .image, AppFeature.screenshot.isAvailable {
+                Button { history.editImage(entry) } label: {
+                    entryActionIcon("pencil")
+                }
+                .buttonStyle(.plain)
+                .help(text.edit)
+                .accessibilityLabel(text.edit)
+            }
+            Button {
+                history.copyOnlyQuickEntry(entry)
+            } label: {
+                entryActionIcon("doc.on.doc")
+            }
+            .buttonStyle(.plain)
+            .help(text.copy)
+            Menu {
+                entryActions(entry)
+            } label: {
+                entryActionIcon("ellipsis", fontSize: 11)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+        }
+    }
+
+    private func entryActionIcon(_ symbol: String, fontSize: CGFloat = 10.5) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: fontSize, weight: .semibold))
+            .frame(width: 24, height: 24)
+            .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 6))
     }
 
     @ViewBuilder
@@ -1524,6 +1761,37 @@ private struct QuickEntryView: View, Equatable {
         if isSelected { return Color.accentColor.opacity(isHovered ? 0.13 : 0.09) }
         if isHovered { return Color.primary.opacity(0.055) }
         return .clear
+    }
+}
+
+private struct ClipboardShelfCharacterCount: View {
+    let content: String
+    let language: AppLanguage
+    @State private var counted: (content: String, value: Int)?
+
+    private var isShort: Bool { content.utf8.count <= ClipboardHistoryEntry.indexCharacters }
+
+    private var count: Int? {
+        if isShort { return content.count }
+        return counted?.content == content ? counted?.value : nil
+    }
+
+    var body: some View {
+        Group {
+            if let count {
+                Text(ClipboardShelfStrings.forLanguage(language).characters(count, locale: language.formattingLocale()))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .task(id: content) {
+            guard !isShort, count == nil else { return }
+            // Large documents count graphemes once, away from the render path.
+            let value = await Task.detached(priority: .utility) { [content] in content.count }.value
+            guard !Task.isCancelled else { return }
+            counted = (content, value)
+        }
     }
 }
 
