@@ -384,7 +384,7 @@ MUTATIONS = [
     ("a timed session hands over on one condition", "keep-awake", "Sources/Vorssaint/Services/KeepAwakeManager.swift",
      "        guard KeepAwakeAutomationSupport.conditionsSatisfied(\n"
      "                matching: matches,\n"
-     "                enabled: currentEnabledAutomationConditions(),\n"
+     "                enabled: enabled,\n"
      "                requireAll: automationRequiresAllConditions()) else { return false }\n",
      "        guard !matches.isEmpty else { return false }\n",
      "a timer running out on battery hands nothing over to an All automation"),
@@ -954,13 +954,12 @@ MUTATIONS = [
      "a highlighted row styles only its matches and leaves the rest to its text's modifiers"),
     ("agent log written again in place goes unnoticed", "agents",
      "Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift",
-     "        if identity != cursor.identity || size < cursor.offset\n"
-     "            || (size > cursor.offset && !cursor.holdsWhatWasRead) {\n",
-     "        if identity != cursor.identity || size < cursor.offset {\n",
+     "            || (size > cursor.offset && !cursor.holdsWhatWasRead(descriptor: secured?.handle.fileDescriptor))\n",
+     "",
      "a log written again in place while the app runs is read again at once"),
     ("agent progress keeps a log that started over", "agents",
      "Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",
-     "let kept = cursors.values.filter { !$0.restarted && $0.provider != .opencode }",
+     "let kept = cursors.values.filter { $0.provider == .cursor || (!$0.restarted && $0.provider != .opencode) }",
      "let kept = cursors.values.filter { $0.provider != .opencode }",
      "a log replaced or written again while the app ran is left out of saved progress"),
     ("a reverted Codex thread's log loses its turn", "agents",
@@ -1221,8 +1220,8 @@ MUTATIONS = [
      "a failed account card says so once, in place of its windows or under them"),
     ("the Resets card names the default account without room for it", "agents",
      "Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift",
-     "return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight",
-     "return row.contains { $0.accountID != nil } ? accountCardHeight : cardHeight",
+     "let base = row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight",
+     "let base = row.contains { $0.accountID != nil } ? accountCardHeight : cardHeight",
      "the Resets card beside accounts makes room for the account it names"),
     ("Codex account text speaks informally in Russian", "agents",
      "Sources/Vorssaint/Core/CodexAccountStrings.swift",

@@ -22,18 +22,24 @@ enum NotchFullscreenTests {
     }
     enum AppFeature {
         static let mixer = Feature()
-        static let brightness = Feature()
-        struct Feature { let isAvailable = true }
+        static var brightness = Feature()
+        struct Feature { var isAvailable = true }
     }
     final class BrightnessService {
-        static let shared = BrightnessService()
+        private static let instance = BrightnessService()
+        static var sharedReads = 0
+        static var shared: BrightnessService {
+            sharedReads += 1
+            return instance
+        }
         var syncs = 0
         var wantsMonitorVolumeKeys = false
         func syncWithPreferences() { syncs += 1 }
     }
     enum NotchSupport {
         enum Event { case volume }
-        static func routes(_ event: Event) -> Bool { true }
+        static var routesVolume = true
+        static func routes(_ event: Event) -> Bool { routesVolume }
     }
     enum SessionActivity {
         static let shared = Session()
@@ -43,6 +49,10 @@ enum NotchFullscreenTests {
     enum NotchService { static var shared = Service() }
     class VolumeState {
         var running = false
+        var nativeOutputKeysHeld: [Int32: NativeVolumeKeyPress] = [:]
+        var drainingNativeKeys = false
+        var nativeDrainWork: DispatchWorkItem?
+        func scheduleNativeDrainExpiry(_ work: DispatchWorkItem) {}
         func start() { running = true }
         func stop() { running = false }
     }
@@ -170,6 +180,7 @@ enum NotchFullscreenTests {
         appFullscreenChecks(topology, suite)
         fullscreenMotionChecks(topology, suite)
         appFullscreenWindowChecks(suite)
+        volumeLaunchChecks(suite)
         volumeLifecycleChecks(topology, suite)
     }
 
@@ -367,6 +378,46 @@ enum NotchFullscreenTests {
                      "the Dock's full-display level 20 window alone never covers")
         suite.expect(read([video], front: 7, hidden: false, confirmed: [10]).displays == [1],
                      "the island's own focus does not uncover a confirmed full-screen window")
+    }
+
+    private static func volumeLaunchChecks(_ suite: TestSuite) {
+        let volume = PreciseVolumeRollerService.shared
+        NotchSupport.routesVolume = false
+        UserDefaults.standard.preciseVolume = false
+        AppFeature.brightness.isAvailable = false
+        let reads = BrightnessService.sharedReads
+        volume.syncWithPreferences()
+        suite.expect(!volume.running && BrightnessService.sharedReads == reads,
+                     "the Essential preset's mixer starts without loading brightness for monitor volume keys")
+
+        volume.nativeOutputKeysHeld[0] = .fine
+        volume.syncWithPreferences()
+        suite.expect(volume.running && volume.drainingNativeKeys,
+                     "turning off volume handling keeps the tap until a modified native key is released")
+        let firstDeadline = volume.nativeDrainWork
+        volume.syncWithPreferences()
+        suite.expect(firstDeadline != nil && firstDeadline === volume.nativeDrainWork,
+                     "unrelated preference refreshes cannot postpone a lost release")
+        volume.renewNativeKeyDrain()
+        suite.expect(firstDeadline?.isCancelled == true && volume.nativeDrainWork?.isCancelled == false,
+                     "activity from the held key renews the quiet deadline without leaving the old one active")
+        volume.nativeDrainWork?.perform()
+        suite.expect(!volume.running && !volume.drainingNativeKeys && volume.nativeOutputKeysHeld.isEmpty,
+                     "a keyboard disconnected without an up or a tap timeout cannot keep the tap running")
+        volume.nativeOutputKeysHeld[0] = .fine
+        volume.syncWithPreferences()
+        let releaseDeadline = volume.nativeDrainWork
+        volume.nativeOutputKeysHeld.removeAll()
+        volume.syncWithPreferences()
+        suite.expect(!volume.running && !volume.drainingNativeKeys && releaseDeadline?.isCancelled == true,
+                     "the idle volume tap stops after the last modified native key is released")
+
+        AppFeature.brightness.isAvailable = true
+        BrightnessService.shared.wantsMonitorVolumeKeys = true
+        volume.syncWithPreferences()
+        suite.expect(volume.running, "monitor volume keys alone still start the tap when brightness is installed")
+        BrightnessService.shared.wantsMonitorVolumeKeys = false
+        NotchSupport.routesVolume = true
     }
 
     private static func volumeLifecycleChecks(_ topology: Topology, _ suite: TestSuite) {

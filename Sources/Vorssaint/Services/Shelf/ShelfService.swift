@@ -59,16 +59,18 @@ final class ShelfService: ObservableObject {
         /// Needed because replaceItem swaps in a same-id item with a
         /// healed URL/title after a moved or renamed file's bookmark
         /// resolves - an id-only comparison would call that unchanged.
-        func hasSameContent(as other: Item) -> Bool {
+        func hasSameContent(as other: Item, ignoringThumbnails: Bool = false) -> Bool {
             guard id == other.id, title == other.title, isImage == other.isImage,
-                  hasContentThumbnail == other.hasContentThumbnail,
-                  icon === other.icon else { return false }
+                  ignoringThumbnails || (hasContentThumbnail == other.hasContentThumbnail && icon === other.icon)
+            else { return false }
             switch (payload, other.payload) {
             case let (.file(lhs), .file(rhs)): return lhs == rhs
             case let (.text(lhs), .text(rhs)): return lhs == rhs
             case let (.link(lhs), .link(rhs)): return lhs == rhs
             case let (.batch(lhs), .batch(rhs)):
-                return lhs.count == rhs.count && zip(lhs, rhs).allSatisfy { $0.hasSameContent(as: $1) }
+                return lhs.count == rhs.count && zip(lhs, rhs).allSatisfy {
+                    $0.hasSameContent(as: $1, ignoringThumbnails: ignoringThumbnails)
+                }
             default: return false
             }
         }
@@ -167,8 +169,11 @@ final class ShelfService: ObservableObject {
     private var lastSummon: TimeInterval = 0
     /// Screen frame of the app's menu bar icon, set by the AppDelegate. The
     /// docked shelf hangs right under it, so this service can anchor there
-    /// without reaching into the app layer.
-    var statusItemFrameProvider: (() -> NSRect?)?
+    /// without reaching into the app layer. It lives on the type, not the
+    /// instance: launch registers the anchor whether or not the shelf is
+    /// installed, and assigning it must not bring this service — its saved
+    /// items and their restore — to life for someone who has no shelf.
+    static var statusItemFrameProvider: (() -> NSRect?)?
     /// The shelf docked under the menu bar icon (the "keep it in the menu bar"
     /// option). It stays put while the shelf has items and only shrinks to a
     /// pill or grows back to the full card in place, never a second window and
@@ -265,6 +270,11 @@ final class ShelfService: ObservableObject {
     /// work), serialized so blobs land in mutation order.
     private static let persistQueue = DispatchQueue(label: "com.vorssaint.utils.shelf-persist",
                                                     qos: .utility)
+
+    // File providers may block for seconds. Keep all drag metadata reads off
+    // the main thread and bound the number of outstanding reads on slow volumes.
+    private static let dragFileQueue = DispatchQueue(label: "com.vorssaint.utils.shelf-drag-files",
+                                                     qos: .userInitiated)
 
     private var persistScheduled = false
     /// Gates persistence until the restore has landed, so an early mutation
@@ -681,7 +691,7 @@ final class ShelfService: ObservableObject {
     private func updateDockedProximity(at now: TimeInterval) -> Bool {
         var changed = false
         let mouse = NSEvent.mouseLocation
-        let anchor = statusItemFrameProvider?()
+        let anchor = Self.statusItemFrameProvider?()
         let screen = anchor.flatMap { rect in
             NSScreen.screens.first { $0.frame.intersects(rect) }
         }?.frame ?? NSScreen.main?.frame
@@ -1004,7 +1014,7 @@ final class ShelfService: ObservableObject {
         let view = panel.contentViewController!.view
         view.layoutSubtreeIfNeeded()
         let size = view.fittingSize
-        let anchor = statusItemFrameProvider?()
+        let anchor = Self.statusItemFrameProvider?()
         let screen = anchor.flatMap { rect in
             NSScreen.screens.first { $0.frame.intersects(rect) }
         } ?? NSScreen.withMouse
@@ -1197,6 +1207,11 @@ final class ShelfService: ObservableObject {
         selectedItems(in: items)
     }
 
+    func dragItemsForTile(_ id: UUID) -> [Item] {
+        guard let live = item(withID: id) else { return [] }
+        return dragItems(for: selection.contains(id) ? selectedItems() : [live])
+    }
+
     func dragItems(for item: Item) -> [Item] {
         dragItems(for: [item])
     }
@@ -1219,7 +1234,7 @@ final class ShelfService: ObservableObject {
         items.compactMap { item in
             guard case let .file(url) = item.payload else { return item }
             if FileManager.default.fileExists(atPath: url.path) { return item }
-            guard let healed = rebookedItem(item) else { return nil }
+            guard let healed = Self.rebookedItem(item) else { return nil }
             // The tile swap rebuilds the tiles view; deferring it keeps the
             // rebuild away from the drag session or context menu that is
             // being constructed around the old tile right now.
@@ -1241,7 +1256,7 @@ final class ShelfService: ObservableObject {
 
     /// A fresh Item for a file found again through its bookmark, new name
     /// included; nil when there is no bookmark or the file is really gone.
-    private func rebookedItem(_ item: Item) -> Item? {
+    private static func rebookedItem(_ item: Item) -> Item? {
         guard case .file = item.payload, let bookmark = item.bookmark,
               let path = Self.resolvedBookmarkPath(bookmark),
               FileManager.default.fileExists(atPath: path) else { return nil }
@@ -1346,22 +1361,95 @@ final class ShelfService: ObservableObject {
         }
     }
 
-    func beginInternalDrag(items draggedItems: [Item], from window: NSWindow?) {
+    struct PreparedDrag {
+        var living: [Item] = []
+        var replacements: [(original: Item, healed: Item)] = []
+        var missingIDs: [UUID] = []
+        var containsPackageContent = false
+    }
+
+    /// Resolve each payload for this gesture. In particular, a cached permission
+    /// to move a file must never survive a rename, symlink change or remount.
+    func prepareDrag(_ items: [Item], completion: @escaping (PreparedDrag) -> Void) -> DispatchWorkItem? {
+        guard items.contains(where: \.holdsFile) else {
+            completion(PreparedDrag(living: items))
+            return nil
+        }
+        let work = DispatchWorkItem {
+            let prepared = Self.readDragFiles(items)
+            DispatchQueue.main.async { completion(prepared) }
+        }
+        Self.dragFileQueue.async(execute: work)
+        return work
+    }
+
+    private static func readDragFiles(_ items: [Item]) -> PreparedDrag {
+        var prepared = PreparedDrag()
+        var packageFlags: [URL: Bool] = [:]
+        for item in items {
+            guard case let .file(url) = item.payload else {
+                prepared.living.append(item)
+                continue
+            }
+            var living = item
+            var file = url
+            do {
+                guard try url.checkResourceIsReachable() else { continue }
+            } catch {
+                if let healed = rebookedItem(item), case let .file(recovered) = healed.payload {
+                    living = healed
+                    file = recovered
+                    prepared.replacements.append((item, healed))
+                } else {
+                    let error = error as NSError
+                    let missing = error.domain == NSCocoaErrorDomain
+                        && (error.code == NSFileReadNoSuchFileError || error.code == NSFileNoSuchFileError)
+                    let volume = ShelfPersistenceSupport.unmountedVolumeRoot(of: url.path)
+                    if missing && (volume.map { FileManager.default.fileExists(atPath: $0) } ?? true) {
+                        prepared.missingIDs.append(item.id)
+                    }
+                    continue
+                }
+            }
+            prepared.living.append(living)
+            if !prepared.containsPackageContent {
+                prepared.containsPackageContent = ShelfInteractionSupport.isInsidePackage(file) { ancestor in
+                    if let flag = packageFlags[ancestor] { return flag }
+                    // Unknown ancestry is copy-only. A later gesture retries it.
+                    let flag = (try? ancestor.resourceValues(forKeys: [.isPackageKey]).isPackage) ?? true
+                    packageFlags[ancestor] = flag
+                    return flag
+                }
+            }
+        }
+        return prepared
+    }
+
+    func finishPreparingDrag(_ prepared: PreparedDrag) {
+        if prepared.living.isEmpty {
+            QuickToolHUD.show(icon: "tray.full", message: L10n.shared.s.shelfFileMissing)
+            if !prepared.missingIDs.isEmpty { removeItems(prepared.missingIDs) }
+        }
+        // Replacing a healed tile rebuilds the view. Let its drag start first.
+        if !prepared.replacements.isEmpty {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                for pair in prepared.replacements where self.item(withID: pair.original.id)?.payload == pair.original.payload {
+                    self.replaceItem(pair.healed)
+                }
+            }
+        }
+    }
+
+    func beginInternalDrag(items draggedItems: [Item], from window: NSWindow?,
+                           containsPackageContent: Bool) {
         internalDragWindow = window
         if let window, window === NotchService.shared.presentationWindow {
             NotchService.shared.fileDragChanged(true, internalDrag: true)
         }
         activeInternalDragIDs = draggedItems.map(\.id)
         internalDragWasMerged = false
-        // Use the same resolved payloads as the pasteboard. A healed bookmark
-        // does not replace its saved item until the next main-loop turn.
-        // Cache the result because AppKit asks for the mask throughout a drag.
-        internalDragHoldsPackageContent = draggedItems.contains { item in
-            guard case let .file(url) = item.payload else { return false }
-            return ShelfInteractionSupport.isInsidePackage(url) {
-                (try? $0.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
-            }
-        }
+        internalDragHoldsPackageContent = containsPackageContent
     }
 
     /// Where a tile drag is now, so the island can step aside once its

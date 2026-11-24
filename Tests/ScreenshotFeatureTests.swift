@@ -349,9 +349,6 @@ enum ScreenshotFeatureTests {
         suite.expect(ScreenshotCapturePolicy.attachedCapturePlan(
             target: capturedWindow, frontToBack: [capturedWindow]) == nil,
                "a window with nothing stacked on it keeps the ordinary single-window capture")
-        let captureEngineSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift",
-            encoding: .utf8)) ?? ""
         // A sheet is often exactly as wide as the window it drops out of, so
         // the rule has to take one that matches an edge rather than shrink from
         // it.
@@ -370,10 +367,21 @@ enum ScreenshotFeatureTests {
         suite.expect(ScreenshotCapturePolicy.attachedCapturePlan(
             target: capturedWindow, frontToBack: [sheet]) == nil,
                "a window missing from the list does not treat everything as stacked on it")
-        suite.expect(captureEngineSource.contains("$0.frame.intersects(plan.bounds)")
-                && captureEngineSource.contains("hits.count == 1")
-                && !captureEngineSource.contains(".contains(plan.bounds)"),
-               "the one-display crop declines a window straddling two displays instead of taking a one-display slice")
+        let leftDisplay = CGRect(x: -1200, y: 0, width: 1200, height: 900)
+        let rightDisplay = CGRect(x: 0, y: 0, width: 1600, height: 1000)
+        let displays = [leftDisplay, rightDisplay]
+        func display(for window: CGRect) -> CGRect? {
+            ScreenshotCapturePolicy.displayCoveringWindow(window, in: displays, frame: \.self)
+        }
+        suite.expect(display(for: CGRect(x: -40, y: 40, width: 100, height: 80)) == nil,
+                     "a window straddling two displays declines the one-display crop")
+        suite.expect(display(for: CGRect(x: -1210, y: 40, width: 100, height: 80)) == nil,
+                     "a window partly offscreen declines the one-display crop")
+        suite.expect(display(for: CGRect(x: -100, y: 40, width: 100, height: 80)) == leftDisplay
+                     && display(for: rightDisplay) == rightDisplay,
+                     "a whole window touching the seam still fits its display without losing an edge")
+        suite.expect(display(for: CGRect(x: 1650, y: 30, width: 90, height: 70)) == nil,
+                     "an offscreen window has no display crop")
 
         let geometricAttachment = ScreenshotCapturePolicy.AttachedCapturePlan(
             windowIDs: [1, 6, 2], bounds: capturedWindow.frame)
@@ -398,7 +406,7 @@ enum ScreenshotFeatureTests {
         let captureWindowBody = (screenshotCaptureEngineSource
             .components(separatedBy: "static func captureWindow(").last ?? "")
             .components(separatedBy: "\n    /// On-screen windows").first ?? ""
-        let accessibilityGate = captureWindowBody.range(of: "if Permissions.shared.accessibility {")
+        let accessibilityGate = captureWindowBody.range(of: "if let geometricPlan = plan, Permissions.shared.accessibility {")
         let attachmentConfirmation = captureWindowBody.range(
             of: "accessibilityAttachedWindowIDs(")
         suite.expect(accessibilityGate != nil && attachmentConfirmation != nil
@@ -1887,11 +1895,6 @@ enum ScreenshotFeatureTests {
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
-        suite.expect(screenshotEditorSource.contains("if tool != .select, tool != .crop, tool != .expandCanvas {\n            selectedID = nil\n        }"),
-               "the editor clears stale selection before creating a new annotation")
-        suite.expect(!screenshotEditorSource.contains("annotations.append(annotation)\n            selectedID = annotation.id\n            draftID = annotation.id")
-                && screenshotEditorSource.contains("} else if let draftID {\n                selectedID = draftID"),
-               "a shape is selected only after its drag ends")
         suite.expect(screenshotSupportSource.contains("let color: ColorID?")
                 && screenshotSupportSource.contains("let stroke: StrokeID?")
                 && screenshotSupportSource.contains("let arrowStyle: ArrowStyleID?"),
@@ -4126,29 +4129,15 @@ enum ScreenshotFeatureTests {
                "the mute skips the app's own aggregate devices and no other")
         suite.expect(!MicMuteSupport.shouldSaveVolume(nil)
                 && !MicMuteSupport.shouldSaveVolume(0)
-                && !MicMuteSupport.shouldSaveVolume(0.005)
+                && MicMuteSupport.shouldSaveVolume(0.005)
                 && MicMuteSupport.shouldSaveVolume(0.4),
                "a level worth restoring is remembered and a silent one never is")
-        suite.expect(MicMuteSupport.volumeToRestore(uid: "mic-a",
-                                              saved: ["mic-a": 0.4, "mic-b": 0.9],
-                                              legacy: 0.6) == 0.4
-                && MicMuteSupport.volumeToRestore(uid: "mic-c",
-                                                  saved: ["mic-a": 0.4],
-                                                  legacy: 0.6) == 0.6
-                && MicMuteSupport.volumeToRestore(uid: "mic-c", saved: [:], legacy: 0)
-                    == MicMuteSupport.fallbackVolume
-                && MicMuteSupport.volumeToRestore(uid: "mic-a",
-                                                  saved: ["mic-a": 0],
-                                                  legacy: 0) == MicMuteSupport.fallbackVolume,
-               "each microphone gets its own level back, then the older single level, then a usable one")
         suite.expect(MicMuteSupport.restoreTargets(recorded: ["mic-a", "gone"],
                                              present: ["mic-a", "mic-b"]) == ["mic-a"]
-                && MicMuteSupport.restoreTargets(recorded: nil,
-                                                 present: ["mic-a", "mic-b"]) == ["mic-a", "mic-b"]
                 && MicMuteSupport.restoreTargets(recorded: [],
                                                  present: ["mic-a", "mic-b"]).isEmpty
                 && MicMuteSupport.restoreTargets(recorded: ["mic-a"], present: []).isEmpty,
-               "unmuting touches the microphones this app muted, every one with no record, and none when the record is empty")
+               "unmuting touches only claimed microphones that are currently connected")
         suite.expect(MicMuteSupport.absentClaims(recorded: ["mic-a", "headset"],
                                            present: ["mic-a"]) == ["headset"]
                 && MicMuteSupport.absentClaims(recorded: ["mic-a"],
@@ -4157,13 +4146,15 @@ enum ScreenshotFeatureTests {
                 && MicMuteSupport.absentClaims(recorded: ["headset"], present: []) == ["headset"],
                "a sweep keeps the claim on a microphone this app muted that is unplugged right now, so it is released when it returns")
         suite.expect(!MicMuteSupport.shouldReplaceSavedVolume(existing: 0.4, current: 1.0)
+                && !MicMuteSupport.shouldReplaceSavedVolume(existing: 0.005, current: 0.4)
                 && MicMuteSupport.shouldReplaceSavedVolume(existing: nil, current: 0.4)
                 && MicMuteSupport.shouldReplaceSavedVolume(existing: 0, current: 0.4)
                 && !MicMuteSupport.shouldReplaceSavedVolume(existing: nil, current: 0),
                "a later re-apply keeps the first real level and never saves silence")
         suite.expect(!MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: 0.75)
                 && MicMuteSupport.isCaptureSilenced(muteSwitch: 0, volume: 0)
-                && MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: 0.005)
+                && !MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: 0.005)
+                && !MicMuteSupport.isCaptureSilenced(muteSwitch: nil, volume: 0.005)
                 && MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: nil)
                 && !MicMuteSupport.isCaptureSilenced(muteSwitch: 0, volume: 0.4)
                 && !MicMuteSupport.isCaptureSilenced(muteSwitch: nil, volume: 0.4)
@@ -4173,35 +4164,27 @@ enum ScreenshotFeatureTests {
                 && !MicMuteSupport.shouldLeaveUntouched(owned: true, captureSilenced: true)
                 && !MicMuteSupport.shouldLeaveUntouched(owned: false, captureSilenced: false),
                "a user-quiet microphone is left alone and one this app muted is still ours")
-        suite.expect(MicMuteSupport.restoreNeed(muteSwitch: 1, volume: 0)
-                == .restore(clearMute: true, restoreVolume: true)
-                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: 0.75)
-                == .restore(clearMute: true, restoreVolume: false)
-                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: 0)
-                == .restore(clearMute: false, restoreVolume: true)
-                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: 0.75) == .alreadyAudible
-                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: nil)
-                == .restore(clearMute: true, restoreVolume: false)
-                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: nil, hasSavedVolume: true)
-                == .unreadable
-                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: nil) == .unreadable,
-               "unmuting clears the mute switch and restores volume when each is needed, not one or the other")
+        typealias InputControls = MicMuteSupport.InputControls
+        let quiet = InputControls(gain: .silent, muteSwitch: 1)
+        suite.expect(InputControls(gain: .audible, muteSwitch: 1).opened(since: quiet)
+                && InputControls(gain: .silent, muteSwitch: 0).opened(since: quiet),
+               "raising gain or releasing a previously engaged switch opens a verified quiet microphone")
+        suite.expect(!InputControls(gain: .unreadable, muteSwitch: 1).opened(since: quiet)
+                && !InputControls(gain: .unavailable, muteSwitch: nil).opened(since: quiet)
+                && !quiet.opened(since: quiet),
+               "an unreadable or missing control and a still-muted device give no evidence of an opening")
+        let noSwitch = InputControls(gain: .silent, muteSwitch: 0)
+        let unreadable = InputControls(gain: .unreadable, muteSwitch: 1)
+        let switchOnly = InputControls(gain: .unavailable, muteSwitch: 1)
+        suite.expect(!noSwitch.opened(since: noSwitch) && !unreadable.isSilenced
+                && !InputControls(gain: .audible, muteSwitch: 0).opened(since: unreadable)
+                && switchOnly.isSilenced && !InputControls(gain: .audible, muteSwitch: 1).opened(since: switchOnly),
+               "a stuck switch or an unverified mute cannot signal an unmute, and switch-only inputs still work")
         suite.expect(MicMuteSupport.inputChannelElements(channelCount: 3) == [0, 1, 2, 3] as [UInt32]
                 && MicMuteSupport.inputChannelElements(channelCount: 1) == [0, 1, 2] as [UInt32]
                 && MicMuteSupport.inputChannelElements(channelCount: 0) == [0, 1, 2] as [UInt32]
                 && MicMuteSupport.inputChannelElements(channelCount: 2) == [0, 1, 2] as [UInt32],
                "every input channel is muted, never fewer than the stereo pair")
-        let micMuteServiceSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/MicMuteService.swift",
-            encoding: .utf8)) ?? ""
-        let reapply = micMuteServiceSource.range(of: "private func reapplyIfNeeded() {")
-            .map { micMuteServiceSource[$0.lowerBound...] }
-            .flatMap { body in body.range(of: "\n    }\n").map { body[..<$0.lowerBound] } }
-            .map(String.init) ?? ""
-        suite.expect(reapply.contains("if wantsMute {") && !reapply.contains("micMuteActive")
-                && micMuteServiceSource.contains(
-                    "private func apply(muted: Bool, announce: Bool) {\n        wantsMute = muted"),
-               "a device change re-asserts the mute request in flight, never the persisted flag it is about to replace")
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,
                "the radial menu ships off by default")

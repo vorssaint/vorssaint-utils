@@ -108,6 +108,8 @@ enum WindowGestureTargetRuntimeTests {
     }
     class Fixture {
         var pendingGesture: PendingWindowGesture?
+        let edgeSnapSystemDrag = WindowEdgeSnapSystemDrag.idle
+        let edgeSnapOptionClaims: UInt64 = 0
         func AXUIElementCreateSystemWide() -> Element { Element() }
         func AXUIElementCreateApplication(_ pid: pid_t) -> Element {
             let app = Element()
