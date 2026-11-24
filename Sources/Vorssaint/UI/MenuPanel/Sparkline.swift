@@ -97,7 +97,7 @@ private struct GraphCeilingLabel: ViewModifier {
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 3)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 3))
+                        .trueGlass(in: RoundedRectangle(cornerRadius: 3))
                         .alignmentGuide(.top) { $0[VerticalAlignment.center] }
                         .allowsHitTesting(false)
                 }

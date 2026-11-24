@@ -196,7 +196,7 @@ struct WeatherGraphChart: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, 3)
             .padding(.vertical, 1)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 3))
+            .trueGlass(in: RoundedRectangle(cornerRadius: 3))
             .allowsHitTesting(false)
     }
 }

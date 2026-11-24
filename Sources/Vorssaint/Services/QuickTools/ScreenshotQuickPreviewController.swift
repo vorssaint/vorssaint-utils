@@ -633,7 +633,7 @@ private struct ScreenshotQuickPreviewView: View {
             Image(systemName: "xmark")
                 .font(.system(size: 11, weight: .semibold))
                 .frame(width: 24, height: 24)
-                .background(.regularMaterial, in: Circle())
+                .trueGlass(in: Circle())
                 .overlay(Circle().strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
                 .contentShape(Circle())
         }
@@ -664,7 +664,7 @@ private struct ScreenshotQuickPreviewView: View {
             Image(systemName: symbol)
                 .font(.system(size: 11, weight: .semibold))
                 .frame(width: 24, height: 24)
-                .background(.regularMaterial, in: Circle())
+                .trueGlass(in: Circle())
                 .overlay(Circle().strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
                 .contentShape(Circle())
         }

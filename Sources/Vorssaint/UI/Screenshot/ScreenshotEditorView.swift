@@ -719,7 +719,7 @@ struct ScreenshotEditorView: View {
             }
         }
         .padding(5)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .trueGlass(in: RoundedRectangle(cornerRadius: 15, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 15, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
@@ -948,7 +948,7 @@ struct ScreenshotEditorView: View {
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .trueGlass(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
@@ -1144,7 +1144,7 @@ struct ScreenshotEditorView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(.regularMaterial, in: Capsule(style: .continuous))
+        .trueGlass(in: Capsule(style: .continuous))
         .shadow(color: .black.opacity(0.16), radius: 12, y: 3)
     }
 
@@ -1214,7 +1214,7 @@ struct ScreenshotEditorView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(.regularMaterial, in: Capsule(style: .continuous))
+        .trueGlass(in: Capsule(style: .continuous))
         .overlay(
             Capsule(style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
@@ -1300,7 +1300,7 @@ struct ScreenshotEditorView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(.regularMaterial, in: Capsule(style: .continuous))
+        .trueGlass(in: Capsule(style: .continuous))
         .shadow(color: .black.opacity(0.16), radius: 12, y: 3)
     }
 
@@ -1648,7 +1648,7 @@ struct ScreenshotEditorView: View {
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
-        .background(.regularMaterial, in: Capsule(style: .continuous))
+        .trueGlass(in: Capsule(style: .continuous))
         .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
     }
 
@@ -1674,7 +1674,7 @@ struct ScreenshotEditorView: View {
             }
         }
         .padding(4)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .trueGlass(in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
         .screenshotSafeHelp("⌃ scroll · ⌘+ ⌘-")
     }

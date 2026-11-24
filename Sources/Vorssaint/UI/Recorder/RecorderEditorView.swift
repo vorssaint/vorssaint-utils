@@ -238,8 +238,7 @@ struct RecorderEditorView: View {
                             .font(.system(size: 11, weight: .medium))
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
-                            .background(.regularMaterial,
-                                        in: Capsule())
+                            .trueGlass(in: Capsule())
                             .padding(.top, 10)
                         Spacer()
                     }
@@ -310,7 +309,7 @@ struct RecorderEditorView: View {
                     .font(.system(size: 11, weight: .medium))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(.regularMaterial, in: Capsule())
+                    .trueGlass(in: Capsule())
                     .padding(.top, 10)
                 Spacer()
             }
@@ -525,7 +524,7 @@ struct RecorderEditorView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(.regularMaterial, in: Capsule())
+        .trueGlass(in: Capsule())
         .transition(.opacity)
     }
 
