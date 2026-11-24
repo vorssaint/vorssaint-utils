@@ -26,11 +26,56 @@ final class AgentAntigravityIndex {
         let entries: [String: Entry]
     }
 
+    struct DeferredUsage {
+        let file: String
+        let date: Date
+        let entry: AgentLogEntry
+        let modified: Date
+    }
+
     private var caches: [String: Cache] = [:]
     /// Maps canonical `brain/` directory paths to their original Antigravity
     /// data directories so symlinked `brain/` folders still locate
     /// `conversation_summaries.db` in the data directory that owns them.
     private var dataDirectories: [String: URL] = [:]
+    /// Child usage held until the parent transcript advances across turn
+    /// boundaries, keyed by parent transcript path.
+    private var deferredUsage: [String: [DeferredUsage]] = [:]
+
+    func deferUsage(forParent parentPath: String, file: String, date: Date,
+                    entry: AgentLogEntry, modified: Date) {
+        deferredUsage[parentPath, default: []].append(
+            DeferredUsage(file: file, date: date, entry: entry, modified: modified))
+    }
+
+    func drainDeferredUsage(forParent parentPath: String, through cutoff: Date? = nil,
+                            inclusive: Bool = true) -> [DeferredUsage] {
+        guard let pending = deferredUsage[parentPath], !pending.isEmpty else { return [] }
+        let matched: [DeferredUsage]
+        let remaining: [DeferredUsage]
+        if let cutoff {
+            matched = pending.filter { inclusive ? $0.date <= cutoff : $0.date < cutoff }
+            remaining = pending.filter { inclusive ? $0.date > cutoff : $0.date >= cutoff }
+        } else {
+            matched = pending
+            remaining = []
+        }
+        deferredUsage[parentPath] = remaining.isEmpty ? nil : remaining
+        return matched.sorted { $0.date < $1.date }
+    }
+
+    @discardableResult
+    func forwardDeferredUsage(from childPath: String, to parentPath: String) -> Bool {
+        guard childPath != parentPath,
+              let pending = deferredUsage.removeValue(forKey: childPath),
+              !pending.isEmpty else { return false }
+        deferredUsage[parentPath, default: []].append(contentsOf: pending)
+        return true
+    }
+
+    func clearDeferredUsage() {
+        deferredUsage.removeAll()
+    }
 
     /// Records the data directory for each canonical Antigravity `brain/` root.
     func register(roots: [AgentLogRoot]) {
@@ -126,6 +171,7 @@ final class AgentAntigravityIndex {
     func clear() {
         caches.removeAll()
         dataDirectories.removeAll()
+        deferredUsage.removeAll()
     }
 
     private func entries(at dbPath: String) -> [String: Entry] {

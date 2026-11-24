@@ -733,6 +733,99 @@ enum AgentUsageReadTests {
                             && symHost.store.live.first?.project == "symlink-proj"
                             && symHost.store.live.first?.tokens.total == 210,
                          "symlinked brain preserves data directory for project attribution and DB-only subagent rollup")
+
+            // Turn-boundary isolation across pause/resume: Turn A closes and Turn B
+            // opens between reads while Turn B's child already has usage. Turn A
+            // must finish with 170 tokens and Turn B must keep all 210 live tokens
+            // in incremental watcher batches, rescans, and direct completion reads.
+            let iso = ISO8601DateFormatter()
+            let tAStart = iso.string(from: now.addingTimeInterval(-60))
+            let tAWork = iso.string(from: now.addingTimeInterval(-55))
+            let tAChild = iso.string(from: now.addingTimeInterval(-50))
+            let tAEnd = iso.string(from: now.addingTimeInterval(-40))
+            let tBStart = iso.string(from: now.addingTimeInterval(-30))
+            let tBWork = iso.string(from: now.addingTimeInterval(-25))
+            let tBChild = iso.string(from: now.addingTimeInterval(-20))
+
+            for mode in ["incremental", "rescan", "direct"] {
+                let boundHome = folder.appending(path: "agy-turn-bound-\(mode)")
+                let boundBrain = boundHome.appending(path: ".gemini/antigravity-cli/brain")
+                let pID = "66666666-6666-4666-8666-666666666666"
+                let cID = "77777777-7777-4777-8777-777777777777"
+                let pFile = boundBrain.appending(path: "\(pID)/.system_generated/logs/transcript.jsonl")
+                let cFile = boundBrain.appending(path: "\(cID)/.system_generated/logs/transcript.jsonl")
+                try FileManager.default.createDirectory(at: pFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try FileManager.default.createDirectory(at: cFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+                let turnAOpen = [
+                    #"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"\#(tAStart)","content":"<USER_REQUEST>turn A</USER_REQUEST>"}"#,
+                    #"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAWork)","model":"gemini-4-neon-high","input_tokens":100,"output_tokens":40,"tool_calls":[{"id":"ta","name":"run_command"}]}"#,
+                ]
+                try Data((turnAOpen.joined(separator: "\n") + "\n").utf8).write(to: pFile)
+                let boundHost = Host()
+                boundHost.home = boundHome
+                boundHost.start(session: 1, providers: [.antigravity], cancellation: Cancellation())
+                let canonP = AgentLogRoot.canonical(pFile).path
+
+                // For the direct-read mode, seed the child cursor before turn A ends
+                // and append BOTH a turn-A step (tAChild) and a turn-B step (tBChild)
+                // into the same child transcript to verify split-by-boundary flushing.
+                let turnAChildTokens: Int
+                if mode == "direct" {
+                    let seedChild = [
+                        #"{"step_index":0,"type":"SYSTEM_MESSAGE","status":"DONE","created_at":"\#(tAWork)","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=\#(tAWork) sender=\#(pID)\n</SYSTEM_MESSAGE>"}"#,
+                    ]
+                    try Data((seedChild.joined(separator: "\n") + "\n").utf8).write(to: cFile)
+                    let canonCSeed = AgentLogRoot.canonical(cFile).path
+                    _ = boundHost.read(canonCSeed, provider: .antigravity)
+                    let ch = try FileHandle(forWritingTo: cFile)
+                    try ch.seekToEnd()
+                    try ch.write(contentsOf: Data(([
+                        #"{"step_index":1,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAChild)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"#,
+                        #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tBChild)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"#,
+                    ].joined(separator: "\n") + "\n").utf8))
+                    try ch.close()
+                    turnAChildTokens = 70
+                } else {
+                    let childBOnly = [
+                        #"{"step_index":0,"type":"SYSTEM_MESSAGE","status":"DONE","created_at":"\#(tBStart)","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=\#(tBStart) sender=\#(pID)\n</SYSTEM_MESSAGE>"}"#,
+                        #"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"\#(tBStart)","content":"<USER_REQUEST>turn B child</USER_REQUEST>"}"#,
+                        #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tBChild)","model":"gemini-4-neon-high","input_tokens":50,"output_tokens":20}"#,
+                    ]
+                    try Data((childBOnly.joined(separator: "\n") + "\n").utf8).write(to: cFile)
+                    turnAChildTokens = 0
+                }
+                let ph = try FileHandle(forWritingTo: pFile)
+                try ph.seekToEnd()
+                try ph.write(contentsOf: Data(([
+                    #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tAEnd)","model":"gemini-4-neon-high","input_tokens":20,"output_tokens":10}"#,
+                    #"{"step_index":3,"type":"USER_INPUT","status":"DONE","created_at":"\#(tBStart)","content":"<USER_REQUEST>turn B</USER_REQUEST>"}"#,
+                    #"{"step_index":4,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(tBWork)","model":"gemini-4-neon-high","input_tokens":100,"output_tokens":40,"tool_calls":[{"id":"tb","name":"invoke_subagent"}]}"#,
+                ].joined(separator: "\n") + "\n").utf8))
+                try ph.close()
+
+                let canonC = AgentLogRoot.canonical(cFile).path
+                boundHost.events.removeAll()
+                switch mode {
+                case "incremental":
+                    boundHost.filesChanged([canonP, canonC], rescan: false)
+                case "rescan":
+                    boundHost.filesChanged([], rescan: true)
+                default:
+                    _ = boundHost.read(canonP, provider: .antigravity)
+                }
+
+                let expectedA = 170 + turnAChildTokens
+                let expectedB = 210
+                if case .finished(let provider, _, _, let tokens, _) = boundHost.events.last {
+                    suite.expect(provider == .antigravity && tokens == expectedA
+                                    && boundHost.store.live.count == 1
+                                    && boundHost.store.live.first?.id == canonP
+                                    && boundHost.store.live.first?.tokens.total == expectedB,
+                                 "Antigravity \(mode) keeps Turn B child usage out of closing Turn A (\(tokens) vs \(expectedA), live \(boundHost.store.live.first?.tokens.total ?? -1) vs \(expectedB))")
+                } else {
+                    suite.expect(false, "Antigravity \(mode) emits finished for Turn A while keeping Turn B open")
+                }
+            }
         } catch {
             suite.expect(false, "Antigravity first-read index fixture failed: \(error)")
         }

@@ -325,6 +325,7 @@ final class AgentUsageService: ObservableObject {
             // Keep the loading state until all initial history has been read.
             let horizon = Date().addingTimeInterval(-Self.horizon)
             let roots = AgentLogRoot.all(home: home, claudeProfile: claudeProfile, providers: providers)
+            antigravityIndex.clearDeferredUsage()
             antigravityIndex.register(roots: roots)
             let cursorRoot = roots.first { $0.provider == .cursor }?.url
             let files = AgentLogReader.discover(roots, since: horizon)
@@ -570,7 +571,8 @@ final class AgentUsageService: ObservableObject {
     /// working turn with it.
     @discardableResult
     private func read(_ changedPath: String, provider: AgentProvider, cursorRoot: URL? = nil,
-                      antigravityStack: Set<String> = []) -> Bool {
+                      antigravityStack: Set<String> = [],
+                      deferredAntigravityParents: Set<String> = []) -> Bool {
         guard let cancellation = readerCancellation, !cancellation.isCancelled else { return false }
         if provider == .cursor {
             guard let root = cursorRoot ?? watchedRoots.first(where: { $0.provider == .cursor })?.url,
@@ -584,9 +586,18 @@ final class AgentUsageService: ObservableObject {
                                              shouldContinue: { !cancellation.isCancelled }, report: report) || selection.changed
         }
         let path = changedPath
+        let now = Date()
         guard FileManager.default.fileExists(atPath: path) else {
             cursors[path] = nil
-            return store.forget(file: path)
+            var removed = store.forget(file: path)
+            if provider == .antigravity {
+                for item in antigravityIndex.drainDeferredUsage(forParent: path) {
+                    removed = true
+                    store.apply([item.entry], file: item.file, provider: .antigravity, tracksTurns: false,
+                                parent: nil, modified: item.modified, now: now).forEach(report)
+                }
+            }
+            return removed
         }
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
@@ -597,9 +608,55 @@ final class AgentUsageService: ObservableObject {
             ? antigravityIndex.entry(forSession: AgentLogParser.antigravitySession(from: path),
                                      transcriptPath: path, dataDirectory: antigravityDataDir)
             : nil
-        let now = Date()
         var changed = false
-        var syncedAntigravityParents: Set<String> = []
+        let cutoff = now.addingTimeInterval(-Self.horizon)
+        var deferredTargets: [String] = []
+        var deferredTargetSet: Set<String> = []
+        func resolveAntigravityParentPath(forSession initialSession: String) -> String? {
+            if let existing = cursor.antigravityParent(among: cursors) { return existing }
+            var targetSession = initialSession
+            var targetSibling = path
+            var visited: Set<String> = [cursor.state.session]
+            var resolved: String?
+            var hops = 0
+            while !targetSession.isEmpty, hops < 8, visited.insert(targetSession).inserted,
+                  let candidate = AgentAntigravityIndex.transcriptPath(forSession: targetSession, siblingOf: targetSibling),
+                  candidate != path {
+                hops += 1
+                resolved = candidate
+                if let known = cursors[candidate] {
+                    guard known.state.antigravitySubagent, !known.state.antigravityParent.isEmpty else { break }
+                    targetSession = known.state.antigravityParent
+                    targetSibling = candidate
+                    continue
+                }
+                if let next = antigravityIndex.entry(forSession: targetSession, transcriptPath: candidate,
+                                                     dataDirectory: antigravityDataDir)?.parentSession,
+                   !next.isEmpty {
+                    targetSession = next
+                    targetSibling = candidate
+                    continue
+                }
+                break
+            }
+            return resolved
+        }
+        func antigravityHasUnreadBytes(_ candidatePath: String) -> Bool {
+            var info = stat()
+            guard stat(candidatePath, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG,
+                  AgentLogCursor.modificationDate(info) >= cutoff else { return false }
+            guard let existing = cursors[candidatePath] else { return true }
+            return UInt64(max(0, info.st_size)) != existing.offset || UInt64(info.st_ino) != existing.identity
+        }
+        func drainAntigravityDeferred(forParent parentPath: String, through boundary: Date? = nil,
+                                      inclusive: Bool = true, targetParent: String?) {
+            for item in antigravityIndex.drainDeferredUsage(forParent: parentPath, through: boundary,
+                                                            inclusive: inclusive) {
+                changed = true
+                store.apply([item.entry], file: item.file, provider: .antigravity, tracksTurns: false,
+                            parent: targetParent, modified: item.modified, now: now).forEach(report)
+            }
+        }
         let consume: (Data) -> Void = { [self] line in
             // Re-apply index metadata inside the line handler so it survives
             // `cursor.startOver` on the first read or after a file replacement.
@@ -617,67 +674,71 @@ final class AgentUsageService: ObservableObject {
             let entries = provider.reader.parse(line, state: &cursor.state, now: now)
             guard !entries.isEmpty else { return }
             changed = true
-            // Ensure an Antigravity parent transcript establishes its live turn
-            // before a subagent's usage applies, regardless of discovery or
-            // file-event order (covering both DB-only and step-0 sender links).
-            if provider == .antigravity && !cursor.state.antigravityParent.isEmpty {
-                let activeParent = cursor.antigravityParent(among: cursors)
-                if activeParent == nil || (store.turns[activeParent!] == nil && store.waiting[activeParent!] == nil) {
-                    var targetSession = cursor.state.antigravityParent
-                    var targetSibling = path
-                    var hops = 0
-                    let nextStack = antigravityStack.union([path])
-                    while !targetSession.isEmpty, hops < 8,
-                          let parentPath = AgentAntigravityIndex.transcriptPath(forSession: targetSession, siblingOf: targetSibling),
-                          parentPath != path,
-                          !nextStack.contains(parentPath),
-                          syncedAntigravityParents.insert(parentPath).inserted {
-                        hops += 1
-                        var info = stat()
-                        guard stat(parentPath, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG,
-                              AgentLogCursor.modificationDate(info) >= now.addingTimeInterval(-Self.horizon) else { break }
-                        _ = read(parentPath, provider: .antigravity, antigravityStack: nextStack)
-                        guard let parentCursor = cursors[parentPath], parentCursor.state.antigravitySubagent,
-                              !parentCursor.state.antigravityParent.isEmpty else { break }
-                        targetSession = parentCursor.state.antigravityParent
-                        targetSibling = parentPath
-                    }
-                }
-            }
             let isSubagent = provider == .opencode && !cursor.state.parentSession.isEmpty
             let turnFile = provider == .opencode && !cursor.state.session.isEmpty ? "\(path)#\(cursor.state.session)" : path
             let tracksTurns = isSubagent ? false : cursor.tracksTurns
-            // Flush unread Antigravity subagent transcripts before closing a live
-            // parent turn so the completion notice carries the combined tokens.
-            if provider == .antigravity && tracksTurns && store.reportsTransitions
-                && (store.turns[turnFile] != nil || store.waiting[turnFile] != nil)
-                && entries.contains(where: { if case .turnEnded(_, true, _) = $0 { return true }; return false }) {
-                var childPaths: [String] = []
-                var seenChildren: Set<String> = [path]
-                for child in cursors.values where child.provider == .antigravity
-                    && child.antigravityParent(among: cursors) == path
-                    && seenChildren.insert(child.path).inserted {
-                    childPaths.append(child.path)
-                }
-                for childSession in antigravityIndex.childSessions(forParent: cursor.state.session,
-                                                                   transcriptPath: path,
-                                                                   dataDirectory: antigravityDataDir) {
-                    if let childPath = AgentAntigravityIndex.transcriptPath(forSession: childSession, siblingOf: path),
-                       seenChildren.insert(childPath).inserted {
-                        childPaths.append(childPath)
+            // Defer Antigravity subagent usage whenever the parent transcript is
+            // currently mid-read, scheduled later in the same batch, or has
+            // unread bytes on disk so parent turn boundaries decide which turn
+            // receives each timestamped child response.
+            if provider == .antigravity && !cursor.state.antigravityParent.isEmpty,
+               let parentPath = resolveAntigravityParentPath(forSession: cursor.state.antigravityParent),
+               antigravityStack.contains(parentPath)
+                   || deferredAntigravityParents.contains(parentPath)
+                   || antigravityHasUnreadBytes(parentPath) {
+                var immediate: [AgentLogEntry] = []
+                for entry in entries {
+                    if case .usage(_, let record, _) = entry {
+                        antigravityIndex.deferUsage(forParent: parentPath, file: turnFile, date: record.date,
+                                                    entry: entry, modified: cursor.modified)
+                        if deferredTargetSet.insert(parentPath).inserted {
+                            deferredTargets.append(parentPath)
+                        }
+                    } else {
+                        immediate.append(entry)
                     }
                 }
-                let nextStack = antigravityStack.union([path])
-                let cutoff = now.addingTimeInterval(-Self.horizon)
-                for childPath in childPaths where !nextStack.contains(childPath) {
-                    var info = stat()
-                    guard stat(childPath, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG,
-                          AgentLogCursor.modificationDate(info) >= cutoff else { continue }
-                    if let existing = cursors[childPath],
-                       UInt64(max(0, info.st_size)) == existing.offset,
-                       UInt64(info.st_ino) == existing.identity { continue }
-                    _ = read(childPath, provider: .antigravity, antigravityStack: nextStack)
+                guard !immediate.isEmpty else { return }
+                let parent = cursor.antigravityParent(among: cursors)
+                store.apply(immediate, file: turnFile, provider: provider, tracksTurns: tracksTurns,
+                            parent: parent, modified: cursor.modified, now: now).forEach(report)
+                return
+            }
+            // Before closing an Antigravity parent turn, flush unread child
+            // transcripts into the deferred queue and apply only child records
+            // up to this turn's boundary so later-turn child usage stays for
+            // the subsequent turn.
+            if provider == .antigravity && tracksTurns,
+               let closing = entries.compactMap({ entry -> (date: Date, completed: Bool)? in
+                   if case .turnEnded(let date, let completed, _) = entry {
+                       return (date ?? cursor.modified, completed)
+                   }
+                   return nil
+               }).first {
+                if closing.completed && store.reportsTransitions
+                    && (store.turns[turnFile] != nil || store.waiting[turnFile] != nil) {
+                    var childPaths: [String] = []
+                    var seenChildren: Set<String> = [path]
+                    for child in cursors.values where child.provider == .antigravity
+                        && child.antigravityParent(among: cursors) == path
+                        && seenChildren.insert(child.path).inserted {
+                        childPaths.append(child.path)
+                    }
+                    for childSession in antigravityIndex.childSessions(forParent: cursor.state.session,
+                                                                       transcriptPath: path,
+                                                                       dataDirectory: antigravityDataDir) {
+                        if let childPath = AgentAntigravityIndex.transcriptPath(forSession: childSession, siblingOf: path),
+                           seenChildren.insert(childPath).inserted {
+                            childPaths.append(childPath)
+                        }
+                    }
+                    let nextStack = antigravityStack.union([path])
+                    for childPath in childPaths where !nextStack.contains(childPath) && antigravityHasUnreadBytes(childPath) {
+                        _ = read(childPath, provider: .antigravity, antigravityStack: nextStack)
+                    }
                 }
+                drainAntigravityDeferred(forParent: path, through: closing.date,
+                                         inclusive: closing.completed, targetParent: turnFile)
             }
             let parent = isSubagent ? "\(path)#\(cursor.state.parentSession)"
                 : cursor.parent ?? cursor.codexParent(among: cursors) ?? cursor.antigravityParent(among: cursors)
@@ -688,8 +749,35 @@ final class AgentUsageService: ObservableObject {
         if provider.reader.readsFullHistoryFirst && cursor.offset == 0 {
             AgentLogReader.readCopilotHistory(cursor, shouldContinue: { !cancellation.isCancelled }, line: consume)
         } else {
-            AgentLogReader.readAppended(cursor, since: now.addingTimeInterval(-Self.horizon),
+            AgentLogReader.readAppended(cursor, since: cutoff,
                                         shouldContinue: { !cancellation.isCancelled }, line: consume)
+        }
+        if provider == .antigravity, !cancellation.isCancelled {
+            // If this file turned out to be an intermediate subagent, forward
+            // any child usage queued against it up to its own parent.
+            if cursor.state.antigravitySubagent, !cursor.state.antigravityParent.isEmpty,
+               let parentPath = resolveAntigravityParentPath(forSession: cursor.state.antigravityParent),
+               antigravityIndex.forwardDeferredUsage(from: path, to: parentPath),
+               deferredTargetSet.insert(parentPath).inserted {
+                deferredTargets.append(parentPath)
+            }
+            // Apply any remaining deferred child usage for this parent now that
+            // its own unread lines have settled on the current live turn.
+            if cursor.tracksTurns && !antigravityStack.contains(path) {
+                drainAntigravityDeferred(forParent: path, targetParent: path)
+            }
+            // Drive unread parent transcripts not already queued later in the
+            // same watcher batch so deferred child usage resolves immediately.
+            let nextStack = antigravityStack.union([path])
+            for parentPath in deferredTargets where !nextStack.contains(parentPath)
+                && !deferredAntigravityParents.contains(parentPath) {
+                if antigravityHasUnreadBytes(parentPath) {
+                    if read(parentPath, provider: .antigravity, antigravityStack: nextStack) { changed = true }
+                }
+                let owner = cursors[parentPath]?.tracksTurns == true ? parentPath
+                    : cursors[parentPath]?.antigravityParent(among: cursors)
+                drainAntigravityDeferred(forParent: parentPath, targetParent: owner)
+            }
         }
         return changed
     }
@@ -729,8 +817,11 @@ final class AgentUsageService: ObservableObject {
             } + files.filter {
                 $0.provider == .antigravity && (store.turns[$0.path] != nil || store.waiting[$0.path] != nil)
             }
+            var remainingAntigravity = Set(ordered.lazy.filter { $0.provider == .antigravity }.map(\.path))
             for file in ordered {
-                if read(file.path, provider: file.provider) { changed = true }
+                if file.provider == .antigravity { remainingAntigravity.remove(file.path) }
+                if read(file.path, provider: file.provider,
+                        deferredAntigravityParents: remainingAntigravity) { changed = true }
             }
         } else {
             var pending: [(path: String, provider: AgentProvider, openAntigravityTurn: Bool)] = []
@@ -743,12 +834,15 @@ final class AgentUsageService: ObservableObject {
                     && (store.turns[actualPath] != nil || store.waiting[actualPath] != nil)
                 pending.append((actualPath, root.provider, openTurn))
             }
-            // Read non-owning Antigravity logs (including brand-new subagents)
-            // before an already-open parent turn in the same watcher batch so
-            // child usage attaches before the parent closes.
+            // Read non-owning Antigravity logs before already-open parent turns
+            // while holding child records for any parent still ahead in the
+            // batch, so each parent drains child usage at its exact turn bounds.
             pending.sort { !$0.openAntigravityTurn && $1.openAntigravityTurn }
+            var remainingAntigravity = Set(pending.lazy.filter { $0.provider == .antigravity }.map(\.path))
             for item in pending {
-                if read(item.path, provider: item.provider) { changed = true }
+                if item.provider == .antigravity { remainingAntigravity.remove(item.path) }
+                if read(item.path, provider: item.provider,
+                        deferredAntigravityParents: remainingAntigravity) { changed = true }
             }
         }
         // Saved tool output and lines with nothing to keep do not change the
