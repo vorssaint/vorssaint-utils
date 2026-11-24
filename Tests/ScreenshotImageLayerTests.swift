@@ -461,7 +461,7 @@ enum ScreenshotImageLayerTests {
         suite.expect(content.contains("$0.tool == .pixelate || (showsChecker && $0.tool == .spotlight)"),
                      "a spotlight over the checkerboard draws in its own layer, so transparent parts the export keeps stay undimmed")
         let controls = section("    private var expansionControls: some View {", "    private func updateExpansionFill()")
-        suite.expect(controls.contains(".padding(.horizontal, 12)\n        .padding(.vertical, 8)\n        .background(.regularMaterial, in: Capsule(style: .continuous))\n        .shadow(color: .black.opacity(0.16), radius: 12, y: 3)"),
+        suite.expect(controls.contains(".padding(.horizontal, 12)\n        .padding(.vertical, 8)\n        .trueGlass(in: Capsule(style: .continuous))\n        .shadow(color: .black.opacity(0.16), radius: 12, y: 3)"),
                      "the fill controls sit in the same capsule as the crop and style bars")
         suite.expect(controls.contains("supportsOpacity: false)\n                    .labelsHidden()"),
                      "the custom fill well does not repeat the name its picker already shows")

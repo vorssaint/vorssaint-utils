@@ -973,11 +973,12 @@ final class AgentUsageService: ObservableObject {
         let live = ClaudeStatus.latest(now: now).flatMap { $0.limits(now: now) }
             .flatMap { now.timeIntervalSince($0.observedAt) < AgentClaudeAppUsage.freshness && $0.observedAt >= changed ? $0 : nil }
         let desktopNow = desktop.flatMap { $0.observedAt >= changed ? $0 : nil }
-        // The newest reading wins. The status line used to outrank the account's own
-        // check for half an hour, which kept an old figure on screen after the account
-        // had answered with a newer one.
-        if let latest = [live, recent, desktopNow, account].compactMap({ $0 })
-            .max(by: { $0.observedAt < $1.observedAt }) {
+        // While the account's own check is recent it holds its place against the app's
+        // save, which would otherwise trade places with it and repeat a warning. The status
+        // line used to outrank it for half an hour, which kept an old figure on screen after
+        // the account had answered; now the newer of the two wins.
+        let pool = recent != nil ? [live, recent] : [live, desktopNow, account]
+        if let latest = pool.compactMap({ $0 }).max(by: { $0.observedAt < $1.observedAt }) {
             store.setLimits(latest)
         } else {
             store.clearLimits(.claude)
