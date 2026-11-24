@@ -548,12 +548,16 @@ enum DisplaySpeakerVolumeTests {
         let volume = BrightnessSupport.audioVolumeCode
         let mute = BrightnessSupport.audioMuteCode
         let chip = BrightnessSupport.chipAddress
-        for maximum: UInt16 in [100, 65535, 0] {
-            let scalar = connect(mixer, muted: true, muteMaximum: maximum, mccsVersion: 0x0201)
+        for (version, maximum): (UInt16, UInt16) in [
+            (0x0200, 65535), (0x0201, 100), (0x0201, 65535), (0x0201, 0), (0x0300, 65535)
+        ] {
+            let scalar = connect(mixer, muted: true, muteMaximum: maximum, mccsVersion: version)
             suite.expect(mixer.systemOutputMuted == true && scalar.versionReadAttempts == [1],
-                         "one version read identifies a scalar 2.1 mute regardless of its reported maximum")
+                         "one version read identifies a scalar mute regardless of its reported maximum")
             mixer.requestOutputMuteToggle()
             scalar.finish()
+            suite.expect(mixer.systemOutputMuted == false && scalar.writes == [Write(mute, 2)] && scalar.raw == 40,
+                         "the unmute command confirms scalar state two at the original volume")
             mixer.requestOutputMuteToggle()
             scalar.finish()
             suite.expect(scalar.writes == [Write(mute, 2), Write(mute, 1)] && scalar.versionReadAttempts == [1]
@@ -561,7 +565,8 @@ enum DisplaySpeakerVolumeTests {
                          "both mute commands use scalar readback without querying the version on each key")
         }
         for (version, maximum): (UInt16?, UInt16) in [
-            (nil, 100), (nil, 65535), (0x0202, 0), (0x0202, 100), (0x0202, 65535), (0x0202, 0x0200), (0x0400, 65535)
+            (nil, 100), (nil, 65535), (0x0202, 0), (0x0202, 100), (0x0202, 65535), (0x0202, 0x0200),
+            (0x0203, 65535), (0x0301, 65535), (0x0400, 65535)
         ] {
             let speakers = connect(mixer, muted: true, muteMaximum: maximum, mccsVersion: version)
             mixer.requestOutputMuteToggle()
@@ -572,18 +577,20 @@ enum DisplaySpeakerVolumeTests {
                          "an ambiguous reply requires a recognized scalar version and leaves ordinary volume available")
         }
 
-        let endpoint = connect(mixer, muted: false, muteMaximum: 65535, mccsVersion: 0x0201)
-        discover(endpoint, chip: chip, registryEntryID: 1)
-        suite.expect(endpoint.versionReadAttempts == [1] && mixer.systemOutputMuted == false,
-                     "a new wrapper for the same registry endpoint reuses its reported MCCS version")
-        endpoint.connectedSpeakerEndpointID = 2
-        mixer.requestOutputMuteToggle()
-        endpoint.finish()
-        suite.expect(endpoint.writes.isEmpty, "a removed endpoint's version cannot authorize native mute")
-        endpoint.mccsVersion = 0x0202
-        discover(endpoint, chip: chip, registryEntryID: 2)
-        suite.expect(endpoint.versionReadAttempts == [1, 1] && mixer.systemOutputMuted == nil,
-                     "a replacement at the same port must supply its own version")
+        for version: UInt16 in [0x0200, 0x0201, 0x0300] {
+            let endpoint = connect(mixer, muted: false, muteMaximum: 65535, mccsVersion: version)
+            discover(endpoint, chip: chip, registryEntryID: 1)
+            suite.expect(endpoint.versionReadAttempts == [1] && mixer.systemOutputMuted == false,
+                         "a new wrapper for the same registry endpoint reuses its reported MCCS version")
+            endpoint.connectedSpeakerEndpointID = 2
+            mixer.requestOutputMuteToggle()
+            endpoint.finish()
+            suite.expect(endpoint.writes.isEmpty, "a removed endpoint's version cannot authorize native mute")
+            endpoint.mccsVersion = 0x0202
+            discover(endpoint, chip: chip, registryEntryID: 2)
+            suite.expect(endpoint.versionReadAttempts == [1, 1] && mixer.systemOutputMuted == nil,
+                         "a replacement at the same port must supply its own version")
+        }
 
         let unplugged = connect(mixer)
         unplugged.muteMaximum = 65535
@@ -594,8 +601,11 @@ enum DisplaySpeakerVolumeTests {
         let missing = unplugged.probeAudio(for: 7, service: NSObject(), chip: chip, path: "port-a", registryEntryID: 1)
         suite.expect(missing == nil, "unplugging during the optional version read cannot publish a stale mute route")
 
-        for (image, readback, maximum): (UInt8, UInt16, UInt16) in [(1, 2, 0x0202), (0, 0, 2), (0, 0, 65535)] {
-            let scalar = connect(mixer, muted: true, muteMaximum: 65535, mccsVersion: 0x0201)
+        for (version, image, readback, maximum): (UInt16, UInt8, UInt16, UInt16) in [
+            (0x0201, 1, 2, 0x0202), (0x0201, 0, 0, 65535),
+            (0x0200, 0, 0, 2), (0x0201, 0, 0, 2), (0x0300, 0, 0, 2)
+        ] {
+            let scalar = connect(mixer, muted: true, muteMaximum: 65535, mccsVersion: version)
             scalar.afterUnmute = { [weak scalar] in
                 scalar?.muteImageByte = image
                 scalar?.unmutedReads = readback
@@ -623,15 +633,18 @@ enum DisplaySpeakerVolumeTests {
                      && compound.versionReadAttempts == [1],
                      "a combined control requires audio support at readback and never falls back to guessing a scalar")
 
-        let latched = connect(mixer, raw: 0, muteMaximum: 65535, mccsVersion: 0x0202)
-        latched.unmutedReads = 0
-        latched.muteMaximum = 2
-        discover(latched, chip: chip, registryEntryID: 1)
-        mixer.requestOutputAdjustment(volume: 0.05)
-        latched.finish()
-        suite.expect(latched.writes == [Write(volume, 5), Write(mute, 2)] && mixer.systemOutputVolume == 0.05
-                     && mixer.systemOutputMuted == nil && latched.versionReadAttempts == [1],
-                     "a cached 2.2 version preserves the zero-latch release without claiming native mute")
+        for version: UInt16 in [0x0200, 0x0201, 0x0202, 0x0300] {
+            let speakers = connect(mixer, raw: 0, muteMaximum: 65535, mccsVersion: version)
+            speakers.unmutedReads = 0
+            speakers.muteMaximum = 2
+            discover(speakers, chip: chip, registryEntryID: 1)
+            mixer.requestOutputAdjustment(volume: 0.05)
+            speakers.finish()
+            let release = version == 0x0202 ? [Write(mute, 2)] : []
+            suite.expect(speakers.writes == [Write(volume, 5)] + release && mixer.systemOutputVolume == 0.05
+                         && mixer.systemOutputMuted == nil && speakers.versionReadAttempts == [1],
+                         "a zero reply preserves the 2.2 latch release and leaves scalar volume independent of mute")
+        }
 
         // A monitor first encountered muted may report zero after a verified
         // native unmute. Only that endpoint can interpret a subsequent zero.

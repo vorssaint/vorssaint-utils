@@ -86,7 +86,6 @@ enum BrightnessSupport {
     static let audioMuteCode: UInt8 = 0x8D
     private static let audioMuteSupported: UInt16 = 2
     static let mccsVersionCode: UInt8 = 0xDF
-    static let mccsVersion21: UInt16 = 0x0201
     /// A zero high byte leaves the screen alone on both writes.
     static let audioMutedValue: UInt16 = 1
     static let audioUnmutedValue: UInt16 = 2
@@ -823,12 +822,19 @@ enum BrightnessSupport {
         return Double(current) / Double(maximum)
     }
 
-    /// MCCS 2.1 reports a scalar state. In the combined control, ML
-    /// advertises audio mute support and SL reports the state independently
-    /// of the screen blanking fields in the high bytes.
+    /// These MCCS revisions define 0x8D as a scalar audio control.
+    static func usesScalarMute(mccsVersion: UInt16?) -> Bool {
+        switch mccsVersion {
+        case 0x0200, 0x0201, 0x0300: return true
+        default: return false
+        }
+    }
+
+    /// In the combined control, ML advertises audio mute support and SL
+    /// reports its state independently of screen blanking in the high bytes.
     static func muteReply(current: UInt16, maximum: UInt16, mccsVersion: UInt16? = nil) -> Bool? {
         let audio: UInt16
-        if mccsVersion == mccsVersion21 {
+        if usesScalarMute(mccsVersion: mccsVersion) {
             audio = current
         } else {
             guard (maximum & 0xFF) == audioMuteSupported else { return nil }
@@ -846,7 +852,7 @@ enum BrightnessSupport {
     /// muted, and stays silent after reaching zero until it is told to unmute.
     /// Accept this quirk only for a scalar reply advertising audio mute support.
     static func unmutesLeavingZero(muteReply current: UInt16, maximum: UInt16, mccsVersion: UInt16? = nil) -> Bool {
-        mccsVersion != mccsVersion21 && current == 0 && maximum == audioMuteSupported
+        !usesScalarMute(mccsVersion: mccsVersion) && current == 0 && maximum == audioMuteSupported
     }
 
     static func muteDeviceValue(_ muted: Bool) -> UInt16 {

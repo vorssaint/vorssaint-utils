@@ -3260,7 +3260,8 @@ final class BrightnessService: ObservableObject {
                                                  chip: route.chipAddress)
         func canVerifyUnmute() -> Bool { Self.speakerEndpointIsConnected(route.registryEntryID) }
         func originalMonitorIsConnected() -> Bool {
-            let identifiedScalar = route.muteVersion == BrightnessSupport.mccsVersion21 && (route.registryEntryID ?? 0) != 0
+            let identifiedScalar = BrightnessSupport.usesScalarMute(mccsVersion: route.muteVersion)
+                && (route.registryEntryID ?? 0) != 0
             if (sentUnmute || knownZeroUnmute || identifiedScalar) && !canVerifyUnmute() { return false }
             let connected = stateLock.withLock {
                 guard let live = audioRoutes[id] else {
