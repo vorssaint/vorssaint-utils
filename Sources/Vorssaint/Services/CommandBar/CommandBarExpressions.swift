@@ -69,19 +69,18 @@ enum CommandBarExpressions {
     static func parse(_ input: String,
                       decimalSeparator: String,
                       groupingSeparator: String) -> Parsed? {
-        var sawCompactFeet = false
-        func parseInput(splitCompactFeet: Bool) -> Parsed? {
+        // Preserve valid cubic-foot expressions. Try explicit inch marks before
+        // assuming an omitted mark or reading a division as fractional inches.
+        for reading in CompactFeetReading.allCases {
+            var hasAlternative = false
             var fractions: [MeasuredFraction] = []
-            guard let tokens = tokenize(input, decimalSeparator: decimalSeparator,
-                                        groupingSeparator: groupingSeparator, fractions: &fractions,
-                                        splitCompactFeet: splitCompactFeet, sawCompactFeet: &sawCompactFeet)
-            else { return nil }
-            return parse(tokens, fractions: fractions)
+            if let tokens = tokenize(input, decimalSeparator: decimalSeparator,
+                                     groupingSeparator: groupingSeparator, fractions: &fractions,
+                                     compactFeet: reading, hasAlternative: &hasAlternative),
+               let parsed = parse(tokens, fractions: fractions) { return parsed }
+            if !hasAlternative { break }
         }
-        // Prefer a valid cubic-foot expression. Only retry an ambiguous one
-        // when its target or the rest of the expression ruled out that reading.
-        if let parsed = parseInput(splitCompactFeet: false) { return parsed }
-        return sawCompactFeet ? parseInput(splitCompactFeet: true) : nil
+        return nil
     }
 
     private static func parse(_ tokens: [Token], fractions: [MeasuredFraction]) -> Parsed? {
@@ -163,12 +162,16 @@ enum CommandBarExpressions {
 
     // MARK: - Tokenizer
 
+    private enum CompactFeetReading: Int, CaseIterable {
+        case cubicFeet, markedInches, impliedInches, fractionalInches
+    }
+
     private static func tokenize(_ input: String,
                                  decimalSeparator: String,
                                  groupingSeparator: String,
                                  fractions: inout [MeasuredFraction],
-                                 splitCompactFeet: Bool,
-                                 sawCompactFeet: inout Bool) -> [Token]? {
+                                 compactFeet: CompactFeetReading,
+                                 hasAlternative: inout Bool) -> [Token]? {
         var tokens: [Token] = []
         let characters = Array(input)
         var index = 0
@@ -267,22 +270,26 @@ enum CommandBarExpressions {
 
         func couldStartInches(at digit: Int) -> Bool {
             var next = digit
+            var consumedDivision = false
             guard readNumber(characters, &next, separators: separators,
                              unitAhead: { unitAhead(at: $0) }, argumentComma: commaSeparatesArguments,
-                             measuredFraction: { _, _ in }) != nil else { return false }
+                             measuredFraction: { _, _ in consumedDivision = true }) != nil else { return false }
             while next < characters.count, characters[next].isWhitespace { next += 1 }
+            var required: CompactFeetReading
             if let inch = readUnit(at: next), inch.unit.id == "in",
                fold(inch.raw) != "in" || !unitAhead(at: inch.end, asConversionTarget: true) {
-                return true
+                required = .markedInches
+            } else {
+                let tail = characters[next...]
+                let connector = tail.first?.isLetter == true
+                    ? tail.prefix(while: \.isLetter) : tail.prefix { "->→".contains($0) }
+                guard conversionWords.contains(fold(String(connector))) else { return false }
+                required = .impliedInches
             }
-            // A single height also accepts an implied inch mark before its
-            // conversion, as in "5ft3 to cm". Other cubic-foot factors stay whole.
-            guard tokens.count == 1 || (tokens.count == 2 && (tokens.first == .minus || tokens.first == .plus))
-            else { return false }
-            let tail = characters[next...]
-            let connector = tail.first?.isLetter == true
-                ? tail.prefix(while: \.isLetter) : tail.prefix { "->→".contains($0) }
-            return conversionWords.contains(fold(String(connector)))
+            if consumedDivision { required = .fractionalInches }
+            if compactFeet.rawValue >= required.rawValue { return true }
+            hasAlternative = true
+            return false
         }
 
         func followsUnitOrMixedRemainder(at start: Int) -> Bool {
@@ -401,14 +408,11 @@ enum CommandBarExpressions {
                 let tokenStart = index
                 if let matched = readUnit(at: index) {
                     index = matched.end
-                    if case .number? = tokens.last, matched.unit.id == "ft3", matched.raw.last == "3" {
-                        sawCompactFeet = true
-                        if splitCompactFeet, couldStartInches(at: index - 1),
-                           let feet = CommandBarUnitCatalog.unit(byID: "ft") {
-                            tokens.append(.unit(feet))
-                            index -= 1
-                            continue
-                        }
+                    if case .number? = tokens.last, matched.unit.id == "ft3", matched.raw.last == "3",
+                       couldStartInches(at: index - 1), let feet = CommandBarUnitCatalog.unit(byID: "ft") {
+                        tokens.append(.unit(feet))
+                        index -= 1
+                        continue
                     }
                     if matched.unit.id == "min" {
                         var p = index
