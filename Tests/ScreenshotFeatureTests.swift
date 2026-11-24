@@ -4169,19 +4169,6 @@ enum ScreenshotFeatureTests {
                 && !MicMuteSupport.shouldLeaveUntouched(owned: true, captureSilenced: true)
                 && !MicMuteSupport.shouldLeaveUntouched(owned: false, captureSilenced: false),
                "a user-quiet microphone is left alone and one this app muted is still ours")
-        suite.expect(MicMuteSupport.restoreNeed(muteSwitch: 1, volume: 0)
-                == .restore(clearMute: true, restoreVolume: true)
-                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: 0.75)
-                == .restore(clearMute: true, restoreVolume: false)
-                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: 0)
-                == .restore(clearMute: false, restoreVolume: true)
-                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: 0.75) == .alreadyAudible
-                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: nil)
-                == .restore(clearMute: true, restoreVolume: false)
-                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: nil, hasSavedVolume: true)
-                == .unreadable
-                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: nil) == .unreadable,
-               "unmuting clears the mute switch and restores volume when each is needed, not one or the other")
         typealias InputControls = MicMuteSupport.InputControls
         let quiet = InputControls(gain: .silent, muteSwitch: 1)
         suite.expect(InputControls(gain: .audible, muteSwitch: 1).opened(since: quiet)

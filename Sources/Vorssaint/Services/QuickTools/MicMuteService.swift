@@ -243,9 +243,11 @@ final class MicMuteService: ObservableObject {
     /// they live only as long as one of those is pending.
     private func syncListeners() {
         syncSystemListeners(wanted: wantsMute || isMuted || hasOutstandingClaims)
-        let watchDevices = wantsMute && isMuted && !Self.releasePending
+        let mode: DeviceObservation
+        if wantsMute && !Self.releasePending { mode = isMuted ? .muted : .stopped }
+        else { mode = .restoring }
         halQueue.async { [weak self] in
-            self?.syncDeviceListeners(muted: watchDevices)
+            if self?.syncDeviceListeners(mode) == true { self?.scheduleReapply() }
         }
     }
 
@@ -311,7 +313,7 @@ final class MicMuteService: ObservableObject {
         guard mustRestore || applyInFlight else {
             halQueue.sync {
                 self.cancelInventoryRecovery()
-                self.syncDeviceListeners(muted: false)
+                self.syncDeviceListeners(.stopped)
             }
             syncSystemListeners(wanted: false)
             return
@@ -332,7 +334,7 @@ final class MicMuteService: ObservableObject {
                 _ = self.sweep(muted: false, audioGeneration: self.currentAudioGeneration, request: request)
             }
             self.cancelInventoryRecovery()
-            self.syncDeviceListeners(muted: false)
+            self.syncDeviceListeners(.stopped)
         }
         defaults.set(false, forKey: DefaultsKey.micMuteActive)
         let stillOwed = hasOutstandingClaims
@@ -433,11 +435,14 @@ final class MicMuteService: ObservableObject {
         let previouslyMuted = isMuted && AppFeature.micMute.isAvailable
         // A reset between the first mute sweep and publication invalidates
         // every device registration, even if the device IDs stay the same.
-        if muted && !wantsSystemListeners { syncSystemListeners(wanted: true) }
+        if !wantsSystemListeners && (muted || hasOutstandingClaims) { syncSystemListeners(wanted: true) }
         halQueue.async { [weak self] in
             guard let self else { return }
             let connection = self.currentAudioGeneration
             let enforceMute = muted && !Self.releasePending
+            // Subscribe before checking an existing restore record. That
+            // check covers installation without another Set on a refusing driver.
+            if !enforceMute { self.syncDeviceListeners(.restoring) }
             let keepRetriesIfUnmuteFails = enforceMute && previouslyMuted
             let checkAfterRegistration = enforceMute && self.observedInputs == nil
             var outcome = self.sweep(muted: enforceMute, audioGeneration: connection, request: request,
@@ -446,7 +451,8 @@ final class MicMuteService: ObservableObject {
             let effectiveMute = enforceMute && !outcome.followedCallApp
             // Losing the last input can leave nothing to mute. Its old
             // listeners still need to leave so a returning input is observed.
-            self.syncDeviceListeners(muted: outcome.applied ? effectiveMute : keepRetriesIfUnmuteFails)
+            let monitorMute = outcome.applied ? effectiveMute : keepRetriesIfUnmuteFails
+            if self.syncDeviceListeners(monitorMute ? .muted : .restoring) { outcome.checkNewInputs = true }
             // Before announcing the first mute, establish call-following baselines
             // with listeners in place, or repair any reading invalidated before registration.
             if checkAfterRegistration && effectiveMute && !Self.releasePending,
@@ -519,6 +525,7 @@ final class MicMuteService: ObservableObject {
         // first UID read after an upgrade could already belong to a replacement.
         let unidentified = pending.map { $0.uid == nil }
             ?? (mutedDevices == nil && defaults.bool(forKey: DefaultsKey.micMuteActive))
+        var requiresManualCheck = unidentified
         var remaining = unidentified ? nil : pending
         if var legacy = pending, let uid = legacy.uid, let device = devices.first(where: { $0.uid == uid }) {
             let controls = legacy.resolve(on: device.id)
@@ -533,29 +540,6 @@ final class MicMuteService: ObservableObject {
                     initialClaims.removeAll { $0 == uid }
                 }
             }
-        }
-        // Convert the stereo record before any subset of its controls can
-        // finish restoring. The old UID level came from the first readable
-        // scalar: master, then channels 1 and 2. A level distinct from the
-        // first saved channel identifies the master even while it is absent.
-        for device in devices where initialClaims.contains(device.uid) && initialControls[device.uid] == nil {
-            guard let channels = savedChannelVolumes?[device.uid],
-                  let firstChannel = channels["1"] ?? channels["2"] else { continue }
-            var controls: [String: Double] = [:]
-            for address in Self.legacyGainAddresses {
-                if let channel = channels[String(address.mElement)] {
-                    controls[Self.controlKey(address)] = channel
-                } else if address.mElement == kAudioObjectPropertyElementMain, let master = savedVolumes?[device.uid] {
-                    // A channel-only input saved that same channel as its UID
-                    // level. An unrelated live master must keep its own gain.
-                    if Self.controlValuesMatch(master, firstChannel) {
-                        guard let current = Self.controlValue(of: device.id, at: address),
-                              current <= Double(MicMuteSupport.residualGainLimit) else { continue }
-                    }
-                    controls[Self.controlKey(address)] = master
-                }
-            }
-            initialControls[device.uid] = controls
         }
         var evidence = notices.controls
         var checksLeft = trackControls && followingCallApps && observedInputs?.isEmpty == false ? 3 : 0
@@ -575,7 +559,9 @@ final class MicMuteService: ObservableObject {
         var waitingForLegacyGains: Set<String> = []
         if requestedMute, let savedVolumes {
             for device in devices where initialClaims.contains(device.uid) && initialControls[device.uid] == nil {
-                guard let previous = protectedChannels[device.uid], savedVolumes[device.uid] != nil else { continue }
+                let stereo = savedChannelVolumes?[device.uid]
+                guard stereo?["1"] == nil, stereo?["2"] == nil,
+                      let previous = protectedChannels[device.uid], savedVolumes[device.uid] != nil else { continue }
                 var elements = Set(previous)
                 // An earlier unmute found an unreadable legacy channel. A
                 // reapply must resolve its original gain before zeroing aliases.
@@ -701,8 +687,8 @@ final class MicMuteService: ObservableObject {
         while true {
             let levels = partial?.savedVolumes ?? savedVolumes ?? [:]
             let channels = partial?.savedChannelVolumes ?? savedChannelVolumes ?? [:]
-            let controls = partial?.savedControls ?? initialControls
-            let claims = partial?.mutedDevices ?? initialClaims
+            var controls = partial?.savedControls ?? initialControls
+            var claims = partial?.mutedDevices ?? initialClaims
             checking = checksLeft > 0
             var readings: [InputDevice: InputControls] = [:]
             if checking {
@@ -718,6 +704,29 @@ final class MicMuteService: ObservableObject {
                     && inputVolumeLock.withLock { inputVolumeLifetime == request }
                     && canFollowCallApps(in: audioGeneration, revision: revision)
                 if follow { callOpenings = Set(opened.keys) }
+            }
+            // Call detection may refresh the inventory. Resolve the old
+            // records against the devices present before either path writes.
+            for device in devices where claims.contains(device.uid) {
+                if let stereo = Self.legacyStereoSnapshot(controls[device.uid], on: device.id,
+                                                          master: levels[device.uid], channels: channels[device.uid]) {
+                    guard isCurrent(device) else { break }
+                    controls[device.uid] = stereo.controls
+                    if stereo.needsManualCheck { requiresManualCheck = true }
+                    continue
+                }
+                // v3.4.3 could record only a UID after closing its master
+                // switch. A gain cannot verify that switch's release.
+                guard device.uid != remaining?.uid, controls[device.uid] == nil,
+                      levels[device.uid] == nil, channels[device.uid] == nil else { continue }
+                let native = Self.legacySwitchSnapshot(device)
+                guard isCurrent(device) else { break }
+                if let native {
+                    controls[device.uid] = native
+                } else {
+                    claims.removeAll { $0 == device.uid }
+                    requiresManualCheck = true
+                }
             }
             if !requestedMute || follow {
                 // Known controls can be released even while another legacy
@@ -765,7 +774,7 @@ final class MicMuteService: ObservableObject {
             outcome.failed = true
             outcome.applied = true
         }
-        outcome.requiresManualLegacyRestore = unidentified || defaults.bool(forKey: DefaultsKey.micMuteManualCheckNeeded)
+        outcome.requiresManualLegacyRestore = requiresManualCheck || defaults.bool(forKey: DefaultsKey.micMuteManualCheckNeeded)
         if let uid = remaining?.uid {
             if !outcome.mutedDevices.contains(uid) { outcome.mutedDevices.append(uid) }
             outcome.failed = true
@@ -815,12 +824,12 @@ final class MicMuteService: ObservableObject {
         let releaseInterrupted = follow && !committedCallRelease && (invalidated || audioGeneration != currentAudioGeneration)
         var record = partial
         let restoredControls = !muted && (outcome.savedControls != (savedControls ?? [:]) || protectedChannels != savedProtection)
-        let migrationChanged = remaining != pending || unidentified
+        let migrationChanged = remaining != pending || requiresManualCheck
         if !releaseInterrupted && (outcome.applied || partial != nil || migrationChanged || restoredControls) {
             record = outcome
         }
         if let record {
-            if unidentified && !defaults.bool(forKey: DefaultsKey.micMuteManualCheckNeeded) {
+            if requiresManualCheck && !defaults.bool(forKey: DefaultsKey.micMuteManualCheckNeeded) {
                 defaults.set(true, forKey: DefaultsKey.micMuteManualCheckNeeded)
             }
             if savedVolumes != record.savedVolumes {
@@ -1039,6 +1048,7 @@ final class MicMuteService: ObservableObject {
         var savedChannelVolumes: [String: [String: Double]]
         /// Exact values of the controls this app may have changed. Zero gain
         /// and an existing mute are user choices, not missing restore data.
+        /// Bare legacy stereo elements await classification before any write.
         var savedControls: [String: [String: Double]]
         var mutedDevices: [String]
         /// A device this sweep had to reach and could not, next to ones it did.
@@ -1133,8 +1143,7 @@ final class MicMuteService: ObservableObject {
             // keeps the first snapshot, including a user's mute or zero gain.
             let addresses = muteAddresses(of: device.id) + volumeAddresses(of: device.id)
             let migrating = owned.contains(device.uid) && savedControls[device.uid] == nil
-            let switchSnapshot = migrating ? legacySwitchSnapshot(device, savedVolumes, savedChannelVolumes) : nil
-            var snapshot = savedControls[device.uid] ?? switchSnapshot ?? [:]
+            var snapshot = savedControls[device.uid] ?? [:]
             var writable: [AudioObjectPropertyAddress] = []
             var nextRetries: [String: MicMuteSupport.Retry] = [:]
             var quietBeforeWrite: Set<DeviceListener>? = readings[device] == nil ? nil : []
@@ -1158,7 +1167,7 @@ final class MicMuteService: ObservableObject {
                     continue
                 }
                 if snapshot[key] == nil {
-                    snapshot[key] = migrating && switchSnapshot == nil
+                    snapshot[key] = migrating
                         ? legacyRestoreValue(current, at: address, uid: device.uid,
                                              savedVolumes: savedVolumes,
                                              savedChannelVolumes: savedChannelVolumes)
@@ -1271,27 +1280,13 @@ final class MicMuteService: ObservableObject {
             defer { if outcome.applied { didRestore() } }
             let saved: [String: Double]
             var channels = Set(protectedChannels[device.uid] ?? [])
-            if let snapshot = savedControls[device.uid] ?? legacySwitchSnapshot(device, savedVolumes, savedChannelVolumes) {
+            if let snapshot = savedControls[device.uid] {
                 saved = snapshot
             } else {
-                let hasLevel = savedVolumes[device.uid] != nil || savedChannelVolumes[device.uid] != nil
-                if !hasLevel {
-                    let muteSwitch = readMuteSwitch(of: device.id, channelCount: readInputChannelCount(of: device.id)).value
-                    switch MicMuteSupport.restoreNeed(muteSwitch: muteSwitch, volume: inputVolume(of: device.id)) {
-                    case .unreadable:
-                        outcome.mutedDevices.append(device.uid)
-                        continue
-                    case .alreadyAudible, .restore:
-                        // This UID has no saved level or native master switch.
-                        // Its current gain, including zero, belongs to the user.
-                        if isCurrent(device) {
-                            protectedChannels[device.uid] = nil
-                            outcome.applied = true
-                        } else {
-                            outcome.mutedDevices.append(device.uid)
-                        }
-                        continue
-                    }
+                guard savedVolumes[device.uid] != nil || savedChannelVolumes[device.uid] != nil else {
+                    // A reset interrupted migration before this UID was resolved.
+                    outcome.mutedDevices.append(device.uid)
+                    continue
                 }
                 let volume = MicMuteSupport.volumeToRestore(uid: device.uid, saved: savedVolumes)
                 let snapshot = legacyGainSnapshot(volume, on: device.id, observed: &channels)
@@ -1321,9 +1316,9 @@ final class MicMuteService: ObservableObject {
             var openings = Set(callOpenings.filter { $0.device == device.id }.map { controlKey($0.address) })
             let outstanding = restoreControls(saved, on: device, protecting: &channels, openings: &openings,
                                               recordedLevels: savedChannelVolumes[device.uid], isCurrent: isCurrent)
-            let needsMaster = outstanding.keys.compactMap(controlAddress).contains(where: isMasterGain)
+            let needsMaster = outstanding["0"] != nil || outstanding.keys.compactMap(controlAddress).contains(where: isMasterGain)
             protectedChannels[device.uid] = needsMaster && !channels.isEmpty ? channels.sorted() : nil
-            if !saved.isEmpty && outstanding.isEmpty {
+            if outstanding.isEmpty && (!saved.isEmpty || isCurrent(device)) {
                 outcome.applied = true
                 outcome.savedControls.removeValue(forKey: device.uid)
                 outcome.savedVolumes.removeValue(forKey: device.uid)
@@ -1456,7 +1451,7 @@ final class MicMuteService: ObservableObject {
         var inactiveIDs: Set<AudioDeviceID> = []
     }
 
-    private static func inputInventory() -> InputInventory? {
+    private static func audioDeviceIDs() -> [AudioDeviceID]? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDevices,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -1465,13 +1460,18 @@ final class MicMuteService: ObservableObject {
         var size: UInt32 = 0
         guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject),
                                              &address, 0, nil, &size) == noErr else { return nil }
-        var inventory = InputInventory()
-        guard size > 0 else { return inventory }
+        guard size > 0 else { return [] }
         var deviceIDs = [AudioDeviceID](repeating: 0, count: Int(size) / MemoryLayout<AudioDeviceID>.size)
         guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
                                          &address, 0, nil, &size, &deviceIDs) == noErr else { return nil }
 
-        for deviceID in deviceIDs.prefix(Int(size) / MemoryLayout<AudioDeviceID>.size) {
+        return Array(deviceIDs.prefix(Int(size) / MemoryLayout<AudioDeviceID>.size))
+    }
+
+    private static func inputInventory() -> InputInventory? {
+        guard let deviceIDs = audioDeviceIDs() else { return nil }
+        var inventory = InputInventory()
+        for deviceID in deviceIDs {
             guard let hasStreams = hasInputStreams(deviceID) else {
                 inventory.unresolvedIDs.insert(deviceID)
                 continue
@@ -1667,6 +1667,55 @@ final class MicMuteService: ObservableObject {
         }
     }
 
+    /// The old UID level was the first readable scalar, master before stereo.
+    /// Only a value distinct from the first saved channel identifies a master.
+    private static func legacyStereoSnapshot(_ existing: [String: Double]?, on device: AudioDeviceID,
+                                             master: Double?, channels: [String: Double]?)
+        -> (controls: [String: Double], needsManualCheck: Bool)? {
+        var controls = existing ?? [:]
+        var needsManualCheck = false
+        var ambiguousMaster = false
+        if existing == nil {
+            guard let channels,
+                  let firstChannel = channels["1"] ?? channels["2"] else { return nil }
+            controls["1"] = channels["1"]
+            controls["2"] = channels["2"]
+            if let master {
+                controls["0"] = master
+                // A later master can have appeared on a channel-only
+                // microphone. A quiet reading cannot identify it.
+                ambiguousMaster = controlValuesMatch(master, firstChannel)
+            }
+        }
+        // A bare stereo element is an old reading awaiting its access
+        // check. Only a selector-qualified key authorizes restoration.
+        guard controls["0"] != nil || controls["1"] != nil || controls["2"] != nil else { return nil }
+        for var address in legacyGainAddresses {
+            let element = String(address.mElement)
+            guard let target = controls[element] else { continue }
+            guard AudioObjectHasProperty(device, &address) else {
+                if element == "0", ambiguousMaster { controls.removeValue(forKey: element) }
+                continue
+            }
+            controls.removeValue(forKey: element)
+            let checkMaster = element == "0" && ambiguousMaster
+            if checkMaster, let current = controlValue(of: device, at: address),
+               current > Double(MicMuteSupport.residualGainLimit) || controlValuesMatch(current, target) { continue }
+            var settable = DarwinBoolean(false)
+            guard AudioObjectIsPropertySettable(device, &address, &settable) == noErr else {
+                needsManualCheck = true
+                continue
+            }
+            guard settable.boolValue else { continue }
+            if checkMaster {
+                needsManualCheck = true
+            } else {
+                controls[controlKey(address)] = target
+            }
+        }
+        return (controls, needsManualCheck)
+    }
+
     /// The UID-only gain format lowered scalars 0, 1 and 2. Before we can
     /// assign a target to an unreadable channel, keep the observed elements,
     /// including 0 for a master that can disappear between attempts.
@@ -1737,7 +1786,7 @@ final class MicMuteService: ObservableObject {
         let masters = savedAddresses.filter(isMasterGain).sorted { controlRestoreOrder($0) < controlRestoreOrder($1) }
         let previousChannels = channels
         var wroteMaster = false
-        if !masters.isEmpty {
+        if !masters.isEmpty || saved["0"] != nil {
             for address in savedAddresses where address.mElement != 0 && address.mSelector == kAudioDevicePropertyVolumeScalar {
                 channels.insert(address.mElement)
             }
@@ -1959,16 +2008,16 @@ final class MicMuteService: ObservableObject {
         }
     }
 
-    /// Versions that tracked UIDs but no control snapshots tried the master
-    /// switch first. A claimed native mic without saved levels only owes that
-    /// switch, even when another client has already released it.
-    private static func legacySwitchSnapshot(_ device: InputDevice, _ savedVolumes: [String: Double],
-                                             _ savedChannelVolumes: [String: [String: Double]]) -> [String: Double]? {
-        guard savedVolumes[device.uid] == nil, savedChannelVolumes[device.uid] == nil else { return nil }
+    /// A UID without recorded gains can release an identifiable native
+    /// master switch. An already open switch only needs a verified reading.
+    private static func legacySwitchSnapshot(_ device: InputDevice) -> [String: Double]? {
         var main = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyMute,
                                               mScope: kAudioDevicePropertyScopeInput,
                                               mElement: kAudioObjectPropertyElementMain)
-        guard AudioObjectHasProperty(device.id, &main) else { return nil }
+        guard let value = controlValue(of: device.id, at: main) else { return nil }
+        var settable = DarwinBoolean(false)
+        guard value == 0 || (AudioObjectIsPropertySettable(device.id, &main, &settable) == noErr && settable.boolValue)
+        else { return nil }
         return [controlKey(main): 0]
     }
 
@@ -2196,19 +2245,51 @@ final class MicMuteService: ObservableObject {
         return true
     }
 
-    /// Runs on `halQueue`. Between device-list notifications, leave working
-    /// listeners in place when the input and its controls stay the same.
-    private func syncDeviceListeners(muted: Bool) {
+    private enum DeviceObservation { case muted, restoring, stopped }
+
+    private func pendingControlListListeners(generation: UInt64) -> [DeviceListener: String] {
+        let selector = kAudioObjectPropertyControlList
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        if callbackLock.withLock({ pendingNotices.topology.remove(system) != nil }) {
+            // A coalesced reconnect can drop an existing registration. Newly
+            // installed ones already belong to the updated list.
+            listenersToRenew.formUnion(deviceListeners.keys.filter { $0.selector == selector })
+        }
+        let defaults = UserDefaults.standard
+        guard let saved = defaults.dictionary(forKey: DefaultsKey.micMuteSavedControls) as? [String: [String: Double]],
+              let claims = defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices) else { return [:] }
+        let owed = Set(claims.filter { saved[$0]?.isEmpty == false })
+        guard !owed.isEmpty else { return [:] }
+        let ids = Self.audioDeviceIDs() ?? deviceListeners.keys.filter { $0.selector == selector }.map(\.device)
+        var wanted: [DeviceListener: String] = [:]
+        for id in ids {
+            let listener = DeviceListener(device: id, selector: selector, scope: kAudioObjectPropertyScopeGlobal,
+                                          element: kAudioObjectPropertyElementMain)
+            if let uid = Self.inputUID(of: id) {
+                var address = listener.address
+                if owed.contains(uid) && AudioObjectHasProperty(id, &address) { wanted[listener] = uid }
+            } else if let previous = deviceListeners[listener], previous.lifetime.isCurrent(generation), owed.contains(previous.uid) {
+                wanted[listener] = previous.uid
+            }
+        }
+        return wanted
+    }
+
+    /// Runs on `halQueue`. A new restore listener needs one read after
+    /// registration in case the missing control returned during installation.
+    @discardableResult
+    private func syncDeviceListeners(_ mode: DeviceObservation) -> Bool {
         let generation = currentAudioGeneration
+        let muted = mode == .muted
         defer { confirmQuietControls() }
         // Keep existing registrations on a failed read. A later successful
         // reconciliation and quiet reading must precede any automatic unmute.
         guard let inventory = muted ? Self.inputInventory() : InputInventory() else {
             observedInputs = []
             quietInputs.removeAll()
-            return
+            return false
         }
-        var wanted: [DeviceListener: String] = [:]
+        var wanted = mode == .restoring ? pendingControlListListeners(generation: generation) : [:]
         // A listed object whose input streams or identity cannot be read may
         // still be our microphone. Its next callback can complete discovery.
         if !inventory.unresolvedIDs.isEmpty {
@@ -2298,10 +2379,13 @@ final class MicMuteService: ObservableObject {
         // Keep a newly repaired topology listener in place. Only registrations
         // that survived the observation gap could belong to the old connection.
         let survivors = topologyGaps.isEmpty ? [] : deviceListeners.keys.filter { topologyGaps.contains($0.device) }
+        var addedRestoreListener = false
         for (listener, uid) in wanted where deviceListeners[listener] == nil {
+            if mode == .restoring && Self.inputUID(of: listener.device) != uid { continue }
             var address = listener.address
             if let lifetime = addListener(listener.device, &address, generation: generation) {
                 deviceListeners[listener] = (uid, lifetime)
+                if mode == .restoring { addedRestoreListener = true }
                 // Even on an otherwise unchanged input, a gain read before this
                 // registration cannot establish silence for its first callback.
                 if Self.watchedDeviceSelectors.contains(listener.selector) {
@@ -2359,6 +2443,7 @@ final class MicMuteService: ObservableObject {
         observedInputs = muted ? ready : nil
         quietInputs = quietInputs.filter { ready.contains($0.key) }
         if needsCheck { scheduleReapply() }
+        return addedRestoreListener
     }
 
     private func installedControlClients() -> [InputDevice: Set<UnsafeMutableRawPointer>] {

@@ -83,26 +83,6 @@ enum MicMuteSupport {
         }
     }
 
-    /// What an unmute has to do to a device this app muted. The mute switch
-    /// and the volume are separate controls: clearing one must not skip the
-    /// other, or a mute that zeroed the level would leave the microphone dead.
-    enum RestoreNeed: Equatable {
-        case alreadyAudible
-        case unreadable
-        case restore(clearMute: Bool, restoreVolume: Bool)
-    }
-
-    static func restoreNeed(muteSwitch: UInt32?, volume: Float?, hasSavedVolume: Bool = false) -> RestoreNeed {
-        let muteOn = muteSwitch == 1
-        guard let volume else {
-            if hasSavedVolume { return .unreadable }
-            return muteOn ? .restore(clearMute: true, restoreVolume: false) : .unreadable
-        }
-        let restoreVolume = hasSavedVolume || volume == 0
-        if !muteOn && !restoreVolume { return .alreadyAudible }
-        return .restore(clearMute: muteOn, restoreVolume: restoreVolume)
-    }
-
     static func volumeToRestore(uid: String, saved: [String: Double]) -> Float {
         if let value = saved[uid], shouldSaveVolume(Float(value)) { return Float(value) }
         return fallbackVolume

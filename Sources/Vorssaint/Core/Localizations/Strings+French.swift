@@ -206,7 +206,7 @@ extension Strings {
         micUnmutedHUD: "Coupure du micro désactivée",
         micMutePartialHUD: "La coupure de tous les micros n’a pas pu être confirmée",
         micUnmutePartialHUD: "Le rétablissement de tous les micros n’a pas pu être confirmé",
-        micManualRestore: "Impossible d’identifier le micro précédent. Vérifiez son bouton de sourdine et son niveau d’entrée dans le mixeur ou les réglages Son.",
+        micManualRestore: "Impossible de vérifier les réglages précédents du micro. Vérifiez son bouton de sourdine et son niveau d’entrée dans le mixeur ou les réglages Son.",
         micManualRestoreChecked: "J’ai vérifié le micro",
         micMuteMenuBarToggle: "Afficher dans la barre des menus quand la fonction est active",
         micMuteMenuBarCaption: "Le micro rouge dans la barre des menus indique que la fonction est active. Il ne garantit pas que toutes les apps cessent de capter le son.",

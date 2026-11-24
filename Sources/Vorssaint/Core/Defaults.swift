@@ -678,12 +678,13 @@ enum DefaultsKey {
     static let micMuteSavedVolume = "micMuteSavedVolume"     // input volume to restore on unmute (pre 3.2.0 state)
     static let micMuteSavedVolumes = "micMuteSavedVolumes"   // [device uid: input volume] to restore on unmute
     static let micMuteSavedChannelVolumes = "micMuteSavedChannelVolumes" // [device uid: [channel: input volume]] to restore on unmute
-    static let micMuteSavedControls = "micMuteSavedControls" // [device uid: [selector:element: original value]] pending restoration
+    // Per UID, selector:element keys carry restore targets. A bare legacy element still needs a writability check.
+    static let micMuteSavedControls = "micMuteSavedControls"
     // Channel elements to preserve on a pending master restore, by UID.
     // While resolving a legacy UID-only gain, element 0 records an observed master.
     static let micMuteProtectedChannels = "micMuteProtectedChannels"
     static let micMutePendingLegacyControls = "micMutePendingLegacyControls" // unresolved pre-3.2 default input and its controls
-    static let micMuteManualCheckNeeded = "micMuteManualCheckNeeded" // remind the user to check an unidentified old input
+    static let micMuteManualCheckNeeded = "micMuteManualCheckNeeded" // previous input settings need a manual check
     static let micMuteMutedDevices = "micMuteMutedDevices"   // uids of the devices this app muted
     static let micMuteMenuBarIndicator = "micMuteMenuBarIndicator" // badge the status icon while muted
     static let quickLauncherShortcutEnabled = "quickLauncherShortcutEnabled"
