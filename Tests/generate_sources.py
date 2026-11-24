@@ -644,6 +644,8 @@ def main():
           + declaration(fan_control, "    private enum StopConfirmation").replace("private enum", "enum", 1)
           + declaration(fan_control, "    private enum SleepState").replace("private enum", "enum", 1)
           + "final class Service: Fixture {\n"
+          + declaration(fan_control, "    private var ownsSession:").replace("private var", "var", 1)
+          + declaration(fan_control, "    private var needsTimer:").replace("private var", "var", 1)
           + declaration(fan_control, "    private func applyConfiguration(_ configuration:")
           .replace("private func applyConfiguration", "func sendConfiguration", 1)
           + "".join(declaration(fan_control, prefix)
@@ -657,7 +659,8 @@ def main():
                         "    func returnToSystem(", "    func forgetResume(", "    func resumePreferenceDidChange(",
                         "    private static var resumableConfiguration:", "    private func resume(",
                         "    private static var helperAwaitsRegistration:",
-                        "    private func rememberForResume(", "    private func stopIdleWorkIfPossible(",
+                        "    private func rememberForResume(", "    private func startTimerIfNeeded(",
+                        "    func panelDidAppear()", "    func panelDidDisappear()", "    private func stopIdleWorkIfPossible(",
                         "    @objc private func workspaceDidWake(", "    @objc private func workspaceWillSleep(",
                         "    private func beginResume(", "    private func cancelResumeRetry(",
                         "    private func resumeDidFail(", "    private func scheduleResumeRetry(",
