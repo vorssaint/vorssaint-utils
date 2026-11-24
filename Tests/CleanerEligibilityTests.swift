@@ -222,16 +222,59 @@ enum CleanerEligibilityTests {
 
     private static func checkOrphanedAgents(_ suite: TestSuite, home: URL) throws {
         let agents = home.appendingPathComponent("Library/LaunchAgents", isDirectory: true)
-        try FileManager.default.createDirectory(at: agents, withIntermediateDirectories: true)
-        let missingProgram = agents.appendingPathComponent("missing").path
+        let manager = FileManager.default
+        try manager.createDirectory(at: agents, withIntermediateDirectories: true)
+        let program = home.appendingPathComponent("agent-helper")
+        func launchPlist(_ label: String, program: URL) throws -> Data {
+            try PropertyListSerialization.data(fromPropertyList: ["Label": label, "Program": program.path],
+                                              format: .xml, options: 0)
+        }
         for label in ["test.editor", "editor.test"] {
-            try PropertyListSerialization.data(fromPropertyList: ["Label": label, "Program": missingProgram],
-                                               format: .xml, options: 0)
+            try launchPlist(label, program: program)
                 .write(to: agents.appendingPathComponent(label + ".plist"))
         }
-        let found = scanOrphanedLaunchPlists(installed: ["editor.test"])
-        suite.expect(found.map(\.detail) == ["test.editor"] && found.allSatisfy(\.recommended),
-                     "the orphaned agent is still offered while the installed label stays protected")
+        let apps: Set<String> = ["editor.test"]
+        let found = CleanerScanFlowTests.scanFixture(installedApps: apps).filter { $0.category == .loginItems }
+        guard found.count == 1, let item = found.first, item.detail == "test.editor", item.include else {
+            suite.expect(false, "only the orphaned agent starts selected while the installed label stays protected")
+            return
+        }
+
+        func expectProtected(installed: Set<String>, _ reason: String) {
+            let fresh = CleanerScanFlowTests.scanFixture(installedApps: installed)
+            let (phase, actions) = CleanerScanFlowTests.cleanFixture(item, installedApps: installed)
+            suite.expect(!fresh.contains { $0.url == item.url } && actions.isEmpty
+                         && phase == .done(freed: 0, failed: 1),
+                         "\(reason) protects the previously selected agent from bootout and Trash")
+        }
+        expectProtected(installed: apps.union(["test.editor.app"]), "installing its app")
+
+        let plugin = home.appendingPathComponent("Library/Audio/Plug-Ins/Components/Editor.component")
+        let contents = plugin.appendingPathComponent("Contents")
+        try manager.createDirectory(at: contents, withIntermediateDirectories: true)
+        try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "test.editor.instrument"],
+                                           format: .xml, options: 0)
+            .write(to: contents.appendingPathComponent("Info.plist"))
+        expectProtected(installed: apps, "installing its plugin")
+        try manager.removeItem(at: plugin)
+
+        try Data([1]).write(to: program)
+        try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: program.path)
+        expectProtected(installed: apps, "restoring its executable")
+        let moved = home.appendingPathComponent("moved-helper")
+        try manager.moveItem(at: program, to: moved)
+
+        let (phase, actions) = CleanerScanFlowTests.cleanFixture(item, installedApps: apps)
+        suite.expect(actions == [.bootout(item.url), .trash(item.url)] && phase == .done(freed: item.size, failed: 0),
+                     "cleaning an agent that is still orphaned unloads it before the Trash move")
+
+        let handle = try FileHandle(forWritingTo: item.url)
+        defer { try? handle.close() }
+        try handle.truncate(atOffset: 0)
+        try handle.write(contentsOf: launchPlist(item.detail, program: moved))
+        suite.expect(item.fileIdentity == UninstallerSupport.fileIdentity(at: item.url),
+                     "updating Program in place preserves the selected plist's identity")
+        expectProtected(installed: apps, "pointing the same plist at a living executable")
     }
 
     /// Scan the same fixture before and after a plugin is installed. Leftovers

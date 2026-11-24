@@ -191,8 +191,7 @@ final class JunkCleaner: ObservableObject {
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let fm = FileManager.default
-            // A recommended cache or log may have lost its owning app since the scan.
-            let needsPluginIDs = chosen.contains { [.leftovers, .caches, .logs].contains($0.category) }
+            let needsPluginIDs = chosen.contains { [.leftovers, .loginItems, .caches, .logs].contains($0.category) }
             let audioPluginIDs = needsPluginIDs ? Self.installedAudioPluginBundleIDs() : []
             let installedApps = Self.cachedAppLookup(Self.installedBundleIDs)
             var freed: Int64 = 0
@@ -301,6 +300,10 @@ final class JunkCleaner: ObservableObject {
                   CleanerSupport.isAttributableBundleID(item.detail),
                   !CleanerSupport.isProtectedBundleID(item.detail),
                   !hasLivingLeftoverOwner(item.detail, at: url, installed: installed) else { return false }
+        }
+        if item.category == .loginItems {
+            let installed = installedApps().union(audioPluginIDs)
+            guard orphanedLaunchPlistDetail(at: url, installed: installed) == item.detail else { return false }
         }
         if item.category == .screenshots {
             guard isScreenshotFolderChild(url), isScreenCapture(url) else { return false }
@@ -584,27 +587,30 @@ final class JunkCleaner: ObservableObject {
             guard let entries = try? fm.contentsOfDirectory(atPath: root) else { continue }
             for entry in entries where entry.hasSuffix(".plist") {
                 let url = URL(fileURLWithPath: root).appendingPathComponent(entry)
-                guard !UninstallerSupport.isSymbolicLink(url) else { continue }
-                guard let plist = NSDictionary(contentsOfFile: url.path) as? [String: Any] else { continue }
-                let label = plist["Label"] as? String
-                let executables = CleanerSupport.executablePaths(inLaunchPlist: plist)
-                guard CleanerSupport.launchPlistIsRemovableOrphan(
-                    label: label,
-                    executables: executables,
-                    // A missing binary on an external volume is inconclusive
-                    // (the volume may just be unmounted), so it counts as
-                    // present and the plist is left alone.
-                    executableExists: { $0.hasPrefix("/Volumes/") || fm.fileExists(atPath: $0) }) else { continue }
-                // Second signal: the label itself must not belong to anything
-                // installed either (a moved binary is not an uninstalled app).
-                if let label, hasLivingOwner(label, installed: installed) { continue }
+                guard !UninstallerSupport.isSymbolicLink(url),
+                      let detail = orphanedLaunchPlistDetail(at: url, installed: installed) else { continue }
                 found.append(Item(url: url, category: .loginItems,
                                   size: directorySize(of: url, fm: fm),
-                                  detail: label ?? entry,
+                                  detail: detail,
                                   recommended: CleanerPolicy.precheckLoginItems))
             }
         }
         return sorted(found)
+    }
+
+    /// Reads the current plist so a selected job must still qualify at cleanup.
+    private static func orphanedLaunchPlistDetail(at url: URL, installed: Set<String>) -> String? {
+        guard let plist = NSDictionary(contentsOf: url) as? [String: Any] else { return nil }
+        let label = plist["Label"] as? String
+        let executables = CleanerSupport.executablePaths(inLaunchPlist: plist)
+        guard CleanerSupport.launchPlistIsRemovableOrphan(
+            label: label,
+            executables: executables,
+            // An external volume may be unmounted, so absence there is inconclusive.
+            executableExists: { $0.hasPrefix("/Volumes/") || FileManager.default.fileExists(atPath: $0) }
+        ) else { return nil }
+        if let label, hasLivingOwner(label, installed: installed) { return nil }
+        return label ?? url.lastPathComponent
     }
 
     private static func scanCaches(excluding claimed: Set<String>, audioPluginIDs: Set<String>) -> [Item] {

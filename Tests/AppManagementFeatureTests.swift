@@ -1035,9 +1035,9 @@ enum AppManagementFeatureTests {
         suite.expect(cleanSelectedBody.contains("let installedApps = Self.cachedAppLookup(Self.installedBundleIDs)")
                && cleanSelectedBody.components(separatedBy: "Self.installedBundleIDs").count == 2,
                "a clean shares one on-demand inventory of installed apps across its selected rows")
-        suite.expect(cleanSelectedBody.contains("let needsPluginIDs = chosen.contains { [.leftovers, .caches, .logs].contains($0.category) }")
+        suite.expect(cleanSelectedBody.contains("let needsPluginIDs = chosen.contains { [.leftovers, .loginItems, .caches, .logs].contains($0.category) }")
                && cleanSelectedBody.contains("needsPluginIDs ? Self.installedAudioPluginBundleIDs() : []"),
-               "a clean refreshes plugin ownership even when only caches or logs are selected")
+               "a clean refreshes plugin ownership for selections limited to login items, caches or logs")
         // The known-application roster opens every installed app, and only the
         // shared-data claims read it. AppUninstaller is not part of this test
         // binary either, so pin the gate that keeps a removal that cannot claim

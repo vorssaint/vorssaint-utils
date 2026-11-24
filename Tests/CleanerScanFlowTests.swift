@@ -3,10 +3,20 @@
 
 import Foundation
 
-/// Production scan and reset use a manual queue. The audio plugin fixture
-/// also runs the leftover, cache and log scanners in temporary libraries.
+/// Production scan and cleanup run on a manual queue with temporary
+/// libraries and recorded cleanup actions.
 enum CleanerScanFlowTests {
     typealias Item = CleanerEligibilityTests.Item
+    enum CleanupAction: Equatable {
+        case bootout(URL), trash(URL), finder([URL]), emptyTrash
+    }
+    struct FixtureTrash {
+        static let `default` = FixtureTrash()
+        func trashItem(at url: URL, resultingItemURL _: AutoreleasingUnsafeMutablePointer<NSURL?>?) throws {
+            Scanner.actions.append(.trash(url))
+        }
+        func fileExists(atPath path: String) -> Bool { Foundation.FileManager.default.fileExists(atPath: path) }
+    }
     enum Queue {
         enum QoS { case userInitiated }
         static var pending: [() -> Void] = []
@@ -27,6 +37,16 @@ enum CleanerScanFlowTests {
         static var scanned: [CleanerSupport.Category] = []
         static var onScan: ((CleanerSupport.Category) -> Void)?
         static var fixtureApps: Set<String>?
+        static var actions: [CleanupAction] = []
+        static func mayRemove(_ item: Item, installedApps: () -> Set<String>, audioPluginIDs: Set<String>) -> Bool {
+            CleanerEligibilityTests.canRemove(item, installed: installedApps(), audioPluginIDs: audioPluginIDs)
+        }
+        static func bootoutUserAgent(_ url: URL) { actions.append(.bootout(url)) }
+        static func trashViaFinder(_ urls: [URL]) { actions.append(.finder(urls)) }
+        static func emptyTrash() -> Bool {
+            actions.append(.emptyTrash)
+            return false
+        }
         static func record(_ category: CleanerSupport.Category) -> [Item] {
             guard fixtureApps == nil else { return [] }
             scanned.append(category)
@@ -44,7 +64,10 @@ enum CleanerScanFlowTests {
             }
             return record(.leftovers)
         }
-        static func scanOrphanedLaunchPlists(installed: Set<String>) -> [Item] { record(.loginItems) }
+        static func scanOrphanedLaunchPlists(installed: Set<String>) -> [Item] {
+            if fixtureApps != nil { return CleanerEligibilityTests.scanOrphanedLaunchPlists(installed: installed) }
+            return record(.loginItems)
+        }
         static func scanCaches(excluding: Set<String>, audioPluginIDs: Set<String>) -> [Item] {
             if fixtureApps != nil {
                 return CleanerEligibilityTests.scanCaches(excluding: excluding, audioPluginIDs: audioPluginIDs)
@@ -71,6 +94,19 @@ enum CleanerScanFlowTests {
         cleaner.scan(attended: attended)
         Queue.drain()
         return cleaner.items
+    }
+
+    static func cleanFixture(_ item: Item, installedApps: Set<String>) -> (Phase, [CleanupAction]) {
+        Scanner.fixtureApps = installedApps
+        defer {
+            Scanner.fixtureApps = nil
+            Scanner.actions = []
+        }
+        let cleaner = Scanner()
+        cleaner.items = [item]
+        cleaner.cleanSelected(escalate: true)
+        Queue.drain()
+        return (cleaner.phase, Scanner.actions)
     }
 
     static func run(_ suite: TestSuite) {
