@@ -4132,28 +4132,17 @@ enum ScreenshotFeatureTests {
                 && MicMuteSupport.shouldSaveVolume(0.005)
                 && MicMuteSupport.shouldSaveVolume(0.4),
                "a level worth restoring is remembered and a silent one never is")
-        suite.expect(MicMuteSupport.volumeToRestore(uid: "mic-a",
-                                              saved: ["mic-a": 0.4, "mic-b": 0.9],
-                                              legacy: 0.6) == 0.4
-                && MicMuteSupport.volumeToRestore(uid: "mic-a", saved: ["mic-a": 0.005], legacy: 0.6) == 0.005
-                && MicMuteSupport.volumeToRestore(uid: "mic-a", saved: [:], legacy: 0.005) == 0.005
-                && MicMuteSupport.volumeToRestore(uid: "mic-c",
-                                                  saved: ["mic-a": 0.4],
-                                                  legacy: 0.6) == 0.6
-                && MicMuteSupport.volumeToRestore(uid: "mic-c", saved: [:], legacy: 0)
-                    == MicMuteSupport.fallbackVolume
-                && MicMuteSupport.volumeToRestore(uid: "mic-a",
-                                                  saved: ["mic-a": 0],
-                                                  legacy: 0) == MicMuteSupport.fallbackVolume,
-               "each microphone gets its own level back, then the older single level, then a usable one")
+        suite.expect(MicMuteSupport.volumeToRestore(uid: "mic-a", saved: ["mic-a": 0.4, "mic-b": 0.9]) == 0.4
+                && MicMuteSupport.volumeToRestore(uid: "mic-a", saved: ["mic-a": 0.005]) == 0.005
+                && MicMuteSupport.volumeToRestore(uid: "mic-c", saved: ["mic-a": 0.4]) == MicMuteSupport.fallbackVolume
+                && MicMuteSupport.volumeToRestore(uid: "mic-a", saved: ["mic-a": 0]) == MicMuteSupport.fallbackVolume,
+               "a claimed gain restores its own saved level or the fallback if its level is missing")
         suite.expect(MicMuteSupport.restoreTargets(recorded: ["mic-a", "gone"],
                                              present: ["mic-a", "mic-b"]) == ["mic-a"]
-                && MicMuteSupport.restoreTargets(recorded: nil,
-                                                 present: ["mic-a", "mic-b"]) == ["mic-a", "mic-b"]
                 && MicMuteSupport.restoreTargets(recorded: [],
                                                  present: ["mic-a", "mic-b"]).isEmpty
                 && MicMuteSupport.restoreTargets(recorded: ["mic-a"], present: []).isEmpty,
-               "unmuting touches the microphones this app muted, every one with no record, and none when the record is empty")
+               "unmuting touches only claimed microphones that are currently connected")
         suite.expect(MicMuteSupport.absentClaims(recorded: ["mic-a", "headset"],
                                            present: ["mic-a"]) == ["headset"]
                 && MicMuteSupport.absentClaims(recorded: ["mic-a"],

@@ -103,11 +103,8 @@ enum MicMuteSupport {
         return .restore(clearMute: muteOn, restoreVolume: restoreVolume)
     }
 
-    static func volumeToRestore(uid: String,
-                                saved: [String: Double],
-                                legacy: Double) -> Float {
+    static func volumeToRestore(uid: String, saved: [String: Double]) -> Float {
         if let value = saved[uid], shouldSaveVolume(Float(value)) { return Float(value) }
-        if shouldSaveVolume(Float(legacy)) { return Float(legacy) }
         return fallbackVolume
     }
 
@@ -118,16 +115,9 @@ enum MicMuteSupport {
         return [masterElement] + (1...channels).map { UInt32($0) }
     }
 
-    /// Which devices an unmute has to touch. Normally only the ones this app
-    /// muted, so a microphone the user silenced in System Settings stays
-    /// silenced. With no record at all (settings restored onto another Mac, or
-    /// a state from before this was tracked) every present device is restored:
-    /// leaving someone muted with no way back is the worse failure. An empty
-    /// record is different from a missing one: it means the sweep ran and
-    /// every device was already silent by the user's own hand, so there is
-    /// nothing this app is allowed to open.
-    static func restoreTargets(recorded: [String]?, present: [String]) -> [String] {
-        guard let recorded else { return present }
+    /// The sweep resolves historical claims before choosing which of the
+    /// connected microphones it can release.
+    static func restoreTargets(recorded: [String], present: [String]) -> [String] {
         let wanted = Set(recorded)
         return present.filter { wanted.contains($0) }
     }
@@ -149,17 +139,24 @@ enum MicMuteSupport {
         let attempts: Int
         let lastAttempt: TimeInterval
         let deadline: TimeInterval?
+        private let tracksSmallGain: Bool
+        private var zeroSince: TimeInterval?
+        private static let settlingInterval: TimeInterval = 0.25
         private static let maximumAttempts = 10
 
         /// After the timed attempts, hardware notices can still recheck the
         /// control at the same capped cadence without polling indefinitely.
-        var scheduledDeadline: TimeInterval? { attempts < Self.maximumAttempts ? deadline : nil }
+        var scheduledDeadline: TimeInterval? {
+            if let zeroSince { return zeroSince + Self.settlingInterval }
+            return attempts < Self.maximumAttempts ? deadline : nil
+        }
 
-        init(reason: Reason, previous: Retry?, now: TimeInterval) {
+        init(reason: Reason, smallGain: Bool, previous: Retry?, now: TimeInterval) {
             self.reason = reason
+            tracksSmallGain = smallGain
             lastAttempt = now
-            if let previous, previous.reason == reason,
-               reason == .unconfirmed || previous.deadline != nil || now - previous.lastAttempt < 0.25 {
+            zeroSince = reason == .smallRebound ? now : nil
+            if let previous, previous.continues(reason: reason, smallGain: smallGain, now: now) {
                 attempts = min(previous.attempts + 1, Self.maximumAttempts)
             } else {
                 attempts = 1
@@ -173,22 +170,47 @@ enum MicMuteSupport {
             }
         }
 
+        private func continues(reason next: Reason, smallGain: Bool, now: TimeInterval) -> Bool {
+            // A driver alternating between ignoring and accepting zero on the
+            // same small gain is still in the same sequence of attempts.
+            if tracksSmallGain && smallGain { return true }
+            guard reason == next else { return false }
+            return reason == .unconfirmed || deadline != nil || now - lastAttempt < Self.settlingInterval
+        }
+
         func defers(_ value: Double, idle: Bool, now: TimeInterval) -> Bool {
             guard attempts >= 3, let deadline, now < deadline else { return false }
             switch reason {
-            case .unconfirmed: return true
+            case .unconfirmed: return zeroSince == nil || Self.isSmallGain(value)
             case .smallRebound: return Self.isSmallGain(value)
             case .idleVirtual: return idle
             }
         }
 
-        func keepAfterZero(now: TimeInterval) -> Bool {
-            reason != .unconfirmed && now < (deadline ?? lastAttempt + 0.25)
+        func observingZero(now: TimeInterval) -> Self? {
+            guard tracksSmallGain else {
+                return reason == .idleVirtual && now < (deadline ?? lastAttempt + Self.settlingInterval) ? self : nil
+            }
+            // Repeated reads during one HAL sweep can all see the same brief
+            // zero. Clear the history only after a later observation agrees.
+            if let zeroSince, now >= zeroSince + Self.settlingInterval { return nil }
+            var retry = self
+            retry.zeroSince = zeroSince ?? now
+            return retry
+        }
+
+        func observingOpen() -> Self {
+            var retry = self
+            retry.zeroSince = nil
+            return retry
         }
 
         func waitingForReadableControl(now: TimeInterval) -> Self? {
-            guard reason == .unconfirmed, let deadline else { return nil }
-            return now < deadline ? self : Self(reason: reason, previous: self, now: now)
+            if zeroSince == nil {
+                guard reason == .unconfirmed || tracksSmallGain else { return nil }
+                if let deadline, now < deadline { return self }
+            }
+            return Self(reason: .unconfirmed, smallGain: tracksSmallGain, previous: self, now: now)
         }
 
         static func isSmallGain(_ value: Double) -> Bool {
