@@ -179,6 +179,7 @@ enum AgentUsageReadTests {
                 case .cursor: entries += AgentLogParser.parseCursor(line, state: &cursor.state, now: now)
                 case .antigravity: entries += AgentLogParser.parseAntigravity(line, state: &cursor.state, now: now)
                 case .gemini: entries += GeminiReader().parse(line, state: &cursor.state, now: now)
+                case .deepseek: entries += AgentLogParser.parseDeepSeek(line, state: &cursor.state, now: now)
                 }
             }
             if provider == .copilot {
