@@ -77,6 +77,7 @@ struct NotchCapsuleNoticeView: View {
         case .agents: return notice.symbol.hasPrefix("exclamationmark") ? .orange : notice.agent?.tint ?? .white
         case .timer: return .orange
         case .volume, .brightness, .keyboardLight: return NotchPrismLevelBar.accentColor(for: notice)
+        case .clipboard where notice.symbol == "clipboard.fill": return Color(red: 0.45, green: 0.90, blue: 0.85)
         default: return .white
         }
     }

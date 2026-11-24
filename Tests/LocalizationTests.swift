@@ -96,6 +96,7 @@ enum LocalizationTests {
                 ("graphScale", { GraphScaleStrings.localized($0) }),
                 ("notchLowBattery", { NotchLowBatteryStrings.localized($0) }),
                 ("notchLights", { NotchLightsStrings.localized($0) }),
+                ("notchInputFeedback", { NotchInputFeedbackStrings.localized($0) }),
                 ("downloadOrganizer", { WhatsAppOrganizerStrings.localized($0) }),
                 ("shelfDelivery", { ShelfPromiseDeliveryStrings.localized($0) }),
             ]

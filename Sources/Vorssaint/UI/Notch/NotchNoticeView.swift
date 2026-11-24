@@ -20,6 +20,7 @@ struct NotchNoticeView: View {
         // The timer's notice keeps the orange its strip and page wear.
         case .timer: return .orange
         case .volume, .brightness, .keyboardLight: return NotchPrismLevelBar.accentColor(for: notice)
+        case .clipboard where notice.symbol == "clipboard.fill": return Color(red: 0.45, green: 0.90, blue: 0.85)
         default: return .white
         }
     }

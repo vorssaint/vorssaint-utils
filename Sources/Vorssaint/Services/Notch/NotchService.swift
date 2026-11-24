@@ -157,6 +157,7 @@ final class NotchService: ObservableObject {
     @Published private(set) var sectionRow = 0
     @Published private(set) var modules: [NotchModule] = []
     @Published private(set) var notice: NotchNotice?
+    @Published private(set) var modifierIndicator: NotchModifierIndicator? = nil
     @Published private(set) var noticeExpanded = false
     /// A compact notice stays drawn while the island closes around it.
     @Published private(set) var departingNotice: NotchNotice?
@@ -1033,6 +1034,7 @@ final class NotchService: ObservableObject {
                 contentHeight: notice.previewContentHeight(width: geometry.notificationPreviewContentWidth))
         }
         if peeking { return geometry.peek }
+        if let modifier = modifierIndicator { return geometry.noticeSize(wings: modifier.wings) }
         if showsCompactActivityPicker { return compactActivityPickerLayout.size }
         if compactActivity != nil {
             var resting = compactActivityGeometry.compactActivitySize
@@ -1074,6 +1076,14 @@ final class NotchService: ObservableObject {
         if captureControls != nil { return captureControlsCollapsed ? NotchCapsuleLayout.captureSurface(geometry: geometry) : nil }
         if let notice { return noticeExpanded ? nil : capsuleNoticeSize(notice) }
         if peeking || showsCompactActivityPicker { return nil }
+        if let modifier = modifierIndicator {
+            let label = modifier.label(NotchInputFeedbackStrings.localized(L10n.shared.language))
+            return NotchCapsuleLayout.surface(
+                content: NotchCapsuleLayout.noticeContent(title: label, detail: "", level: false),
+                maximum: NotchCapsuleLayout.Maximum.notice,
+                geometry: geometry
+            )
+        }
         // At rest the charge or the allowance fits inside the bare capsule.
         let resting = compactActivity.map { capsuleStripSize(for: $0, companion: compactCompanion) }
             ?? geometry.restingSize(showsContent: false)
@@ -1280,6 +1290,7 @@ final class NotchService: ObservableObject {
         NotchHaloController.shared.syncWithPreferences()
         NotchBrightnessObserver.shared.syncWithPreferences()
         syncHaloLayout()
+        NotchInputFeedbackService.shared.syncWithPreferences()
         syncVisibleConsumers()
         // Turning the companion on or off grows or folds the wings it rests
         // in, in view, as music arriving does, and so does hiding it in the
@@ -1409,6 +1420,8 @@ final class NotchService: ObservableObject {
         AgentUsageService.shared.pause()
         NotchHaloController.shared.stop()
         NotchBrightnessObserver.shared.stop()
+        NotchInputFeedbackService.shared.stop()
+        modifierIndicator = nil
         settingsSignature = ""
         expanded = false
         peeking = false
@@ -4706,6 +4719,22 @@ final class NotchService: ObservableObject {
             DispatchQueue.main.async { self?.syncHaloLayout() }
         }.store(in: &subscriptions)
         syncHaloLayout()
+        NotchInputFeedbackService.shared.$modifierIndicator
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] indicator in
+                self?.modifierIndicator = indicator
+                self?.refreshPresentation()
+            }.store(in: &subscriptions)
+        NotchInputFeedbackService.shared.pasteTriggered
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                let clipText = FeatureStrings.clipboard(L10n.shared.language)
+                let feedbackText = NotchInputFeedbackStrings.localized(L10n.shared.language)
+                _ = self.show(NotchNotice(event: .clipboard, title: feedbackText.pasted,
+                                          detail: clipText.title, symbol: "clipboard.fill"))
+            }.store(in: &subscriptions)
         // The companion loves being plugged in, so it listens for the charger too.
         if NotchSupport.routes(.battery) || idleContent == .battery || NotchMascotSupport.isEnabled() { startPower() }
     }
