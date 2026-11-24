@@ -47,11 +47,17 @@ enum NotchMenuBarSpace {
 
 /// Geometry-only reads, all sharing one deadline across every app, child and attribute.
 struct NotchMenuBarAXReader {
+    typealias CopyAttribute = (AXUIElement, CFString, UnsafeMutablePointer<CFTypeRef?>) -> AXError
+
     let primaryTop: CGFloat
     let deadline: TimeInterval
-    init(primaryTop: CGFloat, deadline: TimeInterval = ProcessInfo.processInfo.systemUptime + 0.30) {
+    private let copyAttribute: CopyAttribute
+
+    init(primaryTop: CGFloat, deadline: TimeInterval = ProcessInfo.processInfo.systemUptime + 0.30,
+         copyAttribute: @escaping CopyAttribute = AXUIElementCopyAttributeValue) {
         self.primaryTop = primaryTop
         self.deadline = deadline
+        self.copyAttribute = copyAttribute
     }
     var timeRemaining: TimeInterval { deadline - ProcessInfo.processInfo.systemUptime }
 
@@ -60,7 +66,7 @@ struct NotchMenuBarAXReader {
         guard remaining > 0.001 else { return (.cannotComplete, nil) }
         AXUIElementSetMessagingTimeout(element, Float(min(0.05, remaining)))
         var result: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(element, attribute as CFString, &result)
+        let status = copyAttribute(element, attribute as CFString, &result)
         return timeRemaining > 0 ? (status, result) : (.cannotComplete, nil)
     }
 
@@ -132,10 +138,7 @@ final class NotchStatusItemOwners: @unchecked Sendable {
             hostWindows += windows
         }
         return discovery.frames(windows: hostWindows, modernBar: modernBar,
-            extras: { pid in
-                guard let items = reader.extras(AXUIElementCreateApplication(pid)) else { return nil }
-                return NotchMenuBarLayout.completeFrames(items, limit: 128, read: reader.frame)
-            },
+            extras: { reader.extras(AXUIElementCreateApplication($0)) },
             children: { reader.children($0) }, frame: reader.frame,
             role: { reader.value($0, kAXRoleAttribute) as? String })
     }
@@ -155,21 +158,27 @@ final class NotchStatusItemOwners: @unchecked Sendable {
             }
         }
 
-        func frames<Item>(windows: [Item], modernBar: CGRect?, extras: (pid_t) -> [CGRect]?,
+        func frames<Item>(windows: [Item], modernBar: CGRect?, extras: (pid_t) -> [Item]?,
                           children: (Item) -> [Item]?, frame: (Item) -> CGRect?, role: (Item) -> String?) -> [CGRect]? {
             var needsHostBar = hasUnresolvedApps
             var frames: [CGRect] = []
             for pid in owners {
-                if let items = extras(pid) { frames += items }
-                else if modernBar != nil { needsHostBar = true }
-                else { return nil }
+                guard let items = extras(pid) else {
+                    guard modernBar != nil else { return nil }
+                    needsHostBar = true
+                    continue
+                }
+                // Once an owner lists its items, each one must be accounted for.
+                guard let measured = NotchMenuBarLayout.completeFrames(items, limit: 128, read: frame) else { return nil }
+                frames += measured
             }
+            let requiredBar = needsHostBar ? modernBar : nil
             var measuredBar = false
             for window in windows {
-                let bounds = modernBar == nil ? nil : frame(window)
-                if let bar = modernBar, let bounds, !bounds.intersects(bar) { continue }
+                let bounds = requiredBar == nil ? nil : frame(window)
+                if let bar = requiredBar, let bounds, !bounds.intersects(bar) { continue }
                 guard let items = children(window), items.count <= 128 else { return nil }
-                if let bar = modernBar, !items.isEmpty {
+                if let bar = requiredBar, !items.isEmpty {
                     guard let bounds else { return nil }
                     if abs(bounds.minX - bar.minX) <= 1, abs(bounds.maxX - bar.maxX) <= 1,
                        abs(bounds.maxY - bar.maxY) <= 1, bounds.minY <= bar.midY, bounds.height <= bar.height + 2 {
@@ -191,7 +200,7 @@ final class NotchStatusItemOwners: @unchecked Sendable {
                 }
             }
             // A readable owner's extras alone cannot vouch for an app that timed out.
-            guard modernBar == nil || !needsHostBar || measuredBar else { return nil }
+            guard requiredBar == nil || measuredBar else { return nil }
             return frames
         }
     }

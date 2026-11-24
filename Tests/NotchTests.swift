@@ -1275,44 +1275,74 @@ enum NotchTests {
         suite.expect(discovery.owners == [fastPID, hostPID] && discovery.hosts == [hostPID],
                      "a timeout on first discovery leaves the owner unknown and out of the per-measurement probes")
 
-        enum Item { case window, fastSlot, slowSlot }
         let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
         let bar = CGRect(x: 0, y: 924, width: 1470, height: 32)
         let menu = CGRect(x: 0, y: 924, width: 300, height: 32)
         let fastSlot = CGRect(x: 1060, y: 924, width: 25, height: 32)
-        var frames: [Item: CGRect] = [.window: bar, .fastSlot: fastSlot]
-        var extras: [pid_t: [CGRect]] = [fastPID: [fastSlot], hostPID: []]
+        let centerSlot = CGRect(x: 810, y: 924, width: 40, height: 32)
+        let movedSlot = CGRect(x: 860, y: 924, width: 40, height: 32)
+        let fastApp = AXUIElementCreateApplication(fastPID), slowApp = AXUIElementCreateApplication(slowPID)
+        let fastBar = AXUIElementCreateApplication(101), slowBar = AXUIElementCreateApplication(102)
+        let fastItem = AXUIElementCreateApplication(103), centerItem = AXUIElementCreateApplication(104)
+        let slowItem = AXUIElementCreateApplication(105), window = AXUIElementCreateApplication(106)
+        let hostItem = AXUIElementCreateApplication(107), hostSlot = AXUIElementCreateApplication(108)
+        var attributes: [AXUIElement: [String: CFTypeRef]] = [
+            fastApp: [kAXExtrasMenuBarAttribute: fastBar], slowApp: [kAXExtrasMenuBarAttribute: slowBar],
+            fastBar: [kAXChildrenAttribute: [fastItem] as CFArray], slowBar: [kAXChildrenAttribute: [slowItem] as CFArray],
+            window: [kAXChildrenAttribute: [hostItem, hostSlot] as CFArray],
+            hostItem: [kAXRoleAttribute: kAXMenuBarItemRole as CFString]
+        ]
+        func setFrame(_ rect: CGRect, for element: AXUIElement) {
+            var position = CGPoint(x: rect.minX, y: screen.maxY - rect.maxY), size = rect.size
+            attributes[element, default: [:]][kAXPositionAttribute] = AXValueCreate(.cgPoint, &position)
+            attributes[element, default: [:]][kAXSizeAttribute] = AXValueCreate(.cgSize, &size)
+        }
+        setFrame(bar, for: window)
+        setFrame(fastSlot, for: hostItem)
+        setFrame(fastSlot, for: fastItem)
+        setFrame(centerSlot, for: centerItem)
+        setFrame(movedSlot, for: slowItem)
         var probed: Set<pid_t> = []
-        var childReads = 0
-        func status(_ windows: [Item], modern: Bool = true) -> [CGRect]? {
+        var fastBarTimesOut = false
+        var windowReads: [String: Int] = [:]
+        let reader = NotchMenuBarAXReader(primaryTop: screen.maxY, deadline: .infinity) { element, attribute, value in
+            let name = attribute as String
+            if element == window { windowReads[name, default: 0] += 1 }
+            if element == fastApp, name == kAXExtrasMenuBarAttribute, fastBarTimesOut { return .cannotComplete }
+            value.pointee = attributes[element]?[name]
+            return value.pointee == nil ? .noValue : .success
+        }
+        func status(_ windows: [AXUIElement], modern: Bool = true) -> [CGRect]? {
             NotchMenuBarLayout.statusFrames(screen: screen, barHeight: 32, windows: [], requiresExtras: modern) { target in
                 discovery.frames(windows: windows, modernBar: modern ? target : nil,
-                    extras: { pid in probed.insert(pid); return extras[pid] },
-                    children: { _ in childReads += 1; return [.fastSlot, .slowSlot] }, frame: { frames[$0] },
-                    role: { $0 == .fastSlot ? kAXMenuBarItemRole as String : nil })
+                    extras: { pid in probed.insert(pid); return reader.extras(AXUIElementCreateApplication(pid)) },
+                    children: { reader.children($0) }, frame: reader.frame, role: { reader.value($0, kAXRoleAttribute) as? String })
             }
         }
         func room() -> CGFloat? {
-            status([.window]).flatMap { NotchMenuBarLayout.measuredSideRoom(
+            status([window]).flatMap { NotchMenuBarLayout.measuredSideRoom(
                 screen: screen, cameraWidth: 180, barHeight: 32, menuItems: [menu], statusItems: $0) }
         }
-        suite.expect(status([]) == nil && status([.window]) == nil,
+        suite.expect(status([]) == nil && status([window]) == nil,
                      "a readable owner alone cannot prove clearance with an absent host window or an unreadable slot")
-        frames[.slowSlot] = CGRect(x: 810, y: 924, width: 40, height: 32)
-        suite.expect(status([.window]) != nil && room() == nil,
+        setFrame(centerSlot, for: hostSlot)
+        suite.expect(status([window]) != nil && room() == nil,
                      "a host slot without an AX role still occupies the island's center")
-        frames[.window] = bar.offsetBy(dx: screen.width, dy: 0)
-        let readsBeforeOtherDisplay = childReads
-        suite.expect(status([.window]) == nil && childReads == readsBeforeOtherDisplay,
+        setFrame(bar.offsetBy(dx: screen.width, dy: 0), for: window)
+        let readsBeforeOtherDisplay = windowReads[kAXChildrenAttribute]
+        suite.expect(status([window]) == nil && windowReads[kAXChildrenAttribute] == readsBeforeOtherDisplay,
                      "another display's host bar cannot certify this bar or spend its budget reading slots")
-        frames[.window] = bar
-        let movedSlot = CGRect(x: 860, y: 924, width: 40, height: 32)
-        frames[.slowSlot] = movedSlot
+        setFrame(bar, for: window)
+        setFrame(movedSlot, for: hostSlot)
         suite.expect(room() == 27 && probed == [fastPID, hostPID],
                      "the next host measurement recovers the available room without probing the unresponsive app")
-        extras[fastPID] = [CGRect(x: 810, y: 924, width: 40, height: 32)]
-        suite.expect(room() == nil, "the host slots also leave room for every frame reported by a known owner")
-        extras[fastPID] = [fastSlot]
+        attributes[fastBar]?[kAXChildrenAttribute] = [centerItem, fastItem] as CFArray
+        attributes[fastItem]?[kAXSizeAttribute] = nil
+        suite.expect(status([window]) == nil,
+                     "a missing AXSize on the second item cannot erase the first item's occupied center")
+        setFrame(fastSlot, for: fastItem)
+        suite.expect(status([window]) != nil && room() == nil, "the recovered owner geometry still occupies the center")
+        attributes[fastBar]?[kAXChildrenAttribute] = [fastItem] as CFArray
         suite.expect(status([], modern: false) == [fastSlot], "legacy AX fallback still works without the modern host")
 
         var next = NotchStatusItemOwners.Discovery()
@@ -1320,13 +1350,25 @@ enum NotchTests {
         next.record(pid: fastPID, isHost: false, result: .cannotComplete, hasBar: false, previous: previous)
         next.record(pid: slowPID, isHost: false, result: .success, hasBar: true, previous: previous)
         next.record(pid: hostPID, isHost: true, result: .noValue, hasBar: false, previous: previous)
+        attributes[window]?[kAXSizeAttribute] = nil
+        attributes[hostSlot]?[kAXRoleAttribute] = kAXGroupRole as CFString
+        setFrame(centerSlot, for: hostSlot)
+        setFrame(movedSlot.offsetBy(dx: -10, dy: 0), for: hostItem)
+        suite.expect(status([window]) == nil, "incomplete discovery requires the host window's missing AXSize")
         discovery = next
-        extras[slowPID] = [movedSlot]
         suite.expect(next.owners == [fastPID, slowPID, hostPID] && status([]) == [fastSlot, movedSlot],
                      "a refresh keeps a confirmed owner through a timeout and resolves the newly responding owner")
-        extras[fastPID] = nil
-        suite.expect(status([]) == nil && room() == 27 && status([], modern: false) == nil,
-                     "an unreadable known owner requires complete modern host geometry before the island can use the room")
+        let positionReads = windowReads[kAXPositionAttribute], sizeReads = windowReads[kAXSizeAttribute]
+        suite.expect(room() == 17 && windowReads[kAXPositionAttribute] == positionReads
+                     && windowReads[kAXSizeAttribute] == sizeReads,
+                     "complete owners measure the host's menu item, ignore its group and need no window geometry")
+        fastBarTimesOut = true
+        suite.expect(status([]) == nil && status([window]) == nil && status([], modern: false) == nil,
+                     "an unavailable extras bar needs host geometry and cannot use a window missing AXSize")
+        setFrame(bar, for: window)
+        setFrame(fastSlot, for: hostItem)
+        setFrame(movedSlot, for: hostSlot)
+        suite.expect(room() == 27, "the host's recovered window geometry restores clearance while the owner still times out")
     }
 
     private static func menuBarHeightContracts(_ suite: TestSuite) {
