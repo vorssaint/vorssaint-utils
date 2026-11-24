@@ -1555,6 +1555,8 @@ enum CommandBarFeatureTests {
         for (input, whole) in [
             ("7 ft to feet and inches", "7 ft to ft"),
             ("-7 ft to feet and inches", "-7 ft to ft"),
+            ("53 ft to feet and inches", "53 ft to ft"),
+            ("-53 ft to feet and inches", "-53 ft to ft"),
             ("6.9999999999 ft to feet and inches", "7 ft to ft"),
             ("-0.99999999999 h to hours and minutes", "-1 h to h"),
         ] {
@@ -1564,6 +1566,10 @@ enum CommandBarFeatureTests {
         }
         expectSplit("6.99999998 ft to feet and inches", [6, 11.99999976], units: ["ft", "in"])
         expectSplit("7 1/32 ft to feet and inches", [7, 0.375], units: ["ft", "in"])
+        let tinyRemainder = calculatorNumbers(units("53.000000000000014 ft to feet and inches"))
+        suite.expect(tinyRemainder.count == 2 && tinyRemainder[0] == 53
+                     && (1e-13...2e-13).contains(tinyRemainder[1]),
+                     "one representable SI step above 53 feet keeps its fractional inches")
 
         suite.expect(unitValue("100 km to mi").map { abs($0 - 62.1371) < 0.001 } == true,
                "a distance converts")
