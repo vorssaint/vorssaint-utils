@@ -143,6 +143,7 @@ enum SettingsBackupSupport {
         // A Bluetooth restore owed by one sleeping Mac means nothing on another.
         DefaultsKey.bluetoothSleepRestorePending,
         DefaultsKey.micMuteActive,
+        DefaultsKey.micMuteReleasePending,
         DefaultsKey.micMuteSavedVolume,
         // Levels and device ids belong to the microphones of one Mac.
         DefaultsKey.micMuteSavedVolumes,
@@ -150,6 +151,7 @@ enum SettingsBackupSupport {
         DefaultsKey.micMuteSavedControls,
         DefaultsKey.micMuteProtectedChannels,
         DefaultsKey.micMutePendingLegacyControls,
+        DefaultsKey.micMuteManualCheckNeeded,
         DefaultsKey.micMuteMutedDevices,
         DefaultsKey.cleanerLastAutoRun,
         // When the last check ran and what it found belong to one Mac.

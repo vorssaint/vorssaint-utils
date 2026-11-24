@@ -674,6 +674,7 @@ enum DefaultsKey {
     static let scratchpadDocument = "scratchpadDocument"     // Data: ScratchpadDocument JSON, including named tabs
     static let scratchpadTextSize = "scratchpadTextSize"     // pad-wide point size (ScratchpadSupport.textSizeRange)
     static let micMuteActive = "micMuteActive"               // mic muted by the app (survives relaunch)
+    static let micMuteReleasePending = "micMuteReleasePending" // keep restoring after an unmute, even before publication
     static let micMuteSavedVolume = "micMuteSavedVolume"     // input volume to restore on unmute (pre 3.2.0 state)
     static let micMuteSavedVolumes = "micMuteSavedVolumes"   // [device uid: input volume] to restore on unmute
     static let micMuteSavedChannelVolumes = "micMuteSavedChannelVolumes" // [device uid: [channel: input volume]] to restore on unmute
@@ -682,6 +683,7 @@ enum DefaultsKey {
     // While resolving a legacy UID-only gain, element 0 records an observed master.
     static let micMuteProtectedChannels = "micMuteProtectedChannels"
     static let micMutePendingLegacyControls = "micMutePendingLegacyControls" // unresolved pre-3.2 default input and its controls
+    static let micMuteManualCheckNeeded = "micMuteManualCheckNeeded" // remind the user to check an unidentified old input
     static let micMuteMutedDevices = "micMuteMutedDevices"   // uids of the devices this app muted
     static let micMuteMenuBarIndicator = "micMuteMenuBarIndicator" // badge the status icon while muted
     static let quickLauncherShortcutEnabled = "quickLauncherShortcutEnabled"

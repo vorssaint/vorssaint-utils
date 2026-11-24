@@ -206,6 +206,8 @@ extension Strings {
         micUnmutedHUD: "Silencio del micrófono desactivado",
         micMutePartialHUD: "No se pudo confirmar el silencio en todos los micrófonos",
         micUnmutePartialHUD: "No se pudo confirmar la restauración de todos los micrófonos",
+        micManualRestore: "No se pudo identificar el micrófono anterior. Comprueba su botón de silencio y el volumen de entrada en el mezclador o en los ajustes de Sonido.",
+        micManualRestoreChecked: "Ya he comprobado el micrófono",
         micMuteMenuBarToggle: "Mostrar en la barra de menús mientras esté activo",
         micMuteMenuBarCaption: "El micrófono rojo de la barra de menús indica que la función está activa. No garantiza que todas las apps dejen de captar audio.",
         pastePlainName: "Pegar como texto sin formato",

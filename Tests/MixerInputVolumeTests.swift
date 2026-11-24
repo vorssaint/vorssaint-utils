@@ -54,12 +54,14 @@ enum MixerInputVolumeContract {
         static let preferredInputDevice = "preferred"
         static let audioPriorityInputEnabled = "audioPriorityInputEnabled"
         static let micMuteActive = "mute"
+        static let micMuteReleasePending = "releasePending"
         static let micMuteFollowCallApps = "followCallApps"
         static let micMuteSavedVolumes = "savedVolumes"
         static let micMuteSavedChannelVolumes = "savedChannelVolumes"
         static let micMuteSavedControls = "savedControls"
         static let micMuteProtectedChannels = "protectedChannels"
         static let micMutePendingLegacyControls = "pendingLegacyControls"
+        static let micMuteManualCheckNeeded = "manualCheckNeeded"
         static let micMuteMutedDevices = "owned"
         static let micMuteSavedVolume = "legacyVolume"
         static let micMuteShortcutEnabled = "shortcutEnabled"
@@ -71,6 +73,7 @@ enum MixerInputVolumeContract {
         final class Store {
             var values: [String: Any] = [:]
             var writtenKeys: [String] = []
+            func object(forKey k: String) -> Any? { values[k] }
             func data(forKey k: String) -> Data? { values[k] as? Data }
             func string(forKey k: String) -> String? { values[k] as? String }
             func bool(forKey k: String) -> Bool { values[k] as? Bool ?? false }
@@ -96,7 +99,11 @@ enum MixerInputVolumeContract {
     }
     enum QuickToolHUD {
         static var messages: [String] = []
-        static func show(icon: String, message: String) { messages.append(message) }
+        static var showedFullMessage = false
+        static func show(icon: String, message: String, showsFullMessage: Bool = false) {
+            messages.append(message)
+            showedFullMessage = showsFullMessage
+        }
     }
     final class NotchService {
         static let shared = NotchService()
@@ -120,6 +127,7 @@ enum MixerInputVolumeContract {
             let micUnmutedHUD = "unmuted"
             let micMutePartialHUD = "mute partial"
             let micUnmutePartialHUD = "unmute partial"
+            let micManualRestore = "check original microphone"
         }
     }
     struct Key: Hashable {
@@ -138,6 +146,7 @@ enum MixerInputVolumeContract {
         static var levels: [Key: Float] = [:]
         static var minimumGain: [Key: Float] = [:]
         static var readOnly: Set<Key> = []
+        static var settableReadFails: Set<Key> = []
         static var readFails: Set<Key> = []
         static var nextReadFails: Set<Key> = []
         static var sizeReadFails: Set<Key> = []
@@ -202,6 +211,7 @@ enum MixerInputVolumeContract {
             levels = [:]
             minimumGain = [:]
             readOnly = []
+            settableReadFails = []
             readFails = []
             nextReadFails = []
             sizeReadFails = []
@@ -274,6 +284,7 @@ enum MixerInputVolumeContract {
             _ v: UnsafeMutablePointer<DarwinBoolean>
         ) -> OSStatus {
             let key = Key(d, a.pointee)
+            if settableReadFails.contains(key) { return -1 }
             v.pointee = DarwinBoolean(!readOnly.contains(key))
             afterSettableCheck.removeValue(forKey: key)?()
             return noErr
@@ -995,12 +1006,12 @@ enum MixerInputVolumeContract {
                 && NotchService.shared.reactions.isEmpty
                 && NotchService.shared.retractions == 1,
               "a wholly refused unmute warns without announcing that mute is off")
-        check(MicMuteService.shared.isMuted && !MicMuteService.shared.hasUnconfirmedInputs
+        check(!MicMuteService.shared.isMuted && !MicMuteService.shared.hasUnconfirmedInputs
                 && MicMuteService.shared.hasOutstandingClaims
-                && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
-                && MicMuteService.shared.inputVolumeAdjustmentLifetime == nil
+                && !UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
+                && MicMuteService.shared.inputVolumeAdjustmentLifetime != nil
                 && HAL.mute[10] == 1,
-              "a wholly refused unmute preserves the state and claim for retry")
+              "a wholly refused manual release keeps the switch owed and the mixer available")
         HAL.writeFails = []
         MicMuteService.shared.setMuted(false)
         DispatchQueue.drain()
@@ -1231,10 +1242,10 @@ enum MixerInputVolumeContract {
             HAL.ignoredWrites.insert(ignoredControl)
             MicMuteService.shared.setMuted(false)
             DispatchQueue.drain()
-            check(MicMuteService.shared.isMuted && MicMuteService.shared.hasOutstandingClaims
-                    && MicMuteService.shared.hasUnconfirmedInputs == (ignoredControl.s == kAudioDevicePropertyMute)
+            check(!MicMuteService.shared.isMuted && MicMuteService.shared.hasOutstandingClaims
+                    && !MicMuteService.shared.hasUnconfirmedInputs
                     && (HAL.mute[10] == 1 || HAL.levels[HAL.key(10)] == 0),
-                  "an ignored restore keeps the obligation and reports mute coverage from the actual remaining gain")
+                  "an ignored restore keeps the obligation while mute enforcement is off")
             HAL.ignoredWrites = []
             MicMuteService.shared.setMuted(false)
             DispatchQueue.drain()
@@ -1391,10 +1402,12 @@ enum MixerInputVolumeContract {
             AppFeature.micMuteAvailable = false
             MicMuteService.shared.syncWithPreferences()
             DispatchQueue.drain()
-            check(HAL.levels[HAL.key(10)] == Float(savedGain ?? 0.3) && (savedGain != nil || HAL.mute[10] == 0)
-                    && HAL.mute[20] == 1 && HAL.levels[HAL.key(20)] == 0 && HAL.writes.allSatisfy { $0.d == 10 }
+            check(HAL.levels[HAL.key(10)] == (savedGain == nil ? 0.3 : 0.005) && (savedGain != nil || HAL.mute[10] == 1)
+                    && HAL.mute[20] == 1 && HAL.levels[HAL.key(20)] == 0 && HAL.writes.isEmpty
+                    && UserDefaults.standard.data(forKey: DefaultsKey.micMutePendingLegacyControls) == nil
+                    && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteManualCheckNeeded)
                     && !UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive),
-                  "disabling on migration releases only the default input's legacy control")
+                  "disabling on migration preserves the unidentified hardware for manual recovery")
         }
 
         HAL.reset()
@@ -1666,8 +1679,8 @@ enum MixerInputVolumeContract {
         HAL.levels[HAL.key(10)] = 0.2
         MicMuteService.shared.setMuted(false)
         DispatchQueue.drain()
-        check(MicMuteService.shared.isMuted && MicMuteService.shared.retryDeadline != nil,
-              "a wholly failed manual unmute keeps the active mute's retry")
+        check(!MicMuteService.shared.isMuted && MicMuteService.shared.retryDeadline == nil && MicMuteService.shared.hasOutstandingClaims,
+              "a wholly failed manual release cancels mute retries and keeps the restore claim")
         AppFeature.micMuteAvailable = false
         MicMuteService.shared.syncWithPreferences()
         DispatchQueue.drain()
@@ -1737,7 +1750,7 @@ enum MixerInputVolumeContract {
         DispatchQueue.main.run()
         service.syncWithPreferences()
         DispatchQueue.drain()
-        check(QuickToolHUD.messages == ["unmute partial"] && service.isMuted && service.hasOutstandingClaims,
+        check(QuickToolHUD.messages == ["unmute partial"] && !service.isMuted && service.hasOutstandingClaims,
               "an older device notification or preference sync cannot hide a failed manual unmute")
         HAL.writeFails = []
         service.setMuted(false)
@@ -1812,10 +1825,158 @@ enum MixerInputVolumeContract {
         runMuteRecoveryTests(suite)
         runLowGainMuteTests(suite)
         runProtectedChannelRestoreTests(suite)
+        runManualRestoreAcknowledgementTests(suite)
+        runObservedChannelRestoreTests(suite)
         runAggregateAndRestoreTests(suite)
         runLegacyMasterRestoreTests(suite)
+        runReleaseIntentTests(suite)
         runControlRetryTests(suite)
         runCallAppUnmuteTests(suite)
+    }
+
+    private static func runReleaseIntentTests(_ suite: TestSuite) {
+        let master = HAL.key(10)
+        let channel = HAL.key(10, 1)
+        let list = HAL.key(AudioObjectID(kAudioObjectSystemObject), 0, kAudioHardwarePropertyDevices,
+                           scope: kAudioObjectPropertyScopeGlobal)
+        for action in ["button", "disable", "teardown", "call"] {
+            HAL.reset()
+            UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteFollowCallApps)
+            HAL.levels = [master: 0.625, channel: 0.25]
+            let service = MicMuteService.shared
+            service.setMuted(true)
+            DispatchQueue.drain()
+            let oldChannel = HAL.pendingNotification(for: channel)
+            HAL.readFails = [master]
+            HAL.writes = []
+            switch action {
+            case "call":
+                let ownPID = ProcessInfo.processInfo.processIdentifier
+                HAL.processes = [(object: 100, pid: ownPID == 4242 ? 4243 : 4242, recording: true, devices: [10])]
+                HAL.levels[channel] = 0.875
+                suite.expect(HAL.notifyIfRegistered(channel), "the recording input reports a verified call opening")
+            case "disable": AppFeature.micMuteAvailable = false; service.syncWithPreferences()
+            case "teardown": service.unmuteForTeardown()
+            default: service.setMuted(false)
+            }
+            DispatchQueue.drain()
+            suite.expect(!service.isMuted && !service.wantsMute && service.hasOutstandingClaims && HAL.levels[channel] == 0.25,
+                         "a \(action) release restores the single input's available channel while its master waits")
+            HAL.levels[channel] = 0.375
+            HAL.writes = []
+            AppFeature.micMuteAvailable = true
+            service.syncWithPreferences()
+            oldChannel?()
+            DispatchQueue.drain()
+            suite.expect(HAL.writes.isEmpty && HAL.levels[channel] == 0.375,
+                         "a sync and a queued old callback keep the \(action) release and the user's channel edit")
+            HAL.relaunchClient()
+            let restarted = MicMuteService.shared
+            restarted.syncWithPreferences()
+            DispatchQueue.drain()
+            suite.expect(!restarted.isMuted && !restarted.wantsMute && restarted.inputVolumeAdjustmentLifetime != nil
+                         && restarted.controlSymbol == "exclamationmark.triangle" && HAL.writes.isEmpty && restarted.hasOutstandingClaims,
+                         "relaunch continues a \(action) release with the one outstanding master and the mixer available")
+            HAL.readFails = []
+            suite.expect(HAL.notifyIfRegistered(list), "the pending master receives its recovery event")
+            DispatchQueue.drain()
+            suite.expect(HAL.writes == [master] && HAL.levels == [master: 0.625, channel: 0.375]
+                         && !restarted.hasOutstandingClaims && !restarted.isMuted,
+                         "the returning master completes the \(action) release without touching the edited channel")
+        }
+
+        for call in [false, true] {
+            HAL.reset()
+            UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteFollowCallApps)
+            HAL.levels = [master: 0.625, channel: 0.25]
+            let service = MicMuteService.shared
+            service.setMuted(true)
+            DispatchQueue.drain()
+            HAL.readFails = [master]
+            if call {
+                let ownPID = ProcessInfo.processInfo.processIdentifier
+                HAL.processes = [(object: 100, pid: ownPID == 4242 ? 4243 : 4242, recording: true, devices: [10])]
+                // The call itself restored this channel to its exact saved gain.
+                HAL.levels[channel] = 0.25
+                _ = HAL.notifyIfRegistered(channel)
+                DispatchQueue.main.run()
+            } else {
+                service.setMuted(false)
+            }
+            service.halQueue.sync {}
+            // Termination after the audio writes, before finish publishes on main.
+            DispatchQueue.main.work.removeAll()
+            HAL.levels[channel] = 0.5
+            HAL.writes = []
+            HAL.relaunchClient()
+            MicMuteService.shared.syncWithPreferences()
+            DispatchQueue.drain()
+            suite.expect(HAL.writes.isEmpty && HAL.levels[channel] == 0.5 && !MicMuteService.shared.wantsMute
+                         && MicMuteService.shared.hasOutstandingClaims,
+                         "the release direction is durable before publication (call: \(call))")
+            MicMuteService.shared.toggle()
+            DispatchQueue.drain()
+            suite.expect(MicMuteService.shared.wantsMute && HAL.levels[channel] == 0,
+                         "an explicit new mute can supersede the persisted release")
+        }
+
+        for moment in ["sync", "queued callback", "registration", "publication"] {
+            HAL.reset()
+            HAL.levels = [master: 0.625, channel: 0.25]
+            let service = MicMuteService.shared
+            // Reproduce the durable state after a channel was released while
+            // an older request or its completion still lives in memory.
+            func recordPendingRelease() {
+                UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteReleasePending)
+                UserDefaults.standard.set(["device-10": ["\(master.s):0": 0.625]], forKey: DefaultsKey.micMuteSavedControls)
+                HAL.readFails = [master]
+                HAL.levels[channel] = 0.375
+                HAL.writes = []
+            }
+            if moment == "registration" { HAL.afterListenerAdd[channel] = recordPendingRelease }
+            service.setMuted(true)
+            if moment == "publication" {
+                service.halQueue.sync {}
+                recordPendingRelease()
+            }
+            DispatchQueue.drain()
+            if moment == "sync" {
+                recordPendingRelease()
+                service.syncWithPreferences()
+            } else if moment == "queued callback" {
+                _ = HAL.notifyIfRegistered(channel)
+                DispatchQueue.main.run()
+                recordPendingRelease()
+            }
+            DispatchQueue.drain()
+            suite.expect(!service.wantsMute && !service.isMuted && HAL.writes.isEmpty && HAL.levels[channel] == 0.375,
+                         "a persisted release prevails over stale mute state at \(moment)")
+        }
+
+        HAL.reset()
+        let other = HAL.key(20)
+        HAL.devices = [10, 20]
+        HAL.levels = [master: 0.625, channel: 0.25, other: 0.75]
+        UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteFollowCallApps)
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        HAL.processes = [(object: 100, pid: ownPID == 4242 ? 4243 : 4242, recording: true, devices: [10])]
+        HAL.readFails = [master]
+        var restarted = false
+        var reclosed = false
+        HAL.beforeControlWrite = { key, value in
+            if key == other && value == 0.75 && !restarted {
+                HAL.levels[channel] = 0.375
+                restarted = HAL.restartAudioService()
+            } else if restarted && value == 0 { reclosed = true }
+        }
+        HAL.levels[channel] = 0.875
+        _ = HAL.notifyIfRegistered(channel)
+        DispatchQueue.drain()
+        suite.expect(restarted && !reclosed && !MicMuteService.shared.wantsMute && HAL.levels[channel] == 0.375
+                     && MicMuteService.shared.hasOutstandingClaims,
+                     "a reset on the next input preserves a call release already verified on the first input")
     }
 
     private static func runLegacyMasterRestoreTests(_ suite: TestSuite) {
@@ -2278,12 +2439,28 @@ enum MixerInputVolumeContract {
             QuickToolHUD.messages = []
             service.setMuted(false)
             DispatchQueue.drain()
-            suite.expect(requested == Double(original) && service.hasOutstandingClaims == !restored && service.isMuted == !restored
+            suite.expect(requested == Double(original) && service.hasOutstandingClaims == !restored && !service.isMuted
                          && QuickToolHUD.messages == [restored ? "unmuted" : "unmute partial"],
                          "restore writes the exact gain and verifies a positive driver readback (\(readback))")
         }
 
         for active in [false, true] {
+            HAL.reset()
+            let liveChannel = HAL.key(10, 1)
+            HAL.levels = [gain: 0, liveChannel: 0.25]
+            UserDefaults.standard.set(["device-10"], forKey: DefaultsKey.micMuteMutedDevices)
+            UserDefaults.standard.set(0.625, forKey: DefaultsKey.micMuteSavedVolume)
+            UserDefaults.standard.set(active, forKey: DefaultsKey.micMuteActive)
+            HAL.relaunchClient()
+            MicMuteService.shared.syncWithPreferences()
+            DispatchQueue.drain()
+            if active {
+                MicMuteService.shared.setMuted(false)
+                DispatchQueue.drain()
+            }
+            suite.expect(HAL.levels == [gain: 0, liveChannel: 0.25] && !HAL.writes.contains(gain),
+                         "a recorded UID without a switch or saved level never raises the user's zero master")
+
             for originalSwitch: UInt32? in [nil, 0, 1] {
                 HAL.reset()
                 HAL.levels[gain] = 0.005
@@ -2300,7 +2477,7 @@ enum MixerInputVolumeContract {
                     DispatchQueue.drain()
                 }
                 // v3.4.3 stored only the UID when its native master switch worked.
-                suite.expect(HAL.levels[gain] == (originalSwitch == nil ? 0.625 : 0.005)
+                suite.expect(HAL.levels[gain] == 0.005
                              && !service.hasOutstandingClaims && !service.isMuted && (originalSwitch == nil || HAL.mute[10] == 0),
                              "a UID with a native switch preserves its gain beside a stale global (active: \(active), switch: \(String(describing: originalSwitch)))")
             }
@@ -2320,8 +2497,8 @@ enum MixerInputVolumeContract {
             DispatchQueue.drain()
             service.setMuted(false)
             DispatchQueue.drain()
-            suite.expect(HAL.levels[gain] == (inherited ? 0.625 : 0.005) && HAL.levels[HAL.key(20)] == 0.008,
-                         "only a migrated default input restores the legacy global volume")
+            suite.expect(HAL.levels[gain] == 0.005 && HAL.levels[HAL.key(20)] == 0.008,
+                         "a current mute restores both microphones to their measured gains beside an unbound global")
         }
 
         let otherGain = HAL.key(20)
@@ -2344,7 +2521,7 @@ enum MixerInputVolumeContract {
                 service.setMuted(false)
                 DispatchQueue.drain()
             }
-            suite.expect(HAL.levels[gain] == 0.625 && HAL.levels[otherGain] == 0.005 && HAL.mute[20] == 0
+            suite.expect(HAL.levels[gain] == 0.005 && HAL.levels[otherGain] == 0.005 && HAL.mute[20] == 0
                          && HAL.muteElements[otherChannelMute] == 1 && !service.hasOutstandingClaims,
                          "a claimed native mic keeps its own gain and channel mute beside the legacy default")
 
@@ -2360,9 +2537,8 @@ enum MixerInputVolumeContract {
             }
             MicMuteService.shared.setMuted(false)
             DispatchQueue.drain()
-            suite.expect(HAL.mute[10] == 0 && HAL.mute[20] == 1 && HAL.muteElements[channelMute] == 1
-                         && HAL.writes == [HAL.key(10, 0, kAudioDevicePropertyMute)],
-                         "a pre-3.2 switch-only mute without a gain or UID restores just the default master switch")
+            suite.expect(HAL.mute[10] == 1 && HAL.mute[20] == 1 && HAL.muteElements[channelMute] == 1 && HAL.writes.isEmpty,
+                         "a pre-3.2 flag without a UID preserves existing switches on every microphone")
 
             HAL.reset()
             HAL.levels = [gain: 0.005, HAL.key(10, 1): 0, HAL.key(10, 2): 0.35]
@@ -2378,8 +2554,8 @@ enum MixerInputVolumeContract {
             MicMuteService.shared.setMuted(false)
             DispatchQueue.drain()
             suite.expect(HAL.levels == [gain: 0.005, HAL.key(10, 1): 0, HAL.key(10, 2): 0.35]
-                         && HAL.mute[10] == 0 && HAL.muteElements[channelMute] == 1,
-                         "the pre-3.2 native switch kept the user's levels even with a stale global gain")
+                         && HAL.mute[10] == 1 && HAL.muteElements[channelMute] == 1,
+                         "a pre-3.2 flag and global gain cannot claim a switch or gain on the current default")
 
             HAL.reset()
             let third = HAL.key(10, 3)
@@ -2419,9 +2595,9 @@ enum MixerInputVolumeContract {
             }
             MicMuteService.shared.setMuted(false)
             DispatchQueue.drain()
-            suite.expect(HAL.levels == [gain: 0.625, HAL.key(10, 1): 0.625, HAL.key(10, 2): 0.45,
+            suite.expect(HAL.levels == [gain: 0.005, HAL.key(10, 1): 0, HAL.key(10, 2): 0.45,
                                         thirdChannel: 0, virtualMain: 0] && HAL.muteElements[channelMute] == 1,
-                         "the pre-3.2 gain fallback restores only residual scalar controls among elements 0, 1 and 2")
+                         "a pre-3.2 flag without a UID preserves every scalar's own level")
         }
 
         for (stored, current): (Double, Float) in [(0.005, 0.005), (0.01, 0.005), (1.1, 0.005), (0.625, 0.45)] {
@@ -2441,7 +2617,7 @@ enum MixerInputVolumeContract {
         HAL.levels = [gain: 0.005, otherGain: 0.005]
         HAL.ignoredWrites = [gain]
         UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteActive)
-        UserDefaults.standard.set(0.625, forKey: DefaultsKey.micMuteSavedVolume)
+        bindLegacyDefault(gain: 0.625, scalars: [0])
         HAL.relaunchClient()
         MicMuteService.shared.setMuted(false)
         DispatchQueue.drain()
@@ -2459,148 +2635,158 @@ enum MixerInputVolumeContract {
     }
 
     private static func runUnidentifiedLegacyDefaultTests(_ suite: TestSuite) {
+        let defaults = UserDefaults.standard
         let system = AudioObjectID(kAudioObjectSystemObject)
         let route = HAL.key(system, 0, kAudioHardwarePropertyDefaultInputDevice, scope: kAudioObjectPropertyScopeGlobal)
-        let list = HAL.key(system, 0, kAudioHardwarePropertyDevices, scope: kAudioObjectPropertyScopeGlobal)
         let uid = HAL.key(10, 0, kAudioDevicePropertyDeviceUID, scope: kAudioObjectPropertyScopeGlobal)
-        let streams = HAL.key(10, 0, kAudioDevicePropertyStreams)
-        for (missing, action) in [("route", "unmute"), ("uid", "reapply"), ("inventory", "disable"),
-                                  ("uid", "teardown"), ("streams", "unmute")] {
+        let original = HAL.key(10)
+        let other = HAL.key(20)
+        let returned = HAL.key(30)
+        func prepare() {
             HAL.reset()
             HAL.devices = [10, 20]
-            let original = HAL.key(10)
-            let other = HAL.key(20)
-            HAL.levels = [original: 0, other: 0.005]
-            UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteActive)
-            UserDefaults.standard.set(0.625, forKey: DefaultsKey.micMuteSavedVolume)
-            if missing == "route" { HAL.readFails = [route] }
-            if missing == "uid" { HAL.readFails = [uid] }
-            if missing == "inventory" { HAL.sizeReadFails = [list] }
-            if missing == "streams" { HAL.sizeReadFails = [streams] }
-            HAL.relaunchClient()
-            QuickToolHUD.messages = []
-            let service = MicMuteService.shared
-            switch action {
-            case "reapply": service.syncWithPreferences()
-            case "disable":
-                AppFeature.micMuteAvailable = false
-                service.syncWithPreferences()
-            case "teardown": service.unmuteForTeardown()
-            default: service.setMuted(false)
-            }
-            DispatchQueue.drain()
-            suite.expect(UserDefaults.standard.stringArray(forKey: DefaultsKey.micMuteMutedDevices) == nil
-                         && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
-                         && HAL.writes.isEmpty && (action != "unmute" || (service.isMuted && service.hasUnconfirmedInputs
-                             && QuickToolHUD.messages == ["unmute partial"])),
-                         "a missing legacy default keeps its original record through \(action) with missing \(missing)")
-            HAL.readFails = []
-            HAL.sizeReadFails = []
-            HAL.relaunchClient()
-            if missing == "uid" {
-                // This input already had a different UID when the old default
-                // failed its identity read. It cannot inherit the global gain.
-                HAL.current = 20
-                MicMuteService.shared.setMuted(false)
-                DispatchQueue.drain()
-                suite.expect(HAL.writes.isEmpty && UserDefaults.standard.stringArray(forKey: DefaultsKey.micMuteMutedDevices) == nil,
-                             "a known different default cannot claim the still-unidentified legacy gain")
-            }
-            HAL.current = missing == "streams" ? 20 : 10
-            if action == "disable" { MicMuteService.shared.syncWithPreferences() }
-            else { MicMuteService.shared.setMuted(false) }
-            DispatchQueue.drain()
-            suite.expect(HAL.levels == [original: 0.625, other: 0.005] && !MicMuteService.shared.hasOutstandingClaims
-                         && !UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive),
-                         "the identified original default recovers its old gain after \(action) with missing \(missing)")
+            HAL.uids[10] = "old microphone"
+            HAL.levels = [original: 0.005, other: 0.42]
+            defaults.set(true, forKey: DefaultsKey.micMuteActive)
+            defaults.set(0.625, forKey: DefaultsKey.micMuteSavedVolume)
         }
-
-        // No other UID has to exist when the old default fails its first
-        // identity read. A later headset cannot inherit the saved global.
-        for reusedUID in ["device-20", "new-headset"] {
-            HAL.reset()
-            HAL.devices = reusedUID == "device-20" ? [10, 20] : [10]
-            HAL.uids[10] = "original-microphone"
-            HAL.levels = [HAL.key(10): 0.005]
-            HAL.readFails = [uid]
-            UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteActive)
-            UserDefaults.standard.set(0.625, forKey: DefaultsKey.micMuteSavedVolume)
-            HAL.relaunchClient()
+        func release() {
             MicMuteService.shared.setMuted(false)
             DispatchQueue.drain()
-            HAL.devices = [30]
-            HAL.current = 30
-            HAL.uids[30] = "new-headset"
-            HAL.levels[HAL.key(30)] = 0.005
-            HAL.readFails = []
-            _ = HAL.notifyIfRegistered(route)
-            DispatchQueue.drain()
-            suite.expect(HAL.writes.isEmpty && HAL.levels[HAL.key(30)] == 0.005 && MicMuteService.shared.hasOutstandingClaims,
-                         "an input appearing later on a different default object cannot inherit the legacy gain")
-            HAL.devices = [10]
-            HAL.current = 10
-            HAL.uids[10] = reusedUID
-            HAL.relaunchClient()
-            MicMuteService.shared.setMuted(false)
-            DispatchQueue.drain()
-            suite.expect(HAL.writes.isEmpty && UserDefaults.standard.stringArray(forKey: DefaultsKey.micMuteMutedDevices) == nil,
-                         "a different UID previously seen elsewhere cannot inherit the original default object")
-            HAL.uids[10] = "original-microphone"
-            _ = HAL.notifyIfRegistered(route)
-            DispatchQueue.drain()
-            suite.expect(HAL.writes == [HAL.key(10)] && HAL.levels[HAL.key(10)] == 0.625
-                         && HAL.levels[HAL.key(30)] == 0.005 && !MicMuteService.shared.hasOutstandingClaims,
-                         "the original route restores only after its own UID and control become readable")
+        }
+        func pendingRecord() -> [String: Any]? {
+            guard let data = defaults.data(forKey: DefaultsKey.micMutePendingLegacyControls) else { return nil }
+            return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         }
 
-        for missing in [route, uid] {
-            HAL.reset()
-            HAL.devices = [10, 20]
-            HAL.levels = [HAL.key(10): 0.005, HAL.key(20): 0.42]
-            UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteActive)
-            UserDefaults.standard.set(0.625, forKey: DefaultsKey.micMuteSavedVolume)
-            HAL.readFails = [missing]
-            HAL.relaunchClient()
-            let service = MicMuteService.shared
-            service.setMuted(false)
-            DispatchQueue.drain()
-            service.syncWithPreferences()
-            suite.expect(service.isMuted && service.hasUnconfirmedInputs,
-                         "preference sync keeps the pending manual release visible")
-            DispatchQueue.drain()
-            if missing == uid {
-                // The visible button still offers release. A second click
-                // while waiting must not arm a mute of unrelated microphones.
-                service.toggle()
-                DispatchQueue.drain()
-            }
-            HAL.readFails = []
-            suite.expect(HAL.notifyIfRegistered(route), "the pending manual release receives default recovery")
-            DispatchQueue.drain()
-            suite.expect(!service.isMuted && !service.hasOutstandingClaims && HAL.writes == [HAL.key(10)]
-                         && HAL.levels == [HAL.key(10): 0.625, HAL.key(20): 0.42],
-                         "the callback finishes the requested release and leaves unrelated microphones untouched")
+        func hasOnlyReminder() -> Bool {
+            defaults.bool(forKey: DefaultsKey.micMuteManualCheckNeeded)
+                && defaults.data(forKey: DefaultsKey.micMutePendingLegacyControls) == nil
+                && defaults.object(forKey: DefaultsKey.micMuteSavedVolume) == nil
         }
 
-        // A successful native mute in 3.1.15 left only the active flag.
-        HAL.reset()
-        HAL.devices = [10, 20]
-        HAL.mute = [10: 1, 20: 1]
-        HAL.readFails = [route]
-        UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteActive)
+        // The headset was replaced before upgrading. Its UID is readable
+        // on the new version's very first sweep, at the old default's ID.
+        for usedNativeSwitch in [false, true] {
+            prepare()
+            if usedNativeSwitch { defaults.removeObject(forKey: DefaultsKey.micMuteSavedVolume) }
+            HAL.uids[10] = "headset connected before upgrade"
+            HAL.mute[10] = usedNativeSwitch ? 1 : nil
+            HAL.relaunchClient()
+            release()
+            suite.expect(HAL.writes.isEmpty && HAL.levels[original] == 0.005
+                         && HAL.mute[10] == (usedNativeSwitch ? 1 : nil) && hasOnlyReminder()
+                         && !MicMuteService.shared.hasOutstandingClaims && !MicMuteService.shared.isMuted
+                         && MicMuteService.shared.inputVolumeAdjustmentLifetime != nil,
+                         "a readable replacement before upgrade keeps its gain and switch after an anonymous release")
+        }
+
+        // The ID can also be recycled after an incomplete first sweep.
+        for missing in [nil, route, uid] {
+            prepare()
+            if let missing { HAL.readFails = [missing] }
+            HAL.relaunchClient()
+            release()
+            suite.expect(HAL.writes.isEmpty && hasOnlyReminder(),
+                         "an unidentified legacy input leaves only a manual reminder and no restorable target")
+            HAL.uids[10] = "replacement on the same ID"
+            HAL.readFails = []
+            HAL.relaunchClient()
+            release()
+            MicMuteService.shared.syncWithPreferences()
+            DispatchQueue.drain()
+            suite.expect(HAL.writes.isEmpty && HAL.levels == [original: 0.005, other: 0.42]
+                         && hasOnlyReminder(),
+                         "a directly recycled ID never acquires the legacy global gain")
+        }
+
+        // Old pending data could contain an object ID and exclusions. Neither
+        // identifies the device originally muted by the pre-UID release.
+        prepare()
+        let oldRecord: [String: Any] = [
+            "observedDefaultID": 10, "excludedUIDs": ["device-20"], "gain": 0.625,
+            "checkSwitch": false, "unreadScalars": [], "residualScalars": []
+        ]
+        defaults.set(try! JSONSerialization.data(withJSONObject: oldRecord), forKey: DefaultsKey.micMutePendingLegacyControls)
+        defaults.set(false, forKey: DefaultsKey.micMuteActive)
+        defaults.set([String](), forKey: DefaultsKey.micMuteMutedDevices)
+        HAL.uids[10] = "new device"
         HAL.relaunchClient()
-        AppFeature.micMuteAvailable = false
         MicMuteService.shared.syncWithPreferences()
         DispatchQueue.drain()
-        suite.expect(MicMuteService.shared.hasOutstandingClaims && HAL.writes.isEmpty
-                     && UserDefaults.standard.stringArray(forKey: DefaultsKey.micMuteMutedDevices) == nil,
-                     "disabling with only the old active flag keeps discovery running")
-        HAL.readFails = []
-        suite.expect(HAL.notifyIfRegistered(route), "the disabled feature still receives the recovered default route")
+        suite.expect(HAL.writes.isEmpty && HAL.levels[original] == 0.005 && hasOnlyReminder()
+                     && !MicMuteService.shared.hasOutstandingClaims && HAL.listeners.isEmpty,
+                     "launching with an older ID-only record consumes it once and leaves only the reminder")
+
+        // A pending old default never prevents a current mute or restore on
+        // the known microphone. The already-muted third input stays untouched.
+        for lostUID in [true, false] {
+            prepare()
+            HAL.devices.append(40)
+            HAL.levels[HAL.key(40)] = 0
+            HAL.mute[40] = 1
+            if lostUID { HAL.readFails = [uid] } else { HAL.levels[original] = nil }
+            HAL.relaunchClient()
+            MicMuteService.shared.syncWithPreferences()
+            DispatchQueue.drain()
+            suite.expect(HAL.levels[other] == 0 && HAL.writes == [other] && hasOnlyReminder(),
+                         "a mute with missing default identity or controls still snapshots and silences the other known mic")
+            HAL.relaunchClient()
+            release()
+            suite.expect(HAL.levels[other] == 0.42 && HAL.mute[40] == 1 && HAL.writes == [other, other]
+                         && hasOnlyReminder(),
+                         "a release restores other owned inputs and keeps only a reminder for the unidentified one")
+            HAL.uids[10] = "replacement on the same ID"
+            HAL.readFails = []
+            HAL.levels[original] = 0.005
+            release()
+            suite.expect(HAL.levels[original] == 0.005 && HAL.writes == [other, other],
+                         "a replacement at the incomplete default's ID keeps its own level")
+            HAL.devices = [10, 20, 30, 40]
+            HAL.uids[30] = "old microphone"
+            HAL.levels[returned] = 0.005
+            HAL.relaunchClient()
+            release()
+            suite.expect(HAL.levels[returned] == 0.005 && hasOnlyReminder() && HAL.levels[other] == 0.42,
+                         "even a familiar UID cannot be given a gain whose original owner was never recorded")
+        }
+
+        // A previous migration that already recorded a UID and scalar
+        // remains recoverable while the original input only exposes topology.
+        prepare()
+        bindLegacyDefault(uid: "old microphone", gain: 0.625, scalars: [0])
+        HAL.levels[original] = nil
+        HAL.relaunchClient()
+        MicMuteService.shared.syncWithPreferences()
         DispatchQueue.drain()
-        suite.expect(HAL.mute == [10: 0, 20: 1] && !MicMuteService.shared.hasOutstandingClaims
-                     && !UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive),
-                     "the recovered route clears just the legacy default switch without another button press")
+        suite.expect(HAL.writes == [other] && HAL.levels[other] == 0 && pendingRecord()?["uid"] as? String == "old microphone",
+                     "an unavailable bound scalar does not block a mute on another known microphone")
+        HAL.uids[10] = "replacement on the same ID"
+        HAL.levels[original] = 0.005
+        HAL.relaunchClient()
+        release()
+        suite.expect(HAL.levels == [original: 0.005, other: 0.42] && HAL.writes == [other, other]
+                     && pendingRecord()?["uid"] as? String == "old microphone",
+                     "releasing a different microphone keeps an absent UID's bound scalar owed")
+        HAL.current = 20
+        HAL.devices.append(30)
+        HAL.uids[30] = "old microphone"
+        HAL.levels[returned] = 0
+        HAL.relaunchClient()
+        release()
+        suite.expect(HAL.levels == [original: 0.005, other: 0.42, returned: 0.625] && pendingRecord() == nil,
+                     "a returning recorded UID recovers its own scalar on a different HAL object")
+    }
+
+    /// On-disk format of a previous migration that had already recorded
+    /// the original default's UID and its still-unread controls.
+    private static func bindLegacyDefault(uid: String = "device-10", gain: Double?, scalars: [UInt32], checkSwitch: Bool = false) {
+        var record: [String: Any] = ["uid": uid, "checkSwitch": checkSwitch, "unreadScalars": scalars,
+                                     "residualScalars": []]
+        if let first = scalars.first { record["firstScalar"] = first }
+        if let gain { record["gain"] = gain }
+        UserDefaults.standard.set(try! JSONSerialization.data(withJSONObject: record), forKey: DefaultsKey.micMutePendingLegacyControls)
+        UserDefaults.standard.set([uid], forKey: DefaultsKey.micMuteMutedDevices)
     }
 
     private static func runLegacyReadFailureTests(_ suite: TestSuite) {
@@ -2612,7 +2798,7 @@ enum MixerInputVolumeContract {
         HAL.reset()
         HAL.levels = [master: 0, left: 0]
         HAL.readFails = [master]
-        UserDefaults.standard.set(0.625, forKey: DefaultsKey.micMuteSavedVolume)
+        bindLegacyDefault(gain: 0.625, scalars: [0, 1])
         UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteActive)
         HAL.relaunchClient()
         MicMuteService.shared.setMuted(false)
@@ -2638,7 +2824,7 @@ enum MixerInputVolumeContract {
         HAL.levels = [left: 0, right: 0]
         HAL.readFails = [native, right]
         UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteActive)
-        UserDefaults.standard.set(0.625, forKey: DefaultsKey.micMuteSavedVolume)
+        bindLegacyDefault(gain: 0.625, scalars: [1, 2], checkSwitch: true)
         HAL.relaunchClient()
         MicMuteService.shared.setMuted(false)
         DispatchQueue.drain()
@@ -2658,8 +2844,8 @@ enum MixerInputVolumeContract {
                      "the pending gain restores independently after native switch and stereo read failures")
 
         for reapply in [false, true] {
-            // The old flag had no UID. A failed read cannot retire the gain
-            // or bind it to whichever microphone next becomes the default.
+            // An unresolved bound scalar keeps both its UID and its target
+            // across a failed read, a relaunch, and a change of default.
             for (stored, recovered, expected): (Double?, Float, Float) in [
                 (0.625, 0.005, 0.625), (0.625, 0.375, 0.375), (nil, 0, 0.75), (nil, 0.005, 0.005)
             ] {
@@ -2667,7 +2853,7 @@ enum MixerInputVolumeContract {
                 HAL.devices = [10, 20]
                 HAL.levels = [master: recovered, other: 0.005]
                 HAL.readFails = [master]
-                if let stored { UserDefaults.standard.set(stored, forKey: DefaultsKey.micMuteSavedVolume) }
+                bindLegacyDefault(gain: stored, scalars: [0])
                 UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteActive)
                 HAL.relaunchClient()
                 if reapply { MicMuteService.shared.syncWithPreferences() } else { MicMuteService.shared.setMuted(false) }
@@ -2706,6 +2892,110 @@ enum MixerInputVolumeContract {
             suite.expect(HAL.levels == [left: 0.35, right: 0.8] && !MicMuteService.shared.hasOutstandingClaims,
                          "the returning stereo channel restores without undoing a new level on its released sibling")
         }
+    }
+
+    private static func runObservedChannelRestoreTests(_ suite: TestSuite) {
+        let master = HAL.key(10)
+        let third = HAL.key(10, 3)
+        let other = HAL.key(20)
+        for (readOnly, accessUnknown) in [(true, false), (true, true), (false, false)] {
+            HAL.reset()
+            HAL.devices = [10, 20]
+            HAL.streamChannels[10] = [3]
+            HAL.levels = [master: 0.625, third: 0.25, other: 0.875]
+            if readOnly { HAL.readOnly = [third] }
+            HAL.beforeControlWrite = { key, target in
+                if key == master && HAL.levels[third] != nil { HAL.levels[third] = Float(target) }
+            }
+            MicMuteService.shared.setMuted(true)
+            DispatchQueue.drain()
+            let saved = UserDefaults.standard.dictionary(forKey: DefaultsKey.micMuteSavedControls) as? [String: [String: Double]]
+            suite.expect(HAL.levels[third] == 0 && saved?["device-10"]?["\(third.s):3"] == (readOnly ? nil : 0.25),
+                         "the master can silence a meter without claiming it as a writable channel")
+            HAL.levels[master] = nil
+            if accessUnknown { HAL.settableReadFails = [third] }
+            MicMuteService.shared.setMuted(false)
+            DispatchQueue.drain()
+            suite.expect(HAL.levels[third] == (readOnly ? 0 : 0.25) && HAL.levels[other] == 0.875
+                         && MicMuteService.shared.hasOutstandingClaims,
+                         "the missing master remains owed after independent controls are released")
+            HAL.streamChannels[10] = [2]
+            HAL.levels[third] = nil
+            HAL.settableReadFails = []
+            HAL.levels[master] = 0
+            HAL.relaunchClient()
+            HAL.writes = []
+            MicMuteService.shared.syncWithPreferences()
+            DispatchQueue.drain()
+            suite.expect(HAL.writes == (readOnly ? [master] : []) && HAL.levels[master] == (readOnly ? 0.625 : 0)
+                         && MicMuteService.shared.hasOutstandingClaims == !readOnly,
+                         "a missing read-only meter permits master restore while a released writable channel defers it")
+            if !readOnly {
+                HAL.levels[third] = 0.375
+                MicMuteService.shared.syncWithPreferences()
+                DispatchQueue.drain()
+                suite.expect(HAL.writes == [master, third] && HAL.levels[master] == 0.625 && HAL.levels[third] == 0.375
+                             && !MicMuteService.shared.hasOutstandingClaims,
+                             "the returning writable channel keeps its live gain across the driver's coupled master restore")
+            }
+        }
+    }
+
+    private static func runManualRestoreAcknowledgementTests(_ suite: TestSuite) {
+        let defaults = UserDefaults.standard
+        let gain = HAL.key(10)
+        for absentClaim in [false, true] {
+            HAL.reset()
+            HAL.levels[gain] = 0.005
+            // An unbound migration and a separate, known headset that may
+            // still be unplugged when the user checks the original microphone.
+            let oldRecord: [String: Any] = ["gain": 0.625, "checkSwitch": false,
+                                            "unreadScalars": [], "residualScalars": []]
+            defaults.set(try! JSONSerialization.data(withJSONObject: oldRecord), forKey: DefaultsKey.micMutePendingLegacyControls)
+            defaults.set(absentClaim ? ["device-20"] : [], forKey: DefaultsKey.micMuteMutedDevices)
+            if absentClaim {
+                defaults.set(["device-20": ["\(gain.s):0": 0.875]], forKey: DefaultsKey.micMuteSavedControls)
+            }
+            HAL.relaunchClient()
+            MicMuteService.shared.setMuted(false)
+            DispatchQueue.drain()
+            suite.expect(MicMuteService.shared.warning == .manualRestore && !MicMuteService.shared.isMuted
+                         && QuickToolHUD.messages.last == "check original microphone" && QuickToolHUD.showedFullMessage
+                         && defaults.data(forKey: DefaultsKey.micMutePendingLegacyControls) == nil
+                         && defaults.bool(forKey: DefaultsKey.micMuteManualCheckNeeded)
+                         && MicMuteService.shared.inputVolumeAdjustmentLifetime != nil && HAL.writes.isEmpty,
+                         "manual recovery names the uncertainty and leaves the user's input controls available")
+            HAL.relaunchClient()
+            suite.expect(MicMuteService.shared.warning == .manualRestore,
+                         "manual recovery is visible after relaunch without a device notification")
+            MicMuteService.shared.acknowledgeManualRestore()
+            DispatchQueue.drain()
+            suite.expect(!defaults.bool(forKey: DefaultsKey.micMuteManualCheckNeeded)
+                         && MicMuteService.shared.warning == (absentClaim ? .restoreUnconfirmed : nil)
+                         && HAL.writes.isEmpty && HAL.levels[gain] == 0.005,
+                         "acknowledging the old input clears only its warning without adjusting any hardware")
+            HAL.devices.append(20)
+            let other = HAL.key(20)
+            HAL.levels[other] = 0
+            HAL.relaunchClient()
+            MicMuteService.shared.syncWithPreferences()
+            DispatchQueue.drain()
+            suite.expect(HAL.levels == [gain: 0.005, other: absentClaim ? 0.875 : 0]
+                         && HAL.writes == (absentClaim ? [other] : []) && MicMuteService.shared.warning == nil,
+                         "only the independently recorded UID restores after the manual check")
+        }
+
+        HAL.reset()
+        defaults.set(true, forKey: DefaultsKey.micMuteActive)
+        HAL.mute[10] = 1
+        QuickToolHUD.messages = []
+        HAL.relaunchClient()
+        MicMuteService.shared.unmuteForTeardown()
+        DispatchQueue.drain()
+        suite.expect(MicMuteService.shared.warning == .manualRestore && QuickToolHUD.messages == ["check original microphone"]
+                     && QuickToolHUD.showedFullMessage && MicMuteService.shared.inputVolumeAdjustmentLifetime != nil
+                     && HAL.mute[10] == 1 && HAL.writes.isEmpty && HAL.listeners.isEmpty,
+                     "teardown releases the mixer and reports the unidentified input without opening its switch")
     }
 
     private static func runProtectedChannelRestoreTests(_ suite: TestSuite) {
@@ -5077,37 +5367,34 @@ enum MixerInputVolumeContract {
             HAL.levels[secondInput] = 0.75
             notifyRegistered(devicesChanged)
             let service = MicMuteService.shared
-            let observedChange: UInt64? = service.observedDeviceListChange
+            let oldGain = HAL.pendingNotification(for: microphone)
             HAL.writeFails = [microphone, secondInput]
             service.setMuted(false)
             DispatchQueue.drain()
-            suite.expect(service.isMuted && service.hasOutstandingClaims && HAL.levels[microphone] == 0
+            suite.expect(!service.isMuted && service.hasOutstandingClaims && HAL.levels[microphone] == 0
                          && HAL.levels[secondInput] == 0 && QuickToolHUD.messages == ["unmute partial"],
-                         "a wholly rejected manual restore leaves both inputs muted")
-            suite.expect(observedChange != nil && service.observedDeviceListChange == observedChange,
-                         "a rejected restore preserves the last device-list change of the active mute")
-            HAL.writeFails = []
+                         "a wholly rejected manual restore leaves both physical inputs muted with release pending")
+            suite.expect(oldGain != nil && service.observedDeviceListChange == nil,
+                         "an explicit release retires the active mute's call-following baseline")
             HAL.writes = []
             QuickToolHUD.messages = []
             record()
+            HAL.levels[microphone] = 0.8
             if reconnect {
-                let oldGain = HAL.pendingNotification(for: microphone)
-                suite.expect(oldGain != nil, "the headset still has its original listener after the rejected restore")
                 HAL.dropListeners(forDevice: 10)
                 HAL.devices.append(40)
-                HAL.levels[microphone] = 0.8
                 suite.expect(HAL.notifyIfRegistered(devicesChanged), "one device-list event announces the arrival")
-                oldGain?()
-                DispatchQueue.drain()
-                suite.expect(service.isMuted && HAL.levels[microphone] == 0 && HAL.levels[secondInput] == 0
-                             && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
-                             "the old headset callback after a rejected restore cannot release either input")
             }
-            HAL.levels[microphone] = 0.7
-            notifyRegistered(microphone)
-            suite.expect(!service.isMuted && HAL.levels[microphone] == 0.5 && HAL.levels[secondInput] == 0.75
-                         && QuickToolHUD.messages == ["unmuted"],
-                         "a call's next unmute restores both inputs after a failed manual restoration")
+            oldGain?()
+            DispatchQueue.drain()
+            suite.expect(!service.wantsMute && HAL.levels[microphone] == 0.8 && HAL.levels[secondInput] == 0
+                         && QuickToolHUD.messages.isEmpty,
+                         "a delayed headset event during a call cannot reassert mute after a refused manual release")
+            HAL.writeFails = []
+            notifyRegistered(devicesChanged)
+            suite.expect(!service.isMuted && !service.hasOutstandingClaims && HAL.levels[microphone] == 0.5
+                         && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages.isEmpty,
+                         "recovery retries the manual release of both original gains while the call records")
         }
     }
 }

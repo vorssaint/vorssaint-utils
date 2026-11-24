@@ -13,10 +13,11 @@ enum CommandBarMicMuteTests {
     }
 
     final class MicMuteService {
+        struct Warning { let message: String }
         static let shared = MicMuteService()
         @Published var isMuted = false
-        @Published var hasUnconfirmedInputs = false
-        var controlSymbol: String { hasUnconfirmedInputs ? "exclamationmark.triangle" : "mic" }
+        @Published var warning: Warning?
+        var controlSymbol: String { warning != nil ? "exclamationmark.triangle" : "mic" }
         func toggle() {}
     }
 
@@ -67,7 +68,7 @@ enum CommandBarMicMuteTests {
     static func run(_ suite: TestSuite) {
         let mic = MicMuteService.shared
         mic.isMuted = false
-        mic.hasUnconfirmedInputs = false
+        mic.warning = nil
         let bar = Bar()
         bar.presentationLifecycle.beginHome(bar.presentationID)
         bar.presentationLifecycle.completeHomeHydration(bar.presentationID, isVisible: true)
@@ -83,7 +84,7 @@ enum CommandBarMicMuteTests {
         suite.expect(bar.catalog.first?.title == Strings.enUS.micUnmuteName,
                      "an open command bar reflects a microphone toggle elsewhere")
         let active = bar.refreshes
-        mic.hasUnconfirmedInputs = true
+        mic.warning = .init(message: Strings.enUS.micMutePartialHUD)
         waitForRefresh(after: active)
         suite.expect(bar.refreshes > active && bar.catalog.first.map(bar.accessibilityLabel)?.contains(Strings.enUS.micMutePartialHUD) == true,
                      "losing coverage without toggling refreshes the visible microphone row")
@@ -95,13 +96,20 @@ enum CommandBarMicMuteTests {
         suite.expect(browseLabel.contains(Strings.enUS.micMutePartialHUD) && browseLabel.contains(bar.text.stateOn),
                      "the browsed action announces both the active feature and the unconfirmed microphone")
         let partial = bar.refreshes
-        mic.hasUnconfirmedInputs = false
+        mic.warning = nil
         waitForRefresh(after: partial)
         suite.expect(bar.refreshes > partial && bar.catalog.first.map(bar.accessibilityLabel)?.contains(Strings.enUS.micMutePartialHUD) == false,
                      "the open bar clears a stale warning when all inputs are confirmed")
+        let confirmed = bar.refreshes
+        mic.isMuted = false
+        mic.warning = .init(message: Strings.enUS.micManualRestore)
+        waitForRefresh(after: confirmed)
+        suite.expect(bar.catalog.first?.isActive == false
+                     && bar.catalog.first.map(bar.accessibilityLabel)?.contains(Strings.enUS.micManualRestore) == true,
+                     "the open bar announces manual recovery while the Mic Mute action is off")
         bar.isVisible = false
         let count = bar.refreshes
-        mic.isMuted = false
+        mic.warning = nil
         RunLoop.current.run(until: Date().addingTimeInterval(0.07))
         suite.expect(bar.refreshes == count, "a closed bar does not refresh its rows for a microphone change")
     }

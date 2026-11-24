@@ -243,7 +243,7 @@ struct QuickLauncherView: View {
         let index = launcher.visibleItems.firstIndex(of: item)
         let isSelected = !launcher.isEditing && index != nil && index == launcher.selectedIndex
         let isHovered = hoveredItem == item
-        let micWarning = item == .micMute && micMute.hasUnconfirmedInputs ? l10n.s.micMutePartialHUD : ""
+        let micWarning = item == .micMute ? (micMute.warning?.message ?? "") : ""
 
         Button {
             if launcher.isEditing {

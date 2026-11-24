@@ -369,8 +369,8 @@ struct MixerSection: View {
                 inputMessage(String(format: l10n.s.mixerInputErrorFormat, lastError),
                              systemImage: "exclamationmark.triangle")
             }
-            if micMute.hasUnconfirmedInputs {
-                inputMessage(l10n.s.micMutePartialHUD, systemImage: "exclamationmark.triangle")
+            if let warning = micMute.warning {
+                inputMessage(warning.message, systemImage: "exclamationmark.triangle")
             }
         }
     }

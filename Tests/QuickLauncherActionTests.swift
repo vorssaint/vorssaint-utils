@@ -32,7 +32,7 @@ enum QuickLauncherContract {
     struct State {
         var isActive = false
         var isMuted = false
-        var hasUnconfirmedInputs = false
+        var warning: String?
         var isRecording = false
     }
 
@@ -153,7 +153,7 @@ enum QuickLauncherContract {
         var tile = Tile()
         tile.micMute.isMuted = true
         suite.expect(tile.display(.micMute) == ("mic.slash.fill", true), "the launcher shows a confirmed active mute")
-        tile.micMute.hasUnconfirmedInputs = true
+        tile.micMute.warning = "Partial mute"
         suite.expect(tile.display(.micMute) == ("exclamationmark.triangle", true),
                      "the launcher warns about incomplete confirmation while keeping the mute action active")
         suite.expect(tile.display(.screenRecorder) == ("record.circle", false),

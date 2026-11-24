@@ -1352,7 +1352,7 @@ final class CommandBarService: ObservableObject {
         if isVisible && AppFeature.micMute.isAvailable {
             if micMuteChanges == nil {
                 let mic = MicMuteService.shared
-                micMuteChanges = mic.$isMuted.combineLatest(mic.$hasUnconfirmedInputs)
+                micMuteChanges = mic.$isMuted.combineLatest(mic.$warning)
                     .dropFirst()
                     .sink { [weak self] _ in
                         guard let self else { return }

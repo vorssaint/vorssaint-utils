@@ -180,7 +180,7 @@ final class StatusItemController {
             .store(in: &cancellables)
 
         let micMute = MicMuteService.shared
-        micMute.$isMuted.combineLatest(micMute.$hasUnconfirmedInputs)
+        micMute.$isMuted.combineLatest(micMute.$warning)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.refresh() }
             .store(in: &cancellables)
@@ -579,8 +579,8 @@ final class StatusItemController {
         } else {
             toolTip = strings.statusIdleTooltip
         }
-        if currentMicBadgeActive && MicMuteService.shared.hasUnconfirmedInputs {
-            toolTip += "\n" + strings.micMutePartialHUD
+        if UserDefaults.standard.bool(forKey: DefaultsKey.micMuteMenuBarIndicator), let warning = MicMuteService.shared.warning {
+            toolTip += "\n" + warning.message
         }
         if button.toolTip != toolTip {
             button.toolTip = toolTip

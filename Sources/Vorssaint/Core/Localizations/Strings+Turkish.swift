@@ -206,6 +206,8 @@ extension Strings {
         micUnmutedHUD: "Mikrofon sessize alma kapalı",
         micMutePartialHUD: "Tüm mikrofonların sessize alındığı doğrulanamadı",
         micUnmutePartialHUD: "Tüm mikrofonların ayarlarının geri yüklendiği doğrulanamadı",
+        micManualRestore: "Önceki mikrofon tanımlanamadı. Mikrofonun sessiz düğmesini ve mikserdeki veya Ses ayarlarındaki giriş düzeyini kontrol edin.",
+        micManualRestoreChecked: "Mikrofonu kontrol ettim",
         micMuteMenuBarToggle: "Özellik açıkken menü çubuğunda göster",
         micMuteMenuBarCaption: "Menü çubuğundaki kırmızı mikrofon, özelliğin açık olduğunu gösterir. Tüm uygulamaların ses kaydını durdurduğunu garanti etmez.",
         pastePlainName: "Düz metin olarak yapıştır",

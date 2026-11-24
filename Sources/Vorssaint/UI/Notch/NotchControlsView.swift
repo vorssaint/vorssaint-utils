@@ -563,7 +563,7 @@ private struct NotchMicButton: View {
         NotchActionTile(symbol: service.controlSymbol,
                         title: service.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName,
                         active: service.isMuted, accent: .alert, action: service.toggle)
-            .accessibilityValue(service.hasUnconfirmedInputs ? l10n.s.micMutePartialHUD : "")
+            .accessibilityValue(service.warning?.message ?? "")
     }
 }
 

@@ -136,7 +136,7 @@ struct NotchQuickAccessView: View {
         default: break
         }
         let title = isBack ? l10n.s.obBack : button.label.isEmpty ? actionTitle : button.label
-        let warning = action == .control(.microphone) && microphone.hasUnconfirmedInputs ? l10n.s.micMutePartialHUD : nil
+        let warning = action == .control(.microphone) ? microphone.warning?.message : nil
         return Button {
             service.activateQuickAction(action)
         } label: {

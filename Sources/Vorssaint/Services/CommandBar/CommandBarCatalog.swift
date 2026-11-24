@@ -551,7 +551,7 @@ enum CommandBarCatalog {
                 icon: .symbol(micMute.controlSymbol),
                 shortcut: roleShortcut(.micMute),
                 isActive: micMute.isMuted,
-                trouble: micMute.hasUnconfirmedInputs ? .warning(s.micMutePartialHUD) : nil,
+                trouble: micMute.warning.map { .warning($0.message) },
                 run: { _ in MicMuteService.shared.toggle() }))
         }
 

@@ -370,6 +370,8 @@ struct Strings {
     let micUnmutedHUD: String
     let micMutePartialHUD: String
     let micUnmutePartialHUD: String
+    let micManualRestore: String
+    let micManualRestoreChecked: String
     let micMuteMenuBarToggle: String
     let micMuteMenuBarCaption: String
     let pastePlainName: String
@@ -1543,6 +1545,8 @@ extension Strings {
         micUnmutedHUD: "Silenciamento desativado",
         micMutePartialHUD: "Não foi possível confirmar o silenciamento em todos os microfones",
         micUnmutePartialHUD: "Não foi possível confirmar a restauração de todos os microfones",
+        micManualRestore: "Não foi possível identificar o microfone anterior. Confira se ele está mudo e verifique o volume no mixer ou nos ajustes de Som.",
+        micManualRestoreChecked: "Já conferi o microfone",
         micMuteMenuBarToggle: "Mostrar na barra de menus enquanto ativo",
         micMuteMenuBarCaption: "O microfone vermelho na barra de menus indica que o recurso está ativo. Isso não garante que todos os apps deixem de captar áudio.",
         pastePlainName: "Colar como texto puro",
@@ -2676,6 +2680,8 @@ extension Strings {
         micUnmutedHUD: "Mic Mute off",
         micMutePartialHUD: "Couldn’t confirm mute on every microphone",
         micUnmutePartialHUD: "Couldn’t confirm every microphone was restored",
+        micManualRestore: "Previous microphone unidentified. Check its mute switch and its input level in the mixer or Sound settings.",
+        micManualRestoreChecked: "I’ve checked the microphone",
         micMuteMenuBarToggle: "Show in the menu bar while Mic Mute is on",
         micMuteMenuBarCaption: "The red mic in the menu bar indicates that Mic Mute is on. It does not guarantee that all apps stop capturing audio.",
         pastePlainName: "Paste as plain text",

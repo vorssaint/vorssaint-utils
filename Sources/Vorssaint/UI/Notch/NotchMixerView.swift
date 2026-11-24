@@ -264,8 +264,8 @@ private struct NotchMicrophoneFader: View {
                 }
                 .buttonStyle(NotchButtonStyle(cornerRadius: 14))
                 .accessibilityLabel(micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName)
-                .accessibilityValue(micMute.hasUnconfirmedInputs ? l10n.s.micMutePartialHUD : "")
-                .help(micMute.hasUnconfirmedInputs ? l10n.s.micMutePartialHUD : l10n.s.mixerInputTitle)
+                .accessibilityValue(micMute.warning?.message ?? "")
+                .help(micMute.warning?.message ?? l10n.s.mixerInputTitle)
             } else {
                 icon(input.inputVolume == 0 ? "mic.slash.fill" : "mic.fill").foregroundStyle(.secondary)
                     .accessibilityHidden(true)
@@ -464,8 +464,8 @@ private struct NotchMixerOptions: View {
         } else if let lastError = input.lastError {
             message(String(format: l10n.s.mixerInputErrorFormat, lastError), systemImage: "exclamationmark.triangle")
         }
-        if micMute.hasUnconfirmedInputs {
-            message(l10n.s.micMutePartialHUD, systemImage: "exclamationmark.triangle")
+        if let warning = micMute.warning {
+            message(warning.message, systemImage: "exclamationmark.triangle")
         }
     }
 

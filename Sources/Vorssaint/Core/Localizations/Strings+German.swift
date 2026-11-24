@@ -206,6 +206,8 @@ extension Strings {
         micUnmutedHUD: "Mikrofon-Stummschaltung aus",
         micMutePartialHUD: "Stummschaltung nicht für alle Mikrofone bestätigt",
         micUnmutePartialHUD: "Wiederherstellung nicht für alle Mikrofone bestätigt",
+        micManualRestore: "Das vorherige Mikrofon ist unbekannt. Prüfe seinen Stummschalter und den Eingangspegel im Mixer oder in den Toneinstellungen.",
+        micManualRestoreChecked: "Mikrofon überprüft",
         micMuteMenuBarToggle: "Bei aktiver Funktion in der Menüleiste anzeigen",
         micMuteMenuBarCaption: "Das rote Mikrofon in der Menüleiste zeigt an, dass die Funktion aktiv ist. Es garantiert nicht, dass alle Apps die Audioaufnahme beenden.",
         pastePlainName: "Als reinen Text einsetzen",
