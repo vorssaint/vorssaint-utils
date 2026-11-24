@@ -118,6 +118,9 @@ final class AgentUsageService: ObservableObject {
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
     private var claudeAccountLimits: AgentLimits?
+    /// When the signed-in Claude account last changed. Readings older than this belong to
+    /// the account before it: the status line and the desktop app's history carry no account.
+    private var claudeIdentityChangedAt = Date.distantPast
     private var antigravityAccountLimits: AgentLimits?
     private var kiroAccountLimits: AgentLimits?
     private var kiroPlan: AgentPlan?
@@ -895,9 +898,17 @@ final class AgentUsageService: ObservableObject {
         let reading = readerClaudeProfile.read(home: home)
         if reading.identity != claudeIdentity {
             claudeAccountLimits = nil
+            claudeIdentityChangedAt = Date()
             store.clearLimits(.claude)
             previousLimits[.claude] = nil
             warned = warned.filter { $0.value.provider != .claude }
+            // Ask the new account now, not after the wait the old one had earned.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.running else { return }
+                self.claudeAccountAttempted = .distantPast
+                self.claudeAccountFailure = nil
+                self.refreshClaudeLimits(pageShows: true)
+            }
         }
         guard let identity = reading.identity else {
             claudePlan = nil
@@ -953,13 +964,20 @@ final class AgentUsageService: ObservableObject {
         // the latest the session can end, so trading places with the exact
         // one at each save the app makes would read as a new window and warn
         // again; newer wins once the account reading is old.
+        // Readings from before the account changed belong to another account.
+        let changed = claudeIdentityChangedAt
         let recent = account.flatMap { now.timeIntervalSince($0.observedAt) < AgentClaudeAppUsage.freshness ? $0 : nil }
         // Claude Code reports the plan's allowances to its own status line with
         // every refresh: the account's own numbers, a minute old at most while
-        // a session is open. When that is fresh it is the one to show.
+        // a session is open.
         let live = ClaudeStatus.latest(now: now).flatMap { $0.limits(now: now) }
-            .flatMap { now.timeIntervalSince($0.observedAt) < AgentClaudeAppUsage.freshness ? $0 : nil }
-        if let latest = live ?? recent ?? [desktop, account].compactMap({ $0 }).max(by: { $0.observedAt < $1.observedAt }) {
+            .flatMap { now.timeIntervalSince($0.observedAt) < AgentClaudeAppUsage.freshness && $0.observedAt >= changed ? $0 : nil }
+        let desktopNow = desktop.flatMap { $0.observedAt >= changed ? $0 : nil }
+        // The newest reading wins. The status line used to outrank the account's own
+        // check for half an hour, which kept an old figure on screen after the account
+        // had answered with a newer one.
+        if let latest = [live, recent, desktopNow, account].compactMap({ $0 })
+            .max(by: { $0.observedAt < $1.observedAt }) {
             store.setLimits(latest)
         } else {
             store.clearLimits(.claude)
@@ -1024,8 +1042,8 @@ final class AgentUsageService: ObservableObject {
               NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows) else { return false }
         // An agent working with the closed island reading its limit is on screen as much as
         // the page is, so it follows the page's pace rather than the background one.
-        let stripShowsLimit = NotchAgentSupport.showsLiveActivity() && NotchAgentSupport.readout() == .limit
-            && !snapshot.live.isEmpty
+        let stripShowsLimit = (NotchAgentSupport.showsLiveActivity() && NotchAgentSupport.readout() == .limit
+            && !snapshot.live.isEmpty) || NotchSupport.idleContent() == .agents
         return now.timeIntervalSince(claudeAccountAttempted) >= AgentClaudeServer.interval(
             after: claudeAccountFailure, repeated: claudeAccountUnreachable,
             pageVisible: pageVisible || stripShowsLimit)
