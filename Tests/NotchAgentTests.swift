@@ -40,6 +40,7 @@ enum NotchAgentTests {
         AgentClaudeServerTests.run(suite)
         ClaudeAccountProfileTests.run(suite)
         CodexAccountLimitsTests.run(suite)
+        antigravity(suite)
         preferences(suite)
         limitUse(suite)
         agentDefaults(suite)
@@ -2947,6 +2948,28 @@ enum NotchAgentTests {
         return (try? JSONSerialization.data(withJSONObject: ["version": version, "samples": entries])) ?? Data()
     }
 
+    private static func antigravity(_ suite: TestSuite) {
+        let now = ISO8601DateFormatter().date(from: "2026-11-24T12:00:00Z")!
+        let summary = Data(#"""
+            {"response":{"groups":[
+              {"displayName":"Gemini Models","buckets":[
+                {"bucketId":"gemini-weekly","window":"weekly","remainingFraction":0.75,"resetTime":"2026-12-01T11:00:00Z"},
+                {"bucketId":"gemini-5h","window":"5h","resetTime":"2026-11-24T16:00:00Z"}]},
+              {"displayName":"Claude and GPT models","buckets":[
+                {"bucketId":"3p-5h","window":"5h","remainingFraction":0.5,"resetTime":"2026-11-24T17:00:00Z"}]}]}}
+            """#.utf8)
+        let limits = AgentAntigravityQuota.limits(summary, observed: now)
+        let weekly = limits?.windows.first { $0.kind == .weekly }, session = limits?.windows.first { $0.kind == .session }
+        suite.expect(limits?.provider == .antigravity && limits?.windows.count == 2
+                        && weekly?.usedPercent == 25 && weekly?.minutes == 10_080
+                        && session?.usedPercent == 100 && session?.minutes == 300 && session?.scope == nil,
+                     "Antigravity shows Gemini's five-hour and weekly buckets, a missing fraction is exhausted, and Claude is left out")
+        suite.expect(AgentAntigravityQuota.limits(Data(#"{"response":{"groups":[{"buckets":[{"bucketId":"3p-weekly","window":"weekly"}]}]}}"#.utf8),
+                                                  observed: now) == nil
+                        && AgentAntigravityQuota.limits(Data("{}".utf8), observed: now) == nil,
+                     "no Gemini quota is no reading")
+    }
+
     private static func claudeApp(_ suite: TestSuite) {
         let at = { (time: String) in AgentTimestamp.parse(time)! }
         let file = history([("2026-09-23T14:20:00Z", "o", ["fh": 6, "sd": 42, "cw": 3]),
@@ -3275,11 +3298,11 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor, .antigravity], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .cursor], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .cursor, .antigravity], "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor], "Copilot keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor, .antigravity], "Copilot keeps its own preference")
         var installed = AgentUsageSnapshot(loaded: true)
         installed.cursorProjectsFound = true
         suite.expect(NotchAgentSupport.pageProviders(snapshot: installed, hasCodexAccounts: false, hasClaudeAccount: false,
@@ -3290,7 +3313,7 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.pageProviders(snapshot: installed, hasCodexAccounts: false, hasClaudeAccount: true,
                                                      in: defaults) == [.claude],
                      "an existing directory or prior activity cannot bring a disabled Cursor back onto the page")
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .antigravity], "multiple agents can be left out")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
         defaults.set(NotchAgentLimitFocus.weekly.rawValue, forKey: DefaultsKey.notchAgentsLimitFocus)

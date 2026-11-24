@@ -28,6 +28,13 @@ extension AgentProvider {
         case .opencode: OpenCodeReader()
         case .copilot: CopilotReader()
         case .cursor: CursorReader()
+        case .antigravity: NoLogReader()
         }
     }
+}
+
+/// Antigravity keeps no usage log; only its quota is read, from its server.
+private struct NoLogReader: AgentHarnessReader {
+    var provider: AgentProvider { .antigravity }
+    func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] { [] }
 }

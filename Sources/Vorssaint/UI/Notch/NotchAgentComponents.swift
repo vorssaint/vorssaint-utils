@@ -13,6 +13,7 @@ extension AgentProvider {
         case .opencode: return Color(red: 0.06, green: 0.73, blue: 0.51)
         case .copilot: return Color(red: 0.30, green: 0.78, blue: 0.68)
         case .cursor: return Color(red: 0.42, green: 0.48, blue: 0.78)
+        case .antigravity: return Color(red: 0.26, green: 0.52, blue: 0.96)
         }
     }
 }
@@ -377,6 +378,7 @@ private extension AgentProvider {
         case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
         case .copilot: return ["com.github.githubapp"]
         case .cursor: return ["com.todesktop.230313mzl4w4u92"]
+        case .antigravity: return ["com.google.antigravity"]
         }
     }
 
@@ -393,6 +395,7 @@ private extension AgentProvider {
         case .opencode: return []
         case .copilot: return []
         case .cursor: return []
+        case .antigravity: return []
         }
     }
 }

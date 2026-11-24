@@ -80,6 +80,8 @@ final class AgentUsageService: ObservableObject {
     private var online = true
     /// The AI page is on the island, which asks Claude Code more often.
     private var pageVisible = false
+    private var antigravityTask: URLSessionDataTask?
+    private var antigravityAttempted = Date.distantPast
 
     // Confined to `queue`.
     private var readerSession = -1
@@ -147,6 +149,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        refreshAntigravityLimits()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -160,6 +163,7 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
+        cancelAntigravityLimits()
         timer?.invalidate()
         timer = nil
         queue.async { [self] in
@@ -194,6 +198,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         running = false
         cancelClaudeLimits()
+        cancelAntigravityLimits()
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
         claudeAccountUnreachable = 0
@@ -255,6 +260,7 @@ final class AgentUsageService: ObservableObject {
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
+        refreshAntigravityLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudePlan()
@@ -647,6 +653,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         syncPrices()
         refreshClaudeLimits()
+        refreshAntigravityLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -821,6 +828,45 @@ final class AgentUsageService: ObservableObject {
         claudeIdentity = identity
         claudeOrganization = identity.organization
         claudePlan = reading.plan
+    }
+
+    /// Asks a running Antigravity for its Gemini quota, at most once a
+    /// minute. A closed Antigravity leaves the last reading, which dims as it ages.
+    private func refreshAntigravityLimits(now: Date = Date()) {
+        guard running, !paused, providers.contains(.antigravity), antigravityTask == nil,
+              now.timeIntervalSince(antigravityAttempted) >= AgentAntigravityQuota.interval else { return }
+        antigravityAttempted = now
+        let home = home
+        let session = self.session
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let endpoint = AgentAntigravityQuota.endpoint(home: home) else { return }
+            let task = AgentAntigravityQuota.session.dataTask(with: AgentAntigravityQuota.request(endpoint)) { data, response, _ in
+                let reading = (response as? HTTPURLResponse)?.statusCode == 200
+                    ? data.flatMap { AgentAntigravityQuota.limits($0, observed: Date()) } : nil
+                DispatchQueue.main.async {
+                    guard let self, self.session == session else { return }
+                    self.antigravityTask = nil
+                    guard let reading else { return }
+                    self.queue.async {
+                        guard self.readerSession >= 0, self.enabled.contains(.antigravity) else { return }
+                        self.store.setLimits(reading)
+                        self.checkLimits()
+                        self.schedulePublish()
+                    }
+                }
+            }
+            DispatchQueue.main.async {
+                guard let self, self.session == session, self.running, !self.paused else { return }
+                self.antigravityTask = task
+                task.resume()
+            }
+        }
+    }
+
+    private func cancelAntigravityLimits() {
+        antigravityTask?.cancel()
+        antigravityTask = nil
+        antigravityAttempted = .distantPast
     }
 
     /// Reads the limits the Claude app saved when the file changes, and
