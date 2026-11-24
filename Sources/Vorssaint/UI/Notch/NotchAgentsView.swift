@@ -722,7 +722,7 @@ private struct NotchAgentTrendCard: View {
         if let hovered, let bucket = buckets.first(where: { $0.start == hovered }) {
             // A pointed-at bar reads its tokens beside its cost.
             let total = bucket.total
-            let partial = byCost && total.hasPartialCost
+            let partial = byCost && snapshot.hasPartialCost(total, byProvider: bucket.byProvider)
             let tokens = text.tokens(AgentFormat.tokens(total.tokens.total))
             let value = byCost ? AgentFormat.cost(total.cost, partial: partial) + " · " + tokens : tokens
             return (label(bucket.start, long: true) + " · " + value, partial)

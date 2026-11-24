@@ -154,6 +154,23 @@ enum NotchAgentLimitReadingTests {
         suite.expect(announces(activity, minimum) && announces(activity, day + " · " + AgentFormat.cost(2)),
                      "Activity announces the map's minimum while keeping its fully priced busiest day exact")
         let tokens = text.tokens(AgentFormat.tokens(100))
+        let missingToday = CursorTranscriptActivity(project: metered.project,
+                                                    minutes: IndexSet(integer: Int(today.timeIntervalSince1970 / 60)))
+        let mixedToday = snapshot(records, missing: [missingToday])
+        for period in AgentPeriod.allCases {
+            let label = period == .today ? today.formatted(.dateTime.hour().locale(locale)) : day
+            for (sample, reading) in [
+                (cursorHistory, "— · " + text.tokens(AgentFormat.tokens(0)) + " · " + text.partialCostNote),
+                (measuredZero, AgentFormat.cost(0) + " · " + tokens),
+                (mixedToday, "≥ " + AgentFormat.cost(2) + " · " + tokens + " · " + text.partialCostNote)
+            ] {
+                let providers = AgentProvider.allCases.filter(sample.seen.contains)
+                let trend = nodes(NotchAgentTrendCard(snapshot: sample, providers: providers, period: period,
+                                                      text: text, hovered: today))
+                suite.expect(announces(trend, label + " · " + reading),
+                             "the selected bar in \(period) announces its own cost and tokens: \(reading)")
+            }
+        }
         for (date, amount, note) in [(yesterday, "≥ " + AgentFormat.cost(1.25), " · " + text.partialCostNote),
                                      (today, AgentFormat.cost(2), "")] {
             let day = date.formatted(.dateTime.day().month(.abbreviated).locale(locale))
