@@ -250,8 +250,7 @@ private struct PriorityDeviceList: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .frame(width: 28, height: 28)
-                .background(.regularMaterial,
-                            in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .trueGlass(in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
         .accessibilityAction(named: Text(l10n.s.audioPriorityMoveUp)) {
             move(uid, by: -1)

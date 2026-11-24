@@ -194,8 +194,7 @@ struct BrightnessOSDView: View {
             .frame(width: 152, height: 7)
         }
         .frame(width: 196, height: 154)
-        .background(.regularMaterial,
-                    in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .trueGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(.white.opacity(0.08), lineWidth: 0.5)

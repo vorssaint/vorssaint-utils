@@ -661,7 +661,7 @@ private struct NotchMascotStage: View {
                     .lineLimit(1)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(.regularMaterial, in: Capsule())
+                    .trueGlass(in: Capsule())
                     .frame(maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, 10)
                     .id(caption.title)

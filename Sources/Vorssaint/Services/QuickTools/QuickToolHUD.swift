@@ -70,7 +70,7 @@ enum QuickToolHUD {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .trueGlass(in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
         present(AnyView(content), dismissAfter: 1.5)
     }
@@ -87,7 +87,7 @@ enum QuickToolHUD {
             QuickToolCountdownView(value: value, progress: progress)
         }
         .frame(width: 82, height: 82)
-        .background(.regularMaterial, in: Circle())
+        .trueGlass(in: Circle())
         .padding(12)
 
         present(AnyView(content), dismissAfter: 0.92, windowShadow: false)
@@ -323,6 +323,6 @@ private struct ScrollingCaptureHUDView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .trueGlass(in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
