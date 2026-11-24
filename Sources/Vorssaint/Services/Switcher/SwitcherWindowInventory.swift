@@ -36,7 +36,7 @@ final class SwitcherWindowInventory {
     private var pendingPIDs: Set<pid_t> = []
     private var pendingWindowIDs: [CGWindowID: UUID] = [:]
     private var discoveriesForRefresh: [UUID: CGWindowID] = [:]
-    private var discoveryWait: (tickets: Set<UUID>, resume: () -> Void)?
+    private var discoveryWait: (tickets: Set<UUID>, isPending: () -> Bool, resume: () -> Void)?
     private var destroyedDuringRefresh: Set<CGWindowID> = []
     private var terminatedDuringRefresh: Set<pid_t> = []
     private let lifetimeLock = NSLock()
@@ -196,11 +196,12 @@ final class SwitcherWindowInventory {
 
     /// Wait only for windows already announced at the key press. A later announcement
     /// (even for the same ID) belongs to its own discovery and cannot extend this wait.
-    func afterAnnouncedWindows(frontmostPID: pid_t, resume: @escaping (_ needsFocus: Bool) -> Void) -> Bool {
+    func afterAnnouncedWindows(frontmostPID: pid_t, isPending: @escaping () -> Bool,
+                               resume: @escaping (_ needsFocus: Bool) -> Void) -> Bool {
         guard !pendingWindowIDs.isEmpty || !discoveriesForRefresh.isEmpty else { return false }
         let ids = Set(pendingWindowIDs.keys).union(discoveriesForRefresh.values)
         let tickets = Set(pendingWindowIDs.values).union(discoveriesForRefresh.keys)
-        discoveryWait = (tickets, { [weak self] in
+        discoveryWait = (tickets, isPending, { [weak self] in
             guard let self else { return }
             let pid = SwitcherSupport.appPID(forFrontmost: frontmostPID, items: self.remembered.items)
             let newSourceCandidate = self.remembered.items.contains {
@@ -209,6 +210,7 @@ final class SwitcherWindowInventory {
             resume(newSourceCandidate && SwitcherSupport.needsFocusedWindowLookup(frontmostPID: frontmostPID,
                                                                                   items: self.remembered.items))
         })
+        if pendingRefresh != nil { invalidatePendingRefresh() }
         return true
     }
 
@@ -415,7 +417,16 @@ final class SwitcherWindowInventory {
     }
 
     private func invalidatePendingRefresh() {
-        guard let generation = lifetime, !refreshInFlight, pendingRefresh == nil else { return }
+        guard let generation = lifetime, !refreshInFlight else { return }
+        // A press waiting on this scan need not pay the background coalescing delay.
+        if let wait = discoveryWait, wait.tickets.isDisjoint(with: pendingWindowIDs.values),
+           !wait.tickets.isDisjoint(with: discoveriesForRefresh.keys), wait.isPending() {
+            pendingRefresh?.cancel()
+            pendingRefresh = nil
+            refresh()
+            return
+        }
+        guard pendingRefresh == nil else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.lifetime == generation else { return }
             self.pendingRefresh = nil

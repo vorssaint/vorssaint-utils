@@ -47,6 +47,11 @@ struct SwitcherPendingSessionStart {
     var additionalNavigation = 0
     var commitWhenReady = false
     var isSecureInputReplay = false
+    var awaitsWindowSelection = false
+
+    var cancelsReleasedReplay: Bool {
+        isSecureInputReplay && (scope == .frontmostApp || awaitsWindowSelection)
+    }
 
     mutating func observeModifiers(_ flags: CGEventFlags) {
         if !shortcut.requiredModifiersHeld(in: flags) { commitWhenReady = true }
