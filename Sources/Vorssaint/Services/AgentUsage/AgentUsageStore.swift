@@ -809,14 +809,26 @@ final class AgentLogCursor {
         return codexParentLog
     }
 
-    /// The transcript whose turn an Antigravity subagent rolls up into.
+    /// The transcript whose turn an Antigravity subagent rolls up into,
+    /// walking past intermediate subagents to the root turn-owning session.
     func antigravityParent(among cursors: [String: AgentLogCursor]) -> String? {
         guard provider == .antigravity, !state.antigravityParent.isEmpty, !tracksTurns else { return nil }
         if antigravityParentSearch != cursors.count || antigravityParentLog.map({ cursors[$0] == nil }) == true {
             antigravityParentSearch = cursors.count
-            antigravityParentLog = cursors.values
-                .filter { $0.provider == .antigravity && $0.tracksTurns && $0.state.session == state.antigravityParent }
-                .max { $0.modified < $1.modified }?.path
+            var target = state.antigravityParent
+            var visited: Set<String> = [state.session]
+            var resolved: String?
+            while !target.isEmpty, visited.insert(target).inserted {
+                let matches = cursors.values.filter { $0.provider == .antigravity && $0.state.session == target }
+                if let owner = matches.filter(\.tracksTurns).max(by: { $0.modified < $1.modified }) {
+                    resolved = owner.path
+                    break
+                }
+                guard let next = matches.first(where: { !$0.state.antigravityParent.isEmpty })?.state.antigravityParent
+                else { break }
+                target = next
+            }
+            antigravityParentLog = resolved
         }
         return antigravityParentLog
     }
@@ -1101,18 +1113,18 @@ enum AgentLogReader {
     }
 
     /// Log files changed since `horizon`, newest last so live turns settle
-    /// on the most recent state. Claude subagents come after every session,
-    /// so the turn each one works for already stands when its responses are
-    /// read.
+    /// on the most recent state. Claude and known Antigravity subagents come
+    /// after every session, so the turn each one works for already stands when
+    /// its responses are read.
     static func discover(_ roots: [AgentLogRoot], since horizon: Date) -> [(path: String, provider: AgentProvider)] {
         var found: [(path: String, provider: AgentProvider, modified: Date, subagent: Bool)] = []
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
-        func include(_ url: URL, from root: AgentLogRoot) {
+        func include(_ url: URL, from root: AgentLogRoot, subagent: Bool? = nil) {
             guard root.accepts(url.path),
                   let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
                   let modified = values.contentModificationDate, modified >= horizon else { return }
-            let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
-            found.append((url.path, root.provider, modified, subagent))
+            let isSubagent = subagent ?? (root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil)
+            found.append((url.path, root.provider, modified, isSubagent))
         }
         for root in roots {
             // Cursor keeps tools, terminals and canvases beside transcripts.
@@ -1157,10 +1169,15 @@ enum AgentLogReader {
             // outputs beside each compact transcript. Probe only the single
             // expected transcript path inside each session directory.
             if root.provider == .antigravity {
+                let dbPath = root.url.deletingLastPathComponent()
+                    .appending(path: "conversation_summaries.db", directoryHint: .notDirectory).path
+                let indexEntries = AgentAntigravityIndex.load(at: dbPath)
                 let sessions = (try? FileManager.default.contentsOfDirectory(
                     at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
                 for session in sessions {
-                    include(session.appending(path: ".system_generated/logs/transcript.jsonl"), from: root)
+                    let isSubagent = !(indexEntries[session.lastPathComponent]?.parentSession.isEmpty ?? true)
+                    include(session.appending(path: ".system_generated/logs/transcript.jsonl"),
+                            from: root, subagent: isSubagent)
                 }
                 continue
             }

@@ -567,6 +567,67 @@ enum AgentUsageReadTests {
                             && host.store.live.first?.project == "live-proj"
                             && host.store.live.first?.tokens.total == 210,
                          "index project and DB-only subagent parent survive initial cursor startOver and roll up into parent turn")
+
+            // Reverse order: reading the subagent before its parent establishes the
+            // parent turn first so subagent tokens still roll up into live totals.
+            let reverse = Host()
+            suite.expect(reverse.read(childFile.path, provider: .antigravity),
+                         "reverse-order Antigravity subagent read establishes its parent first")
+            _ = reverse.read(parentFile.path, provider: .antigravity)
+            suite.expect(reverse.store.records.allSatisfy { $0.project == "live-proj" }
+                            && reverse.store.live.count == 1
+                            && reverse.store.live.first?.id == parentFile.path
+                            && reverse.store.live.first?.tokens.total == 210,
+                         "reverse-order Antigravity subagent read rolls all 210 tokens into the parent live turn")
+
+            // Cold start with subagent mtimes earlier than the still-running parent
+            // (both DB-only and step-0 SYSTEM_MESSAGE sender= subagents).
+            let senderChildID = "33333333-3333-4333-8333-333333333333"
+            let senderChildFile = brain.appending(path: "\(senderChildID)/.system_generated/logs/transcript.jsonl")
+            try FileManager.default.createDirectory(at: senderChildFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let senderChildLines = [
+                #"{"step_index":0,"type":"SYSTEM_MESSAGE","status":"DONE","created_at":"\#(ts)","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=\#(ts) sender=\#(parentID)\n</SYSTEM_MESSAGE>"}"#,
+                #"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"\#(ts)","content":"<USER_REQUEST>sender child</USER_REQUEST>"}"#,
+                #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":30,"output_tokens":10}"#,
+            ]
+            try Data((senderChildLines.joined(separator: "\n") + "\n").utf8).write(to: senderChildFile)
+            try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-30)], ofItemAtPath: childFile.path)
+            try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-20)], ofItemAtPath: senderChildFile.path)
+            try FileManager.default.setAttributes([.modificationDate: now], ofItemAtPath: parentFile.path)
+
+            let homeDir = folder.appending(path: "agy-first-read")
+            let discovered = AgentLogReader.discover(AgentLogRoot.all(home: homeDir, providers: [.antigravity]),
+                                                     since: now.addingTimeInterval(-3600))
+            let canonicalParent = AgentLogRoot.canonical(parentFile).path
+            let canonicalChild = AgentLogRoot.canonical(childFile).path
+            if let parentIndex = discovered.firstIndex(where: { $0.path == canonicalParent }),
+               let childIndex = discovered.firstIndex(where: { $0.path == canonicalChild }) {
+                suite.expect(parentIndex < childIndex,
+                             "discover orders known Antigravity DB subagents after their parent even when modified earlier")
+            } else {
+                suite.expect(false, "discover finds both parent and DB subagent Antigravity transcripts")
+            }
+
+            let cold = Host()
+            cold.home = homeDir
+            cold.start(session: 1, providers: [.antigravity], cancellation: Cancellation())
+            suite.expect(cold.store.live.count == 1
+                            && cold.store.live.first?.id == canonicalParent
+                            && cold.store.live.first?.tokens.total == 250,
+                         "cold start attaches both DB-only and step-0 sender Antigravity subagents modified earlier than their parent")
+            // Finish the parent turn and verify the completion alert carries the combined tokens.
+            let finalLine = #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(ts)","model":"gemini-4-neon-high","input_tokens":20,"output_tokens":10}"#
+            let handle = try FileHandle(forWritingTo: parentFile)
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data((finalLine + "\n").utf8))
+            try handle.close()
+            _ = cold.read(canonicalParent, provider: .antigravity)
+            if case .finished(let provider, _, _, let tokens, let project) = cold.events.last {
+                suite.expect(provider == .antigravity && tokens == 280 && project == "live-proj",
+                             "parent finish alert includes tokens from subagents discovered earlier than the parent")
+            } else {
+                suite.expect(false, "parent completion emits a finished alert with combined subagent tokens")
+            }
         } catch {
             suite.expect(false, "Antigravity first-read index fixture failed: \(error)")
         }

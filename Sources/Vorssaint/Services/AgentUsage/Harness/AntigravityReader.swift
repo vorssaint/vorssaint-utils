@@ -32,7 +32,7 @@ struct AntigravityReader: AgentHarnessReader {
         case "PLANNER_RESPONSE":
             return plannerResponse(envelope, date: date, stepIndex: stepIndex, status: status, state: &state)
         case "CHECKPOINT":
-            return checkpoint(envelope, date: date, stepIndex: stepIndex, state: &state)
+            return checkpoint(envelope, date: date, stepIndex: stepIndex, status: status, state: &state)
         case "ERROR_MESSAGE":
             guard state.turnOpen, !state.antigravitySubagent else { return [] }
             state.turnOpen = false
@@ -45,6 +45,10 @@ struct AntigravityReader: AgentHarnessReader {
                 return []
             }
             guard state.turnOpen, !state.antigravitySubagent else { return [] }
+            if Self.abortedStatuses.contains(status) {
+                state.turnOpen = false
+                return [.turnEnded(date, completed: false, duration: nil)]
+            }
             return [.turnActive(date)]
         default:
             // Generic and tool-output steps can carry large payloads. Never
@@ -150,9 +154,10 @@ struct AntigravityReader: AgentHarnessReader {
     }
 
     private func checkpoint(_ envelope: AgentLogObject, date: Date, stepIndex: Int?,
-                            state: inout AgentLogState) -> [AgentLogEntry] {
+                            status: String, state: inout AgentLogState) -> [AgentLogEntry] {
         var entries: [AgentLogEntry] = []
-        if state.turnOpen, !state.antigravitySubagent {
+        let aborted = Self.abortedStatuses.contains(status)
+        if state.turnOpen, !state.antigravitySubagent, !aborted {
             entries.append(.turnActive(date))
         }
         let reportedModel = envelope.string("model", maxBytes: 256)
@@ -162,6 +167,10 @@ struct AntigravityReader: AgentHarnessReader {
         if let usage = measuredUsage(envelope, date: date, stepIndex: stepIndex, model: model,
                                      keyTag: "checkpoint", state: state) {
             entries.append(usage)
+        }
+        if aborted, state.turnOpen, !state.antigravitySubagent {
+            state.turnOpen = false
+            entries.append(.turnEnded(date, completed: false, duration: nil))
         }
         return entries
     }

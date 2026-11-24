@@ -49,6 +49,24 @@ final class AgentAntigravityIndex {
         return dataDir.appending(path: "conversation_summaries.db", directoryHint: .notDirectory).path
     }
 
+    /// Derives `<dataDir>/brain/<session>/.system_generated/logs/transcript.jsonl`
+    /// beside `transcriptPath` within the same Antigravity brain directory.
+    static func transcriptPath(forSession session: String, siblingOf transcriptPath: String) -> String? {
+        guard !session.isEmpty, session != ".", session != "..",
+              !session.contains("/"), !session.contains("\\") else { return nil }
+        let url = URL(fileURLWithPath: transcriptPath, isDirectory: false)
+        let logs = url.deletingLastPathComponent()
+        let sys = logs.deletingLastPathComponent()
+        let currentSession = sys.deletingLastPathComponent()
+        let brain = currentSession.deletingLastPathComponent()
+        guard logs.lastPathComponent == "logs", sys.lastPathComponent == ".system_generated",
+              brain.path != currentSession.path else { return nil }
+        return brain
+            .appending(path: session, directoryHint: .isDirectory)
+            .appending(path: ".system_generated/logs/transcript.jsonl", directoryHint: .notDirectory)
+            .path
+    }
+
     func clear() {
         caches.removeAll()
     }

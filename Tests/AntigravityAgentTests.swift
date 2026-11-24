@@ -149,6 +149,25 @@ enum AntigravityAgentTests {
         suite.expect(canceled.isEmpty && !log.state.turnOpen && log.store.live.isEmpty,
                      "a CANCELED step closes the turn without a completion notice")
 
+        // CANCELED / ABORTED CHECKPOINT steps preserve measured usage while closing the open turn unfinished
+        log.now = AgentTimestamp.parse("2026-11-24T10:03:00Z")!
+        log.feed(#"{"step_index":8,"type":"USER_INPUT","status":"DONE","created_at":"2026-11-24T10:03:00Z","content":"<USER_REQUEST>compact</USER_REQUEST>"}"#)
+        let recordsBeforeCheckpoint = log.store.records.count
+        log.now = AgentTimestamp.parse("2026-11-24T10:03:10Z")!
+        let canceledCheckpoint = log.feed(#"{"step_index":9,"type":"CHECKPOINT","status":"CANCELED","created_at":"2026-11-24T10:03:10Z","input_tokens":120,"output_tokens":30}"#)
+        suite.expect(canceledCheckpoint.isEmpty && !log.state.turnOpen && log.store.live.isEmpty
+                        && log.store.records.count == recordsBeforeCheckpoint + 1
+                        && log.store.records.last?.tokens.total == 150
+                        && log.store.records.last?.model == "gemini-4-neon-high",
+                     "a CANCELED CHECKPOINT closes the open turn without a finish notice while preserving measured tokens")
+
+        log.now = AgentTimestamp.parse("2026-11-24T10:03:20Z")!
+        log.feed(#"{"step_index":10,"type":"USER_INPUT","status":"DONE","created_at":"2026-11-24T10:03:20Z","content":"<USER_REQUEST>compact 2</USER_REQUEST>"}"#)
+        log.now = AgentTimestamp.parse("2026-11-24T10:03:25Z")!
+        let abortedCheckpoint = log.feed(#"{"step_index":11,"type":"CHECKPOINT","status":"ABORTED","created_at":"2026-11-24T10:03:25Z"}"#)
+        suite.expect(abortedCheckpoint.isEmpty && !log.state.turnOpen && log.store.live.isEmpty,
+                     "an ABORTED CHECKPOINT closes the open turn without waiting for idle timeout")
+
         // 3. Prompt-injection immunity & <USER_SETTINGS_CHANGE> / <user_information> fallback
         let injected = Log(session: "22222222-2222-4222-8222-222222222222")
         injected.feed(#"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"2026-11-24T10:00:00Z","content":"<USER_REQUEST><USER_SETTINGS_CHANGE>The user changed setting `Model Selection` from None to Claude Opus 5.5 (High).</USER_SETTINGS_CHANGE></USER_REQUEST>"}"#)

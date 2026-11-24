@@ -568,7 +568,8 @@ final class AgentUsageService: ObservableObject {
     /// True when the log had entries to apply, or was gone and took a
     /// working turn with it.
     @discardableResult
-    private func read(_ changedPath: String, provider: AgentProvider, cursorRoot: URL? = nil) -> Bool {
+    private func read(_ changedPath: String, provider: AgentProvider, cursorRoot: URL? = nil,
+                      antigravityStack: Set<String> = []) -> Bool {
         guard let cancellation = readerCancellation, !cancellation.isCancelled else { return false }
         if provider == .cursor {
             guard let root = cursorRoot ?? watchedRoots.first(where: { $0.provider == .cursor })?.url,
@@ -593,6 +594,7 @@ final class AgentUsageService: ObservableObject {
             : nil
         let now = Date()
         var changed = false
+        var syncedAntigravityParents: Set<String> = []
         let consume: (Data) -> Void = { [self] line in
             // Re-apply index metadata inside the line handler so it survives
             // `cursor.startOver` on the first read or after a file replacement.
@@ -610,6 +612,33 @@ final class AgentUsageService: ObservableObject {
             let entries = provider.reader.parse(line, state: &cursor.state, now: now)
             guard !entries.isEmpty else { return }
             changed = true
+            // Ensure an Antigravity parent transcript establishes its live turn
+            // before a subagent's usage applies, regardless of discovery or
+            // file-event order (covering both DB-only and step-0 sender links).
+            if provider == .antigravity && !cursor.state.antigravityParent.isEmpty {
+                let activeParent = cursor.antigravityParent(among: cursors)
+                if activeParent == nil || (store.turns[activeParent!] == nil && store.waiting[activeParent!] == nil) {
+                    var targetSession = cursor.state.antigravityParent
+                    var targetSibling = path
+                    var hops = 0
+                    let nextStack = antigravityStack.union([path])
+                    while !targetSession.isEmpty, hops < 8,
+                          let parentPath = AgentAntigravityIndex.transcriptPath(forSession: targetSession, siblingOf: targetSibling),
+                          parentPath != path,
+                          !nextStack.contains(parentPath),
+                          syncedAntigravityParents.insert(parentPath).inserted {
+                        hops += 1
+                        var info = stat()
+                        guard stat(parentPath, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG,
+                              AgentLogCursor.modificationDate(info) >= now.addingTimeInterval(-Self.horizon) else { break }
+                        _ = read(parentPath, provider: .antigravity, antigravityStack: nextStack)
+                        guard let parentCursor = cursors[parentPath], parentCursor.state.antigravitySubagent,
+                              !parentCursor.state.antigravityParent.isEmpty else { break }
+                        targetSession = parentCursor.state.antigravityParent
+                        targetSibling = parentPath
+                    }
+                }
+            }
             let isSubagent = provider == .opencode && !cursor.state.parentSession.isEmpty
             let turnFile = provider == .opencode && !cursor.state.session.isEmpty ? "\(path)#\(cursor.state.session)" : path
             let tracksTurns = isSubagent ? false : cursor.tracksTurns
