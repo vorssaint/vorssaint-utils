@@ -827,6 +827,11 @@ private struct NotchAgentTrendCard: View {
         period == .today ? snapshot.hours : Array(snapshot.days.suffix(period.days))
     }
 
+    /// Kilo Code's days or hours for the same period, drawn over every agent's bars.
+    private var kiloBuckets: [AgentBucket] {
+        period == .today ? kilo.hours : Array(kilo.days.suffix(period.days))
+    }
+
     var body: some View {
         let byCost = snapshot.usage(period).fullyPriced
         let caption = self.caption(byCost: byCost)
@@ -842,7 +847,8 @@ private struct NotchAgentTrendCard: View {
                         .lineLimit(1)
                         .accessibilityLabel(text.costDescription(caption.reading, partial: caption.partial))
                 }
-                NotchAgentBars(buckets: buckets, providers: providers, byCost: byCost, hovered: $hovered, tint: lens.tint)
+                NotchAgentBars(buckets: buckets, providers: providers, byCost: byCost, hovered: $hovered, tint: lens.tint,
+                               overlay: lens == .all ? kiloBuckets : [])
                 axis
             }
         }

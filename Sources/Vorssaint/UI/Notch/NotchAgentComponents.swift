@@ -213,10 +213,26 @@ struct NotchAgentBars: View {
     @Binding var hovered: Date?
     /// One colour for every bar, over the agents' own, for a chart of a single agent.
     var tint: Color? = nil
+    /// Another agent's own history, drawn as a top segment by date: Kilo Code keeps
+    /// no price, so it cannot share the dollar scale and gets a fixed-scale slice.
+    var overlay: [AgentBucket] = []
+    var overlayTint: Color = Color(red: 0.96, green: 0.84, blue: 0.2)
 
     var body: some View {
-        let values = buckets.map { bucket in providers.map { bucket.byProvider[$0]?.use(byCost: byCost) ?? 0 } }
-        let peak = max(values.map { $0.reduce(0, +) }.max() ?? 0, .leastNonzeroMagnitude)
+        let raw = buckets.map { bucket in providers.map { bucket.byProvider[$0]?.use(byCost: byCost) ?? 0 } }
+        let peak = max(raw.map { $0.reduce(0, +) }.max() ?? 0, .leastNonzeroMagnitude)
+        // An agent that worked but reports no price still shows, as a thin sliver, so no
+        // day of AI work reads as empty.
+        let values = zip(buckets, raw).map { bucket, parts in
+            providers.indices.map { slot -> Double in
+                guard parts[slot] <= 0, let totals = bucket.byProvider[providers[slot]],
+                      totals.tokens.total > 0 || totals.requests > 0 else { return parts[slot] }
+                return peak * 0.04
+            }
+        }
+        let overlayByStart = Dictionary(overlay.map { ($0.start, $0.byProvider[.opencode]?.tokens.total ?? 0) },
+                                        uniquingKeysWith: max)
+        let overlayPeak = max(Double(overlayByStart.values.max() ?? 0), 1)
         GeometryReader { proxy in
             let count = CGFloat(max(1, buckets.count))
             let gap: CGFloat = count > 24 ? 2 : 4
@@ -225,12 +241,19 @@ struct NotchAgentBars: View {
                 ForEach(Array(buckets.enumerated()), id: \.element.id) { index, bucket in
                     let parts = values[index]
                     let total = parts.reduce(0, +)
+                    let extra = Double(overlayByStart[bucket.start] ?? 0)
+                    let extraHeight = extra > 0 ? max(2, proxy.size.height * 0.28 * extra / overlayPeak) : 0
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
-                        if total <= 0 {
+                        if total <= 0 && extra <= 0 {
                             Capsule().fill(.white.opacity(0.1)).frame(height: 2)
                         } else {
                             VStack(spacing: 0) {
+                                if extra > 0 {
+                                    Rectangle()
+                                        .fill(overlayTint.opacity(hovered == nil || hovered == bucket.start ? 0.95 : 0.5))
+                                        .frame(height: extraHeight)
+                                }
                                 ForEach(providers.indices.reversed(), id: \.self) { slot in
                                     if parts[slot] > 0 {
                                         Rectangle()
