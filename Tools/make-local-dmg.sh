@@ -12,7 +12,24 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 SRC="${1:-/Applications/Vorssaint (Developer).app}"
-ID="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning | grep 'Apple Development' | head -1 | sed -E 's/^ *[0-9]+\) ([0-9A-F]+) .*/\1/')}"
+# The first Apple Development identity whose certificate has not been revoked:
+# a revoked one makes macOS move the signed app to the Trash as malware.
+pick_identity() {
+    local work hash
+    work="$(mktemp -d)"
+    security find-certificate -a -c "Apple Development" -p -Z 2>/dev/null | awk -v dir="$work" '
+        /SHA-1 hash:/ { h = $3 }
+        /BEGIN CERT/ { f = dir "/" h ".pem" }
+        f { print > f }
+        /END CERT/ { close(f); f = "" }'
+    for hash in $(security find-identity -v -p codesigning | grep "Apple Development" | sed -E 's/^ *[0-9]+\) ([0-9A-F]+) .*/\1/'); do
+        if [[ -f "$work/$hash.pem" ]] && security verify-cert -c "$work/$hash.pem" -p codeSign -R ocsp >/dev/null 2>&1; then
+            rm -rf "$work"; print -r -- "$hash"; return
+        fi
+    done
+    rm -rf "$work"
+}
+ID="${SIGN_IDENTITY:-$(pick_identity)}"
 [[ -d "$SRC" ]] || { echo "✗ $SRC not found" >&2; exit 1; }
 [[ -n "$ID" ]] || { echo "✗ no Apple Development identity in the keychain" >&2; exit 1; }
 NAME="$(basename "$SRC" .app)"
