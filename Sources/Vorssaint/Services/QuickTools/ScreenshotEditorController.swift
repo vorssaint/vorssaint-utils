@@ -1873,7 +1873,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         pasteboard.clearContents()
         pasteboard.declareVorssaintSource()
         pasteboard.setString(text, forType: .string)
-        QuickToolHUD.show(icon: "text.viewfinder", message: L10n.shared.s.ocrCopied)
+        QuickToolHUD.showCopied(title: L10n.shared.s.copiedToClipboard, detail: text)
     }
 
     /// Shows the detected code's content in the shared result panel; the

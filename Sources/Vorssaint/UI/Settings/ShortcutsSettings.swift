@@ -216,6 +216,14 @@ struct ShortcutsSettings: View {
         }
     }
 
+    private func symbolName(for role: GlobalShortcutRole) -> String {
+        switch role {
+        case .screenshotScrolling: return ScreenCaptureTool.scrolling.systemImageName
+        case .screenQR: return ScreenCaptureTool.qr.systemImageName
+        default: return role.isKeyboardBrightness ? "keyboard" : role.feature.symbolName
+        }
+    }
+
     private func roleRow(_ role: GlobalShortcutRole,
                          showsFeatureContext: Bool = true,
                          reservesClearButtonSpace: Bool = false) -> some View {
@@ -228,8 +236,7 @@ struct ShortcutsSettings: View {
             role: role,
             isEnabled: !role.isKeyboardBrightness || keyboardBrightnessShortcutsEnabled,
             label: title,
-            symbolName: role == .screenshotScrolling ? ScreenCaptureTool.scrolling.systemImageName
-                : role.isKeyboardBrightness ? "keyboard" : role.feature.symbolName,
+            symbolName: symbolName(for: role),
             contextLabel: showsFeatureContext && title != featureTitle ? featureTitle : nil,
             statusText: active ? text.active : text.inactive,
             statusIsActive: active,

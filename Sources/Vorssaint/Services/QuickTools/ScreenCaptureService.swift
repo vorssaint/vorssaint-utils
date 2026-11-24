@@ -279,6 +279,8 @@ final class ScreenCaptureService: ObservableObject {
                 ScreenshotService.shared.receiveUnifiedCapture(capture)
             case .text:
                 ScreenTextService.shared.receiveUnifiedCapture(capture)
+            case .qr:
+                ScreenTextService.shared.receiveQRCapture(capture)
             case .recording, .color, .scrolling:
                 showFailure(for: selected)
             }

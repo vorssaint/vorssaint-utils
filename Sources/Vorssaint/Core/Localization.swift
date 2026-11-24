@@ -355,7 +355,11 @@ struct Strings {
     let ocrName: String
     let ocrCaption: String
     let ocrCopied: String
+    let copiedToClipboard: String
     let ocrNoText: String
+    let qrScanName: String
+    let qrScanCaption: String
+    let qrScanNone: String
     let colorPickerName: String
     let colorPickerCaption: String
     let colorPickerFormatLabel: String
@@ -1528,7 +1532,11 @@ extension Strings {
         ocrName: "Copiar texto da tela",
         ocrCaption: "Selecione uma área da tela e o texto reconhecido é copiado, pronto para colar.",
         ocrCopied: "Texto copiado",
+        copiedToClipboard: "Copiado para a área de transferência",
         ocrNoText: "Nenhum texto encontrado",
+        qrScanName: "Escanear QR code",
+        qrScanCaption: "Selecione uma área da tela. Se houver um QR code, o conteúdo aparece para copiar ou abrir o link.",
+        qrScanNone: "Nenhum QR code encontrado",
         colorPickerName: "Conta-gotas de cor",
         colorPickerCaption: "Capture a cor de qualquer pixel da tela e copie no formato que preferir.",
         colorPickerFormatLabel: "Formato copiado",
@@ -2661,7 +2669,11 @@ extension Strings {
         ocrName: "Copy text from screen",
         ocrCaption: "Select an area of the screen and the recognized text is copied, ready to paste.",
         ocrCopied: "Text copied",
+        copiedToClipboard: "Copied to clipboard",
         ocrNoText: "No text found",
+        qrScanName: "Scan QR code",
+        qrScanCaption: "Select an area of the screen. A QR code in it is shown so you can copy it or open the link.",
+        qrScanNone: "No QR code found",
         colorPickerName: "Color picker",
         colorPickerCaption: "Grab the color of any pixel on screen and copy it in your favorite format.",
         colorPickerFormatLabel: "Copied format",

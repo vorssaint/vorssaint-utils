@@ -403,10 +403,19 @@ enum CommandBarCatalog {
                 id: "action.screenOCR",
                 title: s.ocrName,
                 subtitle: area(.screenOCR, under: s.ocrName),
+                keywords: "OCR recognize text copy text text recognition",
                 icon: .symbol("text.viewfinder"),
                 shortcut: roleShortcut(.screenOCR),
                 trouble: Permissions.shared.screenRecording ? nil : .needsPermission,
                 run: { _ in afterBeat { ScreenTextService.shared.capture() } }))
+            entries.append(CommandBarEntry(
+                id: "action.screenQR",
+                title: s.qrScanName,
+                subtitle: area(.screenOCR, under: s.qrScanName),
+                icon: .symbol("qrcode"),
+                shortcut: roleShortcut(.screenQR),
+                trouble: Permissions.shared.screenRecording ? nil : .needsPermission,
+                run: { _ in afterBeat { ScreenTextService.shared.captureQR() } }))
         }
         if AppFeature.colorPicker.isAvailable {
             entries.append(CommandBarEntry(
