@@ -36,7 +36,7 @@ codesign --force --strip-disallowed-xattrs --entitlements Resources/Vorssaint.en
 codesign --verify --deep --strict "$APP"
 
 mkdir -p dist
-OUT="dist/${NAME// /-}-$VERSION.dmg"
+OUT="dist/$(echo "$NAME" | tr -d "()" | tr " " "-" | sed "s/--/-/g")-$VERSION.dmg"
 rm -f "$OUT"
 ln -s /Applications "$STAGE/Applications"
 echo "▸ Writing $OUT…"
