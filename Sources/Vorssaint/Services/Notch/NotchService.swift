@@ -4513,7 +4513,8 @@ final class NotchService: ObservableObject {
         if let output, output.isHeadphones {
             symbol = NotchAccessorySupport.symbol(for: .audio, name: output.name)
         } else {
-            symbol = value == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill"
+            let showsMute = muted == true || (!mixer.outputIsMonitorSpeakers && value == 0)
+            symbol = showsMute ? "speaker.slash.fill" : "speaker.wave.2.fill"
         }
         return show(NotchNotice(event: .volume, title: FeatureStrings.notch(L10n.shared.language).volume,
                                 detail: "\(Int((value * 100).rounded()))%",

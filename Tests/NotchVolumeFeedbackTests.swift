@@ -28,6 +28,7 @@ enum NotchVolumeFeedbackTests {
         @Published var currentOutputDeviceUID: String? = "speakers"
         @Published var systemOutputVolume: Double? = 0.3
         @Published var systemOutputMuted: Bool? = false
+        var outputIsMonitorSpeakers = false
         var currentOutputControlLifetime = UUID()
         var currentOutputKeyGeneration = 0
 
@@ -110,6 +111,18 @@ enum NotchVolumeFeedbackTests {
             service.showCurrentVolume()
             suite.expect(service.notice?.symbol == "speaker.wave.2.fill",
                          "missing output metadata falls back without using another connected device")
+        }
+        let monitor = AppVolumeMixer()
+        monitor.outputIsMonitorSpeakers = true
+        AppVolumeMixer.shared = monitor
+        for muted: Bool? in [nil, false, true] {
+            monitor.systemOutputMuted = muted
+            monitor.systemOutputVolume = muted == true ? 0.6 : 0
+            let service = Service()
+            service.showCurrentVolume()
+            suite.expect(service.notice?.level == 0 && service.notice?.detail == "0%"
+                         && service.notice?.symbol == (muted == true ? "speaker.slash.fill" : "speaker.wave.2.fill"),
+                         "a monitor's HUD shows a muted speaker only for a confirmed audio mute")
         }
         let connection = NotchNotice(event: .accessory, title: "Wireless Headphones",
                                      detail: "Connected", symbol: "headphones")

@@ -92,7 +92,6 @@ enum DisplaySpeakerVolumeTests {
         }
         var audioRoutes: [UInt32: AudioRoute] = [:]
         var pendingSpeakerUnmutes: [String: UInt64] = [:]
-        var speakerRestoreLevels: [String: BrightnessSupport.SpeakerLevel] = [:]
         var audioLifetime: UInt64 = 0
         var disabledSpeakerLifetime: UInt64?
         var scannedAudio = false
@@ -109,7 +108,10 @@ enum DisplaySpeakerVolumeTests {
         var maximum: UInt16 = 100
         var nativeMuted: Bool?
         var unmutedReads: UInt16 = 2
+        var muteImageByte: UInt8 = 0
+        var muteMaximum: UInt16 = 2
         var rejectUnmute = false
+        var rejectMute = false
         var rejectVolume = false
         var rejectVolumeRead = false
         var ignoreVolume = false
@@ -167,7 +169,8 @@ enum DisplaySpeakerVolumeTests {
                 return rejectVolumeRead ? .dead : .replied(current: raw, maximum: maximum)
             }
             guard code == BrightnessSupport.audioMuteCode, let nativeMuted else { return .dead }
-            return .replied(current: nativeMuted ? 1 : unmutedReads, maximum: 2)
+            let audio: UInt16 = nativeMuted ? 1 : unmutedReads
+            return .replied(current: UInt16(muteImageByte) << 8 | audio, maximum: muteMaximum)
         }
         func ddcSend(to id: UInt32, service: CFTypeRef, chip: UInt32, packet: [UInt8],
                      acceptPartialWrite: Bool = false, whileCurrent: () -> Bool) -> Bool {
@@ -181,7 +184,7 @@ enum DisplaySpeakerVolumeTests {
                 guard !rejectVolume else { return false }
                 if !ignoreVolume { raw = value }
             } else if code == BrightnessSupport.audioMuteCode, nativeMuted != nil {
-                if value == 2, rejectUnmute { return false }
+                if (value == 2 && rejectUnmute) || (value == 1 && rejectMute) { return false }
                 if value != 1 || !ignoreMute { nativeMuted = value == 1 }
                 if value == 2 {
                     if let volumeOnUnmute { raw = volumeOnUnmute }
@@ -205,7 +208,8 @@ enum DisplaySpeakerVolumeTests {
     @discardableResult
     static func connect(_ mixer: MixerOutputAdjustmentContract.Mixer,
                         raw: UInt16 = 40, maximum: UInt16 = 100, muted: Bool? = false,
-                        unmutedReads: UInt16 = 2, chip: UInt32 = BrightnessSupport.chipAddress,
+                        unmutedReads: UInt16 = 2, muteImageByte: UInt8 = 0, muteMaximum: UInt16 = 2,
+                        chip: UInt32 = BrightnessSupport.chipAddress,
                         registryEntryID: UInt64? = 1) -> Service {
         let service = Service()
         Service.shared = service
@@ -213,6 +217,8 @@ enum DisplaySpeakerVolumeTests {
         service.maximum = maximum
         service.nativeMuted = muted
         service.unmutedReads = unmutedReads
+        service.muteImageByte = muteImageByte
+        service.muteMaximum = muteMaximum
         let endpoint = NSObject()
         if let probed = service.probeAudio(for: 7, service: endpoint, chip: chip, path: "port-a") {
             service.audioRoutes[7] = AudioRoute(path: "port-a", fingerprint: service.displayFingerprint,
@@ -510,6 +516,38 @@ enum DisplaySpeakerVolumeTests {
         checkInterruptedDDCWrites(suite)
         checkSliderFeedback(suite)
         checkSliderEndpointChanges(suite)
+        let mixer = MixerOutputAdjustmentContract.Mixer()
+        let mute = BrightnessSupport.audioMuteCode
+        for startsMuted in [false, true] {
+            let speakers = connect(mixer, muted: startsMuted, muteImageByte: startsMuted ? 0xff : 1,
+                                   muteMaximum: startsMuted ? 0xff02 : 0x0202)
+            suite.expect(mixer.monitorOutput?.muted == startsMuted,
+                         "discovery reads the audio state from a combined mute and blanking reply")
+            speakers.afterSend = { [weak speakers] in speakers?.muteImageByte = 2 }
+            mixer.requestOutputMuteToggle()
+            speakers.finish()
+            suite.expect(speakers.writes == [Write(mute, startsMuted ? 2 : 1)]
+                         && speakers.displays.first?.audio?.muted == !startsMuted
+                         && mixer.systemOutputMuted == !startsMuted && speakers.raw == 40,
+                         "the mute button changes only audio and confirms it independently of the picture")
+        }
+        for (audio, image, maximum): (UInt16, UInt8, UInt16) in [(2, 1, 0x0200), (1, 1, 0x0201),
+                                                                 (2, 1, 0x0203), (3, 1, 0x0202), (2, 0, 0xff)] {
+            let speakers = connect(mixer, unmutedReads: audio, muteImageByte: image, muteMaximum: maximum)
+            mixer.requestOutputAdjustment(muted: true)
+            speakers.finish()
+            suite.expect(speakers.displays.first?.audio?.volume == 0.4 && mixer.systemOutputMuted == nil
+                         && speakers.writes.isEmpty,
+                         "an unsupported or reserved audio reply cannot authorize mute")
+        }
+        for (image, maximum): (UInt8, UInt16) in [(1, 2), (0, 0x0200), (0, 0xffff)] {
+            let speakers = connect(mixer, raw: 0, unmutedReads: 0, muteImageByte: image, muteMaximum: maximum)
+            mixer.requestOutputAdjustment(volume: 0.02)
+            speakers.finish()
+            suite.expect(speakers.writes == [Write(BrightnessSupport.audioVolumeCode, 2)]
+                         && mixer.systemOutputVolume == 0.02 && mixer.systemOutputMuted == nil,
+                         "an unrelated zero reply cannot opt a monitor into unmute when leaving zero")
+        }
         suite.expect(BrightnessSupport.audioReply(current: 50, maximum: 100) == 0.5
                      && BrightnessSupport.audioReply(current: 100, maximum: 100) == 1,
                      "a volume reply is read against its own maximum")
