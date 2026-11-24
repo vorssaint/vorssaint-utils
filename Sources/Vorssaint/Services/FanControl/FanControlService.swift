@@ -924,7 +924,7 @@ final class FanControlService: ObservableObject {
     }
 
     private func restoreThenUnregister() {
-        if AppFeature.batteryCare.isAvailable { restoreAutomatic(); return }
+        if AppFeature.batteryCare.isAvailable { restoreAutomatic(supersedingCurrentRequest: false); return }
         UserDefaults.standard.set(true, forKey: DefaultsKey.fanControlUnregisterPending)
         guard requestInFlight != .replaceRegistration else { return }
         refreshAccessState()
