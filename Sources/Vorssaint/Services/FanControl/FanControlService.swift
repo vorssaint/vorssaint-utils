@@ -303,14 +303,13 @@ final class FanControlService: ObservableObject {
 
     private func restoreBeforeTermination() {
         if requestInFlight == .apply { observeFailedHandoff(nil) }
-        if awaitingSystemControl {
-            // Another connection may own the fans. Leave confirmation to the
-            // next launch, including when a reply from this one is in flight.
-            timer?.invalidate()
-            timer = nil
-            requestGeneration += 1
-            requestInFlight = nil
-        } else {
+        // Stop monitoring before intentionally closing our own session.
+        timer?.invalidate()
+        timer = nil
+        requestGeneration += 1
+        requestInFlight = nil
+        hadActiveControl = false
+        if !awaitingSystemControl {
             send { proxy, reply in proxy.restoreAutomatic(withReply: reply) } completion: { response in
                 if let response, response.succeeded, !response.snapshot.isCooling {
                     UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
@@ -630,12 +629,13 @@ final class FanControlService: ObservableObject {
     private func connectionLost(_ lost: NSXPCConnection) {
         guard connection === lost else { return }
         connection = nil
-        guard let request = requestInFlight else { return }
-        // A closed connection may never deliver its reply. Ignore any late
-        // completion and let the next timer tick use a fresh connection.
+        let request = requestInFlight
+        guard hadActiveControl || request != nil else { return }
+        // The helper ties ownership to the connection, even between requests.
+        // A replacement can confirm automatic control but cannot identify our stop.
         _ = finishRequest(requestGeneration, response: nil)
         requestGeneration += 1
-        if request == .apply || (request == .restore && hadActiveControl) {
+        if hadActiveControl || request == .apply {
             observeFailedHandoff(nil)
         } else if request == .restore {
             isWorking = false
