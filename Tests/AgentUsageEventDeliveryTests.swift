@@ -100,6 +100,27 @@ enum AgentUsageEventDeliveryTests {
         suite.expect(repricedHost.events.values == [.budgetReached(spent: 1.125, budget: 1, partial: false)],
                      "repriced GPT-6.2 records count toward the daily budget")
 
+        let tierHost = Host()
+        tierHost.store.reportsTransitions = true
+        var state = AgentLogState()
+        let stamp = "2026-11-24T18:00:00Z"
+        let usageDate = AgentTimestamp.parse(stamp)!
+        let rollout = [
+            #"{"timestamp":"\#(stamp)","type":"turn_context","payload":{"model":"gpt-6.2-sol","service_tier":"ultrafast"}}"#,
+            #"{"timestamp":"\#(stamp)","type":"token_usage_record","payload":{"response_id":"priced","usage":{"input_tokens":200000}}}"#,
+            #"{"timestamp":"\#(stamp)","type":"event_msg","payload":{"type":"thread_settings_applied","thread_settings":{"service_tier":"unlisted"}}}"#,
+            #"{"timestamp":"\#(stamp)","type":"token_usage_record","payload":{"response_id":"unpriced","usage":{"input_tokens":200000}}}"#
+        ]
+        for event in rollout {
+            tierHost.store.apply(AgentLogParser.parseCodex(Data(event.utf8), state: &state, now: usageDate),
+                                 file: "rollout.jsonl", provider: .codex, tracksTurns: false, modified: usageDate)
+        }
+        tierHost.store.reprice()
+        tierHost.checkBudget(tierHost.store.snapshot(plans: [:], providers: [.codex], now: usageDate))
+        drain()
+        suite.expect(tierHost.events.values == [.budgetReached(spent: 1.2, budget: 1, partial: true)],
+                     "Sol Ultrafast crosses the daily budget and a response on an unpriced tier keeps the total partial")
+
         host.events.values.removeAll()
         host.report(finished)
         host.running = false
