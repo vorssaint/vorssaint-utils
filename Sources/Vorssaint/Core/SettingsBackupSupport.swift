@@ -144,6 +144,7 @@ enum SettingsBackupSupport {
         DefaultsKey.bluetoothSleepRestorePending,
         DefaultsKey.micMuteActive,
         DefaultsKey.micMuteReleasePending,
+        DefaultsKey.micMuteReleasedUIDs,
         DefaultsKey.micMuteSavedVolume,
         // Levels and device ids belong to the microphones of one Mac.
         DefaultsKey.micMuteSavedVolumes,

@@ -55,6 +55,7 @@ enum MixerInputVolumeContract {
         static let audioPriorityInputEnabled = "audioPriorityInputEnabled"
         static let micMuteActive = "mute"
         static let micMuteReleasePending = "releasePending"
+        static let micMuteReleasedUIDs = "releasedUIDs"
         static let micMuteFollowCallApps = "followCallApps"
         static let micMuteSavedVolumes = "savedVolumes"
         static let micMuteSavedChannelVolumes = "savedChannelVolumes"
@@ -3753,6 +3754,7 @@ enum MixerInputVolumeContract {
 
     private static func runRestoreRetryLimitTests(_ suite: TestSuite) {
         runMixerRestoreAdjustmentTests(suite)
+        runInterruptedReleaseTests(suite)
         runInterruptedFirstMuteTests(suite)
         runInterruptedMixerHandoffTests(suite)
         runRestoreReadRecoveryTests(suite)
@@ -4133,18 +4135,144 @@ enum MixerInputVolumeContract {
         let name: String
         let preferences = UserDefaults.standard.values
         let devices = HAL.devices
+        let streamChannels = HAL.streamChannels
         let levels = HAL.levels
         let minimumGain = HAL.minimumGain
         let switches = HAL.mute
 
-        func reopen(with gains: [Key: Float] = [:]) {
+        func reopen(with gains: [Key: Float] = [:], switches changedSwitches: [UInt32: UInt32] = [:]) {
             HAL.reset()
             UserDefaults.standard.values = preferences
             HAL.devices = devices
+            HAL.streamChannels = streamChannels
             HAL.levels = levels.merging(gains) { _, edited in edited }
             HAL.minimumGain = minimumGain
-            HAL.mute = switches
+            HAL.mute = switches.merging(changedSwitches) { _, edited in edited }
             HAL.relaunchClient()
+        }
+    }
+
+    private static func runInterruptedReleaseTests(_ suite: TestSuite) {
+        let master = HAL.key(10), channel = HAL.key(10, 1), peer = HAL.key(20)
+        let muteSwitch = HAL.key(10, 0, kAudioDevicePropertyMute)
+        let devicesChanged = HAL.key(AudioObjectID(kAudioObjectSystemObject), 0, kAudioHardwarePropertyDevices,
+                                     scope: kAudioObjectPropertyScopeGlobal)
+        enum Release { case bothPresent, alreadyRestored, peerAbsent, switchOnly, followCall, masterOnly, channelOnly }
+        let mixed: Set<Key> = [master, channel, muteSwitch]
+        let modes: [(Release, Set<Key>)] = [(.bothPresent, mixed), (.alreadyRestored, mixed), (.peerAbsent, mixed),
+                                            (.switchOnly, [muteSwitch]), (.followCall, [muteSwitch]),
+                                            (.masterOnly, [master]), (.channelOnly, [channel])]
+        let gains: [Key: Float] = [master: 0.625, channel: 0.25, peer: 0.875]
+        for (mode, controls) in modes {
+            HAL.reset()
+            let original = gains.filter { $0.key == peer || controls.contains($0.key) }
+            let silenced = original.filter { $0.key.d == 10 }.mapValues { _ in Float(0) }
+            let remuted: [UInt32: UInt32] = controls.contains(muteSwitch) ? [10: 1] : [:]
+            if mode == .followCall { UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteFollowCallApps) }
+            HAL.devices = [10, 20]
+            HAL.levels = original
+            if mode == .channelOnly { HAL.streamChannels[10] = [1] }
+            HAL.mute = remuted.mapValues { _ in 0 }
+            let service = MicMuteService.shared
+            service.toggle()
+            DispatchQueue.drain()
+            if mode == .peerAbsent { HAL.devices = [10] }
+            if mode == .alreadyRestored {
+                HAL.levels[master] = original[master]
+                HAL.levels[channel] = original[channel]
+                HAL.mute[10] = 0
+            }
+            var verified: Set<Key> = []
+            func watchRead(_ key: Key) {
+                let didRead = {
+                    if key == muteSwitch ? HAL.mute[10] == 0 : HAL.levels[key] == original[key] {
+                        verified.insert(key)
+                    } else { watchRead(key) }
+                }
+                if key == muteSwitch { HAL.afterSwitchRead[key] = didRead }
+                else { HAL.afterGainRead[key] = didRead }
+            }
+            for key in controls { watchRead(key) }
+            var cuts: [Checkpoint] = []
+            var releaseIntent: Checkpoint?
+            UserDefaults.standard.afterChange = { key in
+                guard verified == controls else {
+                    if key == DefaultsKey.micMuteReleasePending && releaseIntent == nil {
+                        releaseIntent = Checkpoint(name: "release requested before verification")
+                    }
+                    return
+                }
+                cuts.append(Checkpoint(name: "release preference \(key)"))
+                if mode != .followCall {
+                    // A recursive lock attempt would hang the test before the observer could report it.
+                    let available = service.inputVolumeLock.try()
+                    if available { service.inputVolumeLock.unlock() }
+                    suite.expect(available && service.inputVolumeAdjustmentLifetime != nil,
+                                 "a synchronous preference observer can query the editable mixer at \(key)")
+                }
+            }
+            HAL.beforeControlWrite = { key, _ in
+                if key == peer {
+                    suite.expect(verified == controls, "A's restored controls have been read before the release reaches B")
+                    cuts.append(Checkpoint(name: "entry to B's setter"))
+                }
+            }
+            HAL.afterControlWrite = { key in
+                if key == peer { cuts.append(Checkpoint(name: "return from B's setter")) }
+            }
+            HAL.writes = []
+            if mode == .followCall {
+                let caller: Int32 = ProcessInfo.processInfo.processIdentifier == 4242 ? 4243 : 4242
+                HAL.processes = [(100, caller, true, [20])]
+                HAL.levels[peer] = 0.375
+                suite.expect(HAL.notifyIfRegistered(peer), "a recording app opens B through its registered gain listener")
+            } else { service.toggle() }
+            DispatchQueue.drain()
+            UserDefaults.standard.afterChange = nil
+            HAL.beforeControlWrite = nil
+            HAL.afterControlWrite = nil
+            let writesToA = HAL.writes.filter { $0.d == 10 }
+            let expectedControls = mode == .alreadyRestored ? Set<Key>() : controls
+            suite.expect(verified == controls && !cuts.isEmpty && (mode == .followCall || releaseIntent != nil)
+                         && Set(writesToA) == expectedControls
+                         && writesToA.count == expectedControls.count
+                         && HAL.levels[master] == original[master] && HAL.levels[channel] == original[channel]
+                         && HAL.mute[10] == (controls.contains(muteSwitch) ? 0 : nil)
+                         && HAL.levels[peer] == (mode == .peerAbsent ? 0 : original[peer]) && !service.isMuted
+                         && UserDefaults.standard.object(forKey: DefaultsKey.micMuteReleasedUIDs) == nil
+                         && service.hasOutstandingClaims == (mode == .peerAbsent) && (mode == .peerAbsent || service.warning == nil),
+                         "normal release verifies every control and only the missing peer stays owed (\(mode))")
+            if let releaseIntent {
+                let writes = HAL.writes, levels = HAL.levels, switches = HAL.mute
+                releaseIntent.reopen()
+                let resumed = MicMuteService.shared
+                resumed.syncWithPreferences()
+                DispatchQueue.drain()
+                suite.expect(HAL.writes == writes && HAL.levels == levels && HAL.mute == switches
+                             && !resumed.isMuted && resumed.hasOutstandingClaims == (mode == .peerAbsent),
+                             "relaunch at the release intent completes the inputs that were still owed (\(mode))")
+            }
+            for point in cuts {
+                // After release the user silences A again, before the next launch.
+                point.reopen(with: silenced, switches: remuted)
+                let relaunched = MicMuteService.shared
+                relaunched.syncWithPreferences()
+                DispatchQueue.drain()
+                if mode == .peerAbsent {
+                    suite.expect(HAL.writes.isEmpty && relaunched.hasOutstandingClaims,
+                                 "only the disconnected peer waits following interruption at \(point.name)")
+                    HAL.devices = [10, 20]
+                    _ = HAL.notifyIfRegistered(devicesChanged)
+                    DispatchQueue.drain()
+                }
+                let expectedWrites: [Key] = point.levels[peer] == original[peer] ? [] : [peer]
+                var expected = silenced
+                expected[peer] = original[peer]
+                suite.expect(HAL.writes == expectedWrites && HAL.levels == expected
+                             && UserDefaults.standard.object(forKey: DefaultsKey.micMuteReleasedUIDs) == nil
+                             && HAL.mute == remuted && !relaunched.hasOutstandingClaims && relaunched.warning == nil,
+                             "relaunch preserves the user's re-mute and completes B following interruption at \(point.name) (\(mode))")
+            }
         }
     }
 

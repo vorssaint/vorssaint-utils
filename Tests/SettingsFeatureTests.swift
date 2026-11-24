@@ -708,6 +708,8 @@ enum SettingsFeatureTests {
                 && !backupKeys.contains(DefaultsKey.keepAwakeSessionEnd)
                 && !backupKeys.contains(DefaultsKey.micMuteActive)
                 && !backupKeys.contains(DefaultsKey.micMuteReleasePending)
+                && SettingsBackupSupport.machineStateKeys.contains(DefaultsKey.micMuteReleasedUIDs)
+                && !backupKeys.contains(DefaultsKey.micMuteReleasedUIDs)
                 && !backupKeys.contains(DefaultsKey.micMuteSavedVolumes)
                 && !backupKeys.contains(DefaultsKey.micMuteSavedChannelVolumes)
                 && !backupKeys.contains(DefaultsKey.micMutePendingLegacyControls)
@@ -985,14 +987,16 @@ enum SettingsFeatureTests {
             SettingsBackupSupport.formatVersionKey: 1,
             SettingsBackupSupport.settingsKey: ["evilKey": "x", DefaultsKey.autoQuitEnabled: true,
                                                 DefaultsKey.micMuteMixerHandoffUID: "another-microphone",
+                                                DefaultsKey.micMuteReleasedUIDs: ["another-microphone"],
                                                 DefaultsKey.keepAwakeSessionEnd: ["end": 0.0, "minutes": 0]] as [String: Any],
         ]
         let filteredImport = SettingsBackupSupport.sanitizedSettings(from: tampered)
         suite.expect(filteredImport?["evilKey"] == nil
                 && filteredImport?[DefaultsKey.micMuteMixerHandoffUID] == nil
+                && filteredImport?[DefaultsKey.micMuteReleasedUIDs] == nil
                 && filteredImport?[DefaultsKey.keepAwakeSessionEnd] == nil
                 && filteredImport?[DefaultsKey.autoQuitEnabled] as? Bool == true,
-               "unknown keys, microphone handoffs and live Keep Awake sessions are dropped on import")
+               "unknown keys, microphone recovery state and live Keep Awake sessions are dropped on import")
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: [
             SettingsBackupSupport.formatVersionKey: 99,
             SettingsBackupSupport.settingsKey: [String: Any](),

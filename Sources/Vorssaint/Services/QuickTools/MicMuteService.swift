@@ -164,8 +164,16 @@ final class MicMuteService: ObservableObject {
 
     private init(uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.uptime = uptime
-        if let uid = UserDefaults.standard.string(forKey: DefaultsKey.micMuteMixerHandoffUID) {
+        let defaults = UserDefaults.standard
+        if let uid = defaults.string(forKey: DefaultsKey.micMuteMixerHandoffUID) {
             Self.completeMixerHandoff(for: uid)
+        }
+        if let released = defaults.stringArray(forKey: DefaultsKey.micMuteReleasedUIDs), !released.isEmpty {
+            // A call can release an input before the direction reaches the active flag.
+            Self.persistRelease(true)
+            wantsMute = false
+            Self.removeRestoreRecords(for: Set(released))
+            defaults.removeObject(forKey: DefaultsKey.micMuteReleasedUIDs)
         }
         Self.recoverFirstCaptures()
         if !wantsMute, Self.needsManualCheck {
@@ -399,16 +407,24 @@ final class MicMuteService: ObservableObject {
     private static func completeMixerHandoff(for uid: String) {
         let defaults = UserDefaults.standard
         defaults.set(true, forKey: DefaultsKey.micMuteManualCheckNeeded)
-        if pendingLegacyRestore?.uid == uid { defaults.removeObject(forKey: DefaultsKey.micMutePendingLegacyControls) }
+        removeRestoreRecords(for: [uid])
+        defaults.removeObject(forKey: DefaultsKey.micMuteMixerHandoffUID)
+    }
+
+    private static func removeRestoreRecords(for uids: Set<String>) {
+        let defaults = UserDefaults.standard
+        if let uid = pendingLegacyRestore?.uid, uids.contains(uid) {
+            defaults.removeObject(forKey: DefaultsKey.micMutePendingLegacyControls)
+        }
         let recorded = defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices)
-        defaults.set((recorded ?? []).filter { $0 != uid }, forKey: DefaultsKey.micMuteMutedDevices)
+        let remaining = (recorded ?? []).filter { !uids.contains($0) }
+        if remaining != recorded { defaults.set(remaining, forKey: DefaultsKey.micMuteMutedDevices) }
         for key in [DefaultsKey.micMuteSavedControls, DefaultsKey.micMuteSavedVolumes,
                     DefaultsKey.micMuteSavedChannelVolumes, DefaultsKey.micMuteProtectedChannels] {
-            if var values = defaults.dictionary(forKey: key), values.removeValue(forKey: uid) != nil {
-                defaults.set(values, forKey: key)
+            if let values = defaults.dictionary(forKey: key), !uids.isDisjoint(with: values.keys) {
+                defaults.set(values.filter { !uids.contains($0.key) }, forKey: key)
             }
         }
-        defaults.removeObject(forKey: DefaultsKey.micMuteMixerHandoffUID)
     }
 
     /// Unmute for a caller that is about to tear the app down. The queue that
@@ -817,7 +833,13 @@ final class MicMuteService: ObservableObject {
         var partial: MuteOutcome?
         var callOpenings: Set<DeviceListener> = []
         var committedCallRelease = false
-        func commitCallRelease() {
+        var releasedUIDs: [String] = []
+        // A partial opening can commit a call's release. Only a fully restored UID retires its records.
+        func commitRelease(verified uid: String? = nil) {
+            if let uid, uid != remaining?.uid {
+                releasedUIDs.append(uid)
+                defaults.set(releasedUIDs, forKey: DefaultsKey.micMuteReleasedUIDs)
+            }
             guard follow && !committedCallRelease else { return }
             inputVolumeLock.withLock {
                 guard sweepRequest == request else { return }
@@ -845,9 +867,6 @@ final class MicMuteService: ObservableObject {
         func captureControls(_ device: InputDevice, _ snapshot: [String: Double]) -> Bool {
             guard persistedControls?[device.uid] != snapshot || persistedClaims?.contains(device.uid) != true else { return true }
             guard isCurrent(device) else { return false }
-            if requiresManualCheck && !Self.needsManualCheck {
-                defaults.set(true, forKey: DefaultsKey.micMuteManualCheckNeeded)
-            }
             // Start tracking before any modern snapshot can reach preferences.
             if persistedClaims == nil {
                 var owners = initialClaims
@@ -906,6 +925,10 @@ final class MicMuteService: ObservableObject {
                     requiresManualCheck = true
                 }
             }
+            // Keep the reminder before a verified release can retire its legacy evidence.
+            if requiresManualCheck && defaults.object(forKey: DefaultsKey.micMuteManualCheckNeeded) as? Bool != true {
+                defaults.set(true, forKey: DefaultsKey.micMuteManualCheckNeeded)
+            }
             if !requestedMute || follow {
                 // Known controls can be released even while another legacy
                 // reading is pending. Never run a fallback for that unknown.
@@ -921,7 +944,7 @@ final class MicMuteService: ObservableObject {
                 outcome = Self.unmute(targets, savedVolumes: levels, savedChannelVolumes: channels, savedControls: controls,
                                       mutedDevices: claims, protectedChannels: &protectedChannels, attempts: &attemptedRestores,
                                       now: uptime(), callOpenings: callOpenings,
-                                      didRestore: commitCallRelease, isCurrent: isCurrent)
+                                      didRestore: commitRelease, isCurrent: isCurrent)
                 if follow && !outcome.applied {
                     // A rejected automatic release keeps mute active. A
                     // pending reapply still needs the complete pre-mute mix.
@@ -1001,8 +1024,9 @@ final class MicMuteService: ObservableObject {
         // preferences changed, and a re-assert usually changes nothing.
         // An automatic release interrupted by a reset must not discard the
         // saved levels needed to reassert the user's original mute.
-        if outcome.applied && !invalidated && audioGeneration == currentAudioGeneration { commitCallRelease() }
-        let releaseInterrupted = follow && !committedCallRelease && (invalidated || audioGeneration != currentAudioGeneration)
+        if outcome.applied && !invalidated && audioGeneration == currentAudioGeneration { commitRelease() }
+        let releaseInterrupted = follow && !committedCallRelease && releasedUIDs.isEmpty
+            && (invalidated || audioGeneration != currentAudioGeneration)
         var record = partial
         let restoredControls = !muted && (outcome.savedControls != (savedControls ?? [:]) || protectedChannels != savedProtection)
         let migrationChanged = remaining != pending || requiresManualCheck
@@ -1015,9 +1039,6 @@ final class MicMuteService: ObservableObject {
                 // A bare UID was the old format for a native switch we closed.
                 let keep = Set(record.mutedDevices).union(claimsBeforeCapture ?? [])
                 persist(submitted.filter { keep.contains($0) }, replacing: &persistedClaims, forKey: DefaultsKey.micMuteMutedDevices)
-            }
-            if requiresManualCheck && defaults.object(forKey: DefaultsKey.micMuteManualCheckNeeded) as? Bool != true {
-                defaults.set(true, forKey: DefaultsKey.micMuteManualCheckNeeded)
             }
             if !releaseInterrupted && protectedChannels != savedProtection {
                 defaults.set(protectedChannels, forKey: DefaultsKey.micMuteProtectedChannels)
@@ -1046,6 +1067,7 @@ final class MicMuteService: ObservableObject {
             if defaults.object(forKey: DefaultsKey.micMuteSavedVolume) != nil {
                 defaults.removeObject(forKey: DefaultsKey.micMuteSavedVolume)
             }
+            if !releasedUIDs.isEmpty { defaults.removeObject(forKey: DefaultsKey.micMuteReleasedUIDs) }
         } else {
             // A completely rejected or superseded setter leaves no new claim.
             persist(claimsBeforeCapture, replacing: &persistedClaims, forKey: DefaultsKey.micMuteMutedDevices)
@@ -1461,7 +1483,7 @@ final class MicMuteService: ObservableObject {
                                savedControls: [String: [String: Double]],
                                mutedDevices: [String], protectedChannels: inout [String: [UInt32]],
                                attempts: inout [InputDevice: [String: RestoreAttempt]], now: TimeInterval,
-                               callOpenings: Set<DeviceListener>, didRestore: () -> Void,
+                               callOpenings: Set<DeviceListener>, didRestore: (String?) -> Void,
                                isCurrent: (InputDevice) -> Bool) -> MuteOutcome {
         let present = devices.map(\.uid)
         var outcome = MuteOutcome(applied: false,
@@ -1474,9 +1496,6 @@ final class MicMuteService: ObservableObject {
         attempts = attempts.filter { mutedDevices.contains($0.key.uid) }
         var attempted = false
         for device in devices where targets.contains(device.uid) {
-            // A later input can reset the audio server after this one has
-            // released a verified control. Its release must survive that reset.
-            defer { if outcome.applied { didRestore() } }
             guard let saved = savedControls[device.uid] else {
                 // A reset interrupted migration before this UID was resolved.
                 outcome.mutedDevices.append(device.uid)
@@ -1509,13 +1528,17 @@ final class MicMuteService: ObservableObject {
                 outcome.savedControls.removeValue(forKey: device.uid)
                 outcome.savedVolumes.removeValue(forKey: device.uid)
                 outcome.savedChannelVolumes.removeValue(forKey: device.uid)
+                didRestore(device.uid)
             } else {
                 // One verified open control is release progress even when
                 // another control on this same input is still owed.
                 if openings.contains(where: { key in
                     guard outstanding[key] == nil, let target = saved[key], let address = controlAddress(key) else { return false }
                     return address.mSelector == kAudioDevicePropertyMute ? target == 0 : target > 0
-                }) { outcome.applied = true }
+                }) {
+                    outcome.applied = true
+                    didRestore(nil)
+                }
                 outcome.failed = true
                 outcome.mutedDevices.append(device.uid)
                 outcome.savedControls[device.uid] = outstanding

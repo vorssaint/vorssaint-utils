@@ -675,6 +675,7 @@ enum DefaultsKey {
     static let scratchpadTextSize = "scratchpadTextSize"     // pad-wide point size (ScratchpadSupport.textSizeRange)
     static let micMuteActive = "micMuteActive"               // mic muted by the app (survives relaunch)
     static let micMuteReleasePending = "micMuteReleasePending" // keep restoring after an unmute, even before publication
+    static let micMuteReleasedUIDs = "micMuteReleasedUIDs"   // [String]: verified releases whose restore records are being cleared
     static let micMuteSavedVolume = "micMuteSavedVolume"     // input volume to restore on unmute (pre 3.2.0 state)
     static let micMuteSavedVolumes = "micMuteSavedVolumes"   // [device uid: input volume] to restore on unmute
     static let micMuteSavedChannelVolumes = "micMuteSavedChannelVolumes" // [device uid: [channel: input volume]] to restore on unmute
