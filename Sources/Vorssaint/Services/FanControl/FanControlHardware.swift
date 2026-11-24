@@ -8,6 +8,7 @@ enum FanControlHardwareError: Error {
     case unsupported
     case alreadyControlled
     case operationFailed
+    case unsafeControlState
 }
 
 /// The only SMC write policy used by Fan Control. It discovers the keys the
@@ -51,16 +52,11 @@ final class FanControlHardware {
     }
 
     func readOnlySnapshot() throws -> FanControlSnapshot {
-        let fans = try discoverControlledFans()
-        let snapshot = FanControlSnapshot(fans: try readings(for: fans), isCooling: false,
-                                          endsAt: nil, stopReason: nil,
-                                          coolingLevel: nil,
-                                          configuration: nil,
-                                          temperatures: readTemperatures())
+        let result = try snapshot(isCooling: false, endsAt: nil, stopReason: nil)
         if let forceTest = forceTestKey(), try byteValue(forceTest) != 0 {
             throw FanControlHardwareError.alreadyControlled
         }
-        return snapshot
+        return result
     }
 
     func telemetrySnapshot() throws -> FanControlSnapshot {
@@ -165,34 +161,42 @@ final class FanControlHardware {
         }
     }
 
+    /// The watchdog can retry a refused write only while every fan still
+    /// holds its previously verified manual target.
+    func holdCooling(level: Int) throws {
+        guard let fans = try? discoverControlledFans() else {
+            throw FanControlHardwareError.unsafeControlState
+        }
+        let targets = fans.compactMap { fan in
+            FanControlPolicy.coolingTargetRPM(minimum: fan.minimumRPM,
+                                              maximum: fan.maximumRPM, level: level)
+        }
+        guard targets.count == fans.count,
+              zip(fans, targets).allSatisfy({ fan, target in
+                  setTargetRPM(target, for: fan, attempts: 10)
+              }),
+              verifyCooling(fans, targets: targets, attempts: 10) else {
+            guard verifyCooling(fans, targets: activeTargets) else {
+                throw FanControlHardwareError.unsafeControlState
+            }
+            throw FanControlHardwareError.operationFailed
+        }
+        activeTargets = targets
+    }
+
+    /// A user's change to an active session. Unlike the watchdog's hold, any
+    /// failure here returns the fans to the system at once.
     func updateCooling(level: Int) throws -> [FanControlFanReading] {
         let fans = try discoverControlledFans()
         guard FanControlPolicy.validCoolingLevel(level) else {
             throw FanControlHardwareError.operationFailed
         }
-        let targets = try fans.map { fan -> Double in
-            guard let target = FanControlPolicy.coolingTargetRPM(
-                minimum: fan.minimumRPM,
-                maximum: fan.maximumRPM,
-                level: level
-            ) else { throw FanControlHardwareError.operationFailed }
-            return target
-        }
-        for (fan, target) in zip(fans, targets) {
-            guard setTargetRPM(target, for: fan, attempts: 10) else {
-                _ = restoreAutomatic()
-                throw FanControlHardwareError.operationFailed
-            }
-        }
         do {
-            guard verifyCooling(fans, targets: targets, attempts: 10) else {
-                throw FanControlHardwareError.operationFailed
-            }
-            activeTargets = targets
+            try holdCooling(level: level)
             return try readings(for: fans)
         } catch {
             _ = restoreAutomatic()
-            throw error
+            throw FanControlHardwareError.operationFailed
         }
     }
 
@@ -232,13 +236,16 @@ final class FanControlHardware {
                   coolingLevel: Int? = nil,
                   configuration: FanControlConfiguration? = nil) throws -> FanControlSnapshot {
         let fans = try discoverControlledFans()
-        return FanControlSnapshot(fans: try readings(for: fans),
+        let fanReadings = try readings(for: fans)
+        let temperatures = readTemperatures()
+        return FanControlSnapshot(fans: fanReadings,
                                   isCooling: isCooling,
                                   endsAt: endsAt,
                                   stopReason: stopReason,
                                   coolingLevel: coolingLevel,
                                   configuration: configuration,
-                                  temperatures: readTemperatures())
+                                  temperatures: temperatures.readings,
+                                  gpuPoweredDown: temperatures.gpuPoweredDown)
     }
 
     func coolingIsIntact() -> Bool {
@@ -246,14 +253,19 @@ final class FanControlHardware {
         return verifyCooling(fans, targets: activeTargets)
     }
 
-    func readTemperatures() -> [FanControlTemperatureReading] {
+    func readTemperatures() -> FanControlTemperatureSample {
         let keys = discoverTemperatureKeys()
         let cpuReadings = temperatureReadings(keys.cpu)
-        return FanControlPolicy.aggregatedTemperatures(
+        let gpuReadings = keys.gpu.map { (key: $0.name, value: client.readValue($0)) }
+        let readings = FanControlPolicy.aggregatedTemperatures(
             cpuReadings: cpuReadings,
-            gpuReadings: temperatureReadings(keys.gpu).map(\.value),
+            gpuReadings: gpuReadings.compactMap(\.value),
             platform: temperaturePlatform
         )
+        let gpuPoweredDown = FanControlPolicy.gpuIsPoweredDown(
+            modelIdentifier: TemperatureSensorSelector.modelIdentifier, readings: gpuReadings
+        )
+        return FanControlTemperatureSample(readings: readings, gpuPoweredDown: gpuPoweredDown)
     }
 
     // MARK: - Discovery

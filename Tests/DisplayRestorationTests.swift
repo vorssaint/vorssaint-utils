@@ -255,6 +255,14 @@ enum DisplayRestorationTests {
                      "a later explicit disable succeeds once another drawable monitor is present")
 
         service = make()
+        UserDefaults.standard.stored = [0, -1, Int.max, 2]
+        Hardware.succeeds = false
+        service.restoreDisplaysLeftOff()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.map { $0.id } == [2] && service.deferredRestoration.ids == [2],
+                     "a mixed saved list attempts recovery and keeps wake retries only for the valid display")
+
+        service = make()
         UserDefaults.standard.stored = [1]
         service.restoreDisplaysLeftOff()
         service.restoreDisplaysLeftOff()

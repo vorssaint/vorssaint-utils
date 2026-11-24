@@ -9,7 +9,13 @@ import ScreenCaptureKit
 /// these checks do not replace a capture across physical displays.
 enum ScreenshotAttachedCaptureTests {
     enum NSScreen {
-        struct Screen { let backingScaleFactor: CGFloat }
+        struct Screen {
+            let backingScaleFactor: CGFloat
+            var frame: CGRect = .zero
+            let displayID: CGDirectDisplayID = 1
+            var width: Int { Int(frame.width) }
+            var height: Int { Int(frame.height) }
+        }
         static var screens = [Screen(backingScaleFactor: 1), Screen(backingScaleFactor: 2)]
     }
     enum WindowPreviewProvider {
@@ -20,9 +26,13 @@ enum ScreenshotAttachedCaptureTests {
             return images[id]
         }
     }
-    struct Window { let windowID: CGWindowID }
+    struct Window {
+        let windowID: CGWindowID
+        var frame: CGRect { ScreenshotAttachedCaptureTests.frames[windowID] ?? .zero }
+    }
     struct SCShareableContent {
         let windows: [Window]
+        var displays: [NSScreen.Screen] { NSScreen.screens }
         static var ids: [CGWindowID] = [1, 2, 3]
         static var calls = 0
         static func excludingDesktopWindows(_ excluded: Bool,
@@ -31,20 +41,31 @@ enum ScreenshotAttachedCaptureTests {
             return Self(windows: ids.map { Window(windowID: $0) })
         }
     }
-    struct SCContentFilter { let desktopIndependentWindow: Window }
+    struct SCContentFilter {
+        let windowIDs: [CGWindowID]
+        let pointPixelScale: CGFloat
+        init(desktopIndependentWindow window: Window) {
+            windowIDs = [window.windowID]
+            pointPixelScale = 1
+        }
+        init(display: NSScreen.Screen, including windows: [Window]) {
+            windowIDs = windows.map(\.windowID)
+            pointPixelScale = display.backingScaleFactor
+        }
+    }
     enum SCScreenshotManager {
         struct Request {
-            let id: CGWindowID
+            let windowIDs: [CGWindowID]
             let configuration: SCStreamConfiguration
+            var id: CGWindowID { windowIDs[0] }
         }
         enum Failure: Error { case missing }
         static var images: [CGWindowID: CGImage] = [:]
         static var requests: [Request] = []
         static func captureImage(contentFilter: SCContentFilter,
                                   configuration: SCStreamConfiguration) async throws -> CGImage {
-            let id = contentFilter.desktopIndependentWindow.windowID
-            requests.append(Request(id: id, configuration: configuration))
-            guard let image = images[id] else { throw Failure.missing }
+            requests.append(Request(windowIDs: contentFilter.windowIDs, configuration: configuration))
+            guard let id = contentFilter.windowIDs.first, let image = images[id] else { throw Failure.missing }
             return image
         }
     }
@@ -86,6 +107,24 @@ enum ScreenshotAttachedCaptureTests {
     }
 
     @MainActor private static func checks(_ suite: TestSuite) async {
+        await filteredDisplayCrops(suite)
+        reset(scale: 2)
+        let whole = WindowPreviewProvider.images[1]!
+        SCScreenshotManager.images[1] = whole
+        let isolated = await Engine.captureIndependentWindow(1, scale: 2, requireFullFrame: true)
+        let request = SCScreenshotManager.requests.last
+        suite.expect(isolated === whole && request?.id == 1
+                     && request?.configuration.width == whole.width
+                     && request?.configuration.height == whole.height
+                     && request?.configuration.ignoreGlobalClipSingleWindow == true,
+                     "a frozen window beyond one display requests the whole isolated surface")
+        SCScreenshotManager.images[1] = solid(width: 120, height: 120, channel: 0)
+        let partial = await Engine.captureIndependentWindow(1, scale: 2, requireFullFrame: true)
+        SCScreenshotManager.images[1] = nil
+        let unavailable = await Engine.captureIndependentWindow(1, scale: 2, requireFullFrame: true)
+        suite.expect(partial == nil && unavailable == nil,
+                     "a clipped or unavailable window cannot be saved as a complete frozen-mode capture")
+
         for scale: CGFloat in [1, 2] {
             reset(scale: scale)
             let capture = await Engine.composeAttached(plan, frames: frames)
@@ -137,6 +176,84 @@ enum ScreenshotAttachedCaptureTests {
         let noDisplay = await Engine.composeAttached(plan, frames: frames)
         suite.expect(noDisplay == nil && WindowPreviewProvider.calls.isEmpty,
                      "unknown display scale declines the composite before acquiring pixels")
+    }
+
+    @MainActor private static func filteredDisplayCrops(_ suite: TestSuite) async {
+        reset()
+        let screen = CGRect(x: 0, y: 0, width: 64, height: 48)
+        NSScreen.screens = [.init(backingScaleFactor: 2, frame: screen)]
+        let width = 128, height = 96
+        let space = CGColorSpace(name: CGColorSpace.sRGB)!
+        let offset = CGPoint(x: 31.5, y: 17.5)
+        let size = CGSize(width: 16, height: 8)
+        let samples: [(x: Int, y: Int, color: [UInt8])] = [
+            (0, 0, [255, 0, 0, 255]), (1, 0, [0, 128, 0, 128]),
+            (2, 0, [0, 0, 0, 0]), (31, 15, [0, 0, 255, 255])
+        ]
+        let cases: [(layout: String, origin: CGPoint, drawnAt: CGPoint, ids: [CGWindowID])] = [
+            ("top-left", .zero, .zero, [1]), ("placed", offset, offset, [1]), ("packed", offset, .zero, [1, 2])
+        ]
+        for (layout, origin, drawnAt, ids) in cases {
+            let plan = ScreenshotCapturePolicy.AttachedCapturePlan(windowIDs: ids,
+                                                                   bounds: CGRect(origin: origin, size: size))
+            weak var displayBytes: NSMutableData?
+            autoreleasepool {
+                let bytes = NSMutableData(length: width * height * 4)!
+                displayBytes = bytes
+                for (x, y, color) in samples {
+                    let column = Int(drawnAt.x * 2) + x
+                    let row = Int(drawnAt.y * 2) + y
+                    color.withUnsafeBytes { source in
+                        bytes.mutableBytes.advanced(by: (row * width + column) * 4)
+                            .copyMemory(from: source.baseAddress!, byteCount: 4)
+                    }
+                }
+                // The provider alone owns the display's bytes after this pool drains.
+                let provider = CGDataProvider(dataInfo: Unmanaged.passRetained(bytes).toOpaque(),
+                                              data: bytes.bytes, size: bytes.length) { info, _, _ in
+                    Unmanaged<NSMutableData>.fromOpaque(info!).release()
+                }!
+                SCScreenshotManager.images[1] = CGImage(
+                    width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4,
+                    space: space, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                    provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+            }
+            suite.expect(displayBytes != nil, "the display provider owns the source before capture")
+            let capture = await Engine.captureAttached(plan)
+            SCScreenshotManager.images = [:]
+            guard let capture, capture.image.width == 32, capture.image.height == 16 else {
+                suite.expect(false, "the filtered display returns the complete \(layout) Retina crop")
+                continue
+            }
+            suite.expect(displayBytes == nil, "the \(layout) crop releases the filtered display's backing storage")
+            suite.expect(capture.scale == 2 && SCScreenshotManager.requests.last?.windowIDs == ids
+                         && capture.image.colorSpace.map { CFEqual($0, space) } == true,
+                         "the \(layout) crop keeps the filter's windows, scale and colour space")
+            suite.expect(samples.allSatisfy { rgba(capture.image, x: $0.x, y: $0.y) == $0.color },
+                         "the \(layout) crop keeps the top-left and bottom-right pixels, single-pixel detail and alpha")
+        }
+
+        let full = ScreenshotCapturePolicy.AttachedCapturePlan(windowIDs: [1], bounds: screen)
+        let unavailable = await Engine.captureAttached(full)
+        suite.expect(unavailable == nil, "an unavailable filtered display leaves the window fallback to answer")
+        let whole = solid(width: width, height: height, channel: 0)
+        SCScreenshotManager.images[1] = whole
+        let fullCapture = await Engine.captureAttached(full)
+        suite.expect(fullCapture?.image === whole && fullCapture?.scale == 2,
+                     "a window covering the full display reuses the acquired image")
+
+        // An indexed image can be cropped, though its colour space cannot back a bitmap context.
+        let palette = CGColorSpace(indexedBaseSpace: space, last: 1, colorTable: [0, 0, 0, 255, 0, 0])!
+        let indices = Data(repeating: 0xFF, count: width / 8 * height)
+        SCScreenshotManager.images[1] = CGImage(
+            width: width, height: height, bitsPerComponent: 1, bitsPerPixel: 1, bytesPerRow: width / 8,
+            space: palette, bitmapInfo: [], provider: CGDataProvider(data: indices as CFData)!,
+            decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+        let indexed = await Engine.captureAttached(.init(windowIDs: [1], bounds: CGRect(origin: .zero, size: size)))
+        suite.expect(indexed?.image.colorSpace?.model == .indexed && indexed?.scale == 2
+                     && indexed?.image.width == 32 && indexed?.image.height == 16
+                     && indexed.map { rgba($0.image, x: 0, y: 0) } == [255, 0, 0, 255],
+                     "an unavailable bitmap copy returns the window crop in its original indexed format")
     }
 
     private static func expectPixels(_ capture: (image: CGImage, scale: CGFloat)?,

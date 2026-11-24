@@ -27,7 +27,6 @@ final class WindowPreviewProvider {
     /// budget: a smaller cache would discard more last-good previews of windows
     /// parked by Stage Manager, which cannot be recaptured until reactivated.
     private static let cacheByteBudget = 64 * 1024 * 1024
-    private var captureTask: Task<Void, Never>?
     private var warmTask: Task<Void, Never>?
     private var activationToken: NSObjectProtocol?
     private var pendingWarmPid: pid_t?
@@ -61,15 +60,15 @@ final class WindowPreviewProvider {
     /// Refreshes thumbnails for the previewable `items`, invoking `onUpdate`
     /// on the main thread as each capture lands. Earlier entries are captured
     /// first, so pass items in display order. Tab entries share their host
-    /// window's capture, so each backing window is captured once.
+    /// window's capture, so each backing window is captured once. The caller
+    /// owns the returned task and cancels it when its panel closes or refreshes.
     func refreshPreviews(for items: [SwitcherItem],
                          maxPixelSize: CGFloat = defaultMaxPixelSize,
                          excludedAppsKey: String,
-                         onUpdate: @escaping (CGWindowID, CGImage) -> Void) {
+                         onUpdate: @escaping (CGWindowID, CGImage) -> Void) -> Task<Void, Never>? {
         guard Permissions.shared.screenRecording, Self.screenIsInView(),
               !Self.captureIsPaused(excludedAppsKey: excludedAppsKey) else {
-            cancel()
-            return
+            return nil
         }
 
         var seen = Set<CGWindowID>()
@@ -84,7 +83,6 @@ final class WindowPreviewProvider {
                                  isMinimized: item.isMinimized)
         }
 
-        captureTask?.cancel()
         // Never prune to the caller's subset: Dock preview refreshes a single
         // app through this same provider, and under Stage Manager a parked
         // window cannot be recaptured — an evicted preview is gone until that
@@ -92,7 +90,7 @@ final class WindowPreviewProvider {
         // then bound memory by dropping the least recently used extras.
         pruneCache(keeping: seen)
 
-        captureTask = Task(priority: .userInitiated) { [weak self] in
+        return Task(priority: .userInitiated) { [weak self] in
             guard let self else { return }
             // Primary path: window-server captures are synchronous, full
             // resolution and cover minimized/other-Space windows. Verified on
@@ -368,11 +366,6 @@ final class WindowPreviewProvider {
         context.interpolationQuality = scale < 1 ? .high : .default
         context.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(scaledWidth), height: CGFloat(scaledHeight)))
         return context.makeImage() ?? image
-    }
-
-    func cancel() {
-        captureTask?.cancel()
-        captureTask = nil
     }
 
     // MARK: - Cache lifetime

@@ -11,6 +11,7 @@ struct NotchNotice: Equatable {
     let title: String
     let detail: String
     let symbol: String
+    var accessibilityDetail: String? = nil
     var level: Double? = nil
     var notification: NotchNotificationContent? = nil
     var notificationID: UUID? = nil
@@ -89,7 +90,7 @@ struct NotchNotice: Equatable {
     var cameraGap: CGFloat { event == .battery ? 16 : readsFromEnds ? 6 : 0 }
 
     var accessibilityText: String {
-        notification?.accessibilityText ?? [title, detail].filter { !$0.isEmpty }.joined(separator: ", ")
+        notification?.accessibilityText ?? [title, accessibilityDetail ?? detail].filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
     /// Room a closed notice keeps inside its curved ends, which a side as
@@ -128,6 +129,7 @@ final class NotchService: ObservableObject {
     private let hotkey = QuickToolHotkey(id: 81)
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
+    weak var directMediaDropWorkspace: MediaWorkspaceSelection?
     @Published private(set) var choosingFileDropDestination = false
     @Published private(set) var targetsMediaDrop = false
     @Published private(set) var selectedMetric: MetricDetailKind?
@@ -275,6 +277,15 @@ final class NotchService: ObservableObject {
     private var volumeBaseline: Double?
     private var muteBaseline: Bool?
     private var volumeDeviceUID: String?
+    private struct NativeVolumeKey {
+        let key: PreciseVolumeMediaKey
+        let volume: Double
+        let muted: Bool?
+        let lifetime: UUID
+        let generation: Int
+        let expiresAt: TimeInterval
+    }
+    private var pendingNativeVolumeKey: NativeVolumeKey?
     /// System uptime until which a level change counts as the island's own,
     /// for the output volume and the keyboard light each.
     private var ownLevelAdjustmentUntil: [NotchEvent: TimeInterval] = [:]
@@ -898,18 +909,17 @@ final class NotchService: ObservableObject {
     /// first read, when the page fills the island with its progress.
     private func agentsContentHeight(width: CGFloat) -> CGFloat? {
         let usage = AgentUsageService.shared.snapshot
-        let enabled = NotchAgentSupport.providers()
         // Added Codex accounts have cards before, or without, any log.
         let accounts = NotchAgentSupport.showsCodexAccounts() ? CodexProfileLimitsService.shared.states.map(\.id) : []
         let claudeProfile = AgentUsageService.shared.claudeProfile
         let claudeAccount = claudeProfile.isDefault ? nil : claudeProfile.id
         guard usage.loaded || !accounts.isEmpty else { return nil }
-        let providers = enabled.filter { usage.seen.contains($0) || ($0 == .codex && !accounts.isEmpty)
-            || ($0 == .claude && claudeAccount != nil) }
+        let providers = NotchAgentSupport.pageProviders(snapshot: usage, hasCodexAccounts: !accounts.isEmpty,
+                                                        hasClaudeAccount: claudeAccount != nil)
         guard !providers.isEmpty else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
             NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts,
-                                    claudeAccount: claudeAccount),
+                                    claudeAccount: claudeAccount, snapshot: usage),
             width: width))
     }
     var expandedGeometry: NotchGeometry {
@@ -2283,14 +2293,17 @@ final class NotchService: ObservableObject {
         else { DispatchQueue.main.async(execute: action) }
     }
 
-    var canAcceptFileDrop: Bool {
+    func canAcceptFileDrop(_ pasteboard: NSPasteboard) -> Bool {
+        // Leave file drags to the open media card as they cross the island's
+        // edge. The Files page keeps its own Shelf / Optimize destination.
         acceptsUserInteraction && captureControls == nil && modules.contains(.files)
+            && !(directMediaDropWorkspace != nil && pasteboard.types?.contains(.fileURL) == true)
             && AppFeature.shelf.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
     }
 
     func beginFileDrop(_ pasteboard: NSPasteboard) {
-        guard canAcceptFileDrop else { return }
+        guard canAcceptFileDrop(pasteboard) else { return }
         choosingFileDropDestination = NotchFileToolsService.shared.mediaDropContent(for: pasteboard) != nil
         targetsMediaDrop = false
         open(.files, takeFocus: false)
@@ -2318,7 +2331,7 @@ final class NotchService: ObservableObject {
 
     func accept(_ pasteboard: NSPasteboard) -> Bool {
         defer { endFileDrop() }
-        guard canAcceptFileDrop else { return false }
+        guard canAcceptFileDrop(pasteboard) else { return false }
         let optimize = choosingFileDropDestination && targetsMediaDrop
         let accepted = optimize
             ? NotchFileToolsService.shared.openMediaDrop(pasteboard)
@@ -3504,9 +3517,7 @@ final class NotchService: ObservableObject {
 
     private func invalidateMenuSpace() {
         menuSpaceGeneration += 1
-        // Keep the last measured layout until its replacement arrives, so a
-        // switch does not blink; the read that follows withdraws the cutout
-        // once the new menu bar reaches the camera.
+        // Keep a settled layout during a brief remeasurement; a slow read withdraws the old clearance.
         readMenuSpace()
     }
 
@@ -3529,18 +3540,24 @@ final class NotchService: ObservableObject {
         // frontmost application while an accessory app such as a launcher has
         // focus; that app's own menu geometry was never laid out. When our own
         // Settings has focus, the menu owner can briefly be nil.
-        guard menuSpaceTimer != nil, !menuSpaceReading,
-              let pid = NSWorkspace.shared.menuBarOwningApplication?.processIdentifier
-                ?? (NSApp.isActive ? getpid() : nil) else { return }
+        guard menuSpaceTimer != nil, !menuSpaceReading else { return }
+        guard let pid = NSWorkspace.shared.menuBarOwningApplication?.processIdentifier
+            ?? (NSApp.isActive ? getpid() : nil) else { applyMenuSpace(nil); return }
         menuSpaceReading = true
         let generation = menuSpaceGeneration
         let geometry = geometry
         let primaryTop = NSScreen.screens.first?.frame.maxY ?? geometry.screen.maxY
         let window = panel?.windowNumber ?? -1
+        let timeout = DispatchWorkItem { [weak self] in
+            guard let self, self.menuSpaceTimer != nil, self.menuSpaceReading else { return }
+            self.applyMenuSpace(nil)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.30, execute: timeout)
         menuSpaceQueue.async { [weak self] in
             let room = NotchMenuBarSpace.measure(pid: pid, geometry: geometry,
                                                 primaryTop: primaryTop, ownWindow: window)
             DispatchQueue.main.async {
+                timeout.cancel()
                 guard let self else { return }
                 self.menuSpaceReading = false
                 guard self.menuSpaceTimer != nil else { return }
@@ -3650,7 +3667,7 @@ final class NotchService: ObservableObject {
         if modules.contains(.files), AppFeature.shelf.isAvailable {
             windowHost?.setFileDropActions(NotchFileDropActions(
                 canAccept: { [weak self] pasteboard in
-                    self?.canAcceptFileDrop == true && !ShelfService.shared.isInternalDragActive
+                    self?.canAcceptFileDrop(pasteboard) == true && !ShelfService.shared.isInternalDragActive
                         && ShelfService.shared.canAcceptPasteboard(pasteboard)
                 },
                 enter: { [weak self] in self?.beginFileDrop($0) },
@@ -3673,7 +3690,7 @@ final class NotchService: ObservableObject {
             cameraWidth = max(0, right.minX - left.maxX)
         } else { cameraWidth = 0 }
         return NotchGeometry(screen: screen.frame, safeAreaTop: screen.safeAreaInsets.top,
-                             cameraWidth: cameraWidth,
+                             cameraWidth: cameraWidth, physicalCameraX: screen.auxiliaryTopLeftArea?.maxX,
                              layout: NotchSize(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.notchSize) ?? "") ?? .spacious,
                              menuBarHeight: menuBarMeasurements.height(
                                 displayID: screen.notchDisplayID, frame: screen.frame,
@@ -3803,6 +3820,13 @@ final class NotchService: ObservableObject {
         }
         observe(workspace, NSWorkspace.activeSpaceDidChangeNotification) { [weak self] in
             self?.fullscreenEnvironmentDidChange()
+        }
+        for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
+            observe(workspace, name) { [weak self] in
+                guard let self, self.menuSpaceTimer != nil else { return }
+                self.applyMenuSpace(nil)
+                self.invalidateMenuSpace()
+            }
         }
         observe(workspace, NSWorkspace.didActivateApplicationNotification) { [weak self] in self?.applicationDidActivate() }
         observe(workspace, NSWorkspace.willSleepNotification) { [weak self] in
@@ -4239,7 +4263,7 @@ final class NotchService: ObservableObject {
             // ending, the first read landing, which agents have cards, and
             // which are working, since each one's mark widens the strip.
             AgentUsageService.shared.$snapshot
-                .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider))) }
+                .map { ($0.loaded, $0.live.isEmpty, $0.seen, $0.cursorProjectsFound, Set($0.live.map(\.provider))) }
                 .removeDuplicates(by: ==)
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
@@ -4358,15 +4382,17 @@ final class NotchService: ObservableObject {
             show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
                              detail: text.limitRenewed, symbol: "arrow.clockwise", agent: provider, mascot: .celebrate))
             reactMascot(.celebrate)
-        case .budgetReached(let spent, _):
-            show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
-                             symbol: "dollarsign.circle.fill"))
+        case .budgetReached(let spent, _, let partial):
+            let amount = AgentFormat.cost(spent, partial: partial)
+            show(NotchNotice(event: .agents, title: text.budgetTitle, detail: amount, symbol: "dollarsign.circle.fill",
+                             accessibilityDetail: text.costDescription(amount, partial: partial)))
         }
     }
 
     /// Shows the output's current level. False when there is no level to show.
     @discardableResult
     func showCurrentVolume() -> Bool {
+        pendingNativeVolumeKey = nil
         let mixer = AppVolumeMixer.shared
         guard let volume = mixer.systemOutputVolume else { return false }
         return showVolume(volume, muted: mixer.systemOutputMuted)
@@ -4377,6 +4403,7 @@ final class NotchService: ObservableObject {
     /// keyboard's write that follows a moment later, leave the open island's
     /// top row in view instead of covering it with the same level.
     func noteOwnLevelAdjustment(_ event: NotchEvent) {
+        if event == .volume { pendingNativeVolumeKey = nil }
         ownLevelAdjustmentUntil[event] = ProcessInfo.processInfo.systemUptime + 1
     }
 
@@ -4385,6 +4412,7 @@ final class NotchService: ObservableObject {
     }
 
     private func bindVolumeEvents() {
+        pendingNativeVolumeKey = nil
         let mixer = AppVolumeMixer.shared
         volumeDeviceUID = mixer.currentOutputDeviceUID
         volumeBaseline = mixer.systemOutputVolume
@@ -4395,6 +4423,7 @@ final class NotchService: ObservableObject {
                 self.volumeDeviceUID = deviceUID
                 self.volumeBaseline = nil
                 self.muteBaseline = nil
+                self.pendingNativeVolumeKey = nil
             })
             .receive(on: DispatchQueue.main)
             .sink { [weak self, weak mixer] _ in
@@ -4406,12 +4435,51 @@ final class NotchService: ObservableObject {
             .store(in: &subscriptions)
     }
 
+    /// A native press has no level to show yet. Allow its next matching
+    /// change to announce even when the hardware reports less than a fine step.
+    func noteNativeVolumeKey(_ key: PreciseVolumeMediaKey) {
+        pendingNativeVolumeKey = nil
+        let mixer = AppVolumeMixer.shared
+        guard key != .play, volumeBaseline != nil, let device = volumeDeviceUID,
+              device == mixer.currentOutputDeviceUID, let volume = mixer.systemOutputVolume, volume.isFinite else { return }
+        pendingNativeVolumeKey = NativeVolumeKey(key: key, volume: volume, muted: mixer.systemOutputMuted,
+                                                lifetime: mixer.currentOutputControlLifetime,
+                                                generation: mixer.currentOutputKeyGeneration,
+                                                expiresAt: ProcessInfo.processInfo.systemUptime + 1)
+    }
+
+    private func confirmsNativeVolumeKey(volume: Double, muted: Bool?) -> Bool {
+        guard let press = pendingNativeVolumeKey else { return false }
+        let mixer = AppVolumeMixer.shared
+        guard mixer.currentOutputControlLifetime == press.lifetime,
+              mixer.currentOutputKeyGeneration == press.generation,
+              ProcessInfo.processInfo.systemUptime < press.expiresAt else {
+            pendingNativeVolumeKey = nil
+            return false
+        }
+        // A publication already queued when the key arrived can repeat the
+        // starting level. It says nothing about the effect of this press.
+        guard volume != press.volume || muted != press.muted else { return false }
+        pendingNativeVolumeKey = nil
+        let before = press.muted == true ? 0 : press.volume
+        let after = muted == true ? 0 : volume
+        switch press.key {
+        case .volumeUp: return after > before
+        case .volumeDown: return after < before
+        case .mute: return muted != nil && press.muted != nil && muted != press.muted
+        case .play: return false
+        }
+    }
+
     private func volumeChanged(_ volume: Double?, muted: Bool?) {
         defer { volumeBaseline = volume; muteBaseline = muted }
-        guard volumeDeviceUID != nil, let volume, let baseline = volumeBaseline,
-              volume != baseline || (muteBaseline != nil && muted != muteBaseline) else { return }
-        // Volume keys still announce themselves through showCurrentVolume.
-        guard !ownsLevelAdjustment(.volume) else { return }
+        guard volumeDeviceUID != nil, let volume, let baseline = volumeBaseline else {
+            pendingNativeVolumeKey = nil
+            return
+        }
+        let nativeKey = confirmsNativeVolumeKey(volume: volume, muted: muted)
+        guard nativeKey || volume != baseline || (muteBaseline != nil && muted != muteBaseline) else { return }
+        guard nativeKey || !ownsLevelAdjustment(.volume) else { return }
         // A level the output set on its own carries no news: adaptive volume
         // rides the level for as long as the room is noisy, and each step
         // used to reschedule the indicator's dismissal, so it never left the
@@ -4419,7 +4487,7 @@ final class NotchService: ObservableObject {
         // brightness change raises no notice of its own. Muting always
         // reports, and so does a key step.
         let muteChanged = muteBaseline != nil && muted != muteBaseline
-        if !muteChanged {
+        if !nativeKey && !muteChanged {
             let origin = NotchSupport.volumeChangeOrigin(
                 from: baseline, to: volume,
                 sinceRide: ProcessInfo.processInfo.systemUptime - lastVolumeRide)
@@ -4428,7 +4496,7 @@ final class NotchService: ObservableObject {
                 return
             }
         }
-        lastVolumeRide = -.infinity
+        if !nativeKey { lastVolumeRide = -.infinity }
         showVolume(volume, muted: muted)
     }
 

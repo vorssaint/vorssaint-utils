@@ -3,6 +3,7 @@
 
 import AppKit
 import Carbon.HIToolbox
+import Combine
 import SwiftUI
 
 /// The command bar: one floating field, summoned by a global shortcut, that
@@ -68,6 +69,7 @@ final class CommandBarService: ObservableObject {
     @Published var query = "" {
         didSet {
             guard query != oldValue else { return }
+            stopClipboardSearch()
             uninstallWarning = nil
             uninstallFinderRequestID = nil
             if mode.isUninstallFlow {
@@ -142,7 +144,7 @@ final class CommandBarService: ObservableObject {
     var farewell = NotchMascotMood.wink
 
     private let hotkey = QuickToolHotkey(id: 20)
-    private var rowHotkeys: [QuickToolHotkey] = []
+    private var rowHotkeys: [String: QuickToolHotkey] = [:]
     private var panel: NSPanel?
     private var keyMonitor: Any?
     private var outsideClickMonitor: Any?
@@ -277,20 +279,6 @@ final class CommandBarService: ObservableObject {
                                                   storageKey: DefaultsKey.commandBarShortcut)
         reloadPreferenceCaches()
         syncRowHotkeys()
-        if available {
-            // Build the one view tree after launch, outside the keystroke that
-            // asks to see it for the first time, and lay it out: a window draws
-            // itself before it first appears, and keys typed meanwhile would
-            // still reach the app in front.
-            DispatchQueue.main.async { [weak self] in
-                guard AppFeature.commandBar.isAvailable, let self else { return }
-                let panel = self.ensurePanel()
-                if !panel.isVisible {
-                    panel.contentViewController?.view.layoutSubtreeIfNeeded()
-                    panel.display()
-                }
-            }
-        }
         if !available {
             hide()
             panel = nil
@@ -325,8 +313,8 @@ final class CommandBarService: ObservableObject {
     func suspend() {
         pendingAppShortcut.cancel()
         hotkey.unregister()
-        for hotkey in rowHotkeys { hotkey.unregister() }
-        rowHotkeys = []
+        for hotkey in rowHotkeys.values { hotkey.unregister() }
+        rowHotkeys = [:]
         hide()
         cancelPendingRestart()
     }
@@ -563,6 +551,7 @@ final class CommandBarService: ObservableObject {
     }
 
     func hide() {
+        stopClipboardSearch()
         // Cleared first, so the island closing under the bar does not close it again.
         let presented = presentation
         presentation = .window
@@ -848,8 +837,8 @@ final class CommandBarService: ObservableObject {
     /// quick tools so the two can never collide.
     private func syncRowHotkeys() {
         let wanted = AppFeature.commandBar.isAvailable ? rowShortcuts : [:]
-        for hotkey in rowHotkeys { hotkey.unregister() }
-        rowHotkeys = []
+        for hotkey in rowHotkeys.values { hotkey.unregister() }
+        rowHotkeys = [:]
         var index: UInt32 = 0
         var refused: Set<String> = []
         for (key, shortcut) in wanted.sorted(by: { $0.key < $1.key })
@@ -862,10 +851,30 @@ final class CommandBarService: ObservableObject {
                             storageKey: CommandBarRowShortcuts.takeOverKey(for: key)) {
                 refused.insert(key)
             }
-            rowHotkeys.append(hotkey)
+            rowHotkeys[key] = hotkey
             index += 1
         }
         if refused != refusedRowShortcutKeys { refusedRowShortcutKeys = refused }
+        // A shortcut can be pressed before the first panel and its field finish
+        // drawing. Prepare them now so immediate typing reaches the bar.
+        guard needsPreparedPanel else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.needsPreparedPanel else { return }
+            let panel = self.ensurePanel()
+            guard !panel.isVisible else { return }
+            panel.contentViewController?.view.layoutSubtreeIfNeeded()
+            panel.display()
+        }
+    }
+
+    private var needsPreparedPanel: Bool {
+        guard AppFeature.commandBar.isAvailable else { return false }
+        if hotkey.isRegistered && UserDefaults.standard.bool(forKey: DefaultsKey.commandBarShortcutEnabled) {
+            return true
+        }
+        // App shortcuts launch or hide their app directly. Treat other rows
+        // as possible prompts without building the catalog to find out.
+        return rowHotkeys.contains { $0.value.isRegistered && CommandBarPreferences.source(ofRowID: $0.key) != .apps }
     }
 
     /// Runs a row from its own combination, with no bar involved. Runnable
@@ -1469,6 +1478,10 @@ final class CommandBarService: ObservableObject {
 
     private func refreshResults() {
         guard !isTearingDown else { return }
+        if searchedClipboardHistory != nil,
+           !isEnabled(.clipboard) || mode != .search || (activeCategory != nil && activeCategory != .clipboard) {
+            stopClipboardSearch()
+        }
         if presentationLifecycle.isLoadingHome {
             rows = []
             sectionTitles = [:]
@@ -1731,6 +1744,41 @@ final class CommandBarService: ObservableObject {
             CommandBarLinks.rankingTitle(name: entry.title, query: query))
     }
 
+    private weak var searchedClipboardHistory: ClipboardHistoryService?
+    private var clipboardHistoryChanges: AnyCancellable?
+
+    private func observeClipboardSearch(_ history: ClipboardHistoryService) {
+        guard clipboardHistoryChanges == nil else { return }
+        searchedClipboardHistory = history
+        // Published entries change before didSet invalidates the result caches.
+        // Deliver on the next turn and coalesce changes from the same copy or edit.
+        clipboardHistoryChanges = history.$entries.dropFirst().map { _ in () }
+            .debounce(for: .milliseconds(15), scheduler: DispatchQueue.main)
+            .sink { [weak self] in self?.refreshClipboardSearch() }
+    }
+
+    private func refreshClipboardSearch() {
+        guard searchedClipboardHistory != nil, isVisible, mode == .search, isEnabled(.clipboard),
+              activeCategory == nil || activeCategory == .clipboard else { return }
+        refreshResults()
+    }
+
+    private func stopClipboardSearch() {
+        clipboardHistoryChanges = nil
+        searchedClipboardHistory?.cancelSearch(on: .commandBar)
+        searchedClipboardHistory = nil
+    }
+
+
+    private func clipboardRows(matching query: String, bar: CommandBarFeatureStrings,
+                               limit: Int = 4) -> [CommandBarEntry] {
+        guard isEnabled(.clipboard), AppFeature.clipboardHistory.isAvailable else { return [] }
+        observeClipboardSearch(ClipboardHistoryService.shared)
+        return CommandBarCatalog.clipboardEntries(matching: query, bar: bar, limit: limit,
+            onDeferredResults: { [weak self] in self?.refreshClipboardSearch() },
+            paste: { [weak self] in self?.paste($0) })
+    }
+
     private func searchRows(for trimmed: String) -> [CommandBarEntry] {
         let bar = FeatureStrings.commandBar(L10n.shared.language)
         // Inside a category, typing filters that category and nothing else:
@@ -1743,9 +1791,7 @@ final class CommandBarService: ObservableObject {
             fileSearch.cancelPending()
             let hidden = hiddenCache
             let pool = category == .clipboard
-                ? CommandBarCatalog.clipboardEntries(matching: trimmed, bar: bar, limit: 40) {
-                    [weak self] entry in self?.paste(entry)
-                }
+                ? clipboardRows(matching: trimmed, bar: bar, limit: 40)
                 // A row the person hid stays hidden here too; the browse path
                 // filters it and searching inside the category must agree.
                 .filter { !hidden.contains($0.stableKey) }
@@ -1807,9 +1853,7 @@ final class CommandBarService: ObservableObject {
         // A sum is answered, not searched: the result leads and the rest of
         // the list carries on underneath. Its row carries no id prefix of its
         // own, so the switch has to be read here or it would do nothing.
-        let answer = isEnabled(.calculator)
-            ? CommandBarCatalog.answerEntry(for: trimmed, bar: bar)
-            : nil
+        let answer = CommandBarCatalog.answerEntry(for: trimmed, bar: bar, enabled: isEnabled(.calculator))
         // A web address typed into the bar is opened, not searched: the row
         // leads so Return opens it at once, the way a sum's answer does.
         let openURL = CommandBarCatalog.openURLEntry(for: trimmed, bar: bar)
@@ -1868,10 +1912,7 @@ final class CommandBarService: ObservableObject {
 
         // The clipboard is searched with everything that was typed: digits
         // are part of what people look for.
-        let clipboard = CommandBarCatalog.clipboardEntries(matching: trimmed,
-                                                           bar: bar) { [weak self] entry in
-            self?.paste(entry)
-        }
+        let clipboard = clipboardRows(matching: trimmed, bar: bar)
 
         let names = aliasCache
         let pinnedKeys = pinCache
@@ -2021,8 +2062,7 @@ final class CommandBarService: ObservableObject {
     /// Tab reuses a calculator answer or completes the selected search result.
     func completeSelection() {
         guard case .search = mode, let entry = selectedEntry else { return }
-        if entry.id == "math.result", let result = CommandBarMath.evaluate(query) {
-            let completion = CommandBarMath.reusableExpression(for: result)
+        if let completion = entry.reusableExpression {
             if let editor = panel?.firstResponder as? NSTextView, editor.string == query {
                 // Native replacement keeps undo and puts the caret after the reused value.
                 editor.insertText(completion, replacementRange: NSRange(location: 0, length: (query as NSString).length))
