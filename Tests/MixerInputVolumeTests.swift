@@ -180,6 +180,7 @@ enum MixerInputVolumeContract {
         static var afterProcessListRead: (() -> Void)?
         static var current: UInt32 = 10
         static var uids: [UInt32: String] = [:]
+        static var names: [UInt32: String] = [:]
         static var aggregates: Set<UInt32> = []
         static var virtual: Set<UInt32> = []
         static var running: Set<UInt32> = []
@@ -217,6 +218,7 @@ enum MixerInputVolumeContract {
             inactiveDevices = []
             current = 10
             uids = [:]
+            names = [:]
             aggregates = []
             virtual = []
             running = []
@@ -343,7 +345,8 @@ enum MixerInputVolumeContract {
                     p.storeBytes(of: device, toByteOffset: i * 4, as: UInt32.self)
                 }
             case kAudioDevicePropertyDeviceUID, kAudioObjectPropertyName:
-                p.assumingMemoryBound(to: CFString.self).pointee = (uids[d] ?? "device-\(d)") as CFString
+                let name = a.pointee.mSelector == kAudioObjectPropertyName ? names[d] : nil
+                p.assumingMemoryBound(to: CFString.self).pointee = (name ?? uids[d] ?? "device-\(d)") as CFString
                 let callback = afterUIDRead
                 afterUIDRead = nil
                 callback?()
@@ -483,6 +486,19 @@ enum MixerInputVolumeContract {
             m.start()
             DispatchQueue.drain()
             return m
+        }
+        for uid in [VirtualOutputSupport.deviceUID, VirtualOutputSupport.loopbackUID,
+                    VirtualOutputSupport.legacyDeviceUID, "com.vorssaint.utils.software-volume.bridge.fixture"] {
+            HAL.reset()
+            HAL.devices = [10, 20, 30]
+            HAL.uids[10] = uid
+            HAL.names[10] = "Unrelated capture bridge"
+            HAL.readFails.insert(HAL.key(20, 0, kAudioDevicePropertyDeviceUID, scope: kAudioObjectPropertyScopeGlobal))
+            let inventory = MicMuteService.inputInventory()
+            check(inventory?.devices.map(\.id) == [30],
+                  "mute discovery excludes internal output UIDs even when the displayed name is unrelated")
+            check(inventory?.unresolvedIDs == [20],
+                  "an unreadable input identity remains unresolved while internal outputs are excluded")
         }
         HAL.reset()
         HAL.levels[HAL.key(10)] = 0.4

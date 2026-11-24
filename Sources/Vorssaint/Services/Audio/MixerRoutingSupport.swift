@@ -15,6 +15,33 @@ struct MixerOutputPreferences: Equatable {
     let volumes: [String: Double]
 }
 
+enum MixerSoftwareVolumeSupport {
+    // Matches the driver's master control curve, not the per-app boost curve.
+    private static let exponent = log(10.0) / log(4.0)
+    private static let tail = 20 * exponent / (4 * log(10.0))
+    static func decibels(for level: Double, perceptual: Bool = false) -> Double {
+        guard level.isFinite, level > 0 else { return -64 }
+        if level >= 1 { return 0 }
+        if !perceptual { return -64 + 64 * level }
+        return level < 1.0 / 64 ? -64 + 4 * pow(level * 64, tail) : 20 * exponent * log10(level)
+    }
+    static func level(forDecibels decibels: Double, perceptual: Bool = false) -> Double {
+        guard decibels.isFinite, decibels > -64 else { return 0 }
+        if decibels >= 0 { return 1 }
+        if !perceptual { return (decibels + 64) / 64 }
+        return decibels < -60 ? pow((decibels + 64) / 4, 1 / tail) / 64 : pow(10, decibels / (20 * exponent))
+    }
+    static func savedLevel(_ value: Any?, perceptual: Bool = false) -> Double {
+        if let record = value as? [String: Double], let decibels = record["decibels"], decibels.isFinite {
+            return level(forDecibels: decibels, perceptual: perceptual)
+        }
+        // Old numbers used -64 + 64 * scalar. Convert the audible level,
+        // never reinterpret the same position on a much louder new curve.
+        let legacy = (value as? NSNumber)?.doubleValue ?? 0.5
+        return level(forDecibels: decibels(for: legacy.isFinite ? legacy : 0.5), perceptual: perceptual)
+    }
+}
+
 /// How a mixer row is identified.
 struct MixerRowIdentity: Equatable {
     /// Identifies the row in the list and its engine. Always present.
@@ -184,7 +211,7 @@ enum MixerRoutingSupport {
     }
 
     static func isUnity(_ volume: Double) -> Bool {
-        abs(volume - 1) < 0.005
+        displayPercent(forVolume: volume) == 100
     }
 
     /// The gain an app's slider position is played at.
@@ -201,13 +228,17 @@ enum MixerRoutingSupport {
         // untouched, the same reading a saved volume gets.
         guard volume.isFinite else { return 1 }
         let level = max(volume, 0)
+        // Use the same unity boundary as the visible percentage and routing.
+        // Tiny slider rounding must not turn a displayed 100% into a boost.
+        if isUnity(level) { return 1 }
         return Float(level < 1 ? level * level : level)
     }
 
-    /// The slider position that plays `gain`, the inverse of the curve above.
+    /// The slider position for the curve above, before displayed unity snaps
+    /// to exactly 1.
     /// Volumes saved before the sliders followed perceived loudness were the
-    /// gain itself, and move here once so the update never changes how loud
-    /// an app plays, only where its slider sits.
+    /// gain itself and move here once. Ordinary levels retain their gain;
+    /// positions displayed as 100% normalize to exact unity.
     static func volume(forGain gain: Double) -> Double {
         guard gain.isFinite else { return 1 }
         let level = max(gain, 0)
@@ -479,12 +510,17 @@ enum MixerRoutingSupport {
         Set(uids.filter { airPlayConnected || !isAirPlaySentinel($0) })
     }
 
+    static func isSelectableSystemOutput(_ uid: String, canBeDefault: Bool) -> Bool {
+        canBeDefault && !VirtualOutputSupport.isSoftwareDevice(uid)
+    }
+
     static func nextSelectedOutputDeviceUID(currentUID: String?,
                                             selectedUIDs: [String],
                                             availableUIDs: Set<String>) -> String? {
         var seen = Set<String>()
         let candidates = selectedUIDs.compactMap { rawUID -> String? in
             guard let uid = sanitizedDeviceUID(rawUID),
+                  !VirtualOutputSupport.isSoftwareDevice(uid),
                   availableUIDs.contains(uid),
                   seen.insert(uid).inserted else { return nil }
             return uid
@@ -532,10 +568,18 @@ enum MixerRoutingSupport {
                                selectedOutputDeviceUID: String?,
                                targetOutputDeviceUID: String?,
                                defaultOutputDeviceUID: String?,
-                               universalOutputRouteUID: String? = nil) -> Bool {
+                               universalOutputRouteUID: String? = nil,
+                               volumeIsBeingEdited: Bool = false, hasRunningEngine: Bool = false,
+                               hasSavedVolume: Bool = false,
+                               isPlaying: Bool = false) -> Bool {
         guard hasAudioObjects else { return false }
         guard let targetOutputDeviceUID else { return false }
-        if !isUnity(volume) { return true }
+        // Restore explicit control choices before a playing app's first
+        // slider change. Stopped unity IO may release the path; merely
+        // discovering an app never opts it in. An existing edit stays live.
+        if !isUnity(volume)
+            || (isPlaying && hasSavedVolume)
+            || (hasRunningEngine && volumeIsBeingEdited) { return true }
         if let selectedOutputDeviceUID {
             // An explicit route still matters when it happens to be the
             // system default: a Wine game may keep its old device open.
@@ -546,14 +590,14 @@ enum MixerRoutingSupport {
     }
 
     /// The last gate before a tap is built: a row is tapped only when the user
-    /// adjusted its volume, chose its output, or asked to move all audio to an
-    /// output that this process did not follow. Merely listing an app never
+    /// explicitly set its volume (including 100%), chose its output, or asked
+    /// to move all audio to an output that this process did not follow. Merely listing an app never
     /// makes it part of a tap.
     static func rowMayBeTapped(savedVolume: Double?,
                                savedRouteUID: String?,
                                defaultOutputDeviceUID: String?,
                                universalOutputRouteUID: String? = nil) -> Bool {
-        if let savedVolume, !isUnity(savedVolume) { return true }
+        if savedVolume != nil { return true }
         if savedRouteUID != nil { return true }
         guard let universalOutputRouteUID else { return false }
         return universalOutputRouteUID == defaultOutputDeviceUID

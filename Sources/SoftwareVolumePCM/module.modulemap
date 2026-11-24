@@ -1,0 +1,6 @@
+module SoftwareVolumePCM [system] {
+    header "Playback.h"
+    header "Format.h"
+    link "CoreAudio"
+    export *
+}

@@ -29,6 +29,16 @@ enum LocalizationFeatureContractTests {
             let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
             suite.expect(values.allSatisfy { !$0.contains("\u{2014}") },
                    "no em-dash in visible strings (\(language.rawValue))")
+            let software = VirtualOutputStrings.localized(language)
+            suite.expect(!software.title.isEmpty && !software.caption.isEmpty
+                && !software.install.isEmpty && !software.installTitle.isEmpty
+                && !software.installBody.isEmpty
+                && !software.remove.isEmpty && !software.removeTitle.isEmpty && !software.removeBody.isEmpty
+                && !software.privacyTitle.isEmpty && !software.privacyBody.isEmpty
+                && [VirtualOutputSupport.Issue.outputUnavailable, .setupFailed,
+                    .privacyUnverified, .inUse, .stopped, .installerMissing, .removalFailed]
+                    .allSatisfy { !software.message($0).isEmpty },
+                "software volume labels are present in \(language.rawValue)")
             suite.expect(!strings.switcherMinimizedPlacementLabel.isEmpty
                    && !strings.switcherTreatHiddenAppsLikeMinimized.isEmpty,
                    "the minimized-window picker and separate hidden-app choice are labeled "

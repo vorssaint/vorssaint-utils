@@ -1123,6 +1123,7 @@ final class MicMuteService: ObservableObject {
                 inventory.unresolvedIDs.insert(deviceID)
                 continue
             }
+            guard !VirtualOutputSupport.isSoftwareDevice(uid) else { continue }
 
             var nameRef: CFString = "" as CFString
             let name = read(deviceID, kAudioObjectPropertyName, &nameRef) ? nameRef as String : uid

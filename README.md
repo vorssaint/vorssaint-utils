@@ -87,7 +87,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 
 ### Sound
 
-- **Volume mixer.** Set volume per app, boost quiet audio past 100%, and pin or reorder favorites. No audio driver required.
+- **Volume mixer.** Set volume per app, boost quiet audio past 100%, and pin or reorder favorites. The standard mixer works without a driver. For outputs with fixed volume, the optional [software volume fallback](docs/SOFTWARE-VOLUME.md) adds macOS volume and mute controls.
 - **Per app output.** Play music through speakers while a call uses your headset.
 - **Output switcher.** Switch audio outputs with a shortcut and lower the volume when headphones disconnect.
 - **Microphone tools.** Choose a preferred input, adjust its level on supported devices, and apply available microphone mute or input-volume controls with one shortcut. Siri and some apps may still hear you; Mic Mute is not a privacy lock. Its indicator shows that the feature is on, not that every app receives silence.
