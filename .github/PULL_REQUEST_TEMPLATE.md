@@ -13,5 +13,5 @@ See the [contribution guide](https://github.com/vorssaint/vorssaint-utils/blob/m
 
 ## Related issues
 
-<!-- If an issue exists, use one `Refs #123` per line. Avoid Closes/Fixes,
+<!-- If an issue exists, use one `Refs #<number>` per line. Avoid Closes/Fixes,
 which closes the report before the fix reaches a published version. -->
