@@ -69,11 +69,23 @@ enum CommandBarExpressions {
     static func parse(_ input: String,
                       decimalSeparator: String,
                       groupingSeparator: String) -> Parsed? {
-        var fractions: [MeasuredFraction] = []
-        guard let tokens = tokenize(input, decimalSeparator: decimalSeparator,
-                                    groupingSeparator: groupingSeparator, fractions: &fractions),
-              let closings = virtualClosings(for: tokens)
-        else { return nil }
+        var sawCompactFeet = false
+        func parseInput(splitCompactFeet: Bool) -> Parsed? {
+            var fractions: [MeasuredFraction] = []
+            guard let tokens = tokenize(input, decimalSeparator: decimalSeparator,
+                                        groupingSeparator: groupingSeparator, fractions: &fractions,
+                                        splitCompactFeet: splitCompactFeet, sawCompactFeet: &sawCompactFeet)
+            else { return nil }
+            return parse(tokens, fractions: fractions)
+        }
+        // Prefer a valid cubic-foot expression. Only retry an ambiguous one
+        // when its target or the rest of the expression ruled out that reading.
+        if let parsed = parseInput(splitCompactFeet: false) { return parsed }
+        return sawCompactFeet ? parseInput(splitCompactFeet: true) : nil
+    }
+
+    private static func parse(_ tokens: [Token], fractions: [MeasuredFraction]) -> Parsed? {
+        guard let closings = virtualClosings(for: tokens) else { return nil }
         func evaluate(_ tokens: [Token]) -> Parsed? {
             var parser = Parser(tokens: tokens + closings.map(Token.right))
             guard let parsed = parser.parseWhole() else { return nil }
@@ -154,7 +166,9 @@ enum CommandBarExpressions {
     private static func tokenize(_ input: String,
                                  decimalSeparator: String,
                                  groupingSeparator: String,
-                                 fractions: inout [MeasuredFraction]) -> [Token]? {
+                                 fractions: inout [MeasuredFraction],
+                                 splitCompactFeet: Bool,
+                                 sawCompactFeet: inout Bool) -> [Token]? {
         var tokens: [Token] = []
         let characters = Array(input)
         var index = 0
@@ -249,6 +263,26 @@ enum CommandBarExpressions {
                 return !unitAhead(at: next.end, asConversionTarget: true)
             }
             return true
+        }
+
+        func couldStartInches(at digit: Int) -> Bool {
+            var next = digit
+            guard readNumber(characters, &next, separators: separators,
+                             unitAhead: { unitAhead(at: $0) }, argumentComma: commaSeparatesArguments,
+                             measuredFraction: { _, _ in }) != nil else { return false }
+            while next < characters.count, characters[next].isWhitespace { next += 1 }
+            if let inch = readUnit(at: next), inch.unit.id == "in",
+               fold(inch.raw) != "in" || !unitAhead(at: inch.end, asConversionTarget: true) {
+                return true
+            }
+            // A single height also accepts an implied inch mark before its
+            // conversion, as in "5ft3 to cm". Other cubic-foot factors stay whole.
+            guard tokens.count == 1 || (tokens.count == 2 && (tokens.first == .minus || tokens.first == .plus))
+            else { return false }
+            let tail = characters[next...]
+            let connector = tail.first?.isLetter == true
+                ? tail.prefix(while: \.isLetter) : tail.prefix { "->→".contains($0) }
+            return conversionWords.contains(fold(String(connector)))
         }
 
         func followsUnitOrMixedRemainder(at start: Int) -> Bool {
@@ -367,6 +401,15 @@ enum CommandBarExpressions {
                 let tokenStart = index
                 if let matched = readUnit(at: index) {
                     index = matched.end
+                    if case .number? = tokens.last, matched.unit.id == "ft3", matched.raw.last == "3" {
+                        sawCompactFeet = true
+                        if splitCompactFeet, couldStartInches(at: index - 1),
+                           let feet = CommandBarUnitCatalog.unit(byID: "ft") {
+                            tokens.append(.unit(feet))
+                            index -= 1
+                            continue
+                        }
+                    }
                     if matched.unit.id == "min" {
                         var p = index
                         while p < characters.count, characters[p].isWhitespace { p += 1 }
