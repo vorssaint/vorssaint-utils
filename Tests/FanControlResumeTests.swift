@@ -42,6 +42,8 @@ enum FanControlResumeContract {
         var statusCalls = 0
         var heartbeats = 0
         var restoreCalls = 0
+        var issuingConnection: Invalidating?
+        var lastRestoreConnection: Invalidating?
         var configurations: [FanControlConfiguration] = []
         var holdNextReply = false
         var heldReply: (() -> Void)?
@@ -59,6 +61,7 @@ enum FanControlResumeContract {
         }
         func restoreAutomatic(withReply reply: @escaping () -> Void) {
             restoreCalls += 1
+            lastRestoreConnection = issuingConnection
             respond(reply)
         }
         private func respond(_ reply: @escaping () -> Void) {
@@ -94,6 +97,7 @@ enum FanControlResumeContract {
         var panelIsVisible = false
         var tickCount = 0
         var pendingStop: StopConfirmation?
+        var pendingApply: PendingApply?
         var ownedSession: (connection: Invalidating, configuration: FanControlConfiguration)?
         var sleepState = SleepState.awake
         var unregisterAfterRestore = false
@@ -109,9 +113,10 @@ enum FanControlResumeContract {
                   completion: @escaping (FanControlResponse?, Invalidating?) -> Void) {
             let requestConnection = connection ?? Invalidating()
             connection = requestConnection
+            proxy.issuingConnection = requestConnection
             operation(proxy) { completion(self.statusResponse, requestConnection) }
         }
-        func finishHeldRequest(_ response: FanControlResponse) {
+        func finishHeldRequest(_ response: FanControlResponse?) {
             statusResponse = response
             let reply = proxy.heldReply
             proxy.heldReply = nil
@@ -466,6 +471,144 @@ enum FanControlResumeContract {
                             && (service.timer != nil) == service.panelIsVisible,
                          "the timer observes automatic control and finishes recovery even with the panel closed")
             service.requestStatus() // A second reader sees the same stopped session.
+        }
+
+        func interruptApply(accepted: Bool, eventBeforeReply: Bool, removing: Bool = false, anotherOwner: Bool = false,
+                            event: () -> Void) {
+            reset(stored: removing ? manual : nil)
+            defaults.values[DefaultsKey.fanControlMode] = FanControlMode.curve.rawValue
+            var active = FanControlSnapshot.empty
+            active.isCooling = true
+            active.configuration = curve
+            let reply: FanControlResponse = accepted ? .success(active) : .failure(.alreadyControlled, snapshot: active)
+            service.proxy.holdNextReply = eventBeforeReply
+            service.statusResponse = reply
+            service.sendConfiguration(curve, resuming: false)
+            let issuingConnection = service.proxy.issuingConnection
+            if accepted && !eventBeforeReply { service.proxy.holdNextReply = true }
+            event()
+            let replacementConnection = anotherOwner && removing ? Invalidating() : nil
+            if let replacementConnection { service.connection = replacementConnection }
+            if eventBeforeReply {
+                suite.expect(service.isWorking && service.proxy.heldReply != nil && service.proxy.restoreCalls == 0
+                                && Service.appService.unregisterCalls == 0 && service.applied.isEmpty,
+                             "the lifecycle event waits for the outstanding application to establish ownership")
+                service.finishHeldRequest(reply)
+            }
+            if removing {
+                suite.expect(storedResume == nil, "the discarded curve stays forgotten while removal awaits a handoff")
+            }
+            if accepted && eventBeforeReply {
+                suite.expect(issuingConnection?.invalidated == true && service.connection !== issuingConnection
+                                && (replacementConnection == nil || service.connection === replacementConnection)
+                                && replacementConnection?.invalidated != true && service.proxy.restoreCalls == 0
+                                && service.timer != nil && defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded),
+                             "a delayed acceptance closes exactly its issuing connection and waits for a status confirmation")
+                var disconnected = FanControlSnapshot.empty
+                disconnected.stopReason = .appDisconnected
+                service.statusResponse = anotherOwner ? .success(active) : .failure(.controlFailed, snapshot: disconnected)
+                let reads = service.proxy.statusCalls
+                service.poll()
+                service.poll()
+                service.heartbeat()
+                service.retryResume()
+                suite.expect(service.proxy.statusCalls > reads && service.proxy.issuingConnection !== issuingConnection
+                                && service.proxy.heartbeats == 0 && service.proxy.restoreCalls == 0
+                                && service.applied.isEmpty && service.scheduledResumes.isEmpty
+                                && Service.appService.unregisterCalls == 0,
+                             "checking the closed session sends only status requests until the helper confirms automatic control")
+                service.statusResponse = .success(disconnected)
+                for _ in 0..<(anotherOwner ? 60 : 2) { service.poll() }
+                suite.expect(service.snapshot == disconnected && !defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded),
+                             "the status timer observes the confirmed disconnect before ending recovery")
+                service.requestStatus()
+            } else if accepted {
+                suite.expect(service.proxy.restoreCalls == 1 && service.proxy.lastRestoreConnection === issuingConnection
+                                && service.proxy.heldReply != nil && Service.appService.unregisterCalls == 0
+                                && defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded),
+                             "the interrupted local application is restored immediately on its issuing connection")
+                service.finishHeldRequest(.success(.empty))
+            } else {
+                readStatus(.success(active))
+                service.heartbeat()
+                suite.expect(service.proxy.restoreCalls == 0 && service.proxy.heartbeats == 0
+                                && Service.appService.unregisterCalls == 0
+                                && !defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded),
+                             "an identical active curve after a refused application remains with its external owner")
+            }
+        }
+
+        for (eventBeforeReply, wakeEarly) in [(false, false), (true, false), (true, true)] {
+            for accepted in [false, true] {
+                interruptApply(accepted: accepted, eventBeforeReply: eventBeforeReply) {
+                    service.workspaceWillSleep()
+                    if wakeEarly { service.workspaceDidWake() }
+                }
+                if !wakeEarly { service.workspaceDidWake() }
+                if !service.scheduledResumes.isEmpty { service.retryResume() }
+                suite.expect(service.proxy.configurations == [curve] && service.applied == (accepted ? [curve] : [])
+                                && FanControlConfiguration.decodeResume(storedResume ?? "") == (accepted ? curve : nil),
+                             "wake resumes the accepted curve once and never adopts a refused one")
+            }
+        }
+
+        for removing in [false, true] {
+            interruptApply(accepted: true, eventBeforeReply: true, removing: removing, anotherOwner: true) {
+                if removing {
+                    Environment.available = false
+                    service.syncWithPreferences()
+                } else {
+                    service.workspaceWillSleep()
+                }
+            }
+            service.workspaceDidWake()
+            suite.expect(service.proxy.configurations == [curve] && service.proxy.restoreCalls == 0
+                            && service.proxy.heartbeats == 0 && service.applied.isEmpty && service.scheduledResumes.isEmpty
+                            && Service.appService.unregisterCalls == (removing ? 1 : 0),
+                         "another owner's identical curve after disconnect never receives a restore, heartbeat or saved-curve retry")
+        }
+
+        reset(stored: manual)
+        service.proxy.holdNextReply = true
+        service.sendConfiguration(curve, resuming: false)
+        let lostReplyConnection = service.proxy.issuingConnection
+        service.workspaceWillSleep()
+        service.finishHeldRequest(nil)
+        suite.expect(lostReplyConnection?.invalidated == true && service.proxy.restoreCalls == 0
+                        && service.applied.isEmpty && service.scheduledResumes.isEmpty,
+                     "an unreadable apply reply releases the issuing client without assuming ownership")
+        confirmRecovery(.appDisconnected)
+        service.workspaceDidWake()
+        suite.expect(service.proxy.configurations == [curve] && service.applied.isEmpty && service.scheduledResumes.isEmpty
+                        && FanControlConfiguration.decodeResume(storedResume ?? "") == manual,
+                     "a confirmed disconnect after an unreadable reply cannot authorize a wake resume")
+
+        let removals: [(beforeReply: Bool, registration: Fixture.AccessState)] = [
+            (false, .enabled), (true, .enabled), (true, .requiresApproval), (true, .notRegistered),
+        ]
+        for (eventBeforeReply, registration) in removals {
+            for accepted in [false, true] {
+                for reenable in [false, true] {
+                    interruptApply(accepted: accepted, eventBeforeReply: eventBeforeReply, removing: true) {
+                        Service.appService.status = registration
+                        Environment.available = false
+                        service.syncWithPreferences()
+                        if reenable {
+                            Environment.available = true
+                            service.syncWithPreferences()
+                        }
+                    }
+                    readStatus(.success(.empty))
+                    readStatus(.success(.empty))
+                    service.workspaceDidWake()
+                    service.retryResume()
+                    let shouldUnregister = !reenable && registration != .notRegistered
+                    suite.expect(Service.appService.unregisterCalls == (shouldUnregister ? 1 : 0) && storedResume == nil
+                                    && service.applied.isEmpty && service.scheduledResumes.isEmpty
+                                    && service.proxy.configurations == [curve],
+                                 "confirmed idle unregisters a removed feature once and never saves or resumes its discarded curve")
+                }
+            }
         }
 
         for panelVisible in [false, true] {

@@ -3,18 +3,19 @@
 
 import Foundation
 
-/// Runs the helper's production watchdog and recovery methods against doubles.
+/// Runs the helper's session, watchdog and recovery methods against doubles.
 /// It exercises session transitions without opening SMC or starting a timer.
 enum FanControlRecoveryContract {
     enum ProcessInfo {
         static let processInfo = Clock()
         final class Clock {
-            let systemUptime: TimeInterval = 100
+            var systemUptime: TimeInterval = 100
             var thermalState: Foundation.ProcessInfo.ThermalState = .nominal
         }
     }
 
     typealias FanControlHardwareError = FanControlHardwareContract.FanControlHardwareError
+    typealias FanControlIPC = FanControlResumeContract.FanControlIPC
 
     class FanControlHardware {
         var writeError: FanControlHardwareError?
@@ -26,6 +27,14 @@ enum FanControlRecoveryContract {
         var controlIntact = true
         var temperatures = [FanControlTemperatureReading(source: .hottestSoC, celsius: 60)]
         var gpuPoweredDown = false
+
+        func validateAutomaticControl() throws {
+            if isManual { throw FanControlHardwareError.alreadyControlled }
+        }
+
+        func startCooling(level: Int) throws -> [FanControlFanReading] {
+            try updateCooling(level: level)
+        }
 
         func updateCooling(level: Int) throws -> [FanControlFanReading] {
             try holdCooling(level: level)
@@ -54,6 +63,13 @@ enum FanControlRecoveryContract {
         func readTemperatures() -> FanControlTemperatureSample {
             FanControlTemperatureSample(readings: temperatures, gpuPoweredDown: gpuPoweredDown)
         }
+
+        func snapshot(isCooling: Bool, endsAt: Date?, stopReason: FanControlStopReason?,
+                      coolingLevel: Int?, configuration: FanControlConfiguration?) throws -> FanControlSnapshot {
+            FanControlSnapshot(fans: [], isCooling: isCooling, endsAt: endsAt, stopReason: stopReason,
+                               coolingLevel: coolingLevel, configuration: configuration,
+                               temperatures: temperatures, gpuPoweredDown: gpuPoweredDown)
+        }
     }
 
     final class Ownership {
@@ -62,6 +78,11 @@ enum FanControlRecoveryContract {
         var canRemoveMarker = true
         func acquire() -> Bool { isHeld = true; return true }
         func markerExists() -> Bool { marker }
+        func createMarker() -> Bool {
+            guard isHeld, !marker else { return false }
+            marker = true
+            return true
+        }
         func removeMarker() -> Bool {
             if canRemoveMarker { marker = false }
             return canRemoveMarker
@@ -72,6 +93,10 @@ enum FanControlRecoveryContract {
     final class Timer {
         var cancelled = false
         func cancel() { cancelled = true }
+    }
+
+    struct Queue {
+        func async(_ work: () -> Void) { work() }
     }
 
     /// Accepts the helper's `Logger` interpolations, privacy included, and
@@ -100,6 +125,9 @@ enum FanControlRecoveryContract {
     }
 
     class Fixture {
+        let queue = Queue()
+        var connectionCount = 0
+        var idleGeneration = 0
         let log = Log()
         let ownership = Ownership()
         var hardware: FanControlHardware? = FanControlHardware()
@@ -120,6 +148,11 @@ enum FanControlRecoveryContract {
         )])
         var timer: Timer? = Timer()
         var exitChecks = 0
+        func openHardware() -> FanControlHardware? {
+            let hardware = FanControlHardware()
+            hardware.isManual = false
+            return hardware
+        }
         func startWatchdog() {
             if timer == nil { timer = Timer() }
         }
@@ -131,7 +164,84 @@ enum FanControlRecoveryContract {
         for _ in 0..<FanControlPolicy.verificationFailureLimit { controller.watchdogTick() }
     }
 
+    private static func connectionOwnership(_ suite: TestSuite) {
+        let curve = FanControlConfiguration.curve([FanControlConfiguration.defaultCurve])
+        guard let encoded = FanControlIPC.encode(curve) else {
+            suite.expect(false, "the ownership test curve must be encodable")
+            return
+        }
+        let clock = ProcessInfo.processInfo
+        let initialUptime = clock.systemUptime
+        defer { clock.systemUptime = initialUptime }
+        enum SessionEnd { case disconnect, emergencyRestore, heartbeatLoss }
+        for ending: SessionEnd in [.disconnect, .emergencyRestore, .heartbeatLoss] {
+            let controller = Controller()
+            _ = controller.performRestore(reason: nil) // Start with automatic fans and no owner.
+            let owner = UUID()
+            let other = UUID()
+            controller.connectionOpened()
+            controller.connectionOpened()
+            func apply(from id: UUID) -> FanControlResponse? {
+                var response: FanControlResponse?
+                controller.apply(session: id, encodedConfiguration: encoded) { response = FanControlIPC.decode($0) }
+                return response
+            }
+            let started = apply(from: owner)
+            let initialWrites = controller.hardware?.updates
+            suite.expect(started?.succeeded == true && started?.snapshot.configuration == curve
+                            && controller.owner == owner && controller.ownership.marker
+                            && controller.hardware?.isManual == true && initialWrites?.count == 1,
+                         "the first accepted curve gives the applying connection ownership")
+
+            if ending == .heartbeatLoss {
+                clock.systemUptime += FanControlPolicy.heartbeatLimit + 1
+                controller.watchdogTick()
+                suite.expect(controller.owner == nil && controller.lastStopReason == .heartbeatLost
+                                && controller.hardware?.isManual == false && controller.hardware?.restores == 1,
+                             "the watchdog releases the first owner's curve before either connection closes")
+                let next = apply(from: other)
+                controller.connectionClosed(owner)
+                suite.expect(next?.succeeded == true && next?.snapshot.configuration == curve
+                                && controller.isCooling && controller.owner == other && controller.ownership.marker
+                                && controller.hardware?.isManual == true && controller.hardware?.restores == 0,
+                             "a late close from the first owner leaves the next owner's identical curve running")
+                controller.connectionClosed(other)
+                suite.expect(controller.owner == nil && !controller.isCooling && !controller.ownership.marker
+                                && controller.lastStopReason == .appDisconnected && controller.hardware?.restores == 1
+                                && controller.hardware?.isManual == false,
+                             "closing the new owner's connection returns its curve to the system once")
+                continue
+            }
+
+            let heartbeat = controller.lastHeartbeatUptime
+            clock.systemUptime += 1
+            let refused = apply(from: other)
+            suite.expect(refused?.error == .alreadyControlled && refused?.snapshot == started?.snapshot
+                            && controller.owner == owner && controller.lastHeartbeatUptime == heartbeat
+                            && controller.hardware?.updates == initialWrites && controller.hardware?.restores == 0,
+                         "an identical curve from another connection cannot take ownership, renew it or write the fans")
+            controller.connectionClosed(other)
+            suite.expect(controller.owner == owner && controller.isCooling && controller.ownership.marker
+                            && controller.hardware?.restores == 0,
+                         "disconnecting the refused connection leaves the owner's curve running")
+
+            if ending == .emergencyRestore {
+                var response: FanControlResponse?
+                controller.restore { response = FanControlIPC.decode($0) }
+                suite.expect(response?.succeeded == true && response?.snapshot.isCooling == false
+                                && controller.owner == nil && controller.hardware?.isManual == false,
+                             "an explicit emergency restore confirms automatic control")
+            }
+            controller.connectionClosed(owner)
+            suite.expect(!controller.isCooling && controller.owner == nil && !controller.ownership.marker
+                            && controller.hardware?.isManual == false && controller.hardware?.restores == 1
+                            && controller.lastStopReason == (ending == .emergencyRestore ? nil : .appDisconnected),
+                         "owner disconnect and emergency restore each return the fans to the system once")
+        }
+    }
+
     static func run(_ suite: TestSuite) {
+        connectionOwnership(suite)
         let healthy = Controller()
         let healthyOwner = healthy.owner
         healthy.watchdogTick()

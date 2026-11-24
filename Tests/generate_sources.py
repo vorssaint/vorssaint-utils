@@ -642,12 +642,14 @@ def main():
           + "extension FanControlResumeContract {\n"
           + declaration("Sources/Vorssaint/Services/FanControl/FanControlXPC.swift", "enum FanControlIPC {")
           + declaration(fan_control, "    private enum StopConfirmation").replace("private enum", "enum", 1)
+          + declaration(fan_control, "    private enum PendingApply").replace("private enum", "enum", 1)
           + declaration(fan_control, "    private enum SleepState").replace("private enum", "enum", 1)
           + "final class Service: Fixture {\n"
           + declaration(fan_control, "    private var ownsSession:").replace("private var", "var", 1)
           + declaration(fan_control, "    private var needsTimer:").replace("private var", "var", 1)
           + declaration(fan_control, "    private func applyConfiguration(_ configuration:")
           .replace("private func applyConfiguration", "func sendConfiguration", 1)
+          + declaration(fan_control, "    private func releaseInterruptedApply(").replace("NSXPCConnection", "Invalidating", 1)
           + "".join(declaration(fan_control, prefix)
                     .replace("@objc private func", "func", 1)
                     .replace("private static var", "static var", 1)
@@ -673,7 +675,12 @@ def main():
     write("FanControlRecovery.swift", "import Foundation\n"
           + "extension FanControlRecoveryContract {\nfinal class Controller: Fixture {\n"
           + "".join(declaration("Sources/FanControlHelper/main.swift", prefix)
+                    .replace("FanControlHardware()", "openHardware()")
                     .replace("private func", "func", 1) for prefix in [
+                        "    func connectionOpened()", "    func connectionClosed(", "    func apply(session",
+                        "    func restore(reply:", "    private func currentSnapshot()",
+                        "    private func applyConfiguration(session", "    private func updateActiveConfiguration(",
+                        "    private func finishFailedStart(",
                         "    private func requestedLevel(", "    private func performRestore(",
                         "    private func watchdogStopReason()",
                         "    private func watchdogTick()", "    private func stopWatchdogIfIdle()"])
