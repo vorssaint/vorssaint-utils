@@ -1082,6 +1082,14 @@ final class AgentUsageService: ObservableObject {
                         guard self.readerSession == session, self.enabled.contains(.antigravity) else { return }
                         self.antigravityAccountLimits = summary.limits
                         self.readAntigravityLimits(now: Date())
+                        self.checkLimits()
+                        self.schedulePublish()
+                    }
+                }
+            }
+        }
+    }
+
     /// The month's credits as Kiro last answered, until the month renews.
     /// Runs on `queue`.
     private func readKiroAccount(now: Date) {
@@ -1155,6 +1163,8 @@ final class AgentUsageService: ObservableObject {
     private func noteAntigravityCheck(_ failure: AgentAntigravityServer.Failure?) {
         antigravityAccountFailure = failure
         antigravityAccountUnreachable = failure == .unreachable ? antigravityAccountUnreachable + 1 : 0
+    }
+
     private func cancelKiroLimits() {
         guard let request = kiroAccountRequest else { return }
         request.cancel()
