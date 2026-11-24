@@ -16,6 +16,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
     @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = true
     @AppStorage(DefaultsKey.notchAgentsGemini) private var gemini = true
+    @AppStorage(DefaultsKey.notchAgentsDeepSeek) private var deepseek = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
@@ -56,6 +57,7 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.cursor, isOn: $cursor)
             providerRow(.antigravity, isOn: $antigravity)
             providerRow(.gemini, isOn: $gemini)
+            providerRow(.deepseek, isOn: $deepseek)
             if claude { ClaudeAccountSettings() }
             if codex { CodexAccountsSettings() }
 
@@ -107,7 +109,8 @@ struct NotchAgentsSettingsControls: View {
                                       display: NotchAgentLimitDisplay(rawValue: limitDisplay) ?? .remaining,
                                       focus: NotchAgentLimitFocus(rawValue: limitFocus) ?? .mostUsed,
                                       provider: claude ? .claude : codex ? .codex : opencode ? .opencode
-                                        : copilot ? .copilot : cursor ? .cursor : antigravity ? .antigravity : .gemini)
+                                        : copilot ? .copilot : cursor ? .cursor : antigravity ? .antigravity
+                                        : gemini ? .gemini : .deepseek)
                     .padding(.leading, settingsRowTextInset)
             }
 
@@ -182,7 +185,7 @@ struct NotchAgentsSettingsControls: View {
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot),
-                       String(cursor), String(antigravity), String(gemini), String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
+                       String(cursor), String(antigravity), String(gemini), String(deepseek), String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
     }
@@ -302,7 +305,7 @@ struct NotchAgentsSettingsControls: View {
             Spacer(minLength: 12)
             // One agent stays on; turning the section off stops all.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot, cursor, antigravity, gemini].filter { $0 }.count <= 1)
+                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot, cursor, antigravity, gemini, deepseek].filter { $0 }.count <= 1)
         }
     }
 

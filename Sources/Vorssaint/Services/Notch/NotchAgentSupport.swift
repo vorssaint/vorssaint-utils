@@ -111,6 +111,7 @@ enum NotchAgentSupport {
         case .cursor: return DefaultsKey.notchAgentsCursor
         case .antigravity: return DefaultsKey.notchAgentsAntigravity
         case .gemini: return DefaultsKey.notchAgentsGemini
+        case .deepseek: return DefaultsKey.notchAgentsDeepSeek
         }
     }
 

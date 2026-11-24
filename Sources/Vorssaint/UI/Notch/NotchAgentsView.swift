@@ -21,6 +21,7 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
     @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = true
     @AppStorage(DefaultsKey.notchAgentsGemini) private var gemini = true
+    @AppStorage(DefaultsKey.notchAgentsDeepSeek) private var deepseek = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
@@ -35,7 +36,7 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        _ = (claude, codex, opencode, copilot, cursor, antigravity, gemini)
+        _ = (claude, codex, opencode, copilot, cursor, antigravity, gemini, deepseek)
         return NotchAgentSupport.pageProviders(snapshot: usage.snapshot, hasCodexAccounts: !codexAccounts.isEmpty,
                                                hasClaudeAccount: !usage.claudeProfile.isDefault)
     }
@@ -524,7 +525,7 @@ private struct NotchAgentLimitsCard: View {
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .monospacedDigit()
             }
-            .help(todayUsage.unpriced > 0 ? text.unpriced : text.valueNote)
+            .help(todayUsage.unpriced > 0 ? text.partialCostNote : text.valueNote)
             HStack(spacing: 4) {
                 Text(AgentFormat.tokens(todayUsage.tokens.total))
                     .font(.system(size: 9.5))

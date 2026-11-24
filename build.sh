@@ -318,6 +318,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/Harness/CursorTranscriptAccess.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/AntigravityReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/GeminiReader.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/DeepSeekReader.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/AgentDeepSeekLogReader.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageArchive.swift
