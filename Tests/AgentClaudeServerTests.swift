@@ -15,6 +15,11 @@ enum AgentClaudeServerTests {
         static func readout() -> Readout { .elapsed }
     }
 
+    enum NotchSupport {
+        enum Idle { case agents, other }
+        static func idleContent() -> Idle { .other }
+    }
+
     class Fixture {
         var running = true
         var paused = false
@@ -24,6 +29,8 @@ enum AgentClaudeServerTests {
         var snapshot = AgentUsageSnapshot()
         var claudeAccountRequest: AgentClaudeServer.Request?
         var claudeAccountAttempted = Date.distantPast
+        var claudeIdentityChangedAt = Date.distantPast
+        func refreshClaudeLimits(now: Date = Date(), pageShows: Bool = false) {}
         var claudeAccountFailure: AgentClaudeServer.Failure?
         var claudeAccountUnreachable = 0
         var antigravityAccountUnreachable = 0

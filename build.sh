@@ -382,6 +382,7 @@ if (( TEST )); then
         Sources/Vorssaint/UI/Notch/NotchScrollEdgeFade.swift
         Sources/Vorssaint/UI/Notch/NotchAgentComponents.swift
         Sources/Vorssaint/UI/Notch/NotchAgentLens.swift
+        Sources/Vorssaint/UI/TrueGlass.swift
         Sources/Vorssaint/UI/Notch/NotchAgentAnimationView.swift
         Sources/Vorssaint/UI/WindowVisibilityReader.swift
         Sources/Vorssaint/Services/Notch/NotchMusicAutomationSupport.swift

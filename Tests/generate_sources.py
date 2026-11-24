@@ -735,6 +735,7 @@ def main():
     write("FanControlRecovery.swift", "import Foundation\n"
           + "extension FanControlRecoveryContract {\nfinal class Controller: Fixture {\n"
           + declaration("Sources/FanControlHelper/main.swift", "    func connectionClosed(")
+              .replace("BatteryController.shared.closed(id)", "", 1)
           + declaration("Sources/FanControlHelper/main.swift", "    private func applyConfiguration(session")
               .replace("private func", "func", 1)
               .replace("let control = FanControlHardware()", "let control = hardware", 1)
