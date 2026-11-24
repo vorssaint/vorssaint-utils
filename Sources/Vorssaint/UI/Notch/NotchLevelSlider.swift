@@ -16,6 +16,7 @@ struct NotchLevelSlider: NSViewRepresentable {
     var range: ClosedRange<Double> = 0...1
     var tint: Color = .white
     var vertical = false
+    var dimsWhenDisabled = true
     /// A slimmer drawing can retain the native control's full hit area.
     var trackThickness: CGFloat?
     /// A value worth a tick on the track, such as unity on a fader that boosts.
@@ -71,6 +72,7 @@ struct NotchLevelSlider: NSViewRepresentable {
         if slider.maxValue != upper { slider.maxValue = upper }
         if slider.isVertical != vertical { slider.isVertical = vertical }
         (slider as? NotchLevelControl)?.scrollable = scrollable
+        (slider.cell as? NotchLevelCell)?.dimsWhenDisabled = dimsWhenDisabled
         (slider.cell as? NotchLevelCell)?.fill = NSColor(tint)
         (slider.cell as? NotchLevelCell)?.marker = marker
         (slider.cell as? NotchLevelCell)?.trackThickness = trackThickness
@@ -216,6 +218,7 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
 }
 
 private final class NotchLevelCell: NSSliderCell {
+    var dimsWhenDisabled = true
     var fill: NSColor = .white
     var marker: Double?
     var trackThickness: CGFloat?
@@ -267,6 +270,8 @@ private final class NotchLevelCell: NSSliderCell {
         let span = maxValue - minValue
         let fraction = span > 0 ? min(1, max(0, ((drawnValue ?? doubleValue) - minValue) / span)) : 0
         fill.withAlphaComponent(isEnabled ? 0.92 : 0.3).setFill()
+        let fraction = span > 0 ? min(1, max(0, (doubleValue - minValue) / span)) : 0
+        fill.withAlphaComponent(isEnabled || !dimsWhenDisabled ? 0.92 : 0.3).setFill()
         if isFader {
             let height = track.height * fraction
             NSRect(x: track.minX, y: flipped ? track.maxY - height : track.minY, width: track.width, height: height).fill()
