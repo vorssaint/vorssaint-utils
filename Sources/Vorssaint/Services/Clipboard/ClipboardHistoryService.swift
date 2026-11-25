@@ -1886,17 +1886,22 @@ enum ClipboardImageStore {
     /// trip, and a list row asks for it every time it is drawn.
     static func fileIcon(atPath path: String) -> NSImage {
         if let cached = fileIcons.object(forKey: path as NSString) { return cached }
-        let icon = NSWorkspace.shared.icon(forFile: path)
-        fileIcons.setObject(icon, forKey: path as NSString)
+        // A real app icon carries every representation up to 1024 points; a row
+        // draws at 20, so a small bitmap is all this needs to keep.
+        let full = NSWorkspace.shared.icon(forFile: path)
+        let image = ImageThumbnailer.thumbnail(for: full, pointSize: 32) ?? full
+        fileIcons.setObject(image, forKey: path as NSString,
+                            cost: ImageThumbnailer.estimatedBitmapCost(pointSize: 32))
         fileIconPaths = fileIconPaths.filter { fileIcons.object(forKey: $0 as NSString) != nil }
         fileIconPaths.insert(path)
-        return icon
+        return image
     }
 
     private static var fileIconPaths: Set<String> = []
     private static let fileIcons: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = 120
+        cache.totalCostLimit = 8 * 1024 * 1024
         return cache
     }()
 

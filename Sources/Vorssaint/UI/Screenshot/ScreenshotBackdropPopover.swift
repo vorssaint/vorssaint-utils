@@ -68,6 +68,7 @@ enum BackdropPickerAssets {
     static let thumbnailCache: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = 24
+        cache.totalCostLimit = 2 * 1024 * 1024 // ~8 small wallpapers at 256KB each
         return cache
     }()
 }

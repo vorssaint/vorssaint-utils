@@ -541,7 +541,9 @@ private struct QuickEntryView: View, Equatable {
         guard let bundleID = entry.sourceBundleID else { return nil }
         if let cached = Self.sourceApps[bundleID] { return cached }
         let app = InstalledApps.url(for: bundleID).map {
-            (name: InstalledApps.name(for: bundleID), icon: NSWorkspace.shared.icon(forFile: $0.path))
+            let full = NSWorkspace.shared.icon(forFile: $0.path)
+            let small = ImageThumbnailer.thumbnail(for: $0, pointSize: 32) ?? full
+            return (name: InstalledApps.name(for: bundleID), icon: small)
         }
         if let app { Self.sourceApps[bundleID] = app }
         return app
