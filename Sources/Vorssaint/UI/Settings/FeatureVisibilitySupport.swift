@@ -61,6 +61,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case fanControl
     case monitorAlerts
     case windowMaximizer
+    case pomodoro
 
     var page: SettingsPage {
         switch self {
@@ -76,7 +77,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .finderCutPaste, .finderRename: return .cutPaste
         case .clipboardHistory, .pastePlain: return .clipboard
         case .quickLauncher, .quickToggles, .quitApps, .micMute, .cameraPreview, .wallpaper, .scratchpad,
-             .cleaningMode:
+             .cleaningMode, .pomodoro:
             return .quickTools
         case .screenshot, .screenshotScrolling, .screenRecorder, .colorPicker, .screenOCR:
             return .screenshot
@@ -417,6 +418,8 @@ extension AppFeature {
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)
         case .wallpaper:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .wallpaper)
+        case .pomodoro:
+            return FeatureSettingsDestination(.quickTools, sectionAnchor: .pomodoro)
         case .notch: return FeatureSettingsDestination(.notch)
         case .notchCalendar: return FeatureSettingsDestination(notch: .module(.calendar))
         case .notchNotifications: return FeatureSettingsDestination(notch: .module(.notifications))
@@ -470,7 +473,7 @@ enum FeatureVisibilitySupport {
         case .shelf: return [.shelf]
         case .media: return [.mediaTools]
         case .quickTools: return [.quickLauncher, .quickToggles, .quitApps, .micMute,
-                                  .cameraPreview, .wallpaper, .scratchpad, .cleaningMode]
+                                  .cameraPreview, .wallpaper, .scratchpad, .cleaningMode, .pomodoro]
         case .urlCleaner: return [.urlCleaner]
         case .cleaner: return [.cleaner]
         case .homebrew: return [.homebrew]
