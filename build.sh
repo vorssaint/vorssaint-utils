@@ -416,6 +416,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Recorder/RecorderPointerTrack.swift
         Sources/Vorssaint/Services/Recorder/RecorderTypingTrack.swift
         Sources/Vorssaint/Services/Recorder/RecorderTimeline.swift
+        Sources/Vorssaint/Services/Recorder/RecorderPreviewSeeks.swift
         Sources/Vorssaint/Services/Recorder/RecorderTextOverlay.swift
         Sources/Vorssaint/Services/Recorder/RecorderImageOverlay.swift
         Sources/Vorssaint/Services/Recorder/RecorderBlurRegion.swift

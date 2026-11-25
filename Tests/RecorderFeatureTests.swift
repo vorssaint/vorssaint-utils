@@ -15,6 +15,7 @@ enum RecorderFeatureTests {
     static func run(_ suite: TestSuite) {
         RecorderSystemAudioTapLifecycleTests.run(suite)
         RecorderSystemAudioTrustTests.run(suite)
+        previewSeekCoalescing(suite)
         func pageVisible(_ page: SettingsPage, available: Set<AppFeature>) -> Bool {
             FeatureVisibilitySupport.isPageVisible(page) { available.contains($0) }
         }
@@ -1550,5 +1551,39 @@ enum RecorderFeatureTests {
                "an app nested in an Applications subfolder counts as installed, same as installedApplications' own recursive walk")
 
         scratchPaths.forEach { try? FileManager.default.removeItem(at: $0) }
+    }
+
+    private static func previewSeekCoalescing(_ suite: TestSuite) {
+        var seeks = RecorderPreviewSeeks()
+        seeks.enqueue(.init(time: 1, exact: false))
+        guard let first = seeks.takeNext() else {
+            suite.expect(false, "the first preview seek starts immediately")
+            return
+        }
+        seeks.enqueue(.init(time: 2, exact: false))
+        seeks.enqueue(.init(time: 3, exact: false))
+        seeks.enqueue(.init(time: 3, exact: true))
+        suite.expect(seeks.takeNext() == nil && seeks.isBusy,
+                     "scrubbing lets the current frame finish instead of cancelling every seek")
+        suite.expect(seeks.finish(first.id), "the current seek can complete")
+        guard let last = seeks.takeNext() else {
+            suite.expect(false, "the released position is still queued")
+            return
+        }
+        suite.expect(last.request == .init(time: 3, exact: true),
+                     "release supersedes intermediate seeks and requests an exact frame")
+        seeks.reset()
+        seeks.enqueue(.init(time: 0, exact: true))
+        let replacement = seeks.takeNext()
+        suite.expect(!seeks.finish(last.id) && seeks.isBusy,
+                     "an old item's delayed completion cannot advance the replacement item's queue")
+        suite.expect(replacement.map { seeks.finish($0.id) } == true && !seeks.isBusy,
+                     "the replacement seek drains normally")
+
+        let kept = [1.0...3.0, 5.0...7.0]
+        suite.expect(RecorderTimeline.nearestKeptTime(to: 8, in: kept) == 7
+                    && RecorderTimeline.nearestKeptTime(to: 3.2, in: kept) == 3
+                    && RecorderTimeline.nearestKeptTime(to: 4.8, in: kept) == 5,
+                     "scrubbing snaps to the nearest kept boundary, including the right trim edge")
     }
 }

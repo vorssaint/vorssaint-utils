@@ -156,6 +156,15 @@ enum RecorderTimeline {
         keptRanges(trim: trim, cuts: cuts).reduce(0) { $0 + ($1.upperBound - $1.lowerBound) }
     }
 
+    /// Clamp to the kept footage, including either side of a cut and the end
+    /// of the last segment. Outside the trim, the nearest end wins.
+    static func nearestKeptTime(to time: Double, in ranges: [ClosedRange<Double>]) -> Double? {
+        guard time.isFinite else { return nil }
+        return ranges.lazy
+            .map { min(max(time, $0.lowerBound), $0.upperBound) }
+            .min { abs($0 - time) < abs($1 - time) }
+    }
+
     /// Finished-video time to recording time. The composer draws frames the
     /// player and the export ask for, and they ask in finished-video time.
     static func sourceTime(forOutput output: Double,
