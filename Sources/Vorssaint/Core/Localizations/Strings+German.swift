@@ -697,6 +697,8 @@ extension Strings {
         secureInputSwitcherHeldFormat: "%@ war die aktive App, als sie eingeschaltet wurde, und hält sie möglicherweise. Solange die sichere Eingabe aktiv ist, verbirgt macOS deine Tastenanschläge vor dem Umschalter und ⌘Tab öffnet stattdessen den macOS-Umschalter. Verlasse das Passwortfeld oder beende die App, um sie freizugeben.",
         secureInputSwitcherUnattributed: "Die App, die sie hält, lässt sich nicht bestimmen. Solange die sichere Eingabe aktiv ist, verbirgt macOS deine Tastenanschläge vor dem Umschalter und ⌘Tab öffnet stattdessen den macOS-Umschalter. Verlasse ein offenes Passwortfeld oder melde dich ab und wieder an, um sie zurückzusetzen.",
         secureInputSwitcherUnidentified: "Die App, die sie hält, konnte nicht identifiziert werden. Solange die sichere Eingabe aktiv ist, verbirgt macOS deine Tastenanschläge vor dem Umschalter und ⌘Tab öffnet stattdessen den macOS-Umschalter.",
+        secureInputSwitcherLimited: "Der Vorssaint-Umschalter lässt sich weiterhin öffnen. W, Q und S sind deaktiviert, bis die sichere Eingabe endet.",
+        secureInputSwitcherLimitedAppFormat: "%@ war beim Start der sicheren Eingabe aktiv und hält sie möglicherweise weiterhin aktiv.",
 
         aboutDescription: "Eine Werkzeugzentrale für deinen Mac.\nEnergie, Systemüberwachung, Scrollen und ein Fensterumschalter, direkt in der Menüleiste.",
         versionPrefix: "Version",

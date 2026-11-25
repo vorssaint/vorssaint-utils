@@ -697,6 +697,8 @@ extension Strings {
         secureInputSwitcherHeldFormat: "Açıldığında etkin uygulama %@ idi ve bunu o açık tutuyor olabilir. Güvenli giriş açık kaldıkça macOS bastığın tuşları değiştiriciden gizliyor ve ⌘Tab onun yerine macOS değiştiricisini açıyor. Serbest bırakmak için parola alanından çık ya da uygulamayı kapat.",
         secureInputSwitcherUnattributed: "Bunu açık tutan uygulama belirlenemiyor. Güvenli giriş açık kaldıkça macOS bastığın tuşları değiştiriciden gizliyor ve ⌘Tab onun yerine macOS değiştiricisini açıyor. Temizlemek için açık bir parola alanı varsa ondan çık ya da oturumu kapatıp yeniden aç.",
         secureInputSwitcherUnidentified: "Bunu açık tutan uygulama belirlenemedi. Güvenli giriş açık kaldıkça macOS bastığın tuşları değiştiriciden gizliyor ve ⌘Tab onun yerine macOS değiştiricisini açıyor.",
+        secureInputSwitcherLimited: "Vorssaint değiştiricisi açılmaya devam eder. Güvenli giriş bitene kadar W, Q ve S tuşları devre dışıdır.",
+        secureInputSwitcherLimitedAppFormat: "Güvenli giriş açıldığında %@ etkin uygulamaydı ve güvenli girişi açık tutuyor olabilir.",
 
         aboutDescription: "Mac’in için bir yardımcı merkez.\nEnerji, sistem monitörü, kaydırma ve pencere değiştirici, doğrudan menü çubuğunda.",
         versionPrefix: "Sürüm",

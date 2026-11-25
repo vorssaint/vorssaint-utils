@@ -697,6 +697,8 @@ extension Strings {
         secureInputSwitcherHeldFormat: "Keď sa zapol, aktívnou aplikáciou bola %@ a možno ho drží. Kým je zapnutý, macOS skrýva stlačené klávesy pred prepínačom a ⌘Tab namiesto neho otvára prepínač macOS. Zavrite jej pole s heslom alebo ju ukončite, aby ho uvoľnila.",
         secureInputSwitcherUnattributed: "Nedá sa určiť, ktorá aplikácia ho drží. Kým je zapnutý, macOS skrýva stlačené klávesy pred prepínačom a ⌘Tab namiesto neho otvára prepínač macOS. Zavrite otvorené pole s heslom alebo sa odhláste a znova prihláste, aby sa uvoľnil.",
         secureInputSwitcherUnidentified: "Aplikáciu, ktorá ho drží, sa nepodarilo identifikovať. Kým je zapnutý, macOS skrýva stlačené klávesy pred prepínačom a ⌘Tab namiesto neho otvára prepínač macOS.",
+        secureInputSwitcherLimited: "Prepínač Vorssaint sa dá naďalej otvoriť. Klávesy W, Q a S sú pozastavené, kým sa bezpečný vstup nevypne.",
+        secureInputSwitcherLimitedAppFormat: "%@ bola aktívna aplikácia pri zapnutí bezpečného vstupu a možno ho stále udržiava zapnutý.",
 
         aboutDescription: "Centrum nástrojov pre váš Mac.\nEnergia, monitor systému, rolovanie a prepínač okien priamo v lište s ponukami.",
         versionPrefix: "Verzia",

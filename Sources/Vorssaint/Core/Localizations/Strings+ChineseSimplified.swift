@@ -697,6 +697,8 @@ extension Strings {
         secureInputSwitcherHeldFormat: "它开启时 %@ 位于前台，可能正在占用它。在安全输入关闭前，macOS 会对切换器隐藏你的按键，⌘Tab 会改为打开 macOS 的切换器。退出其密码栏或退出该 App 即可释放。",
         secureInputSwitcherUnattributed: "无法确定占用它的 App。在安全输入关闭前，macOS 会对切换器隐藏你的按键，⌘Tab 会改为打开 macOS 的切换器。退出已打开的密码栏，或注销后重新登录即可清除。",
         secureInputSwitcherUnidentified: "无法识别占用它的 App。在安全输入关闭前，macOS 会对切换器隐藏你的按键，⌘Tab 会改为打开 macOS 的切换器。",
+        secureInputSwitcherLimited: "Vorssaint 切换器仍可打开。W、Q 和 S 在安全输入关闭前暂停使用。",
+        secureInputSwitcherLimitedAppFormat: "安全输入开启时 %@ 位于前台，可能仍在使其保持开启。",
 
         aboutDescription: "你的 Mac 实用工具中心。\n能源、系统监视器、滚动和窗口切换器，尽在菜单栏中。",
         versionPrefix: "版本",

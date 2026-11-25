@@ -698,6 +698,8 @@ extension Strings {
         secureInputSwitcherHeldFormat: "보안 입력이 켜질 때 %@이(가) 활성 앱이었으며, 이 앱이 보안 입력을 유지하고 있을 수 있습니다. 보안 입력이 켜져 있는 동안 macOS가 전환기에서 키 입력을 숨기고, ⌘Tab을 누르면 대신 macOS 전환기가 열립니다. 암호 필드에서 포커스를 옮기거나 앱을 종료하면 해제됩니다.",
         secureInputSwitcherUnattributed: "보안 입력을 유지하는 앱을 알 수 없습니다. 보안 입력이 켜져 있는 동안 macOS가 전환기에서 키 입력을 숨기고, ⌘Tab을 누르면 대신 macOS 전환기가 열립니다. 열려 있는 암호 필드에서 포커스를 옮기거나 로그아웃한 후 다시 로그인하면 해제됩니다.",
         secureInputSwitcherUnidentified: "보안 입력을 유지하는 앱을 확인할 수 없습니다. 보안 입력이 켜져 있는 동안 macOS가 전환기에서 키 입력을 숨기고, ⌘Tab을 누르면 대신 macOS 전환기가 열립니다.",
+        secureInputSwitcherLimited: "Vorssaint 전환기는 계속 열 수 있습니다. 보안 입력이 해제될 때까지 W, Q, S 키는 일시 중지됩니다.",
+        secureInputSwitcherLimitedAppFormat: "보안 입력이 시작될 때 %@이(가) 활성 앱이었으며 보안 입력을 계속 유지하고 있을 수 있습니다.",
 
         aboutDescription: "Mac을 위한 유틸리티 허브입니다.\n메뉴 막대에서 에너지 관리, 시스템 모니터, 스크롤 및 윈도우 전환을 제공합니다.",
         versionPrefix: "버전",
