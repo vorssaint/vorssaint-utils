@@ -42,7 +42,7 @@ struct NotchFilesView: View {
         VStack(spacing: NotchLayout.rowSpacing) {
             if choosesDropDestination {
                 HStack(spacing: NotchFileToolsSupport.dropSpacing) {
-                    dropDestination(FeatureStrings.notch(l10n.language).files, symbol: "tray.and.arrow.down",
+                    dropDestination(l10n.s.shelfName, symbol: "tray.and.arrow.down",
                                     selected: !service.targetsMediaDrop)
                     dropDestination(text.optimizeMedia, symbol: "wand.and.stars", selected: service.targetsMediaDrop,
                                     available: archives.canAcceptMediaDrop)

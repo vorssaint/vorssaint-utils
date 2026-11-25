@@ -2832,6 +2832,10 @@ enum NotchTests {
                 suite.expect(!value.isEmpty && !value.contains("—"),
                        "notch localized text is present and human-readable: \(language) \(child.label ?? "")")
             }
+            let strings = Strings.localized(language)
+            suite.expect(NotchModule.tools.title(language) == strings.launcherName
+                         && NotchModule.files.title(language) == strings.shelfName,
+                         "\(language): the island names the Quick panel and the Shelf as their features do")
         }
 
         let frames = [CGRect(x: 0, y: 0, width: 1512, height: 982),
