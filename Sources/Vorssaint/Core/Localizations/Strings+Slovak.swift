@@ -556,6 +556,8 @@ extension Strings {
         shelfStep3: "Každú položku z nej potiahnite späť do ľubovoľnej aplikácie, keď ju potrebujete.",
         shelfShakeToggle: "Otvoriť zatrasením myšou počas ťahania",
         shelfShakeCaption: "Rýchlo zatraste kurzorom, kým držíte položku, a polica sa objaví pri kurzore.",
+        shelfShiftToggle: "Otvoriť stlačením klávesu Shift počas ťahania",
+        shelfShiftCaption: "Stlačte kláves Shift, kým držíte položku, a polica sa objaví pri kurzore.",
         shelfDropZoneToggle: "Ponechať ťahané súbory v lište s ponukami",
         shelfDropZoneCaption: "Kým ťaháte súbor, polica sa objaví pod ikonou v lište s ponukami. Čokoľvek pustíte, ostane priamo tam, v tlačidle, ktoré zmenšíte a otvoríte kliknutím a ktoré zmizne, len čo je polica prázdna.",
         shelfDropZoneCaptionTopCenter: "Kým ťaháte súbor, polica sa objaví ako odznak hore v strede obrazovky. Čokoľvek pustíte, ostane priamo tam, v odznaku, ktorý otvoríte kliknutím a ktorý zmizne, len čo je polica prázdna.",

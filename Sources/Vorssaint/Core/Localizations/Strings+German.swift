@@ -556,6 +556,8 @@ extension Strings {
         shelfStep3: "Ziehe jedes Objekt wieder in eine beliebige App, wenn du es brauchst.",
         shelfShakeToggle: "Durch Schütteln der Maus beim Ziehen öffnen",
         shelfShakeCaption: "Schüttle den Zeiger schnell, während du ein Objekt hältst, um die Ablage beim Cursor erscheinen zu lassen.",
+        shelfShiftToggle: "Durch Drücken der Umschalttaste beim Ziehen öffnen",
+        shelfShiftCaption: "Drücke die Umschalttaste, während du ein Objekt hältst, um die Ablage beim Cursor erscheinen zu lassen.",
         shelfDropZoneToggle: "Gezogene Dateien in der Menüleiste behalten",
         shelfDropZoneCaption: "Während du eine Datei ziehst, erscheint die Ablage unter dem Menüleistensymbol. Was du ablegst, bleibt gleich dort, in einer Taste, die du mit einem Klick ein- und ausklappst und die verschwindet, sobald die Ablage leer ist.",
         shelfDropZoneCaptionTopCenter: "Während du eine Datei ziehst, erscheint die Ablage als Plakette oben in der Bildschirmmitte. Was du ablegst, bleibt gleich dort, in einer Plakette, die du mit einem Klick öffnest und die verschwindet, sobald die Ablage leer ist.",

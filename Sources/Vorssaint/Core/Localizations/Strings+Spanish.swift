@@ -556,6 +556,8 @@ extension Strings {
         shelfStep3: "Arrastra cada ítem de vuelta a cualquier app cuando lo necesites.",
         shelfShakeToggle: "Abrir agitando el ratón al arrastrar",
         shelfShakeCaption: "Agita el puntero rápidamente mientras sostienes un ítem para que aparezca cerca del cursor.",
+        shelfShiftToggle: "Abrir pulsando Mayúsculas al arrastrar",
+        shelfShiftCaption: "Pulsa Mayúsculas mientras sostienes un ítem para que el estante aparezca cerca del cursor.",
         shelfDropZoneToggle: "Mantener en la barra de menús los archivos arrastrados",
         shelfDropZoneCaption: "Mientras arrastras un archivo, el estante aparece debajo del icono de la barra de menús. Lo que sueltes se guarda ahí mismo, en un botón que contraes y abres con un clic y que desaparece cuando el estante se vacía.",
         shelfDropZoneCaptionTopCenter: "Mientras arrastras un archivo, el estante aparece como una insignia arriba, en el centro de la pantalla. Lo que sueltes se guarda ahí mismo, en una insignia que abres con un clic y que desaparece cuando el estante se vacía.",

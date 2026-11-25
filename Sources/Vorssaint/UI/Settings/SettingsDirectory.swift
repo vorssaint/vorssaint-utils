@@ -514,7 +514,7 @@ enum SettingsDirectory {
                                          [FeatureStrings.finderRename(language).enableLabel]),
                                        ]),
                 SettingsDirectoryItem(page: .shelf, title: s.shelfName, icon: "tray.full",
-                                      keywords: [s.shelfEnable, s.shelfDropZoneToggle, s.shelfEdgeToggle,
+                                      keywords: [s.shelfEnable, s.shelfShiftToggle, s.shelfDropZoneToggle, s.shelfEdgeToggle,
                                                  s.shelfClearOnClose, s.shelfShortcutFinderSelection,
                                                  FeatureStrings.notch(language).title,
                                                  FeatureStrings.notchEditor(language).separate]),

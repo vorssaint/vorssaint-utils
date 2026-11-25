@@ -106,6 +106,26 @@ enum ShelfFeatureTests {
             sourceBundleIdentifier: nil,
             excludedBundleIdentifiers: ["com.example.Browser"]),
                "shelf automatic opening does not false-block an unknown drag source")
+
+        var shiftTrigger = ShelfShiftDragTrigger()
+        suite.expect(!shiftTrigger.shouldOpen(shiftDown: false) { true },
+               "shelf Shift trigger ignores a drag without Shift")
+        suite.expect(shiftTrigger.shouldOpen(shiftDown: true) { true },
+               "shelf Shift trigger opens when Shift goes down during a content drag")
+        suite.expect(!shiftTrigger.shouldOpen(shiftDown: true) { true },
+               "shelf Shift trigger opens once per press, so closing it while holding Shift keeps it closed")
+        suite.expect(!shiftTrigger.shouldOpen(shiftDown: false) { true }
+                && shiftTrigger.shouldOpen(shiftDown: true) { true },
+               "shelf Shift trigger opens again after Shift is released and pressed")
+        shiftTrigger.reset()
+        suite.expect(!shiftTrigger.shouldOpen(shiftDown: true) { false }
+                && shiftTrigger.shouldOpen(shiftDown: true) { true },
+               "shelf Shift trigger waits for content while Shift is held, so a window move never opens it")
+        shiftTrigger.reset()
+        var checkedContent = false
+        _ = shiftTrigger.shouldOpen(shiftDown: false) { checkedContent = true; return true }
+        suite.expect(!checkedContent,
+               "shelf Shift trigger skips the pasteboard check while Shift is up")
         suite.expect(ShelfInteractionSupport.shouldCloseAfterDrag(
             dropAccepted: true, draggedItemCount: 2, closeAfterDrop: true, pinned: false),
                "shelf closes after a real accepted external drag")

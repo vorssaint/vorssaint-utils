@@ -729,6 +729,8 @@ struct Strings {
     let shelfStep3: String
     let shelfShakeToggle: String
     let shelfShakeCaption: String
+    let shelfShiftToggle: String
+    let shelfShiftCaption: String
     let shelfDropZoneToggle: String
     let shelfDropZoneCaption: String
     let shelfDropZoneCaptionTopCenter: String
@@ -1897,6 +1899,8 @@ extension Strings {
         shelfStep3: "Arraste cada item de volta para qualquer app quando precisar.",
         shelfShakeToggle: "Abrir sacudindo o mouse durante o arraste",
         shelfShakeCaption: "Sacuda o ponteiro rapidamente segurando um item para chamar a área perto do cursor.",
+        shelfShiftToggle: "Abrir apertando Shift durante o arraste",
+        shelfShiftCaption: "Aperte Shift segurando um item para chamar a área perto do cursor.",
         shelfDropZoneToggle: "Guardar arquivos na barra de menus ao arrastar",
         shelfDropZoneCaption: "Ao arrastar um arquivo, a área aparece embaixo do ícone na barra de menus. O que você soltar fica guardado ali, num botão que você encolhe e abre com um clique e que some quando a área fica vazia.",
         shelfDropZoneCaptionTopCenter: "Ao arrastar um arquivo, a área aparece como um selo no topo, no centro da tela. O que você soltar fica guardado ali, num selo que você abre com um clique e que some quando a área fica vazia.",
@@ -3033,6 +3037,8 @@ extension Strings {
         shelfStep3: "Drag each item back out to any app when you need it.",
         shelfShakeToggle: "Open by shaking the mouse while dragging",
         shelfShakeCaption: "Shake the pointer quickly while holding an item to summon it near the cursor.",
+        shelfShiftToggle: "Open by pressing Shift while dragging",
+        shelfShiftCaption: "Press Shift while holding an item to summon the shelf near the cursor.",
         shelfDropZoneToggle: "Keep dragged files in the menu bar",
         shelfDropZoneCaption: "While you drag a file, the shelf appears below the menu bar icon. Whatever you drop is kept right there, in a button you shrink and open with a click that goes away once the shelf is empty.",
         shelfDropZoneCaptionTopCenter: "While you drag a file, the shelf appears as a badge at the top center of the screen. Whatever you drop is kept right there, in a badge you open with a click that goes away once the shelf is empty.",

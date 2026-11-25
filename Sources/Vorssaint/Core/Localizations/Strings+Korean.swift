@@ -557,6 +557,8 @@ extension Strings {
         shelfStep3: "필요할 때 각 항목을 원하는 앱으로 드래그해 꺼냅니다.",
         shelfShakeToggle: "드래그 중 마우스를 흔들어 열기",
         shelfShakeCaption: "항목을 잡은 채 포인터를 빠르게 흔들면 커서 근처에서 열 수 있습니다.",
+        shelfShiftToggle: "드래그 중 Shift 키를 눌러 열기",
+        shelfShiftCaption: "항목을 잡은 채 Shift 키를 누르면 커서 근처에서 열 수 있습니다.",
         shelfDropZoneToggle: "드래그한 파일을 메뉴 막대에 보관",
         shelfDropZoneCaption: "파일을 드래그하면 메뉴 막대 아이콘 아래에 선반이 나타납니다. 놓은 항목은 그대로 보관되고 클릭해 열고 닫을 수 있는 버튼에 들어가며, 선반이 비면 사라집니다.",
         shelfDropZoneCaptionTopCenter: "파일을 드래그하면 화면 상단 가운데에 선반이 배지로 나타납니다. 놓은 항목은 그대로 보관되고 클릭해 여는 배지에 들어가며, 선반이 비면 사라집니다.",

@@ -215,6 +215,7 @@ enum DefaultsKey {
     static let shelfShortcutEnabled = "shelfShortcutEnabled"
     static let shelfShortcut = "shelfShortcut"            // GlobalShortcut storage value
     static let shelfShakeToOpen = "shelfShakeToOpen"
+    static let shelfShiftToOpen = "shelfShiftToOpen"
     static let shelfDropZoneEnabled = "shelfDropZoneEnabled"
     static let shelfDockPlacement = "shelfDockPlacement"   // ShelfDockPlacement raw value
     static let shelfEdgeDragEnabled = "shelfEdgeDragEnabled"
@@ -1413,6 +1414,8 @@ enum Defaults {
         DefaultsKey.shelfShortcutEnabled: true,
         DefaultsKey.shelfShortcut: "control+option+command:2",
         DefaultsKey.shelfShakeToOpen: true,
+        // Pressing Shift during a drag is new Shelf behavior, so it stays opt-in.
+        DefaultsKey.shelfShiftToOpen: false,
         // On by default (owner's call): it costs nothing until the shelf itself
         // is on, and then the shelf lives handily under the menu bar icon.
         DefaultsKey.shelfDropZoneEnabled: true,

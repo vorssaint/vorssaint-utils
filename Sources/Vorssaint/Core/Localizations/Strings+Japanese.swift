@@ -556,6 +556,8 @@ extension Strings {
         shelfStep3: "必要なときに、各項目をどのアプリへでもドラッグして取り出します。",
         shelfShakeToggle: "ドラッグ中にマウスを振って開く",
         shelfShakeCaption: "項目を持ったままポインタをすばやく振ると、カーソルの近くに呼び出せます。",
+        shelfShiftToggle: "ドラッグ中にShiftキーを押して開く",
+        shelfShiftCaption: "項目を持ったままShiftキーを押すと、カーソルの近くに呼び出せます。",
         shelfDropZoneToggle: "ドラッグしたファイルをメニューバーに残す",
         shelfDropZoneCaption: "ファイルをドラッグすると、メニューバーのアイコンの下にシェルフが表示されます。ドロップしたものはそのままそこに保存され、クリックで開閉できるボタンに収まり、シェルフが空になると消えます。",
         shelfDropZoneCaptionTopCenter: "ファイルをドラッグすると、画面上部の中央にシェルフがバッジとして表示されます。ドロップしたものはそのままそこに保存され、クリックで開けるバッジに収まり、シェルフが空になると消えます。",

@@ -10,6 +10,7 @@ struct ShelfSettings: View {
     @AppStorage(DefaultsKey.shelfShortcutEnabled) private var shortcutEnabled = true
     @AppStorage(DefaultsKey.shelfShortcutAddsFinderSelection) private var shortcutAddsFinderSelection = false
     @AppStorage(DefaultsKey.shelfShakeToOpen) private var shake = true
+    @AppStorage(DefaultsKey.shelfShiftToOpen) private var shiftToOpen = false
     @AppStorage(DefaultsKey.shelfDropZoneEnabled) private var dropZone = true
     @AppStorage(DefaultsKey.shelfDockPlacement) private var dockPlacement = ShelfDockPlacement.menuBar.rawValue
     @AppStorage(DefaultsKey.notchEnabled) private var islandEnabled = false
@@ -90,6 +91,15 @@ struct ShelfSettings: View {
                                 ShelfService.shared.syncDragMonitor()
                             }
                         Text(l10n.s.shelfShakeCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Toggle(l10n.s.shelfShiftToggle, isOn: $shiftToOpen)
+                            .onChange(of: shiftToOpen) { _, _ in
+                                ShelfService.shared.syncDragMonitor()
+                            }
+                        Text(l10n.s.shelfShiftCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
