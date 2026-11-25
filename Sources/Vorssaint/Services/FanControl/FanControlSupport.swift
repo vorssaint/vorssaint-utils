@@ -54,6 +54,7 @@ struct FanControlConfiguration: Codable, Equatable, Sendable {
     var mode: FanControlMode
     var manualLevel: Int
     var curves: [FanControlCurve]
+    var activationTemperature: Int? = nil
 
     static let defaultCurve = FanControlCurve(
         sensor: .hottestSoC,
@@ -68,10 +69,12 @@ struct FanControlConfiguration: Codable, Equatable, Sendable {
                                 curves: [])
     }
 
-    static func curve(_ curves: [FanControlCurve]) -> FanControlConfiguration {
+    static func curve(_ curves: [FanControlCurve],
+                      activationTemperature: Int? = nil) -> FanControlConfiguration {
         FanControlConfiguration(mode: .curve,
                                 manualLevel: FanControlPolicy.defaultCoolingLevel,
-                                curves: curves)
+                                curves: curves,
+                                activationTemperature: activationTemperature)
     }
 
     static func encodeCurves(_ curves: [FanControlCurve]) -> String? {
@@ -95,6 +98,7 @@ struct FanControlConfiguration: Codable, Equatable, Sendable {
 
 struct FanControlSnapshot: Codable, Equatable, Sendable {
     var fans: [FanControlFanReading]
+    // True for an active session, including when its curve is waiting to take control.
     var isCooling: Bool
     var endsAt: Date?
     var stopReason: FanControlStopReason?
@@ -108,6 +112,10 @@ struct FanControlSnapshot: Codable, Equatable, Sendable {
                                           coolingLevel: nil,
                                           configuration: nil,
                                           temperatures: nil)
+
+    var isWaitingForCurveActivation: Bool {
+        isCooling && coolingLevel == nil && configuration?.activationTemperature != nil
+    }
 
     var availableTemperatureSources: Set<FanControlTemperatureSource> {
         var sources = Set((temperatures ?? []).map(\.source))
@@ -164,6 +172,11 @@ struct FanControlResponse: Codable, Equatable, Sendable {
 }
 
 enum FanControlPolicy {
+    enum Target {
+        case system
+        case cooling(Int)
+    }
+
     /// Retained only for the legacy XPC entry point used by older app builds.
     static let coolingDuration: TimeInterval = 15 * 60
     static let heartbeatLimit: TimeInterval = 7
@@ -181,6 +194,9 @@ enum FanControlPolicy {
     static let maximumCurvePointCount = 8
     static let maximumCurveCount = FanControlTemperatureSource.allCases.count
     static let curveHysteresis = 2.0
+    static let activationTemperatureRange = minimumCurveTemperature...maximumCurveTemperature
+    static let defaultActivationTemperature = 60
+    static let activationHysteresis = 2
 
     static func isAutomaticMode(_ mode: UInt8) -> Bool {
         mode == 0 || mode == 3
@@ -227,6 +243,11 @@ enum FanControlPolicy {
     }
 
     static func validConfiguration(_ configuration: FanControlConfiguration) -> Bool {
+        if let temperature = configuration.activationTemperature {
+            guard configuration.mode == .curve, activationTemperatureRange.contains(temperature) else {
+                return false
+            }
+        }
         switch configuration.mode {
         case .system:
             return true
@@ -317,6 +338,23 @@ enum FanControlPolicy {
                                                     temperatures: warmerReadings,
                                                     gpuPoweredDown: gpuPoweredDown) else { return nil }
         return min(previousLevel, max(requested, held))
+    }
+
+    static func curveTarget(configuration: FanControlConfiguration,
+                            sample: FanControlTemperatureSample,
+                            hasManualControl: Bool,
+                            previousLevel: Int?) -> Target? {
+        guard let level = curveCoolingLevel(curves: configuration.curves,
+                                            temperatures: sample.readings,
+                                            gpuPoweredDown: sample.gpuPoweredDown,
+                                            previousLevel: previousLevel) else { return nil }
+        if let activation = configuration.activationTemperature {
+            guard let temperature = sample.readings.first(where: { $0.source == .hottestSoC })?.celsius,
+                  validTemperature(temperature) else { return nil }
+            let threshold = Double(activation) - (hasManualControl ? Double(activationHysteresis) : 0)
+            if hasManualControl ? temperature <= threshold : temperature < threshold { return .system }
+        }
+        return .cooling(level)
     }
 
     private static func evaluatedCurveCoolingLevel(curves: [FanControlCurve],

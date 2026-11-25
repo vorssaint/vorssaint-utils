@@ -822,6 +822,8 @@ enum FanControlResumeContract {
             checkWakeBeforeReply(suite, choice: choice)
         }
         reset(stored: nil)
+        checkWaitingCurveAcrossSleep(suite)
+        reset(stored: nil)
         checkContestedWake(suite)
         reset(stored: nil)
         checkSleepDuringResumeRetry(suite)
@@ -883,6 +885,8 @@ enum FanControlResumeContract {
                 systemControlUnconfirmed: service.awaitingSystemControl, interruption: service.interruption,
                 mode: mode, coolingLevel: .constant(defaults.values[DefaultsKey.fanControlCoolingLevel] as? Int ?? 100),
                 curves: .constant([FanControlConfiguration.defaultCurve]),
+                activationEnabled: .constant(false),
+                activationTemperature: .constant(FanControlPolicy.defaultActivationTemperature),
                 resume: .constant(defaults.bool(forKey: DefaultsKey.fanControlResume)),
                 temperatureUnit: .celsius, authorize: {}, applyConfiguration: apply ?? service.applyConfiguration,
                 stopCooling: service.returnToSystem
@@ -1891,6 +1895,37 @@ enum FanControlResumeContract {
                         && service.proxy.writes == (choice == .keep ? [curve, curve] : [curve])
                         && helper.owner == (choice == .keep ? session : nil) && Service.resumableConfiguration == nil,
                      "a late sleep ACK resumes only consent retained across wake (\(choice))")
+    }
+
+    private static func checkWaitingCurveAcrossSleep(_ suite: TestSuite) {
+        let helper = idleHelper()
+        let service = Service.shared
+        let session = UUID()
+        let curve = FanControlConfiguration.curve([FanControlConfiguration.defaultCurve], activationTemperature: 65)
+        let defaults = UserDefaults.standard
+        defaults.set(FanControlMode.curve.rawValue, forKey: DefaultsKey.fanControlMode)
+        connect(service, to: helper, session: session)
+        service.applyConfiguration(curve)
+        service.panelDidDisappear()
+        service.timer?.fire()
+        suite.expect(service.proxy.heartbeats == 1 && service.snapshot.isWaitingForCurveActivation
+                        && helper.owner == session && helper.hardware?.restores == 0,
+                     "a waiting curve keeps its owner and heartbeat with the panel closed")
+
+        service.workspaceWillSleep()
+        suite.expect(service.proxy.ownedRestores == 1 && Service.resumableConfiguration == curve
+                        && helper.owner == nil && helper.hardware?.restores == 0,
+                     "sleep releases a waiting curve and records its threshold without fan writes")
+        service.workspaceDidWake()
+        suite.expect(service.proxy.writes == [curve, curve] && service.snapshot.isWaitingForCurveActivation
+                        && helper.owner == session && helper.hardware?.updates.isEmpty == true
+                        && defaults.string(forKey: DefaultsKey.fanControlMode) == FanControlMode.curve.rawValue,
+                     "a confirmed waiting curve resumes at wake and preserves the selected mode")
+
+        service.returnToSystem()
+        suite.expect(service.proxy.restores == 1 && !service.snapshot.isCooling && helper.owner == nil
+                        && helper.hardware?.restores == 0 && Service.resumableConfiguration == nil,
+                     "an explicit return to System stops a waiting curve without a hardware write or a pending resume")
     }
 
     private static func checkContestedWake(_ suite: TestSuite) {

@@ -736,7 +736,8 @@ def main():
           + "".join(declaration("Sources/FanControlHelper/main.swift", prefix)
                     .replace("private func", "func", 1) for prefix in [
                         "    private func updateActiveConfiguration(", "    private func finishFailedStart(",
-                        "    private func requestedLevel(", "    private func performRestore(",
+                        "    private func requestedTarget(", "    private func startManualCooling(",
+                        "    private func yieldToSystemIfNeeded(", "    private func performRestore(",
                         "    private func watchdogStopReason()",
                         "    private func watchdogTick()", "    private func stopWatchdogIfIdle()",
                         "    private func statusResponse()", "    private func currentSnapshot()"])

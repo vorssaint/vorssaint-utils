@@ -84,6 +84,12 @@ enum FanControlIdentifiers {
 }
 
 enum FanControlIPC {
+    // Older helpers must reject this request instead of ignoring the threshold
+    // and applying a continuous curve. Ordinary Apply requests keep their shape.
+    private struct ThresholdCurveRequest: Codable {
+        let thresholdCurve: FanControlConfiguration
+    }
+
     static func encode(_ response: FanControlResponse) -> Data {
         // Every value in this closed response model is JSON encodable. Keeping
         // one deterministic fallback avoids ever violating the XPC reply shape.
@@ -96,12 +102,18 @@ enum FanControlIPC {
     }
 
     static func encode(_ configuration: FanControlConfiguration) -> Data? {
-        try? JSONEncoder().encode(configuration)
+        let encoder = JSONEncoder()
+        if configuration.activationTemperature != nil {
+            return try? encoder.encode(ThresholdCurveRequest(thresholdCurve: configuration))
+        }
+        return try? encoder.encode(configuration)
     }
 
     static func decodeConfiguration(_ data: Data) -> FanControlConfiguration? {
-        guard let configuration = try? JSONDecoder().decode(FanControlConfiguration.self,
-                                                              from: data),
+        let decoder = JSONDecoder()
+        let configuration = (try? decoder.decode(FanControlConfiguration.self, from: data))
+            ?? (try? decoder.decode(ThresholdCurveRequest.self, from: data))?.thresholdCurve
+        guard let configuration,
               FanControlPolicy.validConfiguration(configuration) else { return nil }
         return configuration
     }

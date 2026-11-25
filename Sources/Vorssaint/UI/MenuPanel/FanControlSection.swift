@@ -11,6 +11,9 @@ struct FanControlSection: View {
         FanControlPolicy.defaultCoolingLevel
     @AppStorage(DefaultsKey.fanControlCurves) private var curvesStorage =
         FanControlConfiguration.defaultCurvesStorage
+    @AppStorage(DefaultsKey.fanControlActivationEnabled) private var activationEnabled = false
+    @AppStorage(DefaultsKey.fanControlActivationTemperature) private var activationTemperature =
+        FanControlPolicy.defaultActivationTemperature
     @AppStorage(DefaultsKey.fanControlResume) private var resume = false
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit =
         TemperatureUnit.celsius.rawValue
@@ -35,6 +38,8 @@ struct FanControlSection: View {
                                   mode: modeBinding,
                                   coolingLevel: $coolingLevel,
                                   curves: curvesBinding,
+                                  activationEnabled: $activationEnabled,
+                                  activationTemperature: $activationTemperature,
                                   resume: $resume,
                                   temperatureUnit: displayTemperatureUnit,
                                   authorize: service.authorize,
@@ -89,6 +94,8 @@ struct FanControlCardContent: View {
     @Binding var mode: FanControlMode
     @Binding var coolingLevel: Int
     @Binding var curves: [FanControlCurve]
+    @Binding var activationEnabled: Bool
+    @Binding var activationTemperature: Int
     @Binding var resume: Bool
     let temperatureUnit: TemperatureUnit
     let authorize: () -> Void
@@ -125,6 +132,7 @@ struct FanControlCardContent: View {
                 case .manual:
                     manualControl
                 case .curve:
+                    curveActivationControl
                     FanControlCurveEditor(strings: strings,
                                           curves: $curves,
                                           snapshot: snapshot,
@@ -219,7 +227,7 @@ struct FanControlCardContent: View {
     }
 
     private var statusHeader: some View {
-        let cooling = snapshot.isCooling && !systemControlUnconfirmed
+        let cooling = snapshot.isCooling && !snapshot.isWaitingForCurveActivation && !systemControlUnconfirmed
         return HStack(spacing: 8) {
             Image(systemName: cooling ? "fanblades.fill" : "fanblades")
                 .font(.system(size: 17, weight: .semibold))
@@ -326,7 +334,8 @@ struct FanControlCardContent: View {
                 .frame(maxWidth: .infinity)
             case .curve:
                 Button(strings.applyCurve) {
-                    applyConfiguration(.curve(curves))
+                    applyConfiguration(.curve(curves, activationTemperature: activationEnabled
+                                              ? activationTemperatureBinding.wrappedValue : nil))
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -339,6 +348,7 @@ struct FanControlCardContent: View {
     private var statusText: String {
         if systemControlUnconfirmed { return strings.controlUnconfirmed }
         guard snapshot.isCooling else { return strings.systemControl }
+        if snapshot.isWaitingForCurveActivation { return strings.curveWaitingForActivation }
         let level = snapshot.coolingLevel ?? FanControlPolicy.defaultCoolingLevel
         switch snapshot.configuration?.mode ?? .manual {
         case .system:
@@ -419,9 +429,41 @@ struct FanControlCardContent: View {
         )
     }
 
+    private var activationTemperatureBinding: Binding<Int> {
+        let range = FanControlPolicy.activationTemperatureRange
+        return Binding(
+            get: { min(max(activationTemperature, range.lowerBound), range.upperBound) },
+            set: { activationTemperature = $0 }
+        )
+    }
+
+    @ViewBuilder
+    private var curveActivationControl: some View {
+        Toggle(strings.curveSystemControlWhenCool, isOn: $activationEnabled)
+            .font(.system(size: 10.5, weight: .medium))
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .disabled(isWorking)
+        if activationEnabled {
+            let temperature = activationTemperatureBinding.wrappedValue
+            let start = MetricFormat.temperature(Double(temperature), unit: temperatureUnit)
+            let release = MetricFormat.temperature(Double(temperature - FanControlPolicy.activationHysteresis),
+                                                   unit: temperatureUnit)
+            Stepper(value: activationTemperatureBinding, in: FanControlPolicy.activationTemperatureRange) {
+                Text(String(format: strings.curveActivationTemperaturesFormat, start, release))
+                    .font(.system(size: 10))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .controlSize(.mini)
+            .accessibilityValue(start)
+            .disabled(isWorking)
+        }
+    }
+
     private var curveCanRun: Bool {
         guard FanControlPolicy.validCurves(curves) else { return false }
         let available = snapshot.availableTemperatureSources
-        return curves.allSatisfy { available.contains($0.sensor) }
+        return (!activationEnabled || available.contains(.hottestSoC))
+            && curves.allSatisfy { available.contains($0.sensor) }
     }
 }

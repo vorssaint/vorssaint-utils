@@ -34,6 +34,7 @@ enum FanControlRecoveryContract {
         }
 
         func startCooling(level: Int) throws -> [FanControlFanReading] {
+            try validateAutomaticControl()
             if writeError == .unsafeControlState { isManual = true }
             return try updateCooling(level: level)
         }
@@ -215,9 +216,150 @@ enum FanControlRecoveryContract {
                      "an Apply during another client's recovery and a status read carry only the global reason")
     }
 
+    private static func checkCurveActivation(_ suite: TestSuite) {
+        let configuration = FanControlConfiguration.curve([.init(sensor: .averageCPU, points: [
+            .init(temperature: 40, coolingLevel: 0), .init(temperature: 80, coolingLevel: 100),
+        ])], activationTemperature: 60)
+        let session = UUID()
+
+        func setTemperature(_ temperature: Double, on controller: Controller) {
+            controller.hardware?.temperatures = [
+                .init(source: .hottestSoC, celsius: temperature),
+                .init(source: .averageCPU, celsius: 48),
+            ]
+        }
+
+        func start(at temperature: Double) -> (Controller, FanControlResponse) {
+            let controller = Controller()
+            controller.isCooling = false
+            controller.coolingLevel = nil
+            controller.activeConfiguration = nil
+            controller.owner = nil
+            controller.ownership.marker = false
+            controller.ownership.isHeld = false
+            controller.hardware?.isManual = false
+            setTemperature(temperature, on: controller)
+            let response = controller.applyConfiguration(session: session, configuration: configuration, duration: nil)
+            return (controller, response)
+        }
+
+        let (controller, initial) = start(at: 59)
+        suite.expect(initial.succeeded && initial.snapshot.isWaitingForCurveActivation
+                        && initial.snapshot.configuration == configuration && controller.owner == session
+                        && controller.ownership.isHeld && !controller.ownership.marker
+                        && controller.hardware?.updates.isEmpty == true && controller.hardware?.restores == 0,
+                     "applying below the activation temperature retains a session with no manual writes")
+        controller.prepareForUnregister(session: UUID()) { data in
+            suite.expect(FanControlIPC.decode(data)?.error == .alreadyControlled,
+                         "a waiting curve prevents another session from reserving the helper")
+        }
+        setTemperature(60, on: controller)
+        controller.watchdogTick()
+        suite.expect(controller.coolingLevel == 20 && controller.hardware?.updates == [20]
+                        && controller.ownership.marker && controller.owner == session,
+                     "the hottest SoC crossing activates the curve at equality using the selected sensor for RPM")
+        setTemperature(58.1, on: controller)
+        controller.watchdogTick()
+        suite.expect(controller.coolingLevel == 20 && controller.hardware?.restores == 0,
+                     "the curve stays active inside the hysteresis band while cooling")
+        setTemperature(58, on: controller)
+        controller.watchdogTick()
+        setTemperature(59.9, on: controller)
+        controller.watchdogTick()
+        let waiting = controller.currentSnapshot()
+        suite.expect(waiting.isWaitingForCurveActivation && waiting.stopReason == nil
+                        && waiting.configuration == configuration && controller.owner == session
+                        && controller.ownership.isHeld && !controller.ownership.marker && controller.timer != nil
+                        && controller.hardware?.updates == [20] && controller.hardware?.restores == 1,
+                     "the lower boundary hands off once and temperatures in the band keep macOS in control")
+        setTemperature(61, on: controller)
+        controller.watchdogTick()
+        suite.expect(controller.hardware?.updates == [20, 20] && controller.ownership.marker,
+                     "a later crossing reacquires manual control in the same session")
+
+        let (disconnecting, _) = start(at: 55)
+        disconnecting.connectionClosed(session)
+        suite.expect(!disconnecting.isCooling && disconnecting.owner == nil && !disconnecting.ownership.isHeld
+                        && disconnecting.timer == nil && disconnecting.hardware?.restores == 0,
+                     "disconnecting a waiting curve stops monitoring without writing fan modes")
+
+        let (blind, _) = start(at: 55)
+        blind.hardware?.temperatures = [.init(source: .averageCPU, celsius: 48)]
+        for _ in 0..<FanControlPolicy.temperatureFailureLimit { blind.watchdogTick() }
+        suite.expect(!blind.isCooling && blind.lastStopReason == .temperatureUnavailable
+                        && blind.hardware?.updates.isEmpty == true,
+                     "a missing activation reading stops the session without a manual write")
+
+        let (thermalStop, _) = start(at: 55)
+        setTemperature(60, on: thermalStop)
+        ProcessInfo.processInfo.thermalState = .serious
+        thermalStop.watchdogTick()
+        ProcessInfo.processInfo.thermalState = .nominal
+        suite.expect(!thermalStop.isCooling && thermalStop.lastStopReason == .thermalPressure
+                        && thermalStop.hardware?.updates.isEmpty == true,
+                     "thermal pressure stops a waiting curve before it can take manual control")
+
+        let (contested, _) = start(at: 55)
+        contested.hardware?.isManual = true
+        setTemperature(60, on: contested)
+        contested.watchdogTick()
+        suite.expect(!contested.isCooling && contested.lastStopReason == .hardwareChanged
+                        && !contested.ownership.marker && contested.hardware?.isManual == true
+                        && contested.hardware?.updates.isEmpty == true && contested.hardware?.restores == 0,
+                     "activation gives up if another controller took the fans while the curve was waiting")
+
+        let (failedHandoff, _) = start(at: 65)
+        failedHandoff.hardware?.restoreResults = [false, true]
+        setTemperature(58, on: failedHandoff)
+        failedHandoff.watchdogTick()
+        suite.expect(failedHandoff.isRecovering && !failedHandoff.isCooling && failedHandoff.ownership.marker,
+                     "a refused handoff ends the curve and keeps the recovery marker")
+        failedHandoff.watchdogTick()
+        suite.expect(!failedHandoff.isRecovering && !failedHandoff.ownership.marker
+                        && failedHandoff.lastStopReason == .hardwareChanged && failedHandoff.hardware?.restores == 2,
+                     "recovery verifies the automatic handoff before discarding the marker")
+
+        let (failedActivation, _) = start(at: 55)
+        failedActivation.hardware?.writeError = .unsafeControlState
+        failedActivation.hardware?.restoreResults = [false, true]
+        setTemperature(60, on: failedActivation)
+        failedActivation.watchdogTick()
+        suite.expect(failedActivation.isRecovering && !failedActivation.isCooling && failedActivation.ownership.marker,
+                     "a partial write during activation enters the existing recovery path")
+        failedActivation.watchdogTick()
+        suite.expect(!failedActivation.isRecovering && !failedActivation.ownership.marker,
+                     "recovery restores automatic control after a partial activation")
+    }
+
+    private static func checkActivationRequestCompatibility(_ suite: TestSuite) {
+        struct LegacyConfiguration: Decodable {
+            let mode: FanControlMode
+            let manualLevel: Int
+            let curves: [FanControlCurve]
+        }
+
+        let curves = [FanControlConfiguration.defaultCurve]
+        let ordinary = FanControlConfiguration.curve(curves)
+        let threshold = FanControlConfiguration.curve(curves, activationTemperature: 65)
+        let oldRequest = FanControlIPC.encode(ordinary) ?? Data()
+        let newRequest = FanControlIPC.encode(threshold) ?? Data()
+        let decoder = JSONDecoder()
+        suite.expect((try? decoder.decode(LegacyConfiguration.self, from: oldRequest))?.curves == curves
+                        && FanControlIPC.decodeConfiguration(oldRequest) == ordinary,
+                     "ordinary curves remain compatible with the older Apply format")
+        suite.expect((try? decoder.decode(LegacyConfiguration.self, from: newRequest)) == nil
+                        && FanControlIPC.decodeConfiguration(newRequest) == threshold,
+                     "an older helper rejects a threshold request before applying a continuous curve")
+        let invalid = FanControlConfiguration.curve(curves, activationTemperature: 125)
+        suite.expect(FanControlIPC.encode(invalid).flatMap(FanControlIPC.decodeConfiguration) == nil,
+                     "the helper rejects activation temperatures outside the editor's range")
+    }
+
     static func run(_ suite: TestSuite) {
         checkRestoreCapability(suite)
         checkApplyStopReason(suite)
+        checkCurveActivation(suite)
+        checkActivationRequestCompatibility(suite)
         for pendingMarker in [false, true] {
             let idle = Controller()
             idle.isCooling = false
