@@ -232,6 +232,41 @@ enum UtilitiesFeatureTests {
                                         snippets: [dateSnippet]) == dateSnippet,
                "immediate snippets fire the moment the trigger completes")
 
+        let tabOnly = TextSnippet(name: "Tab only", trigger: ";email", replacement: "tab@example.com", expansion: .afterTab)
+        for delimiter: Character in [" ", "\r", "\n", "x"] {
+            suite.expect(TextSnippetSupport.delimiterExpansionMatch(buffer: ";email", delimiter: delimiter, snippets: [tabOnly]) == nil,
+                         "Tab-only snippet ignores \(String(delimiter).debugDescription)")
+        }
+        let tabMatch = TextSnippetSupport.delimiterExpansionMatch(buffer: "hello ;email", delimiter: "\t", snippets: [tabOnly])
+        suite.expect(tabMatch?.snippet == tabOnly && tabMatch?.deleteCount == 6 && tabMatch?.typedTrigger == ";email",
+                     "Tab-only expansion clears the typed trigger through the normal delimiter path")
+        for delimiter: Character in [" ", "\t", "\r", "\n"] {
+            suite.expect(TextSnippetSupport.delimiterExpansionMatch(buffer: ";email", delimiter: delimiter, snippets: [email])?.snippet == email,
+                         "existing delimiter snippets still expand after every supported delimiter")
+        }
+        let longerTab = TextSnippet(trigger: "x;email", replacement: "long", expansion: .afterTab)
+        suite.expect(TextSnippetSupport.delimiterExpansionMatch(buffer: "x;email", delimiter: "\t", snippets: [email, longerTab])?.snippet == longerTab,
+                     "a longer Tab-only trigger takes precedence over an ordinary delimiter trigger")
+        suite.expect(TextSnippetSupport.delimiterExpansionMatch(buffer: ";email", delimiter: "\t", snippets: [tabOnly, email])?.snippet == email,
+                     "an existing ordinary trigger keeps precedence over an equal Tab-only trigger")
+        var insensitiveTab = tabOnly
+        insensitiveTab.ignoresCase = true
+        suite.expect(TextSnippetSupport.delimiterExpansionMatch(buffer: ";EMAIL", delimiter: "\t", snippets: [insensitiveTab])?.typedTrigger == ";EMAIL",
+                     "Tab-only case-insensitive expansion deletes exactly what was typed")
+        let shorterTab = TextSnippet(trigger: "mail", replacement: "short", expansion: .afterTab)
+        suite.expect(TextSnippetSupport.delimiterExpansionMatch(buffer: ";email", delimiter: "\t", snippets: [shorterTab, email])?.snippet == email,
+                     "a longer ordinary delimiter trigger still wins on Tab")
+        var disabledTab = tabOnly
+        disabledTab.enabled = false
+        suite.expect(TextSnippetSupport.delimiterExpansionMatch(buffer: ";email", delimiter: "\t", snippets: [disabledTab, dateSnippet]) == nil,
+                     "disabled and immediate snippets never enter Tab expansion")
+        suite.expect(TextSnippetSupport.decode(TextSnippetSupport.encode([tabOnly, email, dateSnippet])) == [tabOnly, email, dateSnippet],
+                     "all expansion modes round-trip together in the existing snippet store")
+        for language in AppLanguage.allCases {
+            suite.expect(!FeatureStrings.snippets(language).expansionTab.isEmpty,
+                         "\(language.rawValue) labels the Tab-only expansion option")
+        }
+
         let fixedDate = Date(timeIntervalSince1970: 1_752_000_000)
         let expandedText = TextSnippetSupport.expand("Report on {{date}} at {{time}}.",
                                                      date: fixedDate, clipboard: nil,
@@ -359,7 +394,7 @@ enum UtilitiesFeatureTests {
             .joined(separator: " ")
             .components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
         suite.expect(snippetServiceCode.contains(
-                "expansion: .afterDelimiter, snippets: delimiterSnippets, swallowed: \"\")")
+                "delimiterExpansionMatch(buffer: buffer, delimiter: first, snippets: delimiterSnippets)")
                 && snippetServiceCode.contains(
                 "expansion: .immediate, snippets: immediateSnippets, swallowed: typed)"),
                "each typing path hands the match that sets its backspaces the key it swallowed")
