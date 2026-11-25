@@ -154,6 +154,15 @@ enum PointerDisplayLookupContract {
             static func focusPlacedWindow(_ item: SwitcherItem) {}
         }
         var isDraggingWindow = true
+        // This contract covers the drop on the desktop, so the stand-in is
+        // already lifted and no arrangement is being built.
+        var ghostIsLifted = true
+        var draggedImage: CGImage?
+        var draggedWindowID: CGWindowID?
+        var currentSessionPID: pid_t?
+        var manualOrders: [pid_t: [CGWindowID]] = [:]
+        var windows: [SwitcherItem] = []
+        func pruneManualOrders() {}
         func endSession() {}
         func axPoint(fromAppKit point: CGPoint) -> CGPoint { point }
     }
