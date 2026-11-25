@@ -93,6 +93,27 @@ enum ShelfFeatureTests {
         suite.expect(!ShelfSelectionSupport.isClearSelectionShortcut(
             keyCode: 36, hasSelectionModifiers: false),
                "shelf does not clear selection for an unrelated key")
+        suite.expect(ShelfQuickLookSupport.isToggleShortcut(
+            keyCode: 49, hasModifiers: false, isRepeat: false),
+               "shelf Space toggles Quick Look")
+        suite.expect(!ShelfQuickLookSupport.isToggleShortcut(
+            keyCode: 49, hasModifiers: true, isRepeat: false),
+               "shelf keeps modified Space available for other shortcuts")
+        suite.expect(!ShelfQuickLookSupport.isToggleShortcut(
+            keyCode: 49, hasModifiers: false, isRepeat: true),
+               "shelf holding Space does not reopen and close Quick Look")
+        suite.expect(!ShelfQuickLookSupport.isToggleShortcut(
+            keyCode: 36, hasModifiers: false, isRepeat: false),
+               "shelf Quick Look ignores an unrelated key")
+        let previewURLs = ["a.png", "b.pdf", "c.mp4"].map { URL(fileURLWithPath: "/tmp/\($0)") }
+        suite.expect(ShelfQuickLookSupport.initialIndex(
+            of: previewURLs, focusing: previewURLs[2]) == 2,
+               "shelf Quick Look opens on the tile clicked last")
+        suite.expect(ShelfQuickLookSupport.initialIndex(
+            of: previewURLs, focusing: URL(fileURLWithPath: "/tmp/other.txt")) == 0,
+               "shelf Quick Look opens on the first file when the last tile is not shown")
+        suite.expect(ShelfQuickLookSupport.initialIndex(of: previewURLs, focusing: nil) == 0,
+               "shelf Quick Look opens on the first file without a clicked tile")
 
         suite.expect(ShelfInteractionSupport.allowsAutomaticOpen(
             sourceBundleIdentifier: "com.example.Editor",
