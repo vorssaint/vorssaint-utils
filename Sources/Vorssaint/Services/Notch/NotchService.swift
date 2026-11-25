@@ -1919,6 +1919,9 @@ final class NotchService: ObservableObject {
         case .explore: toggleSections()
         case .settings: openSettings()
         case .pin: pinned.toggle()
+        case .missionControl:
+            guard let shortcut = SpaceWindowBridge.overviewShortcut(.missionControl) else { return }
+            perform { SpaceWindowBridge.pressSpaceShortcut(shortcut) }
         case .module(let module): select(module)
         case .control(let item):
             switch item {

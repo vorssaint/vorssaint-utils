@@ -267,6 +267,7 @@ extension NotchQuickAction {
         case .explore: return "square.grid.2x2"
         case .settings: return "gearshape"
         case .pin: return "pin"
+        case .missionControl: return "rectangle.3.group"
         case .module(let module): return module.symbol
         case .control(let item): return item.symbol
         }
@@ -277,6 +278,7 @@ extension NotchQuickAction {
         case .explore: return FeatureStrings.notch(l10n.language).sectionsTitle
         case .settings: return l10n.s.menuSettings
         case .pin: return FeatureStrings.notch(l10n.language).pin
+        case .missionControl: return FeatureStrings.notch(l10n.language).missionControl
         case .module(let module): return module.title(l10n.language)
         case .control(let item): return item.title(l10n)
         }

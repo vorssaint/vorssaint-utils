@@ -1358,13 +1358,14 @@ enum NotchQuickAccessSide: String, CaseIterable, Codable {
 }
 
 enum NotchQuickAction: Hashable, Identifiable {
-    case explore, settings, pin, module(NotchModule), control(NotchControlItem)
+    case explore, settings, pin, missionControl, module(NotchModule), control(NotchControlItem)
 
     var id: String {
         switch self {
         case .explore: return "explore"
         case .settings: return "settings"
         case .pin: return "pin"
+        case .missionControl: return "missionControl"
         case .module(let module): return module.rawValue
         case .control(let item): return "control." + item.rawValue
         }
@@ -1375,6 +1376,7 @@ enum NotchQuickAction: Hashable, Identifiable {
         case "explore": self = .explore
         case "settings": self = .settings
         case "pin": self = .pin
+        case "missionControl": self = .missionControl
         default:
             if id.hasPrefix("control."), let item = NotchControlItem(rawValue: String(id.dropFirst(8))) {
                 self = .control(item)
@@ -1383,9 +1385,16 @@ enum NotchQuickAction: Hashable, Identifiable {
         }
     }
 
+    static var sectionActions: [Self] {
+        [.explore, .settings] + NotchModule.allCases.map(Self.module)
+    }
+
+    static var quickActions: [Self] {
+        [.pin, .missionControl] + NotchControlItem.allCases.filter { !$0.isLevel }.map(Self.control)
+    }
+
     static var optionalActions: [Self] {
-        [.explore, .settings, .pin] + NotchModule.allCases.map(Self.module)
-            + NotchControlItem.allCases.filter { !$0.isLevel }.map(Self.control)
+        sectionActions + quickActions
     }
 
     func isAvailable(in defaults: UserDefaults = .standard) -> Bool {
