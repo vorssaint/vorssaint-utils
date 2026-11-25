@@ -111,6 +111,29 @@ enum AgentUsageReadTests {
         catch { suite.expect(false, "the streaming fixture creates its folder: \(error)"); return }
         let now = Date()
         let timestamp = now.timeIntervalSince1970
+        // A Codex conversation resumed after days of silence: its log was last
+        // read long ago and Codex keeps it open, so no file event arrives.
+        // The sweep's window reaches it; a day-long one never did.
+        do {
+            let host = Host()
+            let resumed = folder.appending(path: "resumed-codex.jsonl")
+            let start = [#"{"type":"session_meta","timestamp":"\#(ISO8601DateFormatter().string(from: now))","payload":{"id":"r","cwd":"/tmp/example"}}"#,
+                         #"{"type":"event_msg","timestamp":"\#(ISO8601DateFormatter().string(from: now))","payload":{"type":"task_complete","duration_ms":1000}}"#]
+            try (start.joined(separator: "\n") + "\n").write(to: resumed, atomically: true, encoding: .utf8)
+            host.read(resumed.path, provider: .codex)
+            host.cursors[resumed.path]?.modified = now.addingTimeInterval(-6 * 86_400)
+            let handle = try FileHandle(forWritingTo: resumed)
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data((#"{"type":"event_msg","timestamp":"\#(ISO8601DateFormatter().string(from: now))","payload":{"type":"task_started"}}"# + "\n").utf8))
+            try handle.close()
+            suite.expect(!host.pollOpenLogs(within: 86_400) && host.store.turns.isEmpty,
+                         "a day-long window misses a log quiet for days that grew again")
+            suite.expect(host.pollOpenLogs(within: AgentUsageProductionLogReader.sweepWindow)
+                            && host.store.turns[resumed.path]?.provider == .codex,
+                         "the slow sweep reads a log quiet for days that grew again, and its Codex turn shows")
+        } catch {
+            suite.expect(false, "the resumed-log fixture writes: \(error)")
+        }
         let cases: [(AgentProvider, [String])] = [
             (.claude, [
                 #"{"type":"user","timestamp":\#(timestamp),"sessionId":"s","message":{"content":"work"}}"#,

@@ -655,8 +655,8 @@ final class AgentUsageService: ObservableObject {
             store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
             store.dropRecords(before: now.addingTimeInterval(-Self.horizon))
             // A log kept open through a long pause reports nothing when work
-            // resumes; the day's logs are looked at less often than recent ones.
-            var changed = pollOpenLogs(within: 86_400)
+            // resumes; every log is looked at less often than recent ones.
+            var changed = pollOpenLogs(within: AgentLogReader.sweepWindow)
             // A folder that appears later, like a first Codex session, is
             // picked up without a restart.
             if now.timeIntervalSince(lastRootCheck) > 300 {
