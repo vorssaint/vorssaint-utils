@@ -380,15 +380,18 @@ enum ScreenshotCaptureEngine {
             fromView: viewBounds,
             viewSize: screen.frame.size,
             imageSize: imageBounds.size)
-        let cropBounds = ScreenshotSupport.clamp(pixelBounds, to: imageBounds)
+        var cropBounds = ScreenshotSupport.clamp(pixelBounds, to: imageBounds)
         guard !cropBounds.isEmpty else { return nil }
+        if cropBounds == imageBounds { return (image, pixelScale) }
         let packedBounds = ScreenshotSupport.clamp(
             CGRect(origin: .zero, size: cropBounds.size), to: imageBounds)
-        guard packedBounds != cropBounds, let alpha = alphaCoverage(of: image) else {
-            return image.cropping(to: cropBounds).map { ($0, pixelScale) }
+        if packedBounds != cropBounds, let alpha = alphaCoverage(of: image) {
+            cropBounds = ScreenshotSupport.attachedCaptureCrop(
+                placed: cropBounds, packed: packedBounds, coverage: alpha)
         }
-        return image.cropping(to: ScreenshotSupport.attachedCaptureCrop(
-            placed: cropBounds, packed: packedBounds, coverage: alpha)).map { ($0, pixelScale) }
+        guard let crop = image.cropping(to: cropBounds) else { return nil }
+        // Release the display buffer when possible, keeping the captured layers if the copy fails.
+        return (ScreenshotSupport.independentImage(crop) ?? crop, pixelScale)
     }
 
     /// The image's alpha, one byte per pixel with the top row first, which is

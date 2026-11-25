@@ -308,6 +308,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/Harness/CodexReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/OpenCodeReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/CopilotReader.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/CursorReader.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/CursorTranscriptAccess.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageArchive.swift
@@ -335,6 +337,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchBrowserArtworkSupport.swift
         Sources/Vorssaint/UI/Notch/NotchEqualizerBars.swift
         Sources/Vorssaint/UI/Notch/NotchScrollEdgeFade.swift
+        Sources/Vorssaint/UI/Notch/NotchAgentComponents.swift
         Sources/Vorssaint/UI/Notch/NotchAgentAnimationView.swift
         Sources/Vorssaint/UI/WindowVisibilityReader.swift
         Sources/Vorssaint/Services/Notch/NotchMusicAutomationSupport.swift
@@ -451,6 +454,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift
         Sources/Vorssaint/Services/Homebrew/HomebrewEnvironment.swift
         Sources/Vorssaint/Services/Homebrew/HomebrewManager.swift
+        Sources/Vorssaint/UI/MenuPanel/PanelHomebrewFilterPicker.swift
         Sources/Vorssaint/UI/HomebrewOperationStatusView.swift
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift
         Sources/Vorssaint/Services/AppUpdates/AppUpdateFeedSupport.swift
@@ -509,8 +513,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/QuickToolsSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarPreferences.swift
-        Sources/Vorssaint/Services/CommandBar/CommandBarMath.swift
-        Sources/Vorssaint/Services/CommandBar/CommandBarUnits.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarUnitCatalog.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarExpressions.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarCalculator.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarColors.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarEmoji.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarLinks.swift
@@ -553,6 +558,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Switcher/SwitcherModels.swift
         Sources/Vorssaint/Services/Switcher/WindowServerCaptureQueue.swift
         Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift
+        Sources/Vorssaint/Services/Switcher/SwitcherExclusiveFullscreenWatch.swift
         Sources/Vorssaint/Services/Switcher/SpaceHopSupport.swift
         Sources/Vorssaint/Services/Switcher/WindowUseOrder.swift
         Sources/Vorssaint/Services/Switcher/WindowEnumeratorAccessibilityPrefetch.swift
@@ -671,7 +677,9 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
     -o "build/$NOW_PLAYING_ADAPTER"
 
 echo "▸ Generating app icon…"
-swift Tools/MakeIcon.swift build/AppIcon.iconset
+# Use the same pinned SDK as the app build: the default MacOSX.sdk may be 27,
+# whose Command Line Tools copy is missing Foundation headers MakeIcon needs.
+swift -sdk "$SDK" Tools/MakeIcon.swift build/AppIcon.iconset
 xattr -c -r build/AppIcon.iconset build/AppIcon.icns build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png 2>/dev/null || true
 ACTOOL_BIN="$(xcrun --find actool 2>/dev/null || true)"
 ICON_TMP="$(mktemp -d)"
