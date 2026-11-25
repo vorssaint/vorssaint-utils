@@ -1063,3 +1063,29 @@ enum CommandBarAppSort {
         }
     }
 }
+
+enum CommandBarNewInstance {
+    enum Plan: Equatable {
+        case webApp(browserBundleID: String, arguments: [String])
+        case secondCopy
+    }
+
+    static let newWindowShortcut = "⌘N"
+    static let secondCopyGrace: TimeInterval = 1
+
+    static func plan(info: [String: Any]) -> Plan {
+        guard let appID = info["CrAppModeShortcutID"] as? String, !appID.isEmpty,
+              appID.allSatisfy({ ("a"..."z").contains($0) }),
+              let browserBundleID = info["CrBundleIdentifier"] as? String, !browserBundleID.isEmpty
+        else { return .secondCopy }
+        return .webApp(browserBundleID: browserBundleID, arguments: ["--app-id=\(appID)", "--new-window"])
+    }
+
+    static func secondCopyAppeared(before: Set<pid_t>, after: Set<pid_t>) -> Bool {
+        !after.subtracting(before).isEmpty
+    }
+
+    static func newWindowItem(shortcuts: [String?]) -> Int? {
+        shortcuts.firstIndex { $0 == newWindowShortcut }
+    }
+}

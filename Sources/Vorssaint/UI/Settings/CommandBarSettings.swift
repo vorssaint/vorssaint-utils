@@ -20,6 +20,10 @@ struct CommandBarSettings: View {
     @AppStorage(DefaultsKey.commandBarRowShortcuts) private var rowShortcutsRaw = ""
     @AppStorage(DefaultsKey.commandBarFileScopes) private var fileScopesRaw = ""
     @AppStorage(DefaultsKey.commandBarFileIgnores) private var fileIgnoresRaw = ""
+    @AppStorage(DefaultsKey.commandBarBringWindowHere) private var bringWindowHere = false
+    @AppStorage(DefaultsKey.commandBarNewInstanceEnabled) private var newInstanceEnabled = false
+    @AppStorage(DefaultsKey.commandBarNewInstanceModifier) private var newInstanceModifier =
+        CommandBarReturnModifier.shift
     @State private var editing: CommandBarLink?
     @State private var ignoreDraft = ""
     @State private var showsFileOptions = false
@@ -31,6 +35,48 @@ struct CommandBarSettings: View {
     /// language; saying them twice would only mean two things to keep.
     private var common: SnippetFeatureStrings { FeatureStrings.snippets(l10n.language) }
     private var editLabel: String { FeatureStrings.screenshot(l10n.language).editButton }
+
+    private func returnActionRow(_ title: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+            Spacer(minLength: 8)
+            ForEach(CommandBarReturnModifier.allCases) { modifier in
+                let selected = newInstanceModifier == modifier
+                let name = switch modifier {
+                case .option: text.optionKeyName
+                case .shift: text.shiftKeyName
+                case .control: text.controlKeyName
+                }
+                Button {
+                    newInstanceModifier = modifier
+                } label: {
+                    Text(modifier.glyph + "↩")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(selected ? Color.accentColor : .primary)
+                        .padding(.horizontal, 7)
+                        .frame(height: 22)
+                        .background(selected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.06),
+                                    in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(selected ? Color.accentColor.opacity(0.7) : Color.primary.opacity(0.14),
+                                              lineWidth: 1)
+                        }
+                        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help(name)
+                .accessibilityLabel(name)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+                .disabled(!isOn.wrappedValue)
+                .opacity(isOn.wrappedValue ? 1 : 0.45)
+            }
+            Toggle(title, isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .padding(.leading, 4)
+        }
+    }
 
     /// The examples do double duty: they say what the bar can do, which no
     /// list of toggles ever manages to.
@@ -128,6 +174,16 @@ struct CommandBarSettings: View {
                 }
             } header: {
                 Text(text.pageTitle)
+            }
+
+            Section {
+                Toggle(text.returnBringHereToggle, isOn: $bringWindowHere)
+                Text(text.returnKeysCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                returnActionRow(text.returnNewInstanceToggle, isOn: $newInstanceEnabled)
+            } header: {
+                Text(text.returnKeysTitle)
             }
 
             Section {
@@ -366,6 +422,7 @@ struct CommandBarSettings: View {
             }
         }
         .formStyle(.grouped)
+        .onChange(of: bringWindowHere) { _, _ in service.syncWithPreferences() }
         .observesSecureInput()
         .sheet(isPresented: $showsAppShortcuts) {
             CommandBarAppShortcutsView()
