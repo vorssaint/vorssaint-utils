@@ -140,11 +140,15 @@ enum ScreenshotCaptureEngine {
         // the island turns into the controls, shows it as people saw it.
         let islandIDs = !keepsIslandOut && NotchSupport.isEnabled()
             ? NotchService.shared.captureVisibleWindowIDs : []
+        let keystrokeIDs = KeystrokeOverlayService.shared.captureVisibleWindowIDs
+        let effectiveProtectedIDs = protectedWindowIDs.union(
+            KeystrokeOverlayService.shared.captureExcludedWindowIDs
+        )
         let excludedIDs = ScreenshotCapturePolicy.excludedWindowIDs(
             hideVorssaintWindows: hideVorssaintWindows,
             ownWindowIDs: ownWindowIDs,
-            protectedWindowIDs: protectedWindowIDs,
-            islandWindowIDs: islandIDs)
+            protectedWindowIDs: effectiveProtectedIDs,
+            islandWindowIDs: islandIDs.union(keystrokeIDs))
         return content.windows.filter { excludedIDs.contains($0.windowID) }
     }
 

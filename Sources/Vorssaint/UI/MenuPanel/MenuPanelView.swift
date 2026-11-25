@@ -1113,7 +1113,7 @@ struct UtilitiesSection: View {
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
     case mouseScroll, smoothScroll, linearScroll, focusFollowsMouse, mouseAcceleration, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
-         dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey,
+         keystrokeOverlay, dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey,
          mouseClickDebounce, notch, spacesOrder
 
     var id: String { rawValue }
@@ -1135,6 +1135,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .windowMaximize: return .windowMaximizer
         case .dockPreview: return .dockPreview
         case .keyDebounce: return .keyboardDebounce
+        case .keystrokeOverlay: return .keystrokeOverlay
         case .dockClick, .dockClickHide, .dockClickCycle: return .dockClick
         case .middleClick: return .middleClick
         case .textSnippets: return .textSnippets
@@ -1161,7 +1162,7 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
              .spacesOrder:
             return .windows
         case .mouseScroll, .smoothScroll, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
-             .textSnippets, .radialMenu, .superKey, .mouseClickDebounce:
+             .keystrokeOverlay, .textSnippets, .radialMenu, .superKey, .mouseClickDebounce:
             return .inputDevices
         case .cutPaste, .shelf:
             return .files
@@ -1197,6 +1198,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.windowMaximizeEnabled) private var windowMaximizeEnabled = false
     @AppStorage(DefaultsKey.keyboardDebounceEnabled) private var keyDebounceEnabled = false
     @AppStorage(DefaultsKey.keyboardDebounceWindowMs) private var keyDebounceWindow = Defaults.defaultKeyboardDebounceWindowMs
+    @AppStorage(DefaultsKey.keystrokeOverlayEnabled) private var keystrokeOverlayEnabled = false
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickEnabled = false
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHideEnabled = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleEnabled = false
@@ -1229,6 +1231,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlShelf) private var showShelf = true
     @AppStorage(DefaultsKey.panelControlWindowMaximize) private var showWindowMaximize = true
     @AppStorage(DefaultsKey.panelControlKeyDebounce) private var showKeyDebounce = true
+    @AppStorage(DefaultsKey.panelControlKeystrokeOverlay) private var showKeystrokeOverlay = true
     @AppStorage(DefaultsKey.panelControlDockClick) private var showDockClick = true
     @AppStorage(DefaultsKey.panelControlDockClickHide) private var showDockClickHide = true
     @AppStorage(DefaultsKey.panelControlDockClickCycle) private var showDockClickCycle = true
@@ -1353,6 +1356,7 @@ struct QuickControlsSection: View {
         case .windowMaximize: return windowMaximizeEnabled
         case .dockPreview: return dockPreviewEnabled
         case .keyDebounce: return keyDebounceEnabled
+        case .keystrokeOverlay: return keystrokeOverlayEnabled
         case .dockClick: return dockClickEnabled
         case .dockClickHide: return dockClickHideEnabled
         case .dockClickCycle: return dockClickCycleEnabled
@@ -1429,6 +1433,7 @@ struct QuickControlsSection: View {
         case .mouseNavigation: return showMouseNavigation
         case .switcher: return showSwitcher
         case .keyDebounce: return showKeyDebounce
+        case .keystrokeOverlay: return showKeystrokeOverlay
         case .cutPaste: return showCutPaste
         case .autoQuit: return showAutoQuit
         case .shelf: return showShelf
@@ -1577,6 +1582,23 @@ struct QuickControlsSection: View {
                     keyDebounceWindowControl
                 }
             }
+        case .keystrokeOverlay:
+            let overlayStrings = FeatureStrings.keystrokeOverlay(l10n.language)
+            PanelToggleRow(title: overlayStrings.pageTitle,
+                           caption: caption(overlayStrings.enableCaption,
+                                            needsAccessibility: keystrokeOverlayEnabled),
+                           systemImage: AppFeature.keystrokeOverlay.symbolName,
+                           isOn: $keystrokeOverlayEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showKeystrokeOverlay,
+                           needsAttention: keystrokeOverlayEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(keystrokeOverlayEnabled))
+                .onChange(of: keystrokeOverlayEnabled) { _, enabled in
+                    KeystrokeOverlayService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
         case .cutPaste:
             PanelToggleRow(title: l10n.s.cutPasteName,
                            caption: caption(l10n.s.cutPasteEnableCaption, needsAccessibility: cutPasteEnabled),
@@ -1922,6 +1944,7 @@ struct QuickControlsSection: View {
         showWindowMaximize = true
         showDockPreview = true
         showKeyDebounce = true
+        showKeystrokeOverlay = true
         showDockClick = true
         showDockClickHide = true
         showDockClickCycle = true

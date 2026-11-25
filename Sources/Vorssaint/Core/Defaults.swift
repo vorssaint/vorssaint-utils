@@ -335,6 +335,16 @@ enum DefaultsKey {
     static let keyboardDebounceEnabled = "keyboardDebounceEnabled"
     static let keyboardDebounceWindowMs = "keyboardDebounceWindowMs"
     static let keyboardDebounceKeyWindows = "keyboardDebounceKeyWindows" // comma-separated keyCode:ms
+    static let keystrokeOverlayEnabled = "keystrokeOverlayEnabled"
+    static let keystrokeOverlayStyle = "keystrokeOverlayStyle"           // svelte | keycaps
+    static let keystrokeOverlayMode = "keystrokeOverlayMode"             // all | shortcuts
+    static let keystrokeOverlayPosition = "keystrokeOverlayPosition"     // bottomCenter | bottomLeft | bottomRight | topCenter | topLeft | topRight
+    static let keystrokeOverlayCustomX = "keystrokeOverlayCustomX"       // Double, screen origin X when dragged
+    static let keystrokeOverlayCustomY = "keystrokeOverlayCustomY"       // Double, screen origin Y when dragged
+    static let keystrokeOverlaySize = "keystrokeOverlaySize"             // small | medium | large
+    static let keystrokeOverlayDuration = "keystrokeOverlayDuration"     // Double, seconds
+    static let keystrokeOverlayShowInCaptures = "keystrokeOverlayShowInCaptures" // Bool, visible in screen recordings & screenshots
+    static let panelControlKeystrokeOverlay = "panelControlKeystrokeOverlay"
     static let panelUtilityCleaning = "panelUtilityCleaning"
     static let cleaningModeKeepScreenVisible = "cleaningModeKeepScreenVisible"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
@@ -1638,6 +1648,14 @@ enum Defaults {
         DefaultsKey.keyboardDebounceEnabled: false,
         DefaultsKey.keyboardDebounceWindowMs: defaultKeyboardDebounceWindowMs,
         DefaultsKey.keyboardDebounceKeyWindows: "",
+        DefaultsKey.keystrokeOverlayEnabled: false,
+        DefaultsKey.keystrokeOverlayStyle: KeystrokeOverlayStyle.svelte.rawValue,
+        DefaultsKey.keystrokeOverlayMode: KeystrokeOverlayMode.allKeys.rawValue,
+        DefaultsKey.keystrokeOverlayPosition: KeystrokeOverlayPosition.bottomCenter.rawValue,
+        DefaultsKey.keystrokeOverlaySize: KeystrokeOverlaySize.medium.rawValue,
+        DefaultsKey.keystrokeOverlayDuration: KeystrokeOverlayConfig.defaultDurationSeconds,
+        DefaultsKey.keystrokeOverlayShowInCaptures: true,
+        DefaultsKey.panelControlKeystrokeOverlay: true,
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.cleaningModeKeepScreenVisible: false,
         DefaultsKey.panelUtilityURLCleaner: true,

@@ -207,6 +207,8 @@ enum SettingsBackupSupport {
         DefaultsKey.clipboardHistoryWindowHeight,
         DefaultsKey.clipboardHistoryWindowX,
         DefaultsKey.clipboardHistoryWindowY,
+        DefaultsKey.keystrokeOverlayCustomX,
+        DefaultsKey.keystrokeOverlayCustomY,
         // The last magnifier level is session history; its remembered/default
         // policy remains portable, but another Mac need not inherit the value.
         DefaultsKey.screenshotLoupeLastZoom,
