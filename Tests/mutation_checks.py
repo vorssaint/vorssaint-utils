@@ -1643,6 +1643,11 @@ MUTATIONS = [
      "        guard FileManager.default.createFile(atPath: url.path, contents: nil,\n"
      "                                            attributes: [.posixPermissions: 0o600]) else {\n",
      "a saved GIF gets the same permissions as any other saved file"),
+    ("a playing app loses its tap at 100%", "mixer",
+     "Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift",
+     "        isUnity(volume) && isPlaying && engineMatchesRoute\n",
+     "        false\n",
+     "a playing app keeps its tap when the slider passes through 100%, so the sound does not drop"),
     ("a backup carries app volumes as slider positions", "mixer",
      "Sources/Vorssaint/Core/SettingsBackupSupport.swift",
      "        settings = exportedAppVolumes(settings)\n", "",
