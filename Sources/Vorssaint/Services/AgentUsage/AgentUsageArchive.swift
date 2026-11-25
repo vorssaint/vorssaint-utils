@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 8
+    private static let format = 9
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -99,7 +99,7 @@ enum AgentUsageArchive {
         let sharedTranscripts = Set(contents.store.records.lazy
             .filter { $0.record.provider == .cursor && $0.key.hasPrefix("cursor-transcript:") && $0.sources.count > 1 }
             .flatMap(\.sources))
-        var gone = store.files.subtracting(cursors.keys)
+        var gone = store.files.filter { !$0.hasSuffix(".db") }.subtracting(cursors.keys)
         let sharing = store.files(sharingWith: gone).subtracting(gone).subtracting(sharedTranscripts)
         for file in sharing { cursors[file] = nil }
         gone.formUnion(sharing)
@@ -368,6 +368,7 @@ enum AgentUsageArchive {
             dictionary(value.copilotReportedRequests) { $0.int($1) }
             optional(value.copilotTurnID) { $0.string($1) }
             bool(value.copilotFinalResponse)
+            bool(value.namedWorkspace)
             if provider == .cursor {
                 int(value.cursorPromptCount)
                 optional(value.cursorPromptTimestamp) { $0.date($1) }
@@ -548,6 +549,7 @@ enum AgentUsageArchive {
             value.copilotReportedRequests = try dictionary { try $0.amount() }
             value.copilotTurnID = try optional { try $0.string() }
             value.copilotFinalResponse = try bool()
+            value.namedWorkspace = try bool()
             if provider == .cursor {
                 value.cursorPromptCount = try amount()
                 // Each prompt consumed at least one JSON line before this offset.

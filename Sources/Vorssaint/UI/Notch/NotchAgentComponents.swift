@@ -13,6 +13,7 @@ extension AgentProvider {
         case .opencode: return Color(red: 0.06, green: 0.73, blue: 0.51)
         case .copilot: return Color(red: 0.30, green: 0.78, blue: 0.68)
         case .cursor: return Color(red: 0.42, green: 0.48, blue: 0.78)
+        case .agy: return Color(red: 0.10, green: 0.66, blue: 0.74)
         }
     }
 }
@@ -190,14 +191,33 @@ private struct NotchAgentGlyphBridge: NSViewRepresentable {
             markSize = size * 1.35
             tint = nil
         case nil:
-            image = NSImage(systemSymbolName: provider.symbol, accessibilityDescription: nil)?
+            let symbol = NSImage(systemSymbolName: provider.symbol, accessibilityDescription: nil)?
                 .withSymbolConfiguration(.init(pointSize: size, weight: .semibold))
+            image = provider.symbolRotation != 0 ? symbol?.rotated(byDegrees: provider.symbolRotation) : symbol
             markSize = size
             tint = NSColor(provider.tint)
         }
         view.configureGlyph(image: image, size: markSize, tint: tint, animates: animates)
     }
     static func dismantleNSView(_ view: NotchAgentAnimationView, coordinator: ()) { view.stop() }
+}
+
+private extension NSImage {
+    /// Positive degrees match SwiftUI's clockwise rotation; AppKit's y axis
+    /// points up, so negate for `NSAffineTransform`.
+    func rotated(byDegrees degrees: CGFloat) -> NSImage {
+        let rotated = NSImage(size: size, flipped: false) { rect in
+            let transform = NSAffineTransform()
+            transform.translateX(by: rect.midX, yBy: rect.midY)
+            transform.rotate(byDegrees: -degrees)
+            transform.translateX(by: -rect.midX, yBy: -rect.midY)
+            transform.concat()
+            self.draw(in: rect)
+            return true
+        }
+        rotated.isTemplate = isTemplate
+        return rotated
+    }
 }
 
 /// Stacked bars, one per bucket, each split by agent. Hovering a bar reports
@@ -362,9 +382,66 @@ enum AgentMarks {
                     }
                 }
             }
+            let asarURL = url.appendingPathComponent("Contents/Resources/app.asar")
+            if !provider.menuBarImageNames.isEmpty, FileManager.default.fileExists(atPath: asarURL.path) {
+                for name in provider.menuBarImageNames {
+                    for (fileName, scale) in [("\(name)@2x.png", 2.0), ("\(name).png", 1.0)] {
+                        guard let data = readAsarFile(fileName, from: asarURL),
+                              let image = NSImage(data: data) else { continue }
+                        if let rep = image.representations.first, rep.pixelsWide > 0, rep.pixelsHigh > 0 {
+                            image.size = NSSize(width: CGFloat(rep.pixelsWide) / scale,
+                                                height: CGFloat(rep.pixelsHigh) / scale)
+                        }
+                        image.isTemplate = true
+                        return .template(image)
+                    }
+                }
+            }
             return .icon(NSWorkspace.shared.icon(forFile: url.path))
         }
         return nil
+    }
+
+    private static func readAsarFile(_ name: String, from archiveURL: URL) -> Data? {
+        guard let handle = try? FileHandle(forReadingFrom: archiveURL) else { return nil }
+        defer { try? handle.close() }
+        guard let prefix = try? handle.read(upToCount: 16), prefix.count == 16 else { return nil }
+
+        func uint32LE(at offset: Int) -> UInt32 {
+            let base = prefix.startIndex + offset
+            return UInt32(prefix[base])
+                | (UInt32(prefix[base + 1]) << 8)
+                | (UInt32(prefix[base + 2]) << 16)
+                | (UInt32(prefix[base + 3]) << 24)
+        }
+
+        guard uint32LE(at: 0) == 4 else { return nil }
+        let headerSize = UInt64(uint32LE(at: 4))
+        let jsonLength = Int(uint32LE(at: 12))
+        guard jsonLength > 0, jsonLength < 16 * 1024 * 1024 else { return nil }
+        let base = 8 + headerSize
+        guard base >= 16 + UInt64(jsonLength) else { return nil }
+
+        guard let headerData = try? handle.read(upToCount: jsonLength),
+              headerData.count == jsonLength,
+              let root = try? JSONSerialization.jsonObject(with: headerData) as? [String: Any],
+              let files = root["files"] as? [String: Any],
+              let entry = files[name] as? [String: Any],
+              (entry["unpacked"] as? Bool) != true,
+              let size = entry["size"] as? Int, size > 0, size < 1024 * 1024,
+              let offsetString = entry["offset"] as? String,
+              let relativeOffset = UInt64(offsetString) else { return nil }
+
+        let (fileOffset, overflow) = base.addingReportingOverflow(relativeOffset)
+        guard !overflow else { return nil }
+
+        do {
+            try handle.seek(toOffset: fileOffset)
+            guard let data = try handle.read(upToCount: size), data.count == size else { return nil }
+            return data
+        } catch {
+            return nil
+        }
     }
 }
 
@@ -377,12 +454,16 @@ private extension AgentProvider {
         case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
         case .copilot: return ["com.github.githubapp"]
         case .cursor: return ["com.todesktop.230313mzl4w4u92"]
+        case .agy: return ["com.google.antigravity"]
         }
     }
 
-    /// The menu bar images keep a margin; the spark's thin rays need more
-    /// of the box than the knot to look the same size.
-    var markScale: CGFloat { self == .claude ? 1.45 : 1.2 }
+    /// The menu bar images keep a margin; the spark's thin rays and the
+    /// arch's wide margin need more of the box than the knot to look the same size.
+    var markScale: CGFloat { self == .claude ? 1.45 : self == .agy ? 1.9 : 1.2 }
+
+    /// Degrees to turn the fallback symbol; agy's "greaterthan" points up.
+    var symbolRotation: CGFloat { self == .agy ? -90 : 0 }
 
     /// What those apps name the mark they show in the menu bar.
     var menuBarImageNames: [String] {
@@ -393,6 +474,7 @@ private extension AgentProvider {
         case .opencode: return []
         case .copilot: return []
         case .cursor: return []
+        case .agy: return ["trayTemplate"]
         }
     }
 }
@@ -424,6 +506,7 @@ struct NotchAgentMark: View {
             Image(systemName: provider.symbol)
                 .font(.system(size: size, weight: .semibold))
                 .foregroundStyle(tint ?? provider.tint)
+                .rotationEffect(.degrees(provider.symbolRotation))
         }
     }
 }

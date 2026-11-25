@@ -295,6 +295,10 @@ struct NotchCapsuleMusicStrip: View {
                 }
                 .padding(.horizontal, CapsuleLayout.endPadding)
                 .frame(maxWidth: .infinity)
+                if let companion = service.compactCompanion {
+                    NotchCapsuleCompanionMark(companion: companion, geometry: geometry)
+                        .padding(.trailing, CapsuleLayout.spacing)
+                }
                 ZStack {
                     NotchLiveEqualizerBars(isPlaying: playing && !showsControl,
                                            bars: NotchLayout.compactMusicBarCount,
@@ -429,7 +433,9 @@ private struct NotchCapsuleCompanionMark: View {
                     NotchCapsuleCalendarStrip.clockMark(countdown, now: context.date)
                 }
             }
-        case .timer, .keepAwake, .watch:
+        case .timer:
+            NotchCapsuleSymbol(name: "timer", tint: .orange)
+        case .keepAwake, .watch:
             EmptyView()
         }
     }
@@ -447,6 +453,9 @@ struct NotchCapsuleAgentStrip: View {
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
 
+    private var geometry: NotchGeometry { displayGeometry ?? service.geometry }
+    private var companion: NotchCompactActivity? { service.compactCompanion }
+
     private func working(_ live: [AgentLiveSession]) -> [AgentProvider] {
         AgentProvider.allCases.filter { provider in live.contains { $0.provider == provider } }
     }
@@ -458,8 +467,12 @@ struct NotchCapsuleAgentStrip: View {
 
     @ViewBuilder private func row(live: [AgentLiveSession]) -> some View {
         let working = working(live)
-        NotchCapsuleRow(size: size, geometry: displayGeometry ?? service.geometry) {
-            HStack(spacing: CapsuleLayout.spacing) {
+        NotchCapsuleRow(size: size, geometry: geometry,
+                        leading: companion == .music ? CapsuleLayout.artworkInset(geometry) : CapsuleLayout.endPadding) {
+            HStack(spacing: CapsuleLayout.markGap(companion)) {
+                if let companion {
+                    NotchCapsuleCompanionMark(companion: companion, geometry: geometry)
+                }
                 NotchCapsuleAgentMarks(providers: working)
                 NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
                     let text = reading(at: date, live: live)

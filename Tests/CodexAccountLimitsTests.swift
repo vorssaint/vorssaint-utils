@@ -60,8 +60,14 @@ enum CodexAccountLimitsTests {
         suite.expect(NotchAgentSupport.limitsAreStale(reading(.codex, age: 11 * 60, source: .account),
                                                       provider: .codex, account: true, now: now)
                         && !NotchAgentSupport.limitsAreStale(reading(.codex, age: 9 * 60, source: .account),
-                                                             provider: .codex, account: true, now: now),
-                     "an account card dims a reading that missed its checks")
+                                                             provider: .codex, account: true, now: now)
+                        && !NotchAgentSupport.limitsAreStale(reading(.agy, age: 15 * 60, source: .account),
+                                                             provider: .agy, account: false, now: now)
+                        && !NotchAgentSupport.limitsAreStale(reading(.agy, age: 29 * 60 + 59, source: .account),
+                                                             provider: .agy, account: false, now: now)
+                        && NotchAgentSupport.limitsAreStale(reading(.agy, age: 30 * 60, source: .account),
+                                                            provider: .agy, account: false, now: now),
+                     "account cards keep their stale boundaries, with agy stale after thirty minutes")
 
         let ids = [UUID().uuidString, UUID().uuidString]
         let tiles = NotchAgentSupport.tiles(cards: [.limits, .resets], providers: [.claude, .codex, .opencode], codexAccounts: ids)
