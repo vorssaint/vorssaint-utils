@@ -197,6 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
                     .mouseClickDebounce, .superKey, .quitWindowProtection, .mixer, .musicBlock, .notch,
+                    .alwaysOnTop,
                 ])
             }
             .store(in: &cancellables)
@@ -212,7 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { _ in
-                FeatureRuntime.shared.sync([.dockPreview, .screenRecorder])
+                FeatureRuntime.shared.sync([.dockPreview, .screenRecorder, .alwaysOnTop])
             }
             .store(in: &cancellables)
 
@@ -355,6 +356,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         MouseNavigationService.shared.suspend()
         DockPreviewService.shared.stop()
+        AlwaysOnTopService.shared.suspend()
         SoundOutputSwitcher.shared.stop()
         PreciseVolumeRollerService.shared.stop()
         AppVolumeMixer.shared.stopAll()
