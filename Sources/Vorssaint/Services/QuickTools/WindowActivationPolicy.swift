@@ -18,22 +18,46 @@ struct WindowActivationRetention {
     }
 }
 
+/// Whether the app should be a regular one (Dock icon, place in Command Tab)
+/// for the windows it is keeping reachable. The user can turn that off, so
+/// Command Tab never offers the app, and its Q never quits it by accident.
+enum WindowActivationDecision {
+    static func wantsRegular(retainedWindows: Int, showsInAppSwitcher: Bool) -> Bool {
+        retainedWindows > 0 && showsInAppSwitcher
+    }
+}
+
 /// The app is normally accessory only, with no Dock icon and no place in
 /// Command Tab. While a user-facing window needs to remain reachable it becomes
-/// a regular app, then returns to its normal policy after the last one closes.
+/// a regular app, then returns to its normal policy after the last one closes,
+/// unless the user chose to keep it out of the Dock and Command Tab.
 enum WindowActivationPolicy {
     private static var retention = WindowActivationRetention()
     private static var promoted = false
 
     static func retain() {
         _ = retention.retain()
-        guard !promoted, NSApp.activationPolicy() != .regular else { return }
-        promoted = NSApp.setActivationPolicy(.regular)
+        apply()
     }
 
     static func release() {
-        guard retention.release(), promoted else { return }
-        if NSApp.setActivationPolicy(.accessory) {
+        _ = retention.release()
+        apply()
+    }
+
+    /// Applies a change of the Dock and Command Tab setting to the windows
+    /// already open.
+    static func preferenceChanged() {
+        apply()
+    }
+
+    private static func apply() {
+        let showsInAppSwitcher = UserDefaults.standard.bool(forKey: DefaultsKey.showInAppSwitcher)
+        if WindowActivationDecision.wantsRegular(retainedWindows: retention.count,
+                                                 showsInAppSwitcher: showsInAppSwitcher) {
+            guard !promoted, NSApp.activationPolicy() != .regular else { return }
+            promoted = NSApp.setActivationPolicy(.regular)
+        } else if promoted, NSApp.setActivationPolicy(.accessory) {
             promoted = false
         }
     }

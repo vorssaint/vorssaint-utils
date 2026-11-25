@@ -17,6 +17,7 @@ struct GeneralSettings: View {
     @State private var loginPending = false
     @State private var loginRefreshID = UUID()
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
+    @AppStorage(DefaultsKey.showInAppSwitcher) private var showInAppSwitcher = true
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
@@ -74,6 +75,16 @@ struct GeneralSettings: View {
                     .font(.caption)
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            Divider()
+            SettingsRow(symbol: "dock.rectangle", title: text.showInAppSwitcherTitle,
+                        caption: text.showInAppSwitcherCaption) {
+                Toggle(text.showInAppSwitcherTitle, isOn: $showInAppSwitcher)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .onChange(of: showInAppSwitcher) { _, _ in
+                        WindowActivationPolicy.preferenceChanged()
+                    }
             }
             Divider()
             SettingsRow(symbol: "globe", title: l10n.s.languageLabel) {
