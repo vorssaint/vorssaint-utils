@@ -1065,12 +1065,12 @@ enum NotchPresentationProbe {
             if bubbles.quickAccessProbeTrackingAreas != 1 {
                 failures.append("floating controls did not create exactly one hover corridor")
             }
-            // Glass shades the circles like the island at the same height, and
-            // like its lip below it. Sampled under the glyph.
+            // Glass shades the circles after the island at the same height,
+            // and after its lip below it. Sampled under the glyph.
             for point in bubbles.quickAccessProbeCenters {
                 let sample = CGPoint(x: point.x, y: point.y - 15)
                 let depth = min(1, (bubbles.panel.frame.maxY - sample.y) / geometry.expanded.height)
-                let expected = quickAccessGlass ? 1 - 0.45 * pow(depth, 2.5) : 1
+                let expected = quickAccessGlass ? NotchQuickAccessView.glassShade(island: 1 - 0.45 * pow(depth, 2.5)) : 1
                 let opacity = bubbles.quickAccessProbeOpacity(at: sample) ?? 0
                 if abs(opacity - expected) > 0.04 {
                     failures.append("a floating control on the \(side) side drew opacity \(opacity), expected \(expected)")
