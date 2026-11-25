@@ -1684,10 +1684,12 @@ enum SwitcherSupport {
         return victims
     }
 
-    static func shouldNavigateBackwardOnShiftPress(shiftIsNavigationModifier: Bool,
+    /// `enabled` is the Settings choice: off, only Shift+Tab or ← step back.
+    static func shouldNavigateBackwardOnShiftPress(enabled: Bool = true,
+                                                   shiftIsNavigationModifier: Bool,
                                                    wasShiftHeld: Bool,
                                                    isShiftHeld: Bool) -> Bool {
-        shiftIsNavigationModifier && isShiftHeld && !wasShiftHeld
+        enabled && shiftIsNavigationModifier && isShiftHeld && !wasShiftHeld
     }
 
     /// Keeps the overflow icon row from scrolling past either end.
