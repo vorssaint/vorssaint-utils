@@ -1399,7 +1399,9 @@ final class AppVolumeMixer: ObservableObject {
         guard let targetOutputDeviceUID = app.effectiveOutputDeviceUID,
               appNeedsEngine(app) else {
             if let engine = engines[app.id], keepsTapAtUnity(app, engine: engine) {
-                engine.gain = MixerRoutingSupport.gain(forVolume: app.volume)
+                // Exactly what the app plays without a tap, so leaving the
+                // tap later changes nothing either.
+                engine.gain = 1
                 return
             }
             // No volume or routing adjustment remains.

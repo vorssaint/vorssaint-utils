@@ -32,14 +32,6 @@ enum MixerFeatureTests {
                     "half the slider is a clearly quieter app, not a 6 dB trim")
         suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 1)), 1, "100% plays the app untouched")
         suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 2)), 2, "the boost range keeps its ceiling")
-        suite.expect(MixerRoutingSupport.keepsTapAtUnity(volume: 1, isPlaying: true, engineMatchesRoute: true),
-                     "a playing app keeps its tap when the slider passes through 100%, so the sound does not drop")
-        suite.expect(!MixerRoutingSupport.keepsTapAtUnity(volume: 1, isPlaying: false, engineMatchesRoute: true),
-                     "a quiet app at 100% gives its tap back, where the switch cannot be heard")
-        suite.expect(!MixerRoutingSupport.keepsTapAtUnity(volume: 1, isPlaying: true, engineMatchesRoute: false),
-                     "a tap on another output or other objects is not kept at 100%")
-        suite.expect(!MixerRoutingSupport.keepsTapAtUnity(volume: 0.99, isPlaying: true, engineMatchesRoute: true),
-                     "below 100% the tap is needed anyway, not merely kept")
         suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: -1)), 0, "a level below zero never plays")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: 0.456) == 46, "a volume shows as a rounded percent")
         suite.expect(MixerRoutingSupport.inputPercentText(forVolume: 0) == "0%"
@@ -373,6 +365,14 @@ enum MixerFeatureTests {
         suite.expect([pid_t(-1), 0].allSatisfy {
             resolvedOwningApp(responsible: $0, pid: $0, regularApps: [-1, 0]) == nil
         }, "a non-positive pid is never a row key")
+        suite.expect(MixerRoutingSupport.keepsTapAtUnity(volume: 1, isPlaying: true, engineMatchesRoute: true),
+                     "a playing app keeps its tap when the slider passes through 100%, so the sound does not drop")
+        suite.expect(!MixerRoutingSupport.keepsTapAtUnity(volume: 1, isPlaying: false, engineMatchesRoute: true),
+                     "a quiet app at 100% gives its tap back, where the switch cannot be heard")
+        suite.expect(!MixerRoutingSupport.keepsTapAtUnity(volume: 1, isPlaying: true, engineMatchesRoute: false),
+                     "a tap on another output or other objects is not kept at 100%")
+        suite.expect(!MixerRoutingSupport.keepsTapAtUnity(volume: 0.99, isPlaying: true, engineMatchesRoute: true),
+                     "below 100% the tap is needed anyway, not merely kept")
         suite.expect(!MixerRoutingSupport.requiresEngine(volume: 1,
                                                    selectedOutputDeviceUID: nil,
                                                    targetOutputDeviceUID: "BuiltInSpeakerDevice",
@@ -826,17 +826,17 @@ enum MixerFeatureTests {
         } ?? ""
         suite.expect(teardownQueueSetup.contains("maxConcurrentOperationCount"),
                "engine teardown runs on a queue with a concurrency bound, not one thread and not one per engine")
+        suite.expect(mixerCode.contains("if let engine = engines[app.id], keepsTapAtUnity(app, engine: engine) {")
+                     && mixerCode.contains("guard appNeedsEngine(app) || (keepsAtUnity && !clockIsGone) else {"),
+                     "both routing and reconcile keep a playing app's tap at 100%")
         suite.expect(mixerCode.contains("let gain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)")
                      && mixerCode.contains("let currentGain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)")
                      && mixerCode.components(separatedBy: "let ramp = TapLevelRamp()").count == 3,
                      "both engines give back the level the tap's mixdown took, eased")
-        suite.expect(mixerCode.components(separatedBy: "MixerRoutingSupport.gain(forVolume:").count == 6
+        suite.expect(mixerCode.components(separatedBy: "MixerRoutingSupport.gain(forVolume:").count == 5
                      && !mixerCode.contains("Float(app.volume)")
                      && !mixerCode.contains("Float(latestApp.volume)"),
                      "every engine plays an app's slider through the same loudness curve")
-        suite.expect(mixerCode.contains("if let engine = engines[app.id], keepsTapAtUnity(app, engine: engine) {")
-                     && mixerCode.contains("guard appNeedsEngine(app) || (keepsAtUnity && !clockIsGone) else {"),
-                     "both routing and reconcile keep a playing app's tap at 100%")
         let levelWatch = mixerCode.range(of: "final class LevelCompensationWatch")
             .flatMap { start in
                 mixerCode.range(of: "\n}\n", range: start.upperBound..<mixerCode.endIndex)
