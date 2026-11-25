@@ -146,6 +146,14 @@ extension Strings {
         case .uk: return .uk
         }
     }
+
+    /// What a cleaning surface says after pointing a link at an embed fixer,
+    /// with whatever the cleaner took out of it first.
+    func urlCleanerEmbedFixed(service: String, removed: [String]) -> String {
+        let fixed = String(format: urlCleanerEmbedFixedFormat, service)
+        guard !removed.isEmpty else { return fixed }
+        return String(format: urlCleanerRemovedFormat, removed.joined(separator: ", ")) + " · " + fixed
+    }
 }
 
 /// Flat, compiler-checked catalog of UI strings. Adding a field here forces
@@ -1287,6 +1295,12 @@ struct Strings {
     let urlCleanerRulesRemoveSiteButton: String
     let urlCleanerRulesRestoreSiteButton: String
     let urlCleanerRemovedFormat: String            // + comma separated names
+    let urlCleanerEmbedTitle: String
+    let urlCleanerEmbedEnable: String
+    let urlCleanerEmbedCaption: String
+    let urlCleanerEmbedNetworkNote: String
+    let urlCleanerEmbedOff: String
+    let urlCleanerEmbedFixedFormat: String         // + embed fixer name
     let switcherSearchPin: String
     let switcherSearchPinCaption: String
     let invertVerticalScroll: String
@@ -2422,6 +2436,12 @@ extension Strings {
         urlCleanerRulesRemoveSiteButton: "Desativar todas as regras deste site",
         urlCleanerRulesRestoreSiteButton: "Ativar todas as regras deste site",
         urlCleanerRemovedFormat: "Removidos %@",
+        urlCleanerEmbedTitle: "Corretor de embeds",
+        urlCleanerEmbedEnable: "Corrigir links sociais para prévias em chats",
+        urlCleanerEmbedCaption: "Links de posts do X, Instagram, TikTok, Reddit, Bluesky e outros passam a apontar para um corretor de embeds, para que Discord, Telegram e outros mostrem o post completo. Quem abre o link no navegador é levado ao original.",
+        urlCleanerEmbedNetworkNote: "Um link corrigido passa por um serviço de terceiros, que vê o post que você compartilha.",
+        urlCleanerEmbedOff: "Desligado",
+        urlCleanerEmbedFixedFormat: "Corrigido para embed com %@",
         switcherSearchPin: "Fixar busca com S",
         switcherSearchPinCaption: "S inicia uma busca e fixa o alternador aberto, assim digitar não produz mais caracteres especiais quando o atalho usa ⌥, e uma busca que comece com Q ou W não fecha a janela nem encerra o app por engano.",
         invertVerticalScroll: "Inverter rolagem vertical",
@@ -3558,6 +3578,12 @@ extension Strings {
         urlCleanerRulesRemoveSiteButton: "Turn off every rule for this site",
         urlCleanerRulesRestoreSiteButton: "Turn on every rule for this site",
         urlCleanerRemovedFormat: "Removed %@",
+        urlCleanerEmbedTitle: "Embed fixer",
+        urlCleanerEmbedEnable: "Fix social links for chat previews",
+        urlCleanerEmbedCaption: "Post links from X, Instagram, TikTok, Reddit, Bluesky and more point to an embed fixer, so Discord, Telegram and others show the whole post. A browser opening the link is sent on to the original.",
+        urlCleanerEmbedNetworkNote: "A fixed link goes through a third-party service, which sees the post you share.",
+        urlCleanerEmbedOff: "Off",
+        urlCleanerEmbedFixedFormat: "Fixed for embeds with %@",
         switcherSearchPin: "Pin search with S",
         switcherSearchPinCaption: "S starts a search and pins the switcher open, so typing no longer produces special characters when your shortcut uses ⌥, and a search starting with Q or W no longer closes the window or quits the app by mistake.",
         invertVerticalScroll: "Invert vertical scrolling",

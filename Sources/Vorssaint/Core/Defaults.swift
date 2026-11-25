@@ -330,6 +330,8 @@ enum DefaultsKey {
     static let urlCleanerCustomParameters = "urlCleanerCustomParameters"
     static let urlCleanerSiteParameters = "urlCleanerSiteParameters"       // host|name pairs added to one site
     static let urlCleanerDisabledParameters = "urlCleanerDisabledParameters" // built-in host|name pairs switched off
+    static let urlCleanerEmbedFixEnabled = "urlCleanerEmbedFixEnabled"
+    static let urlCleanerEmbedFixServices = "urlCleanerEmbedFixServices" // platform|service pairs moved off the default
     static let windowMaximizeEnabled = "windowMaximizeEnabled"
     static let windowMaximizeExcludedApps = "windowMaximizeExcludedApps" // [bundle id] whose green button stays native
     static let keyboardDebounceEnabled = "keyboardDebounceEnabled"
@@ -1490,6 +1492,8 @@ enum Defaults {
         DefaultsKey.urlCleanerCustomParameters: "",
         DefaultsKey.urlCleanerSiteParameters: "",
         DefaultsKey.urlCleanerDisabledParameters: "",
+        DefaultsKey.urlCleanerEmbedFixEnabled: false,
+        DefaultsKey.urlCleanerEmbedFixServices: "",
         DefaultsKey.textSnippetsEnabled: false,
         DefaultsKey.snippetLibraryEnabled: false,
         DefaultsKey.snippetLibraryShortcut: GlobalShortcut.snippetLibraryDefault.storageValue,

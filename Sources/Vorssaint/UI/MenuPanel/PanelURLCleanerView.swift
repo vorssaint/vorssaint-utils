@@ -13,6 +13,8 @@ struct PanelURLCleanerView: View {
     @AppStorage(DefaultsKey.urlCleanerCustomParameters) private var globalNames = ""
     @AppStorage(DefaultsKey.urlCleanerSiteParameters) private var siteNames = ""
     @AppStorage(DefaultsKey.urlCleanerDisabledParameters) private var disabledNames = ""
+    @AppStorage(DefaultsKey.urlCleanerEmbedFixEnabled) private var embedEnabled = false
+    @AppStorage(DefaultsKey.urlCleanerEmbedFixServices) private var embedServices = ""
     @State private var input = ""
     @State private var copied: String?
 
@@ -20,7 +22,7 @@ struct PanelURLCleanerView: View {
     /// Worked out from the field on every render, so Copy always takes the
     /// link that is in the field now under the rules in force now.
     private var result: URLCleaning.Result? {
-        _ = (globalNames, siteNames, disabledNames)
+        _ = (globalNames, siteNames, disabledNames, embedEnabled, embedServices)
         return cleaner.clean(input)
     }
 
@@ -67,6 +69,10 @@ struct PanelURLCleanerView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.green)
             }
+            Toggle(l10n.s.urlCleanerEmbedEnable, isOn: $embedEnabled)
+                .toggleStyle(.checkbox)
+                .font(.system(size: 11.5, weight: .medium))
+                .help(l10n.s.urlCleanerEmbedCaption)
         }
         .panelCard()
     }
@@ -139,6 +145,8 @@ struct PanelURLCleanerView: View {
         case .rewritten: return l10n.s.urlCleanerCleaned
         case .removed(let names):
             return String(format: l10n.s.urlCleanerRemovedFormat, names.joined(separator: ", "))
+        case .embedFixed(let service, let removed):
+            return l10n.s.urlCleanerEmbedFixed(service: service, removed: removed)
         }
     }
 

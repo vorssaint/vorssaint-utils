@@ -1653,10 +1653,12 @@ enum CommandBarCatalog {
                 icon: .symbol("link"),
                 run: { _ in
                     URLCleanerService.shared.copy(cleaned.url)
-                    QuickToolHUD.show(icon: "link", message: cleaned.removed.isEmpty
+                    QuickToolHUD.show(icon: "link", message: cleaned.embedService.map {
+                        L10n.shared.s.urlCleanerEmbedFixed(service: $0, removed: cleaned.removed)
+                    } ?? (cleaned.removed.isEmpty
                         ? L10n.shared.s.urlCleanerCleaned
                         : String(format: L10n.shared.s.urlCleanerRemovedFormat,
-                                 cleaned.removed.joined(separator: ", ")))
+                                 cleaned.removed.joined(separator: ", "))))
                 }))
         }
 
@@ -1914,6 +1916,9 @@ enum CommandBarCatalog {
                 QuickToolHUD.show(icon: "link",
                                   message: String(format: s.urlCleanerRemovedFormat,
                                                   names.joined(separator: ", ")))
+            case .embedFixed(let service, let removed):
+                cleaned.map { URLCleanerService.shared.copy($0.url) }
+                QuickToolHUD.show(icon: "link", message: s.urlCleanerEmbedFixed(service: service, removed: removed))
             }
         })
     }
