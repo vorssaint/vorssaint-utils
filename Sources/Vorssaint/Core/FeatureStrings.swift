@@ -111,6 +111,7 @@ enum FeatureStrings {
 
 struct MixerFeatureStrings {
     let hideInactiveApps: String
+    let allowBoost: String
     let pin: String
     let unpin: String
     let moveUp: String
@@ -122,20 +123,20 @@ struct MixerFeatureStrings {
     let arrange: String
     let actions: String
 
-    static let enUS = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps", pin: "Pin to Top", unpin: "Unpin", moveUp: "Move Up", moveDown: "Move Down", pinFirst: "Pin to Front", moveLeft: "Move Left", moveRight: "Move Right", arrange: "Hold Command and drag to reorder", actions: "Actions")
-    static let ptBR = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inativos", pin: "Fixar no topo", unpin: "Desafixar", moveUp: "Mover para cima", moveDown: "Mover para baixo", pinFirst: "Fixar no início", moveLeft: "Mover para a esquerda", moveRight: "Mover para a direita", arrange: "Segure Command e arraste para reorganizar", actions: "Ações")
-    static let tr = MixerFeatureStrings(hideInactiveApps: "Etkin olmayan uygulamaları gizle", pin: "En üste sabitle", unpin: "Sabitlemeyi kaldır", moveUp: "Yukarı taşı", moveDown: "Aşağı taşı", pinFirst: "Başa sabitle", moveLeft: "Sola taşı", moveRight: "Sağa taşı", arrange: "Sıralamak için Command tuşunu basılı tutup sürükleyin", actions: "Eylemler")
-    static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения", pin: "Закрепить сверху", unpin: "Открепить", moveUp: "Переместить вверх", moveDown: "Переместить вниз", pinFirst: "Закрепить в начале", moveLeft: "Переместить влево", moveRight: "Переместить вправо", arrange: "Удерживайте Command и перетащите для изменения порядка", actions: "Действия")
-    static let es = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inactivas", pin: "Fijar arriba", unpin: "Desfijar", moveUp: "Mover hacia arriba", moveDown: "Mover hacia abajo", pinFirst: "Fijar al principio", moveLeft: "Mover a la izquierda", moveRight: "Mover a la derecha", arrange: "Mantén pulsado Command y arrastra para reordenar", actions: "Acciones")
-    static let sk = MixerFeatureStrings(hideInactiveApps: "Skryť neaktívne aplikácie", pin: "Pripnúť navrch", unpin: "Odopnúť", moveUp: "Presunúť nahor", moveDown: "Presunúť nadol", pinFirst: "Pripnúť dopredu", moveLeft: "Presunúť doľava", moveRight: "Presunúť doprava", arrange: "Podržte Command a presuňte myšou pre zmenu poradia", actions: "Akcie")
-    static let de = MixerFeatureStrings(hideInactiveApps: "Inaktive Apps ausblenden", pin: "Oben anheften", unpin: "Loslösen", moveUp: "Nach oben bewegen", moveDown: "Nach unten bewegen", pinFirst: "Vorne anheften", moveLeft: "Nach links bewegen", moveRight: "Nach rechts bewegen", arrange: "Zum Anordnen Command gedrückt halten und ziehen", actions: "Aktionen")
-    static let fr = MixerFeatureStrings(hideInactiveApps: "Masquer les apps inactives", pin: "Épingler en haut", unpin: "Désépingler", moveUp: "Déplacer vers le haut", moveDown: "Déplacer vers le bas", pinFirst: "Épingler au début", moveLeft: "Déplacer vers la gauche", moveRight: "Déplacer vers la droite", arrange: "Maintenez Command et faites glisser pour réorganiser", actions: "Actions")
-    static let it = MixerFeatureStrings(hideInactiveApps: "Nascondi le app inattive", pin: "Fissa in alto", unpin: "Rimuovi fissaggio", moveUp: "Sposta su", moveDown: "Sposta giù", pinFirst: "Fissa all’inizio", moveLeft: "Sposta a sinistra", moveRight: "Sposta a destra", arrange: "Tieni premuto Command e trascina per riordinare", actions: "Azioni")
-    static let ja = MixerFeatureStrings(hideInactiveApps: "非アクティブなアプリを隠す", pin: "一番上に固定", unpin: "固定を解除", moveUp: "上に移動", moveDown: "下に移動", pinFirst: "先頭に固定", moveLeft: "左に移動", moveRight: "右に移動", arrange: "Commandキーを押しながらドラッグして並べ替え", actions: "アクション")
-    static let ko = MixerFeatureStrings(hideInactiveApps: "비활성 앱 숨기기", pin: "맨 위에 고정", unpin: "고정 해제", moveUp: "위로 이동", moveDown: "아래로 이동", pinFirst: "맨 앞에 고정", moveLeft: "왼쪽으로 이동", moveRight: "오른쪽으로 이동", arrange: "Command 키를 누른 채 드래그하여 순서 변경", actions: "동작")
-    static let zhHans = MixerFeatureStrings(hideInactiveApps: "隐藏不活跃的 App", pin: "置顶", unpin: "取消置顶", moveUp: "上移", moveDown: "下移", pinFirst: "置于最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 并拖移以重新排列", actions: "操作")
-    static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", pinFirst: "置於最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 並拖移以重新排列", actions: "動作")
-    static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", pinFirst: "置於最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 並拖移以重新排列", actions: "動作")
+    static let enUS = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps", allowBoost: "Allow boost above 100%", pin: "Pin to Top", unpin: "Unpin", moveUp: "Move Up", moveDown: "Move Down", pinFirst: "Pin to Front", moveLeft: "Move Left", moveRight: "Move Right", arrange: "Hold Command and drag to reorder", actions: "Actions")
+    static let ptBR = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inativos", allowBoost: "Permitir aumento acima de 100%", pin: "Fixar no topo", unpin: "Desafixar", moveUp: "Mover para cima", moveDown: "Mover para baixo", pinFirst: "Fixar no início", moveLeft: "Mover para a esquerda", moveRight: "Mover para a direita", arrange: "Segure Command e arraste para reorganizar", actions: "Ações")
+    static let tr = MixerFeatureStrings(hideInactiveApps: "Etkin olmayan uygulamaları gizle", allowBoost: "%100’ün üzerinde güçlendirmeye izin ver", pin: "En üste sabitle", unpin: "Sabitlemeyi kaldır", moveUp: "Yukarı taşı", moveDown: "Aşağı taşı", pinFirst: "Başa sabitle", moveLeft: "Sola taşı", moveRight: "Sağa taşı", arrange: "Sıralamak için Command tuşunu basılı tutup sürükleyin", actions: "Eylemler")
+    static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения", allowBoost: "Разрешить усиление выше 100%", pin: "Закрепить сверху", unpin: "Открепить", moveUp: "Переместить вверх", moveDown: "Переместить вниз", pinFirst: "Закрепить в начале", moveLeft: "Переместить влево", moveRight: "Переместить вправо", arrange: "Удерживайте Command и перетащите для изменения порядка", actions: "Действия")
+    static let es = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inactivas", allowBoost: "Permitir amplificar por encima del 100 %", pin: "Fijar arriba", unpin: "Desfijar", moveUp: "Mover hacia arriba", moveDown: "Mover hacia abajo", pinFirst: "Fijar al principio", moveLeft: "Mover a la izquierda", moveRight: "Mover a la derecha", arrange: "Mantén pulsado Command y arrastra para reordenar", actions: "Acciones")
+    static let sk = MixerFeatureStrings(hideInactiveApps: "Skryť neaktívne aplikácie", allowBoost: "Povoliť zosilnenie nad 100 %", pin: "Pripnúť navrch", unpin: "Odopnúť", moveUp: "Presunúť nahor", moveDown: "Presunúť nadol", pinFirst: "Pripnúť dopredu", moveLeft: "Presunúť doľava", moveRight: "Presunúť doprava", arrange: "Podržte Command a presuňte myšou pre zmenu poradia", actions: "Akcie")
+    static let de = MixerFeatureStrings(hideInactiveApps: "Inaktive Apps ausblenden", allowBoost: "Verstärkung über 100 % erlauben", pin: "Oben anheften", unpin: "Loslösen", moveUp: "Nach oben bewegen", moveDown: "Nach unten bewegen", pinFirst: "Vorne anheften", moveLeft: "Nach links bewegen", moveRight: "Nach rechts bewegen", arrange: "Zum Anordnen Command gedrückt halten und ziehen", actions: "Aktionen")
+    static let fr = MixerFeatureStrings(hideInactiveApps: "Masquer les apps inactives", allowBoost: "Autoriser l’amplification au-delà de 100 %", pin: "Épingler en haut", unpin: "Désépingler", moveUp: "Déplacer vers le haut", moveDown: "Déplacer vers le bas", pinFirst: "Épingler au début", moveLeft: "Déplacer vers la gauche", moveRight: "Déplacer vers la droite", arrange: "Maintenez Command et faites glisser pour réorganiser", actions: "Actions")
+    static let it = MixerFeatureStrings(hideInactiveApps: "Nascondi le app inattive", allowBoost: "Consenti amplificazione oltre il 100%", pin: "Fissa in alto", unpin: "Rimuovi fissaggio", moveUp: "Sposta su", moveDown: "Sposta giù", pinFirst: "Fissa all’inizio", moveLeft: "Sposta a sinistra", moveRight: "Sposta a destra", arrange: "Tieni premuto Command e trascina per riordinare", actions: "Azioni")
+    static let ja = MixerFeatureStrings(hideInactiveApps: "非アクティブなアプリを隠す", allowBoost: "100% を超えるブーストを許可", pin: "一番上に固定", unpin: "固定を解除", moveUp: "上に移動", moveDown: "下に移動", pinFirst: "先頭に固定", moveLeft: "左に移動", moveRight: "右に移動", arrange: "Commandキーを押しながらドラッグして並べ替え", actions: "アクション")
+    static let ko = MixerFeatureStrings(hideInactiveApps: "비활성 앱 숨기기", allowBoost: "100% 이상 증폭 허용", pin: "맨 위에 고정", unpin: "고정 해제", moveUp: "위로 이동", moveDown: "아래로 이동", pinFirst: "맨 앞에 고정", moveLeft: "왼쪽으로 이동", moveRight: "오른쪽으로 이동", arrange: "Command 키를 누른 채 드래그하여 순서 변경", actions: "동작")
+    static let zhHans = MixerFeatureStrings(hideInactiveApps: "隐藏不活跃的 App", allowBoost: "允许增强到 100% 以上", pin: "置顶", unpin: "取消置顶", moveUp: "上移", moveDown: "下移", pinFirst: "置于最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 并拖移以重新排列", actions: "操作")
+    static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", allowBoost: "允許增強到 100% 以上", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", pinFirst: "置於最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 並拖移以重新排列", actions: "動作")
+    static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", allowBoost: "允許增強到 100% 以上", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", pinFirst: "置於最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 並拖移以重新排列", actions: "動作")
 }
 
 extension SettingsCategoryStrings {
@@ -3405,6 +3406,7 @@ extension MonitorAlertFeatureStrings {
 extension MixerFeatureStrings {
     static let uk = MixerFeatureStrings(
         hideInactiveApps: "Приховувати неактивні програми",
+        allowBoost: "Дозволити підсилення понад 100%",
         pin: "Закріпити вгорі",
         unpin: "Відкріпити",
         moveUp: "Вгору",

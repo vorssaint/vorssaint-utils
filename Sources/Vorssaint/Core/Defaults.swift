@@ -167,6 +167,7 @@ enum DefaultsKey {
     static let mixerShowFinder = "mixerShowFinder"
     static let mixerAppArrangement = "mixerAppArrangement"
     static let mixerHideInactiveApps = "mixerHideInactiveApps"
+    static let mixerAllowBoost = "mixerAllowBoost"          // off caps every app slider at 100% (issue #4308)
     static let mixerHiddenApps = "mixerHiddenApps"        // [persistence id: display name] kept out of the mixer list (issue #300)
     static let mixerLowerVolumeOnHeadphonesDisconnect = "mixerLowerVolumeOnHeadphonesDisconnect"
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
@@ -1374,6 +1375,7 @@ enum Defaults {
         DefaultsKey.updateShowcaseMediaOverride: "",
         DefaultsKey.mixerShowFinder: true,
         DefaultsKey.mixerHideInactiveApps: false,
+        DefaultsKey.mixerAllowBoost: true,
         DefaultsKey.mixerAppArrangement: "",
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
         DefaultsKey.mixerHeadphonesDisconnectVolumePercent: defaultMixerHeadphonesDisconnectVolumePercent,

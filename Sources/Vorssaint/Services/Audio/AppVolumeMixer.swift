@@ -82,6 +82,23 @@ final class AppVolumeMixer: ObservableObject {
     /// 200% boost for sources that play too quietly.
     static let maxVolume: Double = 2.0
 
+    /// The top of every app slider. A saved level above it plays at it, so an
+    /// app that was not running when the boost went off gets its boost back
+    /// when it is turned on again.
+    @Published private(set) var volumeCeiling = AppVolumeMixer.currentVolumeCeiling
+
+    private static var currentVolumeCeiling: Double {
+        UserDefaults.standard.bool(forKey: DefaultsKey.mixerAllowBoost) ? maxVolume : 1
+    }
+
+    /// Follows the boost switch. Turning it off pulls boosted apps back to 100%.
+    func syncVolumeCeiling() {
+        volumeCeiling = Self.currentVolumeCeiling
+        for app in apps where app.volume > volumeCeiling {
+            setVolume(volumeCeiling, for: app)
+        }
+    }
+
     @Published private(set) var apps: [MixerApp] = []
     @Published private(set) var outputDevices: [MixerOutputDevice] = []
     @Published private(set) var currentOutputDeviceUID: String? {
@@ -1191,7 +1208,7 @@ final class AppVolumeMixer: ObservableObject {
     func setVolume(_ volume: Double, for app: MixerApp) {
         guard !app.isBypassed else { return }
         engineRecovery.clear(app.id)
-        let clamped = Defaults.sanitizedAppVolume(volume)
+        let clamped = min(Defaults.sanitizedAppVolume(volume), volumeCeiling)
         persistVolume(clamped, for: app)
         if clamped > 0.001 { lastAudibleVolume[app.id] = clamped }
         if let index = apps.firstIndex(where: { $0.id == app.id }) {
@@ -2355,7 +2372,7 @@ final class AppVolumeMixer: ObservableObject {
                 number = nil
             }
             guard let number, number.isFinite else { continue }
-            sanitized[id] = Defaults.sanitizedAppVolume(number)
+            sanitized[id] = min(Defaults.sanitizedAppVolume(number), volumeCeiling)
         }
         return sanitized
     }

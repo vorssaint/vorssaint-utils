@@ -73,6 +73,7 @@ enum MixerUniversalRoutingContract {
             set { Preferences.standard.savedLevels = newValue }
         }
         var lastAudibleVolume: [String: Double] = [:]
+        var volumeCeiling: Double = 2
         func isUnity(_ value: Double) -> Bool { MixerRoutingSupport.isUnity(value) }
         func reconcileEngines(with apps: [MixerApp]) {}
         var sessionRoutes: [String: String] = [:]
@@ -133,6 +134,26 @@ enum MixerUniversalRoutingContract {
                      && refreshed.first(where: { $0.ownerPid == 14271 })?.audioObjects == [101, 104]
                      && refreshed.first(where: { $0.ownerPid == 44794 })?.audioObjects == [103],
                      "rediscovery restores individual volumes and keeps the audio helper with Steam")
+    }
+
+    // With the boost switched off (#4308) a slider, a typed percent or an
+    // older boosted level all stop at 100%; with it on the boost stays.
+    private static func boostCeiling(_ suite: TestSuite) {
+        let mixer = Mixer()
+        mixer.volumes = [:]
+        defer { mixer.volumes = [:] }
+        let id = "com.example.Player"
+        mixer.apps = [row(id, persistenceID: id)]
+        mixer.setVolume(1.6, for: mixer.apps[0])
+        suite.expect(mixer.apps[0].volume == 1.6 && mixer.volumes[id] == 1.6,
+                     "with the boost allowed a slider goes above 100%")
+        mixer.volumeCeiling = 1
+        mixer.setVolume(1.6, for: mixer.apps[0])
+        suite.expect(mixer.apps[0].volume == 1 && mixer.volumes[id] == nil,
+                     "with the boost off a level above 100% plays and saves as 100%")
+        mixer.setVolume(0.4, for: mixer.apps[0])
+        suite.expect(mixer.apps[0].volume == 0.4 && mixer.volumes[id] == 0.4,
+                     "with the boost off a level below 100% is unchanged")
     }
 
     private static func callAudioCompatibility(_ suite: TestSuite) {
@@ -221,6 +242,7 @@ enum MixerUniversalRoutingContract {
         Preferences.standard.values = [:]
         Preferences.standard.arrays = [:]
         distinctProcessVolumes(suite)
+        boostCeiling(suite)
         callAudioCompatibility(suite)
         Mixer.deviceLists = [100: [10], 200: [20]]
         Mixer.reads = []; Mixer.writes = []; Mixer.writeStatus = noErr
