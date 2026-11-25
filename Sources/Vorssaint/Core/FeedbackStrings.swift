@@ -44,6 +44,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -248,6 +249,38 @@ extension FeedbackStrings {
         commandFeature: "Navrhnúť funkciu",
         commandSubtitle: "Poslať spätnú väzbu",
         diagnosticsChannelLabel: "Kanál aktualizácií"
+    )
+
+    static let cs = FeedbackStrings(
+        sectionTitle: "Zpětná vazba",
+        sectionCaption: "Pošlete hlášení o chybě nebo nápad na funkci přímo člověku, který Vorssaint udržuje.",
+        openButton: "Poslat zpětnou vazbu",
+        windowTitle: "Poslat zpětnou vazbu",
+        bugTitle: "Chyba",
+        featureTitle: "Nápad na funkci",
+        messageLabel: "Co byste chtěli sdílet?",
+        bugPlaceholder: "Napište, co se stalo a co jste očekávali.",
+        featurePlaceholder: "Popište nápad a jak by pomohl.",
+        charactersFormat: "%d z 2000 znaků",
+        includeDiagnostics: "Zahrnout technické podrobnosti",
+        includeDiagnosticsCaption: "Přidá pouze technické podrobnosti zobrazené níže. Neobsahuje záznamy.",
+        whatSentTitle: "Co se odešle",
+        whatSentBasic: "Vybraná kategorie a text výše.",
+        whatSentDiagnostics: "Technické podrobnosti uvedené níže.",
+        privacyNote: "Jméno, účet, e-mail, identifikátor zařízení, záznamy, snímky obrazovky, soubory ani obsah schránky se neodesílají. Vaše veřejná IP adresa se dočasně zpracovává kvůli ochraně před zneužitím a ke zpětné vazbě se nepřipojuje.",
+        retentionNote: "Po doručení zůstává text v soukromých kanálech podpory, dokud ho vlastník služby nesmaže. Nedoručená kopie se trvale smaže po 7 dnech.",
+        sendButton: "Poslat zpětnou vazbu",
+        sending: "Odesílá se…",
+        sentTitle: "Zpětná vazba odeslána",
+        sentCaption: "Děkujeme. Kontaktní údaje se neposlaly, takže přímou odpověď nedostanete.",
+        unavailableError: "Nepodařilo se připojit. Zkontrolujte připojení k internetu a zkuste to znovu.",
+        rateLimitError: "Příliš mnoho odeslání z této sítě. Zkuste to později.",
+        genericError: "Zpětnou vazbu se nyní nepodařilo odeslat.",
+        done: "Hotovo",
+        commandBug: "Nahlásit chybu",
+        commandFeature: "Navrhnout funkci",
+        commandSubtitle: "Poslat zpětnou vazbu",
+        diagnosticsChannelLabel: "Kanál aktualizací"
     )
 
     static let de = FeedbackStrings(

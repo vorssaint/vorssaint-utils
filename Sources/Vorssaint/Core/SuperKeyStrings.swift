@@ -46,6 +46,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -207,6 +208,30 @@ extension SuperKeyStrings {
         mappingForeignMapping: "Mapovanie klávesov inej aplikácie používa vybraný kláves. Odstráňte ho v tejto aplikácii: samotné ukončenie nestačí.",
         mappingSystemRefused: "macOS odmietol mapovanie klávesov. Znova pripojte klávesnicu alebo reštartujte Mac a potom to znova zapnite.",
         keyboardTapRefused: "macOS nedovolil Vorssaintu sledovať klávesnicu. Vorssaint vypnite a zapnite v Systémových nastaveniach › Súkromie a bezpečnosť › Prístupnosť a potom túto voľbu znova zapnite."
+    )
+
+    static let cs = SuperKeyStrings(
+        pageTitle: "Super klávesa",
+        hubDescription: "Změní jednu klávesu na kombinaci modifikátorů, kterou si vyberete.",
+        enableToggle: "Použít tuto klávesu jako super klávesu",
+        enableCaption: "Podržte ji a stiskněte jakoukoli klávesu. Níže vyberte jeden nebo více modifikátorů.",
+        modifierKeysNote: "Ponechte této klávese výchozí akci v Nastavení systému › Klávesnice › Modifikační klávesy.",
+        sourceKey: "Klávesa k podržení",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "Pravý %@",
+        holdHint: "Podržte",
+        soloSection: "Samostatné stisknutí",
+        soloCaption: "Co udělá rychlé stisknutí, když není stisknuta žádná jiná klávesa.",
+        soloNothing: "Nic",
+        soloCapsLock: "Zapne a vypne velká písmena",
+        soloEscape: "Stiskne Escape",
+        activeNow: "Momentálně aktivní",
+        panelCaptionFormat: "%1$@ podrží %2$@.",
+        manageButton: "Nastavit…",
+        soloInputSource: "Přepne zdroj vstupu; podržením aktivujete Caps Lock",
+        mappingForeignMapping: "Mapování kláves jiné aplikace používá vybranou klávesu. Odstraňte ho v té aplikaci: samotné ukončení nestačí.",
+        mappingSystemRefused: "macOS odmítl mapování kláves. Znovu připojte klávesnici nebo restartujte Mac a potom to znovu zapněte.",
+        keyboardTapRefused: "macOS nedovolil Vorssaintu sledovat klávesnici. Vorssaint vypněte a zapněte v Nastavení systému › Soukromí a zabezpečení › Zpřístupnění a potom tuto volbu znovu zapněte."
     )
 
     static let de = SuperKeyStrings(

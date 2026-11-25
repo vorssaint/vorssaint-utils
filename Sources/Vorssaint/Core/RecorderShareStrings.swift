@@ -24,6 +24,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -108,6 +109,18 @@ extension RecorderShareStrings {
         tooLarge: "Toto nahrávanie sa nezmestí pod 100 MB bez príliš veľkej straty kvality.",
         failed: "Dočasný odkaz sa nepodarilo vytvoriť",
         tourCaption: "Skomprimujte dokončené nahrávanie na tomto Macu a zdieľajte ho na 1 alebo 6 hodín."
+    )
+
+    static let cs = RecorderShareStrings(
+        caption: "Vyberte 1 nebo 6 hodin. Finální video se na tomto Macu zkomprimuje pod 100 MB a automaticky se smaže.",
+        privacyData: "Vorssaint odesílá pouze finální video vytvořené z této nahrávky, včetně zvuku, který jste ponechali, a vámi zvolené platnosti. Neodesílá vaše jméno, účet ani identifikátor zařízení.",
+        privacyStorage: "Poskytovatelé sítě a služba dočasně zpracovávají vaši veřejnou IP adresu, aby zabránili zneužití. Video a metadata odkazu se trvale smažou, když odkaz smažete nebo když uplyne jeho platnost. Služba nevytváří zálohy.",
+        privacyAccess: "Kdokoli s odkazem může video zobrazit, stáhnout, uložit nebo dále šířit. Aktivní odkazy jsou dostupné provozovateli služby kvůli moderování zneužití. Sdílejte pouze s lidmi, kterým důvěřujete.",
+        compressing: "Komprimuje se pro sdílení…",
+        uploading: "Bezpečně se nahrává…",
+        tooLarge: "Tato nahrávka se nevejde pod 100 MB bez příliš velké ztráty kvality.",
+        failed: "Dočasný odkaz se nepodařilo vytvořit",
+        tourCaption: "Zkomprimujte dokončenou nahrávku na tomto Macu a sdílejte ji na 1 nebo 6 hodin."
     )
 
     static let de = RecorderShareStrings(

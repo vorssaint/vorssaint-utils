@@ -64,6 +64,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -370,6 +371,55 @@ extension ScratchpadFeatureStrings {
         markLink: "Odkaz",
         formatMarks: "Formátovanie",
         textSize: "Veľkosť textu"
+    )
+
+    static let cs = ScratchpadFeatureStrings(
+        pageTitle: "Poznámkový blok",
+        hubDescription: "Plovoucí bloky pro krátkodobé poznámky",
+        panelCaption: "Rychlé poznámky v samostatných kartách",
+        openButton: "Otevřít poznámkový blok",
+        placeholder: "Napište cokoli. Ukládá se samo.",
+        copyAll: "Kopírovat vše",
+        copied: "Zkopírováno",
+        exportAction: "Uložit jako soubor",
+        exportFailed: "Soubor se nepodařilo uložit",
+        loadFailed: "Poznámky se nepodařilo otevřít. Zůstaly beze změny.",
+        saveFailed: "Poznámky se nepodařilo uložit. Před ukončením je zkopírujte jinam.",
+        clearAction: "Smazat",
+        retentionTitle: "Smazat automaticky",
+        retentionNever: "Nikdy",
+        retentionDay: "Po dni bez použití",
+        retentionWeek: "Po týdnu bez použití",
+        retentionMonth: "Po měsíci bez použití",
+        retentionCaption: "Blok se sám vyprázdní, když text zůstane tak dlouho bez úprav.",
+        closeOnClickOutside: "Zavřít při kliknutí mimo",
+        keepOpen: "Nechat otevřené",
+        backgroundOpacity: "Pozadí bloku",
+        backgroundTranslucent: "Průsvitné",
+        backgroundOpaque: "Neprůhledné",
+        newPad: "Nový poznámkový blok",
+        padActions: "Akce poznámkového bloku",
+        renamePad: "Přejmenovat poznámkový blok",
+        closePad: "Zavřít poznámkový blok",
+        saveName: "Uložit",
+        cancel: "Zrušit",
+        deletePadMessageFormat: "Smazat „%@“ a celý jeho obsah?",
+        padLimitFormat: "Maximální počet poznámkových bloků: %d",
+        previewFormatting: "Zobrazit formátování",
+        editText: "Upravit text",
+        taskDone: "Dokončená",
+        taskNotDone: "Nedokončená",
+        markBold: "Tučné",
+        markItalic: "Kurzíva",
+        markStrikethrough: "Přeškrtnuté",
+        markHeading: "Nadpis",
+        markBullet: "Seznam s odrážkami",
+        markNumbered: "Číslovaný seznam",
+        markQuote: "Citace",
+        markCode: "Kód",
+        markLink: "Odkaz",
+        formatMarks: "Formátování",
+        textSize: "Velikost textu"
     )
 
     static let de = ScratchpadFeatureStrings(

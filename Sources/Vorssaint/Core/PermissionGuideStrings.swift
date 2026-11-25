@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -149,6 +150,19 @@ extension PermissionGuideStrings {
         staleHint: "Je to v zozname už zapnuté? Táto položka patrí staršej kópii aplikácie. Začnite znova, aby ste ju nahradili.",
         startOver: "Začať znova",
         relaunch: "Reštartovať na použitie"
+    )
+
+    static let cs = PermissionGuideStrings(
+        title: "Zbývá jeden krok",
+        stepOpen: "macOS otevřel Nastavení systému na správném seznamu.",
+        stepToggle: "V tomto seznamu zapněte Vorssaint.",
+        stepReturn: "Vraťte se sem. Tato karta si toho všimne sama.",
+        waiting: "Čeká se na oprávnění…",
+        granted: "Oprávnění uděleno!",
+        closeHelp: "Zavřít",
+        staleHint: "Je to v seznamu už zapnuté? Tato položka patří starší kopii aplikace. Začněte znovu, abyste ji nahradili.",
+        startOver: "Začít znovu",
+        relaunch: "Restartovat pro použití"
     )
 
     static let de = PermissionGuideStrings(

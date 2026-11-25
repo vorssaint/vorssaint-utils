@@ -19,6 +19,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -72,6 +73,13 @@ extension WindowMaximizerExclusionStrings {
         addButton: "Pridať aplikáciu…",
         removeButton: "Odstrániť",
         caption: "V týchto aplikáciách si zelené tlačidlo zachová správanie macOS, takže hry, emulátory a prehrávače videa môžu naďalej prejsť na celú obrazovku."
+    )
+
+    static let cs = WindowMaximizerExclusionStrings(
+        listTitle: "Ponechat režim celé obrazovky v těchto aplikacích",
+        addButton: "Přidat aplikaci…",
+        removeButton: "Odstranit",
+        caption: "V těchto aplikacích si zelené tlačítko zachová chování macOS, takže hry, emulátory a přehrávače videa mohou nadále přejít na celou obrazovku."
     )
 
     static let de = WindowMaximizerExclusionStrings(

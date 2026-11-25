@@ -63,6 +63,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -381,6 +382,57 @@ extension FanControlFeatureStrings {
         gpuIdle: "GPU v pokoji",
         helperUnavailable: "Chránený ovládač ventilátorov nie je dostupný. Povoľte Vorssaint v časti Položky a rozšírenia spúšťané pri prihlásení a skúste to znova.",
         resumeAfterRestart: "Pokračovať po reštarte alebo spánku"
+    )
+
+    static let cs = FanControlFeatureStrings(
+        title: "Ovládání ventilátorů",
+        hubDescription: "Ovládejte ventilátory ručně nebo pomocí teplotních křivek a sledujte aktuální a cílové otáčky",
+        showInPanel: "Zobrazit ovládání ventilátorů v panelu",
+        settingsCaption: "Přidá do panelu na liště ruční otáčky ventilátorů a teplotní křivky.",
+        fanNameFormat: "Ventilátor %d",
+        rpmFormat: "%d ot./min",
+        allowControl: "Povolit ovládání ventilátorů",
+        approvalCaption: "Povolte Vorssaint v části Položky otevírané při přihlášení a rozšíření, aby mohl používat chráněné ovládání ventilátorů.",
+        openSettings: "Otevřít Nastavení systému",
+        noFans: "Tento Mac nemá ovladatelný ventilátor.",
+        unsupported: "Ovládání ventilátorů není na tomto Macu dostupné.",
+        alreadyControlled: "Ventilátory ovládá jiný proces. Nejprve ho vraťte na systémové ovládání.",
+        failed: "Ventilátory se vrátily na systémové ovládání, protože požadované ovládání se nepodařilo ověřit.",
+        controlStopped: "Ventilátory ovládá systém. Pokud chcete obnovit vlastní ovládání, použijte svá nastavení.",
+        applyFailed: "Požadovaná nastavení ventilátorů se nepodařilo použít. Ventilátory opět ovládá systém.",
+        controlUnconfirmed: "Ovládání nepotvrzeno",
+        awaitingSystemControl: "Ovladač ventilátorů zatím nepotvrdil, že systém opět převzal jejich ovládání.",
+        safetyCaption: "Ovládání zůstává aktivní, dokud se nevrátíte na Systém. Automaticky se vrátí, pokud se aplikace odpojí, Mac usne, selžou senzory nebo stoupne tepelné zatížení.",
+        safetyStopped: "Ovládání se vrátilo systému, protože bylo ovládání ventilátorů přerušeno.",
+        menuBarTitle: "Otáčky ventilátoru",
+        systemControl: "Systém",
+        manualControl: "Ručně",
+        customCurve: "Křivka",
+        mode: "Režim ovládání",
+        coolingIntensity: "Otáčky ventilátoru",
+        currentRPMFormat: "Aktuálně %d ot./min",
+        targetRPMFormat: "Cíl %d ot./min",
+        applyManual: "Použít ruční ovládání",
+        applyCurve: "Použít křivku ventilátoru",
+        returnToSystem: "Použít systémové ovládání",
+        temperatureUnavailable: "Vybraný teplotní senzor přestal reagovat. Ovládání se vrátilo na Systém.",
+        curveUnavailable: "Vybraný teplotní senzor není na tomto Macu dostupný.",
+        sensor: "Teplotní senzor",
+        temperature: "Teplota",
+        fanSpeed: "Otáčky ventilátoru",
+        addPoint: "Přidat bod",
+        addSensor: "Přidat senzor",
+        removePoint: "Odstranit bod",
+        removeSensor: "Odstranit senzor",
+        curveGraph: "Křivka teploty a otáček ventilátoru",
+        averageSoC: "Průměr SoC",
+        hottestSoC: "Nejteplejší SoC",
+        averageCPU: "Průměr CPU",
+        hottestCPU: "Nejteplejší CPU",
+        hottestGPU: "Nejteplejší GPU",
+        gpuIdle: "GPU v klidu",
+        helperUnavailable: "Chráněný ovladač ventilátorů není dostupný. Povolte Vorssaint v části Položky otevírané při přihlášení a rozšíření a zkuste to znovu.",
+        resumeAfterRestart: "Pokračovat po restartu nebo spánku"
     )
 
     static let de = FanControlFeatureStrings(
