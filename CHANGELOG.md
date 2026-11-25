@@ -56,6 +56,9 @@ This update reduces the work Vorssaint does at startup and improves window switc
 ### Contributors
 Thanks to @13v13reddy, @amithm7, @andrewcdelaney, @andy-kelly, @Arhurpro77, @Backware, @binjamshid, @blakster, @CommanderCRM, @davidmessem, @ego1s1, @EugeneCarldotme, @GeezusChrotch, @hash00, @heisdanne, @howardyu60211, @imuhammadnadeem, @iva-zhu, @JosueM1109, @kaiwenfa, @KushagraIndurkhya, @LeLocTai, @Narangor, @nh4ttruong, @nodegan, @razeenwasif, @retomi, @royhenengel, @salvatoremiceli, @SanRive, @Snrlx-Media, @STUXKY, @TC-Virtuoso, @trenaryja, @whizzzkid, @ywu73 and @Zekuath.
 
+### Fixed
+- The Media image tool’s resize fields accept any pixel size you type, including values the old steppers skipped such as 144×144.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary

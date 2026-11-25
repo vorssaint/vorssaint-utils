@@ -852,15 +852,17 @@ struct MediaWorkspaceView: View {
             case .none:
                 EmptyView()
             case .maxDimension:
-                stepperInt(l10n.s.mediaMaxSize, value: $imageMaxDimension, range: 64...20_000, step: 128, suffix: "px")
+                // Typed rather than stepped: icons, favicons and other odd
+                // sizes need exact pixel values the old 64/128 steps skipped.
+                pixelField(l10n.s.mediaMaxSize, value: $imageMaxDimension, range: 64...20_000)
             case .width:
-                stepperInt(l10n.s.mediaWidth, value: $imageResizeWidth, range: 1...20_000, step: 64, suffix: "px")
+                pixelField(l10n.s.mediaWidth, value: $imageResizeWidth, range: 1...20_000)
             case .height:
-                stepperInt(imageText.height, value: $imageResizeHeight, range: 1...20_000, step: 64, suffix: "px")
+                pixelField(imageText.height, value: $imageResizeHeight, range: 1...20_000)
             case .exact:
                 HStack(spacing: 10) {
-                    stepperInt(l10n.s.mediaWidth, value: $imageResizeWidth, range: 1...20_000, step: 64, suffix: "px")
-                    stepperInt(imageText.height, value: $imageResizeHeight, range: 1...20_000, step: 64, suffix: "px")
+                    pixelField(l10n.s.mediaWidth, value: $imageResizeWidth, range: 1...20_000)
+                    pixelField(imageText.height, value: $imageResizeHeight, range: 1...20_000)
                 }
                 Picker("", selection: $imageExactResizeModeRaw) {
                     Text(imageText.exactStretch).tag(MediaImageExactResizeMode.stretch.rawValue)
@@ -1069,6 +1071,26 @@ struct MediaWorkspaceView: View {
         numberField(label, suffix: suffix, labelWidth: compact ? 74 : 92) {
             TextField("", value: value, formatter: Self.megabytesFormatter)
         }
+    }
+
+    /// Image resize sizes are typed so any pixel value in range is reachable,
+    /// not only the coarse steps a stepper happens to land on.
+    private func pixelField(_ label: String, value: Binding<Int>, range: ClosedRange<Int>) -> some View {
+        numberField(label, suffix: "px") {
+            TextField("", value: clampedInt(value, in: range), formatter: Self.pixelFormatter)
+        }
+    }
+
+    private func clampedInt(_ value: Binding<Int>, in range: ClosedRange<Int>) -> Binding<Int> {
+        Binding(
+            get: {
+                MediaSupport.sanitizedImageDimension(value.wrappedValue, fallback: range.lowerBound,
+                                                     min: range.lowerBound, max: range.upperBound)
+            },
+            set: {
+                value.wrappedValue = MediaSupport.sanitizedImageDimension(
+                    $0, fallback: value.wrappedValue, min: range.lowerBound, max: range.upperBound)
+            })
     }
 
     private func numberField<Field: View>(_ label: String,
@@ -1749,6 +1771,15 @@ struct MediaWorkspaceView: View {
         formatter.allowsFloats = false
         formatter.minimum = NSNumber(value: MediaSupport.minimumTargetMegabytes)
         formatter.maximum = NSNumber(value: MediaSupport.maximumTargetMegabytes)
+        return formatter
+    }()
+
+    private static let pixelFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none
+        formatter.allowsFloats = false
+        formatter.minimum = 1
+        formatter.maximum = 20_000
         return formatter
     }()
 
