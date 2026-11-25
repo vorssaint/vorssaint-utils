@@ -2716,6 +2716,8 @@ struct KeepAwakeCard: View {
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration: Int = 0
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
+    @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleepOnlyWhenLocked)
+    private var keepAwakeAllowDisplaySleepOnlyWhenLocked = false
     @AppStorage(DefaultsKey.keepAwakeExternalDisplay) private var keepAwakeExternalDisplay = false
     @AppStorage(DefaultsKey.keepAwakeConnectedToPower) private var keepAwakeConnectedToPower = false
     @AppStorage(DefaultsKey.keepAwakeRunningApps) private var keepAwakeRunningApps = false
@@ -2864,6 +2866,14 @@ struct KeepAwakeCard: View {
                         title: displaySleepStrings.allowDisplaySleep,
                         isOn: $keepAwakeAllowDisplaySleep
                     )
+                    if keepAwakeAllowDisplaySleep {
+                        compactOptionToggle(
+                            icon: "lock.display",
+                            title: displaySleepStrings.onlyWhileLocked,
+                            isOn: $keepAwakeAllowDisplaySleepOnlyWhenLocked
+                        )
+                        .padding(.leading, 22)
+                    }
                     compactOptionToggle(
                         icon: "play.circle",
                         title: l10n.s.keepAwakeAutoStart,

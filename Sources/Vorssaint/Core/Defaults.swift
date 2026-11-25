@@ -27,6 +27,9 @@ enum DefaultsKey {
     static let keepAwakeAutoStart = "keepAwakeAutoStart"  // start Keep Awake when the app launches
     static let keepAwakeRightClickToggle = "keepAwakeRightClickToggle"
     static let keepAwakeAllowDisplaySleep = "keepAwakeAllowDisplaySleep"
+    // Narrows the display sleep permission to while the screen is locked:
+    // the display stays on while the Mac is in use.
+    static let keepAwakeAllowDisplaySleepOnlyWhenLocked = "keepAwakeAllowDisplaySleepOnlyWhenLocked"
     static let keepAwakeExternalDisplay = "keepAwakeExternalDisplay"
     static let keepAwakeConnectedToPower = "keepAwakeConnectedToPower"
     static let keepAwakePowerDisconnectDelay = "keepAwakePowerDisconnectDelaySeconds"
@@ -1268,6 +1271,7 @@ enum Defaults {
         DefaultsKey.keepAwakeAutoStart: false,
         DefaultsKey.keepAwakeRightClickToggle: false,
         DefaultsKey.keepAwakeAllowDisplaySleep: false,
+        DefaultsKey.keepAwakeAllowDisplaySleepOnlyWhenLocked: false,
         DefaultsKey.keepAwakeExternalDisplay: false,
         DefaultsKey.keepAwakeConnectedToPower: false,
         DefaultsKey.keepAwakePowerDisconnectDelay: 0,
