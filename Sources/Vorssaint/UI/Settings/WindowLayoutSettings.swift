@@ -5,6 +5,7 @@ import SwiftUI
 
 struct WindowLayoutSettings: View {
     @ObservedObject private var l10n = L10n.shared
+    @State private var windowCycleKey = GlobalShortcut.windowCycleKeyLabel()
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var service = WindowLayoutService.shared
@@ -224,7 +225,8 @@ struct WindowLayoutSettings: View {
                         .onChange(of: dockClickCycleWindows) { _, _ in
                             DockClickService.shared.syncWithPreferences()
                         }
-                    Text(l10n.s.dockClickCycleWindowsCaption)
+                    Text(GlobalShortcut.localizingWindowCycleKey(in: l10n.s.dockClickCycleWindowsCaption,
+                                                                key: windowCycleKey))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -250,6 +252,9 @@ struct WindowLayoutSettings: View {
         }
         .formStyle(.grouped)
         .onAppear { refreshSystemTilingState() }
+        .onReceive(NotificationCenter.default.publisher(for: GlobalShortcut.keyboardLayoutDidChange)) { _ in
+            windowCycleKey = GlobalShortcut.windowCycleKeyLabel()
+        }
         .onReceive(NotificationCenter.default.publisher(
             for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshSystemTilingState()

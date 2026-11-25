@@ -477,6 +477,27 @@ struct GlobalShortcut: Equatable, Hashable {
         }
     }
 
+    /// What the window-cycling key of the macOS "Move focus to next window"
+    /// shortcut prints on the current keyboard. It is the same physical key on
+    /// every layout, but only a US one prints a backtick on it: German and
+    /// other ISO layouts print `<` there (issue #4325). Falls back to the
+    /// backtick when the layout has no printable cap for it.
+    static func windowCycleKeyLabel() -> String {
+        layoutKeyLabel(for: Int64(kVK_ANSI_Grave), usesCommand: true) ?? "`"
+    }
+
+    /// Localized copy writes that shortcut as the US ⌘` in every language.
+    /// Swaps in the cap the user's keyboard actually has, so the caption names
+    /// the key they can press.
+    ///
+    /// A view that shows the text keeps the key in state and passes it here,
+    /// refreshing it on `keyboardLayoutDidChange`, so a layout switch updates
+    /// a caption that is already on screen.
+    static func localizingWindowCycleKey(in text: String,
+                                         key: String = windowCycleKeyLabel()) -> String {
+        text.replacingOccurrences(of: "⌘`", with: "⌘" + key)
+    }
+
     private static func fallbackAnsiKeyLabel(for keyCode: Int64) -> String? {
         switch Int(keyCode) {
         case kVK_ANSI_A: return "A"
