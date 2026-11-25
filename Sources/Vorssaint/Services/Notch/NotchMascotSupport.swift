@@ -13,6 +13,8 @@ import Foundation
 
 enum NotchMascotStyle: String, CaseIterable, Identifiable {
     case minimal, robot
+    /// A character drawn frame by frame, from a pack the user added.
+    case character
 
     var id: String { rawValue }
 }
@@ -77,6 +79,8 @@ struct NotchMascotLook: Equatable {
     var style: NotchMascotStyle
     var shape: NotchMascotShape
     var palette: NotchMascotPalette
+    /// The character pack's id, for the character style.
+    var character = ""
 
     static let standard = NotchMascotLook(style: .minimal, shape: .ball, palette: .pearl)
 }
@@ -1263,7 +1267,8 @@ enum NotchMascotSupport {
         NotchMascotLook(
             style: NotchMascotStyle(rawValue: defaults.string(forKey: DefaultsKey.notchMascotStyle) ?? "") ?? .minimal,
             shape: NotchMascotShape(rawValue: defaults.string(forKey: DefaultsKey.notchMascotShape) ?? "") ?? .ball,
-            palette: NotchMascotPalette(rawValue: defaults.string(forKey: DefaultsKey.notchMascotPalette) ?? "") ?? .pearl)
+            palette: NotchMascotPalette(rawValue: defaults.string(forKey: DefaultsKey.notchMascotPalette) ?? "") ?? .pearl,
+            character: defaults.string(forKey: DefaultsKey.notchMascotCharacter) ?? "")
     }
 
     /// How the Command Bar comes out of the island, or nil when it opens in
