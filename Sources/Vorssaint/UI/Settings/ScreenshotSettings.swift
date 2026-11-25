@@ -281,7 +281,8 @@ struct ScreenshotCaptureSettings: View {
     /// reaching the clipboard while the switch shows off.
     private var autoCopyBinding: Binding<Bool> {
         Binding {
-            copyToClipboard || defaultAction.copiesToClipboard
+            ScreenshotSupport.automaticCopyIsOn(copyToClipboard: copyToClipboard,
+                                                defaultAction: defaultAction)
         } set: { isOn in
             copyToClipboard = isOn
             if !isOn { defaultActionRaw = defaultAction.withoutCopy.rawValue }
