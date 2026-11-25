@@ -248,7 +248,8 @@ struct NotchClipboardView: View {
     private func openCard(_ entry: ClipboardHistoryEntry, place: Int) -> some View {
         GeometryReader { proxy in
             let visible = proxy.bounds(of: .named(Self.listSpace))?.height ?? size.height
-            let height = min(openHeight(entry), visible)
+            // The note line sits above what openHeight measures.
+            let height = min(openHeight(entry) + (entry.note == nil ? 0 : NotchClipboardCardSize.noteLineHeight), visible)
             card(entry, lifted: true) { expandedCard(entry, place: place) }
                 .frame(height: height)
                 .background {
@@ -482,6 +483,7 @@ struct NotchClipboardView: View {
         Button(text.copy) { copy(entry) }
         Divider()
         Button(entry.isPinned ? text.unpin : text.pin) { history.togglePin(entry) }
+        Button(entry.note == nil ? text.addNote : text.editNote) { history.promptNote(for: entry) }
         Button(text.moveUp) { move(entry, .up) }
             .disabled(!canReorder || !history.canMove(entry, .up))
         Button(text.moveDown) { move(entry, .down) }
@@ -607,6 +609,22 @@ struct NotchClipboardView: View {
     }
 
     @ViewBuilder private func preview(_ entry: ClipboardHistoryEntry, compact: Bool, open: Bool = false) -> some View {
+        if let note = entry.note {
+            VStack(alignment: .leading, spacing: 2) {
+                searchText(note, matching: searchTokens)
+                    .font(.system(size: 11.5))
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                previewBody(entry, compact: compact, open: open)
+            }
+        } else {
+            previewBody(entry, compact: compact, open: open)
+        }
+    }
+
+    @ViewBuilder private func previewBody(_ entry: ClipboardHistoryEntry, compact: Bool, open: Bool = false) -> some View {
         switch entry.kind {
         case .image:
             if let name = entry.imageFile {
@@ -658,7 +676,8 @@ struct NotchClipboardView: View {
                 }
                 searchText(open ? openText(entry) : entry.preview, matching: searchTokens)
                     .font(.system(size: 12))
-                    .lineLimit(compact ? 2 : open ? NotchClipboardCardSize.maximumOpenLines : 3)
+                    // A note line takes the room of one text line.
+                    .lineLimit(open ? NotchClipboardCardSize.maximumOpenLines : (compact ? 2 : 3) - (entry.note == nil ? 0 : 1))
                     .multilineTextAlignment(.leading)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)

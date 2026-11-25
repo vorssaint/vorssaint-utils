@@ -1835,7 +1835,7 @@ enum CommandBarCatalog {
         return CommandBarEntry(
             id: "clipboard.\(entry.id.uuidString)",
             title: entry.kind == .image
-                ? entry.searchableText(imageLabel: imageLabel)
+                ? entry.contentSearchText(imageLabel: imageLabel)
                 : entry.preview,
             subtitle: bar.kindClipboard,
             keywords: matchingQuery,
