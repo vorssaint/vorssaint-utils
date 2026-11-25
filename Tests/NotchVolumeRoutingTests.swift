@@ -598,13 +598,13 @@ enum NotchVolumeRoutingTests {
                      "initially unsupported mute passes through without scheduling or reposting")
 
         service = reset()
-        AppVolumeMixer.shared.monitorOutput = BrightnessSupport.MonitorSpeakerOutput(target: .init(displayID: 7, path: "port-a"), volume: 0.4, muted: nil)
+        AppVolumeMixer.shared.monitorOutput = BrightnessSupport.MonitorSpeakerOutput(target: .init(displayID: 7, path: "port-a"), volume: 0.4, muted: nil, canToggleMute: false)
         let monitorUp = CGEvent()
         suite.expect(!press(.volumeUp, service: service, event: monitorUp)
                      && monitorUp.posts == 0 && DispatchQueue.main.jobs.isEmpty && Hardware.writes.isEmpty,
                      "monitor speakers with keys off pass volume keys through to macOS")
         service = reset()
-        AppVolumeMixer.shared.monitorOutput = BrightnessSupport.MonitorSpeakerOutput(target: .init(displayID: 7, path: "port-a"), volume: 0.4, muted: false)
+        AppVolumeMixer.shared.monitorOutput = BrightnessSupport.MonitorSpeakerOutput(target: .init(displayID: 7, path: "port-a"), volume: 0.4, muted: false, canToggleMute: true)
         let monitorMute = CGEvent()
         suite.expect(!press(.mute, service: service, event: monitorMute)
                      && monitorMute.posts == 0 && DispatchQueue.main.jobs.isEmpty,
@@ -625,7 +625,7 @@ enum NotchVolumeRoutingTests {
         speakers.audioRoutes[8] = .init(path: "port-b", fingerprint: "fixture-identity",
                                         service: NSObject(), registryEntryID: 2, chipAddress: BrightnessSupport.chipAddress,
                                         hasNativeMute: true, unmutesLeavingZero: false)
-        speakers.displays.append(.init(id: 8, name: "Monitor B", audio: .init(target: .init(displayID: 8, path: "port-b"), volume: 0.4, muted: false)))
+        speakers.displays.append(.init(id: 8, name: "Monitor B", audio: .init(target: .init(displayID: 8, path: "port-b"), volume: 0.4, muted: false, canToggleMute: true)))
         suite.expect(monitorPress(0x0a01) && monitorPress(0x0b00), "the old hold owns its repeats and release")
         speakers.finish()
         suite.expect(speakers.writes.count == 1 && NotchService.shared.shownLevels.count == 1 && speakers.clicks == 0,

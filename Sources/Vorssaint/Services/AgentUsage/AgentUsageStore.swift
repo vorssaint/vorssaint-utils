@@ -109,11 +109,18 @@ final class AgentUsageStore {
                 let turn = historyOnly ? nil : tracksTurns ? file : parent
                 add(record, billable: billable, key: key, source: file, turn: turn, subagent: !tracksTurns)
             case .usageModel(let key, let model):
-                guard let position = index[key], records[position].model.isEmpty else { continue }
-                let old = records[position]
-                records[position] = AgentUsageRecord(provider: old.provider, date: old.date, model: model,
-                    project: old.project, session: old.session, requests: old.requests,
-                    tokens: old.tokens, cost: old.cost, savings: old.savings, reportedCost: old.reportedCost)
+                guard let position = index[key] else { continue }
+                if provider == .cursor {
+                    // Keep model attribution with the copy that supplied the counts, including on replay.
+                    guard sources[position].contains(file) else { continue }
+                    var reading = cursorCopies[position]?[file] ?? records[position]
+                    guard reading.model.isEmpty else { continue }
+                    reading.model = model
+                    updateCursorResponse(reading, at: position, from: file)
+                    continue
+                }
+                guard records[position].model.isEmpty else { continue }
+                records[position].model = model
                 // Incremental token updates keep the same model; attribution
                 // changes instead rebuild model buckets from the records.
                 summary.invalidate()
@@ -1030,6 +1037,7 @@ enum AgentLogReader {
                     }
                 } else if replay {
                     switch entry {
+                    case .usageModel: apply([entry])
                     case .turnBegan(let date): replayStart = date; succeeded = false
                     case .turnEnded(_, let completed, _): succeeded = completed
                     default: break

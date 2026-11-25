@@ -1401,12 +1401,16 @@ final class AppSwitcher: ObservableObject {
             }
         }
         frontAppReadQueue.async { [weak self] in
+            var previousOrder: (focused: CGWindowID, front: CGWindowID)?
             let read = { (isRetry: Bool) in
                 var snapshot = appKitSnapshot
                 snapshot.runningApps = WindowEnumerator.runningApplications()
                 return WindowEnumerator.readFrontAppSelection(
                     snapshot: snapshot, frontmostPID: origin.pid, displayScope: origin.displayScope,
-                    knownWindowIDs: knownIDs, isRetry: isRetry, isCancelled: isCancelled)
+                    knownWindowIDs: knownIDs, isRetry: isRetry, confirmsFocusBehindFront: { focused, front in
+                        defer { previousOrder = (focused, front) }
+                        return previousOrder?.focused == focused && previousOrder?.front == front
+                    }, isCancelled: isCancelled)
             }
             guard !isCancelled() else { return }
             let first = read(false)

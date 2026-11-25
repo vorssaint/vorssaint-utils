@@ -180,7 +180,7 @@ struct NotchAudioControls: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 6))
-        .disabled(mixer.systemOutputMuted == nil)
+        .disabled(!mixer.canToggleOutputMute)
         .accessibilityLabel(mixer.systemOutputMuted == true ? l10n.s.actionUnmute : l10n.s.actionMute)
     }
 

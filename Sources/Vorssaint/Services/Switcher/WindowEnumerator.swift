@@ -381,7 +381,8 @@ enum WindowEnumerator {
     /// still be catching up with windows the user just opened.
     static func readFrontAppSelection(
         snapshot: Snapshot, frontmostPID: pid_t, displayScope: DisplayScope?, knownWindowIDs: Set<CGWindowID>,
-        isRetry: Bool = false, isCancelled: @escaping () -> Bool
+        isRetry: Bool = false, confirmsFocusBehindFront: (CGWindowID, CGWindowID) -> Bool = { _, _ in false },
+        isCancelled: @escaping () -> Bool
     ) -> (list: WindowList, focusedWindowID: CGWindowID?, focusStillCurrent: () -> Bool) {
         let empty = (WindowList(items: [], sourceItems: []), nil as CGWindowID?, { false })
         guard !isCancelled() else { return empty }
@@ -416,7 +417,12 @@ enum WindowEnumerator {
                 && reports.allSatisfy { $0 == last.windowID || $0 == last.previousWindowID }
             return matches ? last : nil
         }
-        if laggingSwitch == nil, let top, let ax, ax != top { return empty }
+        if laggingSwitch == nil, let top, let ax, ax != top {
+            // A hover can focus a document without raising it. Both readings must agree
+            // before using that order; a newly appearing window may still be taking focus.
+            guard visibleIDs.contains(ax), knownWindowIDs.contains(ax), knownWindowIDs.contains(top),
+                  hint == nil || hint == ax, confirmsFocusBehindFront(ax, top) else { return empty }
+        }
         // Even matching old history and z-order can describe an inventory that missed a new AX window.
         if let reported = ax ?? observedDocument, !capturedIDs.contains(reported) { return empty }
         if let hint, !visibleIDs.contains(hint), stack.contains(hint) { return empty }

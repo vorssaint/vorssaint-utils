@@ -69,7 +69,7 @@ struct AgentTokens: Equatable {
 struct AgentUsageRecord: Equatable {
     let provider: AgentProvider
     var date: Date
-    let model: String
+    var model: String
     let project: String
     let session: String
     /// Model requests represented by this record; checkpoints may hold several.
