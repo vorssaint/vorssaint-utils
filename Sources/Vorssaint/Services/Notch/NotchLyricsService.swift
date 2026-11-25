@@ -39,8 +39,34 @@ final class NotchLyricsService: ObservableObject {
         self.online = online
         guard wanted, let track else { state = lyrics == nil ? .idle : .ready; return }
         if lyrics != nil { state = .ready; return }
+        if loadSaved(track) { return }
         guard online else { state = .consent; return }
         load(track)
+    }
+
+    /// A file the user chose for this song is read again whenever it plays,
+    /// with or without online lookup. When it is gone or unreadable, the
+    /// surface continues exactly as if no file had been chosen.
+    private func loadSaved(_ track: NotchMusicIdentity) -> Bool {
+        guard NotchLyricsLocalFiles.contains(track) else { return false }
+        state = .loading
+        let requested = generation
+        DispatchQueue.global(qos: .userInitiated).async {
+            let saved = NotchLyricsLocalFiles.lines(for: track)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.generation == requested, self.visible, self.track == track,
+                      NotchLyricsSupport.isEnabled() else { return }
+                if let saved, self.memory.replace(NotchLyrics(lines: saved.lines, plain: "", instrumental: false),
+                                                  offset: saved.offset, local: true, for: track) {
+                    self.state = .ready
+                } else if NotchLyricsSupport.onlineEnabled() {
+                    self.load(track)
+                } else {
+                    self.state = .consent
+                }
+            }
+        }
+        return true
     }
 
     /// Called for actual adapter metadata, including an explicit empty snapshot.
@@ -69,8 +95,20 @@ final class NotchLyricsService: ObservableObject {
         load(track)
     }
 
-    func adjustOffset(by amount: Double) { memory.adjustOffset(by: amount) }
-    func resetOffset() { memory.resetOffset() }
+    func adjustOffset(by amount: Double) {
+        memory.adjustOffset(by: amount)
+        rememberOffset()
+    }
+
+    func resetOffset() {
+        memory.resetOffset()
+        rememberOffset()
+    }
+
+    private func rememberOffset() {
+        guard memory.isLocal, let track else { return }
+        NotchLyricsLocalFiles.setOffset(memory.offset, for: track)
+    }
 
     func hide() {
         cancel()
@@ -314,23 +352,17 @@ final class NotchLyricsService: ObservableObject {
             self.cancel()
             let importedGeneration = self.generation
             DispatchQueue.global(qos: .userInitiated).async {
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                var lines: [NotchLyricLine] = []
-                if let handle = try? FileHandle(forReadingFrom: url) {
-                    defer { try? handle.close() }
-                    if let data = try? handle.read(upToCount: NotchLyricsSupport.maximumBytes + 1),
-                       data.count <= NotchLyricsSupport.maximumBytes,
-                       let text = String(data: data, encoding: .utf8) {
-                        lines = NotchLyricsSupport.parse(text, duration: track.duration)
-                    }
-                }
-                let imported = lines
+                let imported = NotchLyricsLocalFiles.read(url, duration: track.duration)
+                // Remember where the file is, never its contents, so this song
+                // shows the same file whenever it plays again.
+                let location = imported.isEmpty ? nil : NotchLyricsLocalFiles.location(of: url)
                 DispatchQueue.main.async {
                     guard self.generation == importedGeneration, self.track == track, self.visible,
                           NotchLyricsSupport.isEnabled() else { return }
                     guard self.memory.replace(imported.isEmpty ? nil : NotchLyrics(lines: imported, plain: "", instrumental: false),
-                                              for: track) else { return }
+                                              local: true, for: track) else { return }
+                    // A newly chosen file starts unadjusted, like any import.
+                    if let location { NotchLyricsLocalFiles.save(location, offset: self.memory.offset, for: track) }
                     self.state = imported.isEmpty ? .failed : .ready
                 }
             }

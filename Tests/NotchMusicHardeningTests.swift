@@ -5,6 +5,7 @@ import Foundation
 import UniformTypeIdentifiers
 
 typealias ProductionLyricsParser = NotchLyricsSupport
+typealias ProductionLyricsLocalFiles = NotchLyricsLocalFiles
 
 /// Production lifecycle bodies are extracted by generate_sources.py. Only the
 /// session, chooser, preference source and network entry point are test doubles.
@@ -42,6 +43,29 @@ enum NotchLyricsContract {
         }
     }
     typealias NotchLyricsSupport = Preferences
+    /// The real remembered-file store, kept in a private defaults domain.
+    enum NotchLyricsLocalFiles {
+        static let suite = "com.vorssaint.tests.notch-lyrics-local-files"
+        static let defaults: UserDefaults = {
+            let defaults = UserDefaults(suiteName: suite)!
+            defaults.removePersistentDomain(forName: suite)
+            return defaults
+        }()
+        static func reset() { defaults.removePersistentDomain(forName: suite) }
+        static func contains(_ track: NotchMusicIdentity) -> Bool { ProductionLyricsLocalFiles.contains(track, in: defaults) }
+        static func lines(for track: NotchMusicIdentity) -> (lines: [NotchLyricLine], offset: Double)? {
+            ProductionLyricsLocalFiles.lines(for: track, in: defaults)
+        }
+        static func location(of url: URL) -> ProductionLyricsLocalFiles.Location? { ProductionLyricsLocalFiles.location(of: url) }
+        static func save(_ location: ProductionLyricsLocalFiles.Location, offset: Double, for track: NotchMusicIdentity,
+                         now: Date = Date()) {
+            ProductionLyricsLocalFiles.save(location, offset: offset, for: track, in: defaults, now: now)
+        }
+        static func setOffset(_ offset: Double, for track: NotchMusicIdentity) {
+            ProductionLyricsLocalFiles.setOffset(offset, for: track, in: defaults)
+        }
+        static func read(_ url: URL, duration: Double) -> [NotchLyricLine] { ProductionLyricsLocalFiles.read(url, duration: duration) }
+    }
     enum NotchLyricsDownload {
         struct Request {
             let url: URL
@@ -138,6 +162,7 @@ enum NotchLyricsContract {
     }
     static func resetPresentation() {
         NotchService.shared = NotchService()
+        NotchLyricsLocalFiles.reset()
         DispatchQueue.main = DispatchQueue.Queue()
         DispatchQueue.worker = DispatchQueue.Queue()
     }
@@ -202,6 +227,7 @@ enum NotchMusicHardeningTests {
         lyricLifecycle(suite)
         lyricLookup(suite)
         lyricPicker(suite)
+        rememberedLyrics(suite)
         queueSelection(suite)
         queueHold(suite)
         framing(suite)
@@ -1048,6 +1074,189 @@ enum NotchMusicHardeningTests {
             suite.expect(Context.NotchService.shared.presentationWindow!.focusReturns == returns && cancelled.lyrics == old,
                    "leaving after dismissal cancels both the queued focus return and a late file result")
         } catch { suite.expect(false, "lyrics picker fixture failed: \(error)") }
+    }
+
+    private static func rememberedLyrics(_ suite: TestSuite) {
+        typealias Context = NotchLyricsContract
+        typealias Files = Context.NotchLyricsLocalFiles
+        Context.resetPresentation()
+        Context.Preferences.enabled = true
+        Context.Preferences.online = false
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("notch-lyrics-remembered-\(UUID().uuidString)")
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+            Context.Preferences.online = false
+            Context.NotchLyricsDownload.requests = []
+            Context.resetPresentation()
+        }
+        func relaunched(_ title: String, duration: Double = 180, pid: Int32 = 77) -> NotchPlayback {
+            NotchPlayback(track: RadialNowPlayingSnapshot(title: title, artist: "Example", album: "Recording",
+                                                          artworkData: nil, appBundleIdentifier: "org.example.player", appPID: pid),
+                          isPlaying: true, elapsed: 0, duration: duration, rate: 1,
+                          sampledAt: Date(timeIntervalSinceReferenceDate: 0), canSeek: false, itemIdentifier: "session-\(pid)")
+        }
+        func drain() { Context.DispatchQueue.worker.drain(); Context.DispatchQueue.main.drain() }
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let file = folder.appendingPathComponent("chosen.lrc")
+            try "[00:01]Chosen verse".write(to: file, atomically: true, encoding: .utf8)
+            let service = Context.Service()
+            service.update(playback: playback("same-song"), visible: true)
+            suite.expect(service.state == .consent, "an unchosen song without consent shows the normal empty state")
+            service.importLyrics()
+            service.importPanel?.url = file
+            service.importPanel?.finish(.OK)
+            drain()
+            let original = NotchMusicIdentity(playback("same-song"))
+            suite.expect(service.lyrics?.lines.first?.text == "Chosen verse" && service.memory.isLocal && Files.contains(original),
+                         "a successful import remembers the chosen file for this song")
+            service.adjustOffset(by: 0.5)
+            service.adjustOffset(by: 0.25)
+            suite.expect(Files.lines(for: original)?.offset == 0.75, "adjusting a remembered file's timing is remembered with it")
+
+            service.playbackChanged(nil)
+            service.playbackChanged(playback("other-song"))
+            suite.expect(service.lyrics == nil, "another song does not show the remembered file")
+            let other = NotchMusicIdentity(playback("other-song"))
+            _ = service.memory.replace(NotchLyrics(lines: [NotchLyricLine(time: 1, text: "Online")], plain: "", instrumental: false),
+                                       for: other)
+            service.adjustOffset(by: 1)
+            service.resetOffset()
+            suite.expect(!Files.contains(other) && Files.lines(for: original)?.offset == 0.75,
+                         "adjusting online lyrics never creates or changes a remembered choice")
+            service.playbackChanged(nil)
+            service.update(playback: relaunched("same-song"), visible: true)
+            suite.expect(service.state == .loading && service.lyrics == nil, "the remembered file is read off the presentation lane")
+            drain()
+            suite.expect(service.lyrics?.lines.first?.text == "Chosen verse" && service.state == .ready
+                         && service.memory.offset == 0.75 && service.memory.isLocal && service.loads.isEmpty,
+                         "the same song in a relaunched player shows the same file and adjustment without consent or a lookup")
+
+            let moved = folder.appendingPathComponent("renamed.lrc")
+            try FileManager.default.moveItem(at: file, to: moved)
+            service.playbackChanged(nil)
+            service.update(playback: relaunched("same-song", duration: 181), visible: true)
+            drain()
+            suite.expect(service.lyrics?.lines.first?.text == "Chosen verse",
+                         "a renamed file and a slightly different reported length still match the same song")
+            service.playbackChanged(nil)
+            service.update(playback: NotchPlayback(track: RadialNowPlayingSnapshot(title: "  SAME-song", artist: "EXAMPLE",
+                                                                                     album: " Recording ", artworkData: nil,
+                                                                                     appBundleIdentifier: "org.example.other", appPID: 9),
+                                                   isPlaying: true, elapsed: 0, duration: 180, rate: 1,
+                                                   sampledAt: Date(timeIntervalSinceReferenceDate: 0), canSeek: false),
+                           visible: true)
+            drain()
+            suite.expect(service.lyrics?.lines.first?.text == "Chosen verse",
+                         "case and surrounding space differences, another player and a missing item ID still name the same song")
+            service.playbackChanged(nil)
+            service.update(playback: relaunched("same-song", duration: 186), visible: true)
+            drain()
+            suite.expect(service.lyrics?.lines.first?.text == "Chosen verse",
+                         "a player reporting the same song several seconds longer than at import still shows its file")
+            service.playbackChanged(nil)
+            service.update(playback: relaunched("same song", duration: 180), visible: true)
+            drain()
+            suite.expect(service.lyrics == nil && service.state == .consent, "a different title is a different song")
+
+            try FileManager.default.removeItem(at: moved)
+            service.playbackChanged(nil)
+            service.update(playback: relaunched("same-song"), visible: true)
+            drain()
+            suite.expect(service.lyrics == nil && service.state == .consent && service.loads.isEmpty,
+                         "a deleted file quietly returns to the normal surface")
+
+            Context.Preferences.online = true
+            let lookup = Context.LookupService()
+            Context.NotchLyricsDownload.requests = []
+            lookup.update(playback: relaunched("same-song"), visible: true)
+            drain()
+            suite.expect(Context.NotchLyricsDownload.requests.count == 1 && lookup.lyrics == nil,
+                         "with online lookup on, a missing remembered file falls back to the normal lookup")
+            Context.Preferences.online = false
+
+            let replacement = folder.appendingPathComponent("replacement.lrc")
+            try "[00:03]Replacement verse".write(to: replacement, atomically: true, encoding: .utf8)
+            Files.save(Files.location(of: replacement)!, offset: -1.5, for: original)
+            service.playbackChanged(nil)
+            service.update(playback: relaunched("same-song"), visible: true)
+            drain()
+            suite.expect(service.lyrics?.lines.first?.text == "Replacement verse" && service.memory.offset == -1.5,
+                         "choosing another file for the same song replaces the earlier choice")
+            service.resetOffset()
+            suite.expect(Files.lines(for: original)?.offset == 0, "resetting a remembered file's timing is remembered")
+            service.playbackChanged(nil)
+            service.update(playback: relaunched("same-song"), visible: true)
+            service.hide()
+            drain()
+            suite.expect(service.lyrics == nil, "hiding before the read finishes discards the late file result")
+
+            let trash = folder.appendingPathComponent(".Trash")
+            try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: true)
+            let trashed = trash.appendingPathComponent("replacement.lrc")
+            try FileManager.default.moveItem(at: replacement, to: trashed)
+            suite.expect(ProductionLyricsLocalFiles.lines(for: original, in: Files.defaults) == nil
+                         && Files.contains(original),
+                         "a file moved to the Trash is treated as gone without forgetting the choice")
+
+            let restored = folder.appendingPathComponent("restored.lrc")
+            try "[00:04]Restored verse".write(to: restored, atomically: true, encoding: .utf8)
+            Files.save(.init(bookmark: Data([1]), path: restored.path), offset: 0, for: original)
+            suite.expect(Files.lines(for: original)?.lines.first?.text == "Restored verse"
+                         && Files.location(of: restored).map { ProductionLyricsLocalFiles.Location(bookmark: $0.bookmark, path: restored.path) } != nil,
+                         "a bookmark this build cannot open still finds the file at its last known path")
+            try FileManager.default.moveItem(at: restored, to: folder.appendingPathComponent("restored-moved.lrc"))
+            suite.expect(Files.lines(for: original)?.lines.first?.text == "Restored verse",
+                         "reading through the path renews the bookmark, so a later move is still followed")
+
+            let placeholder = ProductionLyricsLocalFiles.Location(bookmark: Data([1]), path: "/nonexistent.lrc")
+            let untitled = NotchMusicIdentity(relaunched("  "))
+            Files.save(placeholder, offset: 0, for: untitled)
+            suite.expect(!Files.contains(untitled) && !Files.contains(NotchMusicIdentity(relaunched("other-title"))),
+                         "a song without a title is never remembered or matched")
+            Files.reset()
+            func song(_ title: String, _ artist: String, _ album: String) -> NotchMusicIdentity {
+                NotchMusicIdentity(NotchPlayback(track: RadialNowPlayingSnapshot(title: title, artist: artist, album: album,
+                                                                                 artworkData: nil, appBundleIdentifier: nil, appPID: nil),
+                                                 isPlaying: true, elapsed: 0, duration: 185, rate: 1, sampledAt: .now, canSeek: false))
+            }
+            Files.reset()
+            let credited = folder.appendingPathComponent("credited.lrc")
+            try "[00:01]Credited verse".write(to: credited, atomically: true, encoding: .utf8)
+            Files.save(Files.location(of: credited)!, offset: 0.5, for: song("Barsaat", "Banjaare", "Barsaat"))
+            suite.expect(Files.lines(for: song("Barsaat", "Banjaare, Roni", "Barsaat"))?.offset == 0.5
+                         && Files.lines(for: song("Barsaat", "Roni & Banjaare", "Barsaat")) != nil,
+                         "a player listing every credited artist finds the file chosen where only the main artist was reported")
+            Files.save(Files.location(of: credited)!, offset: 1.5, for: song("Barsaat", "Banjaare, Roni", "Barsaat"))
+            let replaced = (try? PropertyListDecoder().decode([String: ProductionLyricsLocalFiles.Entry].self,
+                                                             from: Files.defaults.data(forKey: DefaultsKey.notchLyricsLocalFiles) ?? Data())) ?? [:]
+            suite.expect(replaced.count == 1 && Files.lines(for: song("Barsaat", "Banjaare", "Barsaat"))?.offset == 1.5,
+                         "choosing a file from the other player replaces the song's one choice")
+            suite.expect(!Files.contains(song("Barsaat", "Someone Else", "Barsaat"))
+                         && !Files.contains(song("Barsaat", "Banjaare", "Monsoon Hits")),
+                         "the same title by other artists, or on another album, is a different song")
+            Files.save(placeholder, offset: 0, for: song("बरसात", "Banjaare", "Single"))
+            suite.expect(!Files.contains(song("बरसत", "Banjaare", "Single")),
+                         "titles in other scripts that differ only by a vowel sign stay different songs")
+            Files.reset()
+            Files.save(placeholder, offset: 1, for: NotchMusicIdentity(relaunched("same-song")))
+            Files.save(placeholder, offset: 2, for: NotchMusicIdentity(relaunched("Same-Song", duration: 240)))
+            let saved = (try? PropertyListDecoder().decode([String: ProductionLyricsLocalFiles.Entry].self,
+                                                          from: Files.defaults.data(forKey: DefaultsKey.notchLyricsLocalFiles) ?? Data())) ?? [:]
+            suite.expect(saved.count == 1 && saved.values.first?.offset == 2,
+                         "one song keeps one choice: a re-import replaces it whatever length the player reports")
+            Files.reset()
+            let start = Date(timeIntervalSinceReferenceDate: 0)
+            for index in 0...ProductionLyricsLocalFiles.limit {
+                Files.save(placeholder, offset: 0, for: NotchMusicIdentity(relaunched("song \(index)")),
+                           now: start.addingTimeInterval(Double(index)))
+            }
+            suite.expect(!Files.contains(NotchMusicIdentity(relaunched("song 0")))
+                         && Files.contains(NotchMusicIdentity(relaunched("song \(ProductionLyricsLocalFiles.limit)"))),
+                         "the remembered choices stay bounded and drop the oldest first")
+            suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchLyricsLocalFiles),
+                         "remembered file locations are machine state and never leave this Mac in a backup")
+        } catch { suite.expect(false, "remembered lyrics fixture failed: \(error)") }
     }
 
     private static func selection(_ request: UUID, item: String = "next") -> NotchQueueSelection {
