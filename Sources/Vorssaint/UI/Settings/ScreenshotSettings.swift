@@ -179,13 +179,13 @@ struct ScreenshotCaptureSettings: View {
                         .foregroundStyle(.secondary)
                     previewPositionRow
                     previewFocusRow
-                    defaultActionRow
                 } label: {
                     Text(FeatureStrings.recorder(l10n.language).moreOptions)
                 }
             }
 
             Section {
+                defaultActionRow
                 Toggle(strings.autoCopyToggle, isOn: autoCopyBinding)
                 Text(strings.autoCopyCaption)
                     .font(.caption)
