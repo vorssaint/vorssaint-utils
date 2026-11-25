@@ -970,6 +970,7 @@ enum DefaultsKey {
     static let notchHideUntilHover = "notchHideUntilHover"
     static let notchHiddenShowsActivity = "notchHiddenShowsActivity"
     static let notchCoversMenus = "notchCoversMenus"
+    static let notchFitsMenuBarRoom = "notchFitsMenuBarRoom"
     static let notchLowBatteryTint = "notchLowBatteryTint"
     static let notchLowBatteryThreshold = "notchLowBatteryThreshold"
     static let notchLowBatteryEarly = "notchLowBatteryEarly"
@@ -1588,6 +1589,7 @@ enum Defaults {
         DefaultsKey.notchHideUntilHover: false,
         DefaultsKey.notchHiddenShowsActivity: false,
         DefaultsKey.notchCoversMenus: true,
+        DefaultsKey.notchFitsMenuBarRoom: true,
         DefaultsKey.notchLowBatteryTint: false,
         DefaultsKey.notchLowBatteryThreshold: NotchSupport.defaultLowBatteryThreshold,
         DefaultsKey.notchLowBatteryEarly: false,
