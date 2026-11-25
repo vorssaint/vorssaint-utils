@@ -181,6 +181,7 @@ enum DisplaySpeakerVolumeTests {
         func syncKeyTap() {}
         func syncKeyboardBrightnessHotkeys() {}
         func syncDisplayBrightnessHotkeys() {}
+        func syncDisplayInputHotkey() {}
         func installAudioOutputObserver() { audioOutputListener = true }
         func removeAudioOutputObserver() {
             guard audioOutputListener != nil else { return }
