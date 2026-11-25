@@ -242,6 +242,8 @@ extension Strings {
         switcherInstantSelectionCaption: "アプリやウインドウを選ぶと、ハイライトとスクロール位置をすぐに切り替えます。",
         switcherIgnoreHoverSelection: "ホバーでは選択しない",
         switcherIgnoreHoverSelectionCaption: "アプリやウインドウの上にポインタを動かしても、ハイライトは動きません。クリックすると開きます。",
+        switcherTabStepsThroughWindows: "Tabでウインドウも切り替える",
+        switcherTabStepsThroughWindowsCaption: "大きいアイコンでは、Tabでアプリの各ウインドウを順に選んでから次のアプリに移ります。",
         switcherMergeTabs: "アプリごとに1つにまとめて表示",
         switcherMergeTabsCaption: "スイッチャーで、アプリのすべてのウインドウをウインドウごとではなく1つの項目にまとめます。",
         switcherWindowlessApps: "ウインドウなしのアプリ",

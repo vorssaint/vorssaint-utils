@@ -242,6 +242,8 @@ extension Strings {
         switcherInstantSelectionCaption: "Sposta subito l’evidenziazione e scorre l’elenco mentre navighi tra app e finestre.",
         switcherIgnoreHoverSelection: "Ignora la selezione al passaggio",
         switcherIgnoreHoverSelectionCaption: "Spostare il puntatore su app e finestre lascia l’evidenziazione dov’è. Un clic apre comunque un elemento.",
+        switcherTabStepsThroughWindows: "Tab scorre anche le finestre",
+        switcherTabStepsThroughWindowsCaption: "Con le icone grandi, Tab passa per ogni finestra dell’app prima di andare all’app successiva.",
         switcherMergeTabs: "Mostra una voce per app",
         switcherMergeTabsCaption: "Raggruppa tutte le finestre di un’app in un’unica voce nel commutatore, anziché una per finestra.",
         switcherWindowlessApps: "App senza finestre aperte",

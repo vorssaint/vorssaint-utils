@@ -233,6 +233,8 @@ extension Strings {
         switcherInstantSelectionCaption: "Під час переходу між програмами та вікнами одразу переміщує виділення і прокручує список.",
         switcherIgnoreHoverSelection: "Не вибирати при наведенні",
         switcherIgnoreHoverSelectionCaption: "Переміщення вказівника програмами й вікнами не зсуває виділення. Клацання й далі відкриває елемент.",
+        switcherTabStepsThroughWindows: "Tab перебирає й вікна",
+        switcherTabStepsThroughWindowsCaption: "У режимі великих значків Tab проходить кожне вікно програми, перш ніж перейти до наступної.",
         switcherMergeTabs: "Показувати один запис на програму",
         switcherMergeTabsCaption: "Зводить усі вікна програми в один запис у перемикачі замість окремого запису на кожне вікно.",
         switcherWindowlessApps: "Програми без відкритих вікон",
