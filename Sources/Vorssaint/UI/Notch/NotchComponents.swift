@@ -848,7 +848,11 @@ final class NotchMenuAnchor: NSObject {
     private var actions: [() -> Void] = []
 
     func popUp(_ items: [NotchMenuItem]) {
-        guard let view else { return }
+        // A header preference can outlive its temporary anchor after Cancel.
+        // Keep the menu in the invoking window when that view has detached.
+        let attachedView = view?.window == nil ? nil : view
+        guard let anchorView = attachedView ?? NSApp.currentEvent?.window?.contentView
+                ?? NSApp.keyWindow?.contentView else { return }
         actions = items.map(\.action)
         let menu = NSMenu()
         menu.autoenablesItems = false
@@ -869,12 +873,15 @@ final class NotchMenuAnchor: NSObject {
         // A menu whose top lands on the menu bar's edge opens scrolled past its
         // first entry, so a button against the bar opens it a little below.
         var location = NSPoint.zero
-        if let window = view.window, let screen = window.screen {
-            let bottom = window.convertPoint(toScreen: view.convert(location, to: nil)).y
+        if attachedView == nil, let window = anchorView.window {
+            location = anchorView.convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
+        }
+        if let window = anchorView.window, let screen = window.screen {
+            let bottom = window.convertPoint(toScreen: anchorView.convert(location, to: nil)).y
             let edge = screen.visibleFrame.maxY - 3
             if bottom > edge { location.y -= bottom - edge }
         }
-        menu.popUp(positioning: nil, at: location, in: view)
+        menu.popUp(positioning: nil, at: location, in: anchorView)
     }
 
     @objc private func choose(_ sender: NSMenuItem) {
