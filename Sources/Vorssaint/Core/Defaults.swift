@@ -438,6 +438,7 @@ enum DefaultsKey {
     static let menuBarUsageBarHighThreshold = "menuBarUsageBarHighThreshold" // percent
     static let menuBarHideIconWithMetrics = "menuBarHideIconWithMetrics" // glyph hides while metrics render in the main item
     static let menuBarIconSymbol = "menuBarIconSymbol" // system symbol name drawn instead of the glyph; empty keeps the glyph
+    static let menuBarIconAnimation = "menuBarIconAnimation" // MenuBarIconAnimation.rawValue; empty uses the static icon
     static let menuBarMetricOrder = "menuBarMetricOrder" // comma-separated MenuBarMetric raw values
     static let menuBarCombineTemperatures = "menuBarCombineTemperatures" // usage/charge + temperature in one block when possible
     static let menuBarSeparateMetrics = "menuBarSeparateMetrics" // one status item per active metric
@@ -1141,8 +1142,44 @@ enum KeepAwakeIconTint: String, CaseIterable, Identifiable {
     }
 }
 
-enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
+enum MenuBarIconAnimation: String, CaseIterable, Identifiable {
+    case cat, dog, slime, drop, coffee
+    case newtonCradle = "newton-cradle"
+    case engine, mochi
+
+    var id: String { rawValue }
+
+    static var current: Self? {
+        Self(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.menuBarIconAnimation) ?? "")
+    }
+}
+
+enum KeepAwakeActiveIcon: RawRepresentable, CaseIterable, Equatable, Identifiable {
     case vorssaint, coffee, eye, moon, light
+    case animated(MenuBarIconAnimation)
+
+    static let staticIcons: [Self] = [.vorssaint, .coffee, .eye, .moon, .light]
+    static let allCases = staticIcons + MenuBarIconAnimation.allCases.map(Self.animated)
+    private static let iconsByRawValue = Dictionary(uniqueKeysWithValues: allCases.map { ($0.rawValue, $0) })
+
+    init?(rawValue: String) {
+        guard let icon = Self.iconsByRawValue[rawValue] else { return nil }
+        self = icon
+    }
+
+    var rawValue: String {
+        switch self {
+        case .vorssaint: return "vorssaint"
+        case .coffee: return "coffee"
+        case .eye: return "eye"
+        case .moon: return "moon"
+        case .light: return "light"
+        // Keep the keys already written by the first animation build.
+        case .animated(.cat): return "animatedCat"
+        case .animated(.coffee): return "animatedCoffee"
+        case let .animated(runner): return "animated:\(runner.rawValue)"
+        }
+    }
 
     var id: String { rawValue }
 
@@ -1154,7 +1191,7 @@ enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
 
     var systemSymbolName: String? {
         switch self {
-        case .vorssaint: return nil
+        case .vorssaint, .animated: return nil
         case .coffee: return "cup.and.saucer.fill"
         case .eye: return "eye.fill"
         case .moon: return "moon.fill"
@@ -1169,17 +1206,23 @@ enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
         switch self {
         case .coffee: return 1
         case .light: return 0.5
-        case .vorssaint, .eye, .moon: return 0
+        case .vorssaint, .eye, .moon, .animated: return 0
         }
     }
 
-    func title(_ strings: Strings) -> String {
+    var animation: MenuBarIconAnimation? {
+        if case let .animated(runner) = self { return runner }
+        return nil
+    }
+
+    func title(_ strings: Strings, language: AppLanguage) -> String {
         switch self {
         case .vorssaint: return strings.keepAwakeActiveIconVorssaint
         case .coffee: return strings.keepAwakeActiveIconCoffee
         case .eye: return strings.keepAwakeActiveIconEye
         case .moon: return strings.keepAwakeActiveIconMoon
         case .light: return strings.keepAwakeActiveIconLight
+        case let .animated(runner): return MenuBarIconStrings.localized(language).title(for: runner)
         }
     }
 }
@@ -1733,6 +1776,7 @@ enum Defaults {
         DefaultsKey.menuBarUsageBarHighThreshold: 90,
         DefaultsKey.menuBarHideIconWithMetrics: false,
         DefaultsKey.menuBarIconSymbol: "",
+        DefaultsKey.menuBarIconAnimation: "",
         DefaultsKey.windowLayoutHiddenActions: "",
         DefaultsKey.windowLayoutWindowGap: 0,
         DefaultsKey.windowLayoutScreenGap: 0,

@@ -57,7 +57,6 @@ struct MenuBarMetricsPreview: View {
         let _ = diskStyle
         let _ = temperatureUnit
         let _ = networkSpeedUnit
-        let _ = metricSpacing
         let metrics = activeMetrics
         let lines = separateMetrics ? [] : MenuBarRenderer.lines(for: monitor.snapshot, metrics: metrics)
         // Separate items are their own status items, which macOS seats to
@@ -71,6 +70,9 @@ struct MenuBarMetricsPreview: View {
         // Keep Awake or a muted microphone brings the real icon back, and the
         // preview does not pretend to know about any of them.
         let iconHidden = hideIconWithMetrics && (!lines.isEmpty || !items.isEmpty)
+        let iconGap = metricSpacing == MenuBarMetricSpacing.compact.rawValue
+            ? MenuBarRenderer.iconMetricGap(spacing: .compact, stacked: lines.count > 1).size().width
+            : 5
 
         HStack(spacing: 12) {
             Spacer()
@@ -84,7 +86,7 @@ struct MenuBarMetricsPreview: View {
                 linesView(item)
             }
             if !iconHidden || !lines.isEmpty {
-                HStack(spacing: 5) {
+                HStack(spacing: iconGap) {
                     if !iconHidden {
                         glyph
                             .frame(width: BlackHoleGlyph.pointSize.width,

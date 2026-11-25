@@ -24,7 +24,7 @@ struct GeneralToolSettings: View {
                             .fixedSize(horizontal: false, vertical: true)
                         PanelLayoutEditor()
                         Divider()
-                        MenuBarIconSymbolRow()
+                        MenuBarIconRow()
                         Divider()
                         SettingsRow(symbol: nil, title: text.iconMissingTitle,
                                     caption: text.iconMissingCaption) {
@@ -61,12 +61,11 @@ struct GeneralToolSettings: View {
     }
 }
 
-/// Draws a system symbol in the menu bar in place of the Vorssaint glyph,
-/// picked with one click from a gallery. The last cell takes any other symbol
-/// by name, and shows that symbol while it is the one in use.
-private struct MenuBarIconSymbolRow: View {
+/// Chooses the icon used in the menu bar when Keep Awake is off.
+private struct MenuBarIconRow: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.menuBarIconSymbol) private var savedName = ""
+    @AppStorage(DefaultsKey.menuBarIconAnimation) private var animationName = ""
     @State private var typingName = false
 
     /// Filtered like the radial menu's icons, so a name a future macOS
@@ -80,39 +79,64 @@ private struct MenuBarIconSymbolRow: View {
     var body: some View {
         let name = Defaults.sanitizedMenuBarIconSymbol(savedName)
         let otherName = name.isEmpty || Self.symbols.contains(name) ? "" : name
+        let animation = MenuBarIconAnimation(rawValue: animationName)
+        let iconStrings = MenuBarIconStrings.localized(l10n.language)
         VStack(alignment: .leading, spacing: 10) {
             SettingsRow(symbol: nil, title: text.menuBarIconTitle, caption: text.menuBarIconCaption) {
                 EmptyView()
             }
-            // Eager, so the cell the name popover hangs from is never
-            // released while the page scrolls.
-            FlowLayoutLite(spacing: 6) {
-                cell(selected: name.isEmpty) {
-                    savedName = ""
-                } label: {
-                    vorssaintMark
-                }
-                .help(text.menuBarIconReset)
-                .accessibilityLabel(text.menuBarIconReset)
-                ForEach(Self.symbols, id: \.self) { symbol in
-                    cell(selected: name == symbol) {
-                        savedName = symbol
+            MenuBarIconCategories(title: text.menuBarIconTitle, strings: iconStrings,
+                                  hasAnimation: animation != nil) {
+                // Keep the popover's anchor alive while the page scrolls.
+                FlowLayoutLite(spacing: 6) {
+                    cell(selected: animation == nil && name.isEmpty) {
+                        savedName = ""
+                        animationName = ""
                     } label: {
-                        Image(systemName: symbol)
+                        vorssaintMark
                     }
-                    .help(symbol)
+                    .help(text.menuBarIconReset)
+                    .accessibilityLabel(text.menuBarIconReset)
+                    ForEach(Self.symbols, id: \.self) { symbol in
+                        cell(selected: animation == nil && name == symbol) {
+                            savedName = symbol
+                            animationName = ""
+                        } label: {
+                            Image(systemName: symbol)
+                        }
+                        .help(symbol)
+                    }
+                    cell(selected: animation == nil && !otherName.isEmpty) {
+                        typingName = true
+                    } label: {
+                        // A name from a newer macOS has nothing to draw here.
+                        let drawable = NSImage(systemSymbolName: otherName, accessibilityDescription: nil) != nil
+                        Image(systemName: drawable ? otherName : "ellipsis")
+                    }
+                    .help(otherName.isEmpty ? text.menuBarIconOther : otherName)
+                    .accessibilityLabel(text.menuBarIconOther)
+                    .popover(isPresented: $typingName, arrowEdge: .bottom) {
+                        MenuBarIconNameField()
+                    }
                 }
-                cell(selected: !otherName.isEmpty) {
-                    typingName = true
-                } label: {
-                    // A name from a newer macOS has nothing to draw here.
-                    let drawable = NSImage(systemSymbolName: otherName, accessibilityDescription: nil) != nil
-                    Image(systemName: drawable ? otherName : "ellipsis")
-                }
-                .help(otherName.isEmpty ? text.menuBarIconOther : otherName)
-                .accessibilityLabel(text.menuBarIconOther)
-                .popover(isPresented: $typingName, arrowEdge: .bottom) {
-                    MenuBarIconNameField()
+            } animatedIcons: {
+                FlowLayoutLite(spacing: 6) {
+                    ForEach(MenuBarIconAnimation.allCases) { option in
+                        if let frame = option.frames.first {
+                            let title = iconStrings.title(for: option)
+                            cell(selected: animation == option) {
+                                animationName = option.rawValue
+                            } label: {
+                                Image(nsImage: frame)
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 24, height: 18)
+                            }
+                            .help(title)
+                            .accessibilityLabel(title)
+                        }
+                    }
                 }
             }
             .padding(.leading, settingsRowTextInset)
@@ -164,8 +188,10 @@ private struct MenuBarIconNameField: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.dismiss) private var dismiss
     @AppStorage(DefaultsKey.menuBarIconSymbol) private var savedName = ""
+    @AppStorage(DefaultsKey.menuBarIconAnimation) private var animationName = ""
     @State private var draft = ""
     @State private var openingName = ""
+    @State private var openingAnimation = ""
     @FocusState private var focused: Bool
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
@@ -181,7 +207,12 @@ private struct MenuBarIconNameField: View {
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
                     .focused($focused)
-                    .onSubmit { dismiss() }
+                    .onSubmit {
+                        if name.isEmpty || BlackHoleGlyph.customMark(named: name) != nil {
+                            animationName = ""
+                        }
+                        dismiss()
+                    }
                 // Kept in place while hidden, so the field does not change
                 // width as the name is typed or cleared.
                 Button {
@@ -212,6 +243,7 @@ private struct MenuBarIconNameField: View {
         .frame(width: 280)
         .onAppear {
             openingName = BlackHoleGlyph.chosenSymbolName
+            openingAnimation = animationName
             draft = openingName
             // The popover's window is not key yet while it appears.
             DispatchQueue.main.async { focused = true }
@@ -221,6 +253,8 @@ private struct MenuBarIconNameField: View {
                 BlackHoleGlyph.customMark(named: $0) != nil
             }
             if kept != savedName { savedName = kept }
+            let name = Defaults.sanitizedMenuBarIconSymbol(newValue)
+            animationName = name == kept && newValue != openingName ? "" : openingAnimation
         }
     }
 }
