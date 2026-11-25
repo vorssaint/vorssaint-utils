@@ -382,10 +382,12 @@ final class ScreenshotService: ObservableObject {
         preview?.close()
         RecentCaptureService.shared.recordScreenshot(capture)
         let defaults = UserDefaults.standard
-        if defaults.bool(forKey: DefaultsKey.screenshotCopyToClipboard) {
+        let defaultAction = ScreenshotDefaultAction.current
+        if ScreenshotSupport.shouldRunBackgroundAutoCopy(
+            autoCopyEnabled: defaults.bool(forKey: DefaultsKey.screenshotCopyToClipboard),
+            defaultAction: defaultAction) {
             autoCopy(capture)
         }
-        let defaultAction = ScreenshotDefaultAction.current
         if defaultAction == .edit {
             // The editor decides what is kept. Its Add to Shelf puts the
             // finished picture there, so the raw capture is not shelved too.

@@ -2473,7 +2473,7 @@ def main():
           + "extension ScreenshotPreviewHoverTests {\nfinal class Controller: State {\n"
           + "".join(declaration(preview, prefix).replace("private func", "func", 1)
                     for prefix in ["    private func hoverChanged(", "    private func scheduleAutoDismiss(",
-                                   "    private func perform("])
+                                   "    private func perform(", "    static func disabledActions("])
           + "}\nstruct Preview {\nlet embedded: Bool\nlet hoverChanged: (Bool) -> Void\n"
           + declaration(preview, "    private func previewHoverChanged(").replace("private func", "func", 1)
           + "}\n}\n")

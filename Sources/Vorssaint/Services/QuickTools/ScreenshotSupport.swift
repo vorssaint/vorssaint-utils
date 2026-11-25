@@ -364,6 +364,15 @@ enum ScreenshotSupport {
         return .shown(dismissInterval: confirmationPreviewDismissInterval(duration))
     }
 
+    /// Whether `route` should start the background automatic copy. When the
+    /// default action already copies synchronously (`copy` or `saveAndCopy`),
+    /// a second background copy would encode the capture twice and discard
+    /// its temporary file once the synchronous copy advances the pasteboard.
+    static func shouldRunBackgroundAutoCopy(autoCopyEnabled: Bool,
+                                            defaultAction: ScreenshotDefaultAction) -> Bool {
+        autoCopyEnabled && !defaultAction.copiesToClipboard
+    }
+
     /// Captures go to the shelf on their own only while the shelf is
     /// installed and on, so a switched-off shelf never fills up unseen.
     static func addsCapturesToShelf(in defaults: UserDefaults = .standard) -> Bool {

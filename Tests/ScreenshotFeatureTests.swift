@@ -1048,6 +1048,17 @@ enum ScreenshotFeatureTests {
                 && screenshotRouteBody.components(separatedBy: "presentPreview(").count == 2
                 && screenshotRouteBody.contains("dismissInterval: dismissInterval,"),
                "route shows exactly the preview the shared decision asks for")
+        for action in ScreenshotDefaultAction.allCases {
+            suite.expect(!ScreenshotSupport.shouldRunBackgroundAutoCopy(
+                autoCopyEnabled: false, defaultAction: action),
+                   "background automatic copy stays off when the preference is disabled (\(action))")
+            let expected = !action.copiesToClipboard
+            suite.expect(ScreenshotSupport.shouldRunBackgroundAutoCopy(
+                autoCopyEnabled: true, defaultAction: action) == expected,
+                   "background automatic copy runs only when the default action does not already copy (\(action))")
+        }
+        suite.expect(screenshotRouteBody.contains("ScreenshotSupport.shouldRunBackgroundAutoCopy("),
+               "route delegates background automatic copy gating to the shared helper")
 
         // A gesture that ends with more than one release, like a drag made
         // with three fingers, delivers events after the capture is over.
@@ -1471,6 +1482,12 @@ enum ScreenshotFeatureTests {
         suite.expect(quickPreviewCode.contains("takeFocus: presentationPolicy.takesFocus,")
                 && quickPreviewCode.contains("closeOnCollapse: presentationPolicy.closesOnCollapse,"),
                "the island preview takes the keyboard and closes on collapse exactly as the presentation policy says")
+        let showInNotchBody = quickPreviewCode.components(separatedBy: "func show(inNotch: Bool = true) {")
+            .dropFirst().first?.components(separatedBy: "\n    private func finishShowing()").first ?? ""
+        suite.expect(!showInNotchBody.contains("embedded: wantsNotch")
+                && showInNotchBody.contains("embedded: true)")
+                && showInNotchBody.contains("embedded: false)"),
+               "show(inNotch:) builds an embedded view only for the island and a floating view for the panel fallback")
         let makeKeyCount = quickPreviewCode.components(separatedBy: "makeKey").count - 1
         let panelMakeKeyCount = panelBody.components(separatedBy: "makeKey").count - 1
         suite.expect(makeKeyCount == panelMakeKeyCount + 1 && panelMakeKeyCount >= 1,

@@ -6,8 +6,8 @@ import Carbon.HIToolbox
 import SwiftUI
 
 /// Drives the QR button, which appears after the capture is scanned so the
-/// preview never waits on detection to show, and the buttons grayed out
-/// because the after-capture action already did their work.
+/// preview never waits on detection to show, and the Save button grayed out
+/// after an automatic save so a second click cannot write a duplicate file.
 final class ScreenshotQuickPreviewModel: ObservableObject {
     @Published var qr: BarcodeDetector.Reading?
     @Published var disabledActions: Set<ScreenshotQuickPreviewController.Action> = []
@@ -79,7 +79,15 @@ final class ScreenshotQuickPreviewController {
         self.share = share
         self.shareFile = shareFile
         self.onClose = onClose
-        model.disabledActions = completedActions.intersection([.save, .copy])
+        model.disabledActions = Self.disabledActions(for: completedActions)
+    }
+
+    /// Only Save is disabled once completed so a second click cannot write a
+    /// duplicate file. Copy stays available: re-copying to the clipboard is
+    /// idempotent and lets the person recover if the pasteboard changed or a
+    /// paste target rejected the earlier copy.
+    static func disabledActions(for completedActions: Set<Action>) -> Set<Action> {
+        completedActions.intersection([.save])
     }
 
     func show(inNotch: Bool = true) {
@@ -89,49 +97,40 @@ final class ScreenshotQuickPreviewController {
         let presentationPolicy = ScreenshotSupport.confirmationPreviewPresentationPolicy(
             dismissInterval: baseDismissDuration,
             defaults: .standard)
-        let content = ScreenshotQuickPreviewView(
-            image: Self.thumbnail(for: capture.image),
-            strings: strings,
-            model: model,
-            perform: { [weak self] action in self?.perform(action) },
-            dragItem: { [weak self] in
-                guard let self else { return NSItemProvider() }
-                return ScreenshotService.dragItemProvider(image: self.capture.image,
-                                                          scale: self.capture.scale,
-                                                          strings: self.strings)
-                    ?? NSItemProvider()
-            },
-            share: { [weak self] duration in self?.performShare(duration) },
-            systemShare: { [weak self] in self?.performSystemShare() },
-            shareAnchor: shareAnchor,
-            copySharedLink: { [weak self] in self?.copySharedLink() },
-            deleteSharedLink: { [weak self] in self?.deleteSharedLink() },
-            showQR: { [weak self] in self?.showQRResult() },
-            copyText: { [weak self] in self?.copyText() },
-            dismiss: { [weak self] in self?.close() },
-            hoverChanged: { [weak self] inside in self?.hoverChanged(inside) },
-            showsDismissButton: presentationPolicy.showsDismissButton,
-            embedded: wantsNotch)
-        if wantsNotch, NotchService.shared.presentCapture(
-            id: presentationID, content: AnyView(content), actions: AnyView(content.toolbar), height: Self.size(showingLink: model.sharedRecord != nil).height,
-            takeFocus: presentationPolicy.takesFocus,
-            closeOnCollapse: presentationPolicy.closesOnCollapse,
-            fallback: { [weak self] in
-                guard let self else { return }
-                self.shownInNotch = false
-                self.pointerInside = false
-                if let keyMonitor = self.keyMonitor { NSEvent.removeMonitor(keyMonitor) }
-                self.keyMonitor = nil
-                self.show(inNotch: false)
-            },
-            close: { [weak self] in self?.close() },
-            dismiss: { [weak self] in self?.dismissForClickElsewhere() },
-            hover: { [weak self] inside in self?.hoverChanged(inside) }) {
-            shownInNotch = true
-            if let window = NotchService.shared.presentationWindow { installKeyMonitor(for: window) }
-            finishShowing()
-            return
+        let thumbnail = Self.thumbnail(for: capture.image)
+        if wantsNotch {
+            let embeddedContent = makePreviewView(
+                thumbnail: thumbnail,
+                showsDismissButton: presentationPolicy.showsDismissButton,
+                embedded: true)
+            if NotchService.shared.presentCapture(
+                id: presentationID,
+                content: AnyView(embeddedContent),
+                actions: AnyView(embeddedContent.toolbar),
+                height: Self.size(showingLink: model.sharedRecord != nil).height,
+                takeFocus: presentationPolicy.takesFocus,
+                closeOnCollapse: presentationPolicy.closesOnCollapse,
+                fallback: { [weak self] in
+                    guard let self else { return }
+                    self.shownInNotch = false
+                    self.pointerInside = false
+                    if let keyMonitor = self.keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+                    self.keyMonitor = nil
+                    self.show(inNotch: false)
+                },
+                close: { [weak self] in self?.close() },
+                dismiss: { [weak self] in self?.dismissForClickElsewhere() },
+                hover: { [weak self] inside in self?.hoverChanged(inside) }) {
+                shownInNotch = true
+                if let window = NotchService.shared.presentationWindow { installKeyMonitor(for: window) }
+                finishShowing()
+                return
+            }
         }
+        let content = makePreviewView(
+            thumbnail: thumbnail,
+            showsDismissButton: presentationPolicy.showsDismissButton,
+            embedded: false)
         let host = NSHostingController(rootView: content)
         let size = Self.size(showingLink: model.sharedRecord != nil)
         let panel = ScreenshotQuickPreviewPanel(
@@ -171,6 +170,34 @@ final class ScreenshotQuickPreviewController {
             scanForQR()
         }
         scheduleAutoDismiss()
+    }
+
+    private func makePreviewView(thumbnail: CGImage,
+                                 showsDismissButton: Bool,
+                                 embedded: Bool) -> ScreenshotQuickPreviewView {
+        ScreenshotQuickPreviewView(
+            image: thumbnail,
+            strings: strings,
+            model: model,
+            perform: { [weak self] action in self?.perform(action) },
+            dragItem: { [weak self] in
+                guard let self else { return NSItemProvider() }
+                return ScreenshotService.dragItemProvider(image: self.capture.image,
+                                                          scale: self.capture.scale,
+                                                          strings: self.strings)
+                    ?? NSItemProvider()
+            },
+            share: { [weak self] duration in self?.performShare(duration) },
+            systemShare: { [weak self] in self?.performSystemShare() },
+            shareAnchor: shareAnchor,
+            copySharedLink: { [weak self] in self?.copySharedLink() },
+            deleteSharedLink: { [weak self] in self?.deleteSharedLink() },
+            showQR: { [weak self] in self?.showQRResult() },
+            copyText: { [weak self] in self?.copyText() },
+            dismiss: { [weak self] in self?.close() },
+            hoverChanged: { [weak self] inside in self?.hoverChanged(inside) },
+            showsDismissButton: showsDismissButton,
+            embedded: embedded)
     }
 
     /// Closing while a share link is being made would delete that link.

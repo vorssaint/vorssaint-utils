@@ -48,6 +48,24 @@ enum ScreenshotPreviewHoverTests {
         failedCopy.action = { _ in [] }
         failedCopy.perform(.copy)
         suite.expect(!failedCopy.closed, "failed Copy still leaves the preview available for retry")
+        suite.expect(Controller.disabledActions(for: [.copy]).isEmpty
+                && Controller.disabledActions(for: [.save]) == [.save]
+                && Controller.disabledActions(for: [.save, .copy]) == [.save]
+                && Controller.disabledActions(for: []).isEmpty,
+               "only automatic Save is disabled on the preview; Copy stays available to re-copy")
+        let confirmedPreview = Controller()
+        var performedActions: [Action] = []
+        confirmedPreview.action = { action in
+            performedActions.append(action)
+            return [action]
+        }
+        confirmedPreview.model.disabledActions = Controller.disabledActions(for: [.save, .copy])
+        confirmedPreview.perform(.save)
+        suite.expect(performedActions.isEmpty && !confirmedPreview.closed,
+                     "Save stays blocked after automatic Save and leaves the preview open")
+        confirmedPreview.perform(.copy)
+        suite.expect(performedActions == [.copy] && confirmedPreview.closed,
+                     "Copy remains enabled after automatic Save and Copy, runs the action and closes the preview")
         DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
 
         for duration in [3.0, 12.0] {
