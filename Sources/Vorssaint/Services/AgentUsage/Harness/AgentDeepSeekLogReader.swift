@@ -44,7 +44,7 @@ enum AgentDeepSeekLogReader {
         cursor.modified = Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec)
                                + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000)
         if identity != cursor.identity || size < cursor.offset ||
-            (size > cursor.offset && !cursor.holdsWhatWasRead) {
+            (size > cursor.offset && !cursor.holdsWhatWasRead(descriptor: nil)) {
             cursor.startOver(identity: identity)
         }
         defer { cursor.fingerprintRead() }
