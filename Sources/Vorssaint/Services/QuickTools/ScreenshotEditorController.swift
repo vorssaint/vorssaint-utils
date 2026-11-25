@@ -177,8 +177,14 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// from the visible scale even in fit mode. Plain var on purpose: the
     /// view writes it during layout.
     var currentDisplayZoom: CGFloat = 0.5
-    @Published private(set) var canUndo = false
-    @Published private(set) var canRedo = false
+    // The toolbar commits the active caption before stepping through history.
+    var canUndo: Bool {
+        !undoStack.isEmpty || hasPendingTextChanges
+    }
+
+    var canRedo: Bool {
+        !redoStack.isEmpty && !hasPendingTextChanges
+    }
     /// True while there is work that never left the app: closing then asks.
     @Published private(set) var isDirty = false
 
@@ -624,7 +630,6 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         undoStack.append((baseImage, previous))
         redoStack.removeAll()
         trimHistory(afterUndo: false)
-        refreshUndoFlags()
         isDirty = true
     }
 
@@ -699,13 +704,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         editingTextID = nil
         newTextID = nil
         cropDraft = nil
-        refreshUndoFlags()
         refreshDirtyState()
-    }
-
-    private func refreshUndoFlags() {
-        canUndo = !undoStack.isEmpty
-        canRedo = !redoStack.isEmpty
     }
 
     func markExported() {
@@ -1289,7 +1288,6 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             annotations.remove(at: index)
             if selectedID == id { selectedID = nil }
             newTextID = nil
-            refreshUndoFlags()
             refreshDirtyState()
             return
         }

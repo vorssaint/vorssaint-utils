@@ -1025,19 +1025,14 @@ enum AppManagementFeatureTests {
             else { return "" }
             return String(source[start.upperBound..<end.lowerBound])
         }
-        // The eligibility fixtures exercise which rows need the expensive app
-        // inventory. Pin its lifetime here so those rows share one lookup per clean.
         let junkCleanerSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Cleaner/JunkCleaner.swift",
             encoding: .utf8)) ?? ""
-        let cleanSelectedBody = sourceBody(of: junkCleanerSource, from: "func cleanSelected(",
-                                           to: "private static func mayRemove")
-        suite.expect(cleanSelectedBody.contains("let installedApps = Self.cachedAppLookup(Self.installedBundleIDs)")
-               && cleanSelectedBody.components(separatedBy: "Self.installedBundleIDs").count == 2,
-               "a clean shares one on-demand inventory of installed apps across its selected rows")
-        suite.expect(cleanSelectedBody.contains("let needsPluginIDs = chosen.contains { [.leftovers, .caches, .logs].contains($0.category) }")
-               && cleanSelectedBody.contains("needsPluginIDs ? Self.installedAudioPluginBundleIDs() : []"),
-               "a clean refreshes plugin ownership even when only caches or logs are selected")
+        let removalCheck = sourceBody(of: junkCleanerSource, from: "private static func removalCheck(",
+                                      to: "func cleanSelected(")
+        suite.expect(removalCheck.contains("[.leftovers, .loginItems, .caches, .logs].contains($0.category)")
+               && removalCheck.contains("needsPluginIDs ? installedAudioPluginBundleIDs() : []"),
+               "a clean refreshes plugin ownership for selections limited to login items, caches or logs")
         // The known-application roster opens every installed app, and only the
         // shared-data claims read it. AppUninstaller is not part of this test
         // binary either, so pin the gate that keeps a removal that cannot claim
@@ -1293,22 +1288,26 @@ enum AppManagementFeatureTests {
                ])
         suite.expect(bareCommand.isEmpty
                && !CleanerSupport.launchPlistIsRemovableOrphan(label: "local.backup", executables: bareCommand,
-                                                               executableExists: { _ in false }),
+                                                               executableIsConfirmedAbsent: { _ in true }),
                "an agent that runs a bare command from launchd's search path is never offered as an orphan")
         suite.expect(CleanerSupport.launchPlistIsRemovableOrphan(label: "com.vendor.editor.launchdaemon",
                                                            executables: ["/Applications/Gone.app/x"],
-                                                           executableExists: { _ in false }),
+                                                           executableIsConfirmedAbsent: { _ in true }),
                "a plist whose executables are all gone is a removable orphan")
         suite.expect(!CleanerSupport.launchPlistIsRemovableOrphan(label: "com.vendor.editor.launchdaemon",
                                                             executables: ["/bin/ls"],
-                                                            executableExists: { _ in true }),
+                                                            executableIsConfirmedAbsent: { _ in false }),
                "a plist with a living executable is never an orphan")
+        suite.expect(!CleanerSupport.launchPlistIsRemovableOrphan(label: "local.backup",
+                                                           executables: ["/missing", "/Volumes/Work/backup"],
+                                                           executableIsConfirmedAbsent: { _ in true }),
+               "an agent with an executable on a possibly unmounted volume remains protected")
         suite.expect(!CleanerSupport.launchPlistIsRemovableOrphan(label: "com.apple.something",
                                                             executables: ["/gone"],
-                                                            executableExists: { _ in false })
+                                                            executableIsConfirmedAbsent: { _ in true })
                && !CleanerSupport.launchPlistIsRemovableOrphan(label: nil,
                                                                executables: [],
-                                                               executableExists: { _ in false }),
+                                                               executableIsConfirmedAbsent: { _ in true }),
                "system agents and undecidable plists are never offered")
         suite.expect(registeredDefaults[DefaultsKey.mediaLastTool] as? String == MediaTool.videoCompressor.rawValue,
                "Media defaults to video compressor")

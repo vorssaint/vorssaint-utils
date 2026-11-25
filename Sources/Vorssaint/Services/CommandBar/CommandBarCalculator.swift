@@ -251,8 +251,13 @@ enum CommandBarCalculator {
     private static func formatSplit(_ larger: Double, _ largerUnit: CommandBarUnitCatalog.Unit,
                                     _ smaller: Double, _ smallerUnit: CommandBarUnitCatalog.Unit,
                                     locale: Locale) -> String {
-        // A whole larger unit plus the remainder in the smaller one, each
-        // written by Foundation when it has a word for the unit.
+        // Compare at the remainder's display precision. The foot and inch
+        // scales divide to slightly more than 12 in floating point.
+        let smallerPerLarger = significantRounded(largerUnit.scale / smallerUnit.scale)
+        if abs(smaller) >= smallerPerLarger {
+            let whole = larger + (smaller < 0 ? -1 : 1)
+            return formatUnitPrecisely(whole, unit: largerUnit, locale: locale)
+        }
         let largerText = formatUnitPrecisely(larger, unit: largerUnit, locale: locale)
         guard smaller != 0 else { return largerText }
         let smallerText = formatUnitPrecisely(smaller, unit: smallerUnit, locale: locale)

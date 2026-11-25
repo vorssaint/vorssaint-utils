@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import Foundation
+import AppKit
+import SwiftUI
 
 /// The mixer level field's production Escape monitor runs against plain
 /// doubles. No field is shown, no monitor is installed and no key is posted.
@@ -29,10 +30,24 @@ enum MixerPercentKeyTests {
 
     class Fixture {
         var isActive = true
+        var didFocus = true
         var isFinishing = false
         var escapeMonitor: Any?
         var field: MixerPercentNativeTextField?
         var onCancel: () -> Void = { MixerPercentKeyTests.cancels += 1 }
+        var onSubmit: () -> Bool = { true }
+        var text: Binding<String> = .constant("")
+    }
+
+    class EditorFixture {
+        var inputVolume: Double? = Double(Float(0.0025))
+        let currentPercent = 0
+        let maximumPercent = 100
+        let editorID = "microphone-input"
+        var editingID: String?
+        var draft = ""
+        var initialInputDraft: String?
+        var onCommit: (Double) -> Void = { _ in }
     }
 
     static func run(_ suite: TestSuite) {
@@ -62,5 +77,28 @@ enum MixerPercentKeyTests {
         editor.composing = false
         suite.expect(NSEvent.handler?(NSEvent(keyCode: 53, window: panel)) == nil && cancels == 1,
                      "Esc cancels the level being typed once composition ends")
+
+        for returnPressed in [false, true] {
+            for replacement in [nil, "0", "0.75"] as [String?] {
+                let editor = Editor()
+                var writes: [Double] = []
+                editor.onCommit = { writes.append($0) }
+                editor.beginEditing()
+                suite.expect(MixerRoutingSupport.volumeFraction(fromPercentageText: editor.draft, maximumPercent: 100) == 0.0025,
+                             "the microphone editor opens with its fractional percentage")
+                let field = NSTextField()
+                field.stringValue = replacement ?? editor.draft
+                let delegate = Coordinator()
+                delegate.text = Binding(get: { editor.draft }, set: { editor.draft = $0 })
+                delegate.onSubmit = editor.commit
+                if returnPressed {
+                    _ = delegate.control(field, textView: NSTextView(), doCommandBy: #selector(NSResponder.insertNewline(_:)))
+                }
+                delegate.controlTextDidEndEditing(Notification(name: NSControl.textDidEndEditingNotification, object: field))
+                let expected = replacement.flatMap { Double($0) }.map { [$0 / 100] } ?? []
+                suite.expect(writes == expected && editor.editingID == nil,
+                             "Return or losing focus writes only the explicitly entered microphone volume")
+            }
+        }
     }
 }

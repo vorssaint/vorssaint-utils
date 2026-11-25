@@ -129,17 +129,21 @@ enum NotchAgentLimitReadingTests {
                      "observed days without measured usage supply neither a busiest day nor a cost")
 
         let metered = reply(.cursor, "partial", yesterday, 1.25)
-        let cursorOnly = nodes(NotchAgentTrendCard(snapshot: snapshot([metered]), providers: [.cursor],
+        let cursorHistory = snapshot([metered])
+        let idleDay = nodes(NotchAgentTrendCard(snapshot: cursorHistory, providers: [.cursor], period: .today, text: text))
+        suite.expect(announces(idleDay, text.today + " · — · " + text.partialCostNote),
+                     "a Cursor reply yesterday leaves today's Trend cost unknown without a reading today")
+        let cursorOnly = nodes(NotchAgentTrendCard(snapshot: cursorHistory, providers: [.cursor],
                                                   period: .week, text: text))
         suite.expect(announces(cursorOnly, text.week + " · " + AgentFormat.cost(1.25)),
                      "a fully measured Cursor project announces its exact API value, even with no other provider")
         let records = [metered, reply(.codex, "complete", today, 2)]
         let missing = CursorTranscriptActivity(project: metered.project,
                                                minutes: IndexSet(integer: Int(yesterday.timeIntervalSince1970 / 60) + 1))
-        let idleDay = nodes(NotchAgentTrendCard(snapshot: snapshot([metered], missing: [missing]), providers: [.cursor],
-                                                period: .today, text: text))
-        suite.expect(announces(idleDay, text.today + " · " + AgentFormat.cost(0)),
-                     "yesterday's partial Cursor cost leaves today's empty Trend interval exact")
+        let measuredZero = snapshot([metered, reply(.cursor, "free", today, 0)], missing: [missing])
+        let zeroDay = nodes(NotchAgentTrendCard(snapshot: measuredZero, providers: [.cursor], period: .today, text: text))
+        suite.expect(announces(zeroDay, text.today + " · " + AgentFormat.cost(0)),
+                     "a measured zero today stays exact despite an unmetered Cursor reply yesterday")
         let history = snapshot(records, missing: [missing])
         let minimum = "≥ " + AgentFormat.cost(3.25) + " · " + text.partialCostNote
         let trend = nodes(NotchAgentTrendCard(snapshot: history, providers: [.cursor, .codex], period: .week, text: text))
@@ -150,6 +154,23 @@ enum NotchAgentLimitReadingTests {
         suite.expect(announces(activity, minimum) && announces(activity, day + " · " + AgentFormat.cost(2)),
                      "Activity announces the map's minimum while keeping its fully priced busiest day exact")
         let tokens = text.tokens(AgentFormat.tokens(100))
+        let missingToday = CursorTranscriptActivity(project: metered.project,
+                                                    minutes: IndexSet(integer: Int(today.timeIntervalSince1970 / 60)))
+        let mixedToday = snapshot(records, missing: [missingToday])
+        for period in AgentPeriod.allCases {
+            let label = period == .today ? today.formatted(.dateTime.hour().locale(locale)) : day
+            for (sample, reading) in [
+                (cursorHistory, "— · " + text.tokens(AgentFormat.tokens(0)) + " · " + text.partialCostNote),
+                (measuredZero, AgentFormat.cost(0) + " · " + tokens),
+                (mixedToday, "≥ " + AgentFormat.cost(2) + " · " + tokens + " · " + text.partialCostNote)
+            ] {
+                let providers = AgentProvider.allCases.filter(sample.seen.contains)
+                let trend = nodes(NotchAgentTrendCard(snapshot: sample, providers: providers, period: period,
+                                                      text: text, hovered: today))
+                suite.expect(announces(trend, label + " · " + reading),
+                             "the selected bar in \(period) announces its own cost and tokens: \(reading)")
+            }
+        }
         for (date, amount, note) in [(yesterday, "≥ " + AgentFormat.cost(1.25), " · " + text.partialCostNote),
                                      (today, AgentFormat.cost(2), "")] {
             let day = date.formatted(.dateTime.day().month(.abbreviated).locale(locale))

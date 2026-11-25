@@ -30,7 +30,8 @@ struct FanControlSection: View {
                                   accessState: service.accessState,
                                   error: service.error,
                                   isWorking: service.isWorking,
-                                  resumeFailed: service.resumeFailed,
+                                  systemControlUnconfirmed: service.awaitingSystemControl,
+                                  interruption: service.interruption,
                                   mode: modeBinding,
                                   coolingLevel: $coolingLevel,
                                   curves: curvesBinding,
@@ -83,7 +84,8 @@ struct FanControlCardContent: View {
     let accessState: FanControlService.AccessState
     let error: FanControlErrorCode?
     let isWorking: Bool
-    var resumeFailed = false
+    let systemControlUnconfirmed: Bool
+    let interruption: FanControlInterruption?
     @Binding var mode: FanControlMode
     @Binding var coolingLevel: Int
     @Binding var curves: [FanControlCurve]
@@ -217,13 +219,13 @@ struct FanControlCardContent: View {
     }
 
     private var statusHeader: some View {
-        HStack(spacing: 8) {
-            Image(systemName: snapshot.isCooling ? "fanblades.fill" : "fanblades")
+        let cooling = snapshot.isCooling && !systemControlUnconfirmed
+        return HStack(spacing: 8) {
+            Image(systemName: cooling ? "fanblades.fill" : "fanblades")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(snapshot.isCooling ? AnyShapeStyle(Color.cyan)
-                                                     : AnyShapeStyle(Color.secondary))
+                .foregroundStyle(cooling ? AnyShapeStyle(Color.cyan) : AnyShapeStyle(Color.secondary))
                 .symbolEffect(.variableColor.iterative, options: .repeating,
-                              isActive: snapshot.isCooling)
+                              isActive: cooling)
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 1) {
@@ -239,7 +241,8 @@ struct FanControlCardContent: View {
                 }
                 Text(statusText)
                     .font(.system(size: 10).monospacedDigit())
-                    .foregroundStyle(snapshot.isCooling ? Color.cyan : Color.secondary)
+                    .foregroundStyle(cooling ? Color.cyan : Color.secondary)
+                    .accessibilityIdentifier("fanControl.status")
             }
             Spacer()
             if isWorking { ProgressView().controlSize(.small) }
@@ -319,7 +322,7 @@ struct FanControlCardContent: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(isWorking)
+                .disabled(isWorking || systemControlUnconfirmed)
                 .frame(maxWidth: .infinity)
             case .curve:
                 Button(strings.applyCurve) {
@@ -327,13 +330,14 @@ struct FanControlCardContent: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(isWorking || !curveCanRun)
+                .disabled(isWorking || systemControlUnconfirmed || !curveCanRun)
                 .frame(maxWidth: .infinity)
             }
         }
     }
 
     private var statusText: String {
+        if systemControlUnconfirmed { return strings.controlUnconfirmed }
         guard snapshot.isCooling else { return strings.systemControl }
         let level = snapshot.coolingLevel ?? FanControlPolicy.defaultCoolingLevel
         switch snapshot.configuration?.mode ?? .manual {
@@ -360,32 +364,35 @@ struct FanControlCardContent: View {
         case .alreadyControlled: return strings.alreadyControlled
         case .unsupportedHardware: return strings.unsupported
         case .helperUnavailable: return strings.helperUnavailable
-        case .controlFailed: return strings.failed
+        case .controlFailed where !systemControlUnconfirmed: return strings.failed
         case .authorizationRequired: return strings.approvalCaption
-        case .noFans, .none: break
+        case .controlFailed, .noFans, .none: break
         }
         if accessState == .notRegistered, !snapshot.fans.isEmpty { return strings.approvalCaption }
         if accessState == .requiresApproval { return strings.approvalCaption }
-        // The kept curve or speed could not be brought back after a wake or a
-        // safety stop. Without this the card reads as if it were still running.
-        if resumeFailed, !snapshot.isCooling { return strings.failed }
-        switch snapshot.stopReason {
-        case .temperatureUnavailable: return strings.temperatureUnavailable
-        case .timeLimit, .appDisconnected, .heartbeatLost, .hardwareChanged,
-             .thermalPressure, .recovery:
-            return strings.safetyStopped
-        case .none:
-            return nil
+        if systemControlUnconfirmed { return strings.awaitingSystemControl }
+        guard !snapshot.isCooling else { return nil }
+        switch interruption {
+        case .dismissed: return nil
+        case .applyFailed: return strings.applyFailed
+        case .resumeFailed: return strings.failed
+        case .stopped(nil): return strings.controlStopped
+        case .stopped(.temperatureUnavailable): return strings.temperatureUnavailable
+        case .stopped: return strings.safetyStopped
+        case nil: return snapshot.stopReason == nil ? nil : strings.controlStopped
         }
     }
 
     private var messageIsError: Bool {
-        if resumeFailed, !snapshot.isCooling { return true }
         switch error {
         case .alreadyControlled, .unsupportedHardware, .helperUnavailable, .controlFailed:
             return true
         default:
-            return false
+            break
+        }
+        switch interruption {
+        case .stopped, .applyFailed, .resumeFailed: return !snapshot.isCooling
+        case .dismissed, .none: return false
         }
     }
 
