@@ -33,12 +33,6 @@ enum NotchLockScreenSupport {
         NotchSupport.modules(in: defaults).contains(.music)
     }
 
-    /// A paused song stays while the Mac is locked once it has played there,
-    /// so it can be resumed; one paused long before never takes the screen.
-    static func showsMusic(isPlaying: Bool, playedWhileLocked: Bool) -> Bool {
-        isPlaying || playedWhileLocked
-    }
-
     /// The timer is suspended while locked, so a countdown that reaches its
     /// end there is read as finished rather than stuck at zero.
     static func timerFinished(_ session: NotchTimerSession, at now: TimeInterval) -> Bool {
