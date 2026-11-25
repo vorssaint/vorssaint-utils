@@ -9,6 +9,8 @@ struct NotchWatchSettingsControls: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchWatchEnabled) private var enabled = true
     @AppStorage(DefaultsKey.notchWatchSound) private var sound = true
+    @AppStorage(DefaultsKey.notchWatchSoundName) private var soundName = Defaults.defaultNotchWatchSoundName
+    @AppStorage(DefaultsKey.notchWatchSoundRepeat) private var soundRepeat = false
     private var text: NotchWatchStrings { FeatureStrings.notchWatch(l10n.language) }
 
     var body: some View {
@@ -18,6 +20,24 @@ struct NotchWatchSettingsControls: View {
             Text(text.description).font(.caption).foregroundStyle(.secondary)
             if enabled {
                 Toggle(text.sound, isOn: $sound)
+                if sound {
+                    Picker(text.soundPicker, selection: $soundName) {
+                        ForEach(AlertSoundStrings.sortedNames(TextSnippetSupport.alertSoundNames,
+                                                              language: l10n.language), id: \.self) { name in
+                            Text(AlertSoundStrings.displayName(for: name, language: l10n.language)).tag(name)
+                        }
+                        if NotchWatchSupport.resolvedSoundName() != soundName {
+                            Text(text.soundUnavailable).tag(soundName)
+                        }
+                    }
+                    .onChange(of: soundName) { _, _ in
+                        NotchWatchService.shared.previewSound()
+                    }
+                    Toggle(text.soundRepeat, isOn: $soundRepeat)
+                    Text(text.soundRepeatCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 PermissionRow(kind: .screenRecording)
             }
         }

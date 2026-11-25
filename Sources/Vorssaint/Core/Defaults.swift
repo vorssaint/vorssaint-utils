@@ -922,6 +922,8 @@ enum DefaultsKey {
     // Watch: any part of any window read live in the island.
     static let notchWatchEnabled = "notchWatchEnabled"
     static let notchWatchSound = "notchWatchSound"
+    static let notchWatchSoundName = "notchWatchSoundName"
+    static let notchWatchSoundRepeat = "notchWatchSoundRepeat"
     static let notchWatchCondition = "notchWatchCondition"
     static let notchCalendarEnabled = "notchCalendarEnabled"
     static let notchCalendarCountdown = "notchCalendarCountdown"
@@ -1228,6 +1230,9 @@ enum Defaults {
     static let allowedMonitorIntervals = [1, 2, 5]
     static let defaultKeyboardDebounceWindowMs = 5
     static let defaultSnippetSoundName = "Tink"
+    /// Watch's first alert was Glass; keep that as the default so upgrades
+    /// keep the ding people already know.
+    static let defaultNotchWatchSoundName = "Glass"
     static let allowedKeyboardDebounceWindowRange = 0...500
     /// Stepper increment for the keyboard debounce window. Kept at 1 ms so
     /// magnetic-keyboard users can pick values below the old 5 ms UI step
@@ -1573,6 +1578,8 @@ enum Defaults {
         DefaultsKey.notchDownloadsEnabled: true,
         DefaultsKey.notchWatchEnabled: true,
         DefaultsKey.notchWatchSound: true,
+        DefaultsKey.notchWatchSoundName: defaultNotchWatchSoundName,
+        DefaultsKey.notchWatchSoundRepeat: false,
         DefaultsKey.notchWatchCondition: NotchWatchCondition.changes.rawValue,
         DefaultsKey.notchEnabled: false,
         DefaultsKey.notchDisplay: NotchDisplay.automatic.rawValue,

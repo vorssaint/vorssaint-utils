@@ -52,9 +52,13 @@ final class NotchWatchService: ObservableObject {
     /// hidden until it is allowed again.
     @Published private(set) var permissionMissing = false
 
-    /// The page is on screen: read more often so the preview feels live.
+    /// The page is on screen: read more often so the preview feels live,
+    /// and a repeating alert can stop once someone has looked.
     var pageVisible = false {
-        didSet { if pageVisible, !oldValue, isActive { restartLoop() } }
+        didSet {
+            if pageVisible { alert.stop() }
+            if pageVisible, !oldValue, isActive { restartLoop() }
+        }
     }
 
     var isActive: Bool { target != nil && (state == .watching || state == .hidden) }
@@ -73,9 +77,19 @@ final class NotchWatchService: ObservableObject {
     /// A chosen area can still be preparing after its selector closes.
     /// Stopping or choosing again makes that preparation stale.
     private var choiceGeneration = UUID()
-    private lazy var tone = NSSound(contentsOfFile: "/System/Library/Sounds/Glass.aiff", byReference: false)
+    private var tone: NSSound?
+    private var toneName: String?
+    /// Same repeating budget as a finished timer: every couple of seconds
+    /// for up to five minutes, until the page opens or the watch stops.
+    private lazy var alert = NotchTimerAlert(sound: { [weak self] in self?.playTone() },
+                                             stopSound: { [weak self] in self?.tone?.stop() })
 
     private init() {}
+
+    /// Plays the chosen alert once so the settings picker can preview it.
+    func previewSound() {
+        playTone()
+    }
 
     func syncWithPreferences() {
         guard NotchWatchSupport.isEnabled() else { stop(); return }
@@ -169,6 +183,7 @@ final class NotchWatchService: ObservableObject {
         selection = nil
         choosing?.cancel()
         cancelLoop()
+        alert.stop()
         target = nil
         state = .idle
         preview = nil
@@ -217,6 +232,7 @@ final class NotchWatchService: ObservableObject {
     private func begin(_ target: NotchWatchTarget) {
         // Another area must not show the last one's picture while it is first read.
         if target != self.target { preview = nil }
+        alert.stop()
         self.target = target
         state = .watching
         startedAt = Date()
@@ -362,9 +378,7 @@ final class NotchWatchService: ObservableObject {
         state = .finished(outcome)
         let strings = FeatureStrings.notchWatch(L10n.shared.language)
         let title = strings.outcome(outcome)
-        if UserDefaults.standard.bool(forKey: DefaultsKey.notchWatchSound) {
-            if let tone { tone.stop(); tone.play() } else { NSSound.beep() }
-        }
+        speakUp()
         let notch = NotchService.shared
         let onPage = notch.expanded && notch.selected == .watch
         let shown = onPage || notch.show(NotchNotice(event: .watch, title: title, detail: target.appName,
@@ -375,6 +389,27 @@ final class NotchWatchService: ObservableObject {
         // Hidden in a full-screen app or while the Mac is locked, the island
         // cannot speak up, and the person is counting on hearing about it.
         if !shown { Notifier.post(title: title, body: target.windowTitle ?? target.appName) }
+        // Already looking at the page: a repeating alert would only nag.
+        if onPage { alert.stop() }
+    }
+
+    private func speakUp() {
+        guard NotchWatchSupport.isSoundEnabled() else { return }
+        if NotchWatchSupport.repeatsSound() {
+            alert.start(enabled: true)
+        } else {
+            alert.stop()
+            playTone()
+        }
+    }
+
+    private func playTone() {
+        let name = NotchWatchSupport.resolvedSoundName()
+        if toneName != name {
+            tone = NSSound(contentsOfFile: TextSnippetSupport.soundFileURL(for: name).path, byReference: false)
+            toneName = tone == nil ? nil : name
+        }
+        if let tone { tone.stop(); tone.play() } else { NSSound.beep() }
     }
 
     // MARK: Helpers

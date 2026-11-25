@@ -56,6 +56,9 @@ This update reduces the work Vorssaint does at startup and improves window switc
 ### Contributors
 Thanks to @13v13reddy, @amithm7, @andrewcdelaney, @andy-kelly, @Arhurpro77, @Backware, @binjamshid, @blakster, @CommanderCRM, @davidmessem, @ego1s1, @EugeneCarldotme, @GeezusChrotch, @hash00, @heisdanne, @howardyu60211, @imuhammadnadeem, @iva-zhu, @JosueM1109, @kaiwenfa, @KushagraIndurkhya, @LeLocTai, @Narangor, @nh4ttruong, @nodegan, @razeenwasif, @retomi, @royhenengel, @salvatoremiceli, @SanRive, @Snrlx-Media, @STUXKY, @TC-Virtuoso, @trenaryja, @whizzzkid, @ywu73 and @Zekuath.
 
+### Added
+- Watch can pick which alert sound to play, and optionally keep repeating it for up to five minutes until you open Watch or stop it. Useful when a single ding is easy to miss, like waiting for concert tickets. Settings → Dynamic Island → Content → Watch.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary

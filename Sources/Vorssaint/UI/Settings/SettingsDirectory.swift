@@ -256,6 +256,7 @@ enum SettingsDirectory {
 #endif
         let mascot = FeatureStrings.notchMascot(language)
         let activities = FeatureStrings.notchActivities(language)
+        let notchWatch = FeatureStrings.notchWatch(language)
         let lockScreen = FeatureStrings.notchLockScreen(language)
         let hover = state.on(DefaultsKey.notchOpenOnHover)
         let hideFullscreen = state.on(DefaultsKey.notchHideInFullscreen)
@@ -279,6 +280,8 @@ enum SettingsDirectory {
                   feature: .notchCalendar, notch: .module(.calendar)),
             .init([FeatureStrings.notchNotifications(language).hideSystemBanner], feature: .notchNotifications, notch: .module(.notifications)),
             .init([activities.soundEnabled, activities.hideTimerCountdown], feature: .notchTimer, notch: .module(.timer)),
+            .init([notchWatch.title, notchWatch.sound, notchWatch.soundPicker, notchWatch.soundRepeat, "alert"],
+                  feature: .notchWatch, notch: .module(.watch)),
             .init([notch.dragReveal], feature: .shelf, notch: .module(.files), when: state.on(DefaultsKey.notchShelf)),
             .init([notch.clipboardActivity, "clipboard"], feature: .clipboardHistory, notch: .module(.clipboard)),
             .init([FeatureStrings.notchClipboardSize(language).entrySize], feature: .clipboardHistory,

@@ -97,6 +97,13 @@ enum NotchWatchChoiceTests {
         var permissionMissing = false
         var starts = 0
         var loopStops = 0
+        /// Mirrors the production repeating alert so extracted `stop()` still compiles.
+        let alert = AlertStub()
+        final class AlertStub {
+            var stops = 0
+            func stop() { stops += 1 }
+            func start(enabled: Bool) {}
+        }
         func CGPreflightScreenCaptureAccess() -> Bool { true }
         static func windowInfo(_ id: CGWindowID) -> WindowInfo? { WindowInfo() }
         func begin(_ target: NotchWatchTarget) { self.target = target; state = .watching; starts += 1 }
@@ -138,8 +145,8 @@ enum NotchWatchChoiceTests {
         late(.region(.init(windowID: 1)))
         await Task.yield()
         suite.expect(selector.cancellations == 1 && stopped.selection == nil && stopped.starts == 0
-                        && stopped.target == nil && notch.opens == 0,
-                     "stopping closes the selector and rejects its late result")
+                        && stopped.target == nil && stopped.alert.stops == 1 && notch.opens == 0,
+                     "stopping closes the selector, silences its alert and rejects its late result")
 
         let preparing = Service()
         let preparation = Task { await preparing.watch(.init(), choice: preparing.choiceGeneration) }
