@@ -437,6 +437,22 @@ enum FanControlPolicy {
         return values
     }
 
+    /// Spread between the fastest and slowest fan, when at least two fans
+    /// report a plausible RPM. A single fan has nothing to compare against.
+    static func fanImbalance(_ speeds: [Double]) -> Double? {
+        let valid = speeds.filter(validReading)
+        guard valid.count >= 2, let fastest = valid.max(), let slowest = valid.min() else { return nil }
+        return fastest - slowest
+    }
+
+    /// True when telemetry is short of a fan or one of its readings is invalid.
+    /// The monitor drops the whole cached set on a failed read, so this is a
+    /// separate alert from a sustained RPM spread.
+    static func fansNotReporting(_ speeds: [Double], expectedCount: Int) -> Bool {
+        guard expectedCount > 0 else { return false }
+        return speeds.count < expectedCount || speeds.contains { !validReading($0) }
+    }
+
     static func menuBarValue(for speeds: [Double]) -> String? {
         guard !speeds.isEmpty, speeds.allSatisfy(validReading) else { return nil }
         return speeds.map { String(Int($0.rounded())) }.joined(separator: "/")

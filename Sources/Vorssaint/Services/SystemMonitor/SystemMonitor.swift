@@ -51,6 +51,9 @@ struct SystemSnapshot {
     var memorySwapUsed: UInt64?
     var memoryPressure: MemoryPressure = .unknown
     var fanSpeeds: [Double] = []
+    /// The uptime timestamp of the last real fan read. Cached speeds keep their
+    /// original timestamp so a brief spread cannot age into a sustained alert.
+    var fanSpeedsReadAt: TimeInterval?
 
     // Network
     var netDownBytesPerSec: Double?
@@ -201,6 +204,7 @@ final class SystemMonitor: ObservableObject {
     private var gpuTemperatureCache: CachedSensorReading?
     private var batteryTemperatureCache: CachedSensorReading?
     private var lastFanSpeeds: [Double] = []
+    private var lastFanSpeedsReadAt: TimeInterval?
     private var missedFanSpeedSamples = 0
     private var lastDiskReading: DiskReading?
     private var lastPowerReading: PowerReading?
@@ -566,6 +570,7 @@ final class SystemMonitor: ObservableObject {
         let alertMemory = defaults.bool(forKey: DefaultsKey.monitorAlertMemory)
         let alertDisk = defaults.bool(forKey: DefaultsKey.monitorAlertDisk)
         let alertBattery = hasInternalBattery && defaults.bool(forKey: DefaultsKey.monitorAlertBattery)
+        let alertFanRPMImbalance = defaults.bool(forKey: DefaultsKey.monitorAlertFanRPMImbalance)
 
         plan.needCPU = panelCPU || defaults.bool(forKey: DefaultsKey.menuBarCPU) || alertCPU
         // Per-core bars live under the panel's CPU row only: a CPU shown in the
@@ -600,8 +605,10 @@ final class SystemMonitor: ObservableObject {
                 || defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature) || alertBatteryTemperature)
         if defaults.bool(forKey: AppFeature.fanControl.availabilityKey),
            Self.fanTelemetryAvailable {
+            // The alert samples fans on its own: it must not depend on the
+            // speed being pinned to the menu bar.
             plan.needFanSpeed = fullMonitorVisible || menuPanelNeeds.fanSpeed
-                || defaults.bool(forKey: DefaultsKey.menuBarFanSpeed)
+                || defaults.bool(forKey: DefaultsKey.menuBarFanSpeed) || alertFanRPMImbalance
             plan.needFanSpeedMenuBar = defaults.bool(forKey: DefaultsKey.menuBarFanSpeed)
         }
         // The island preview in Settings shows the device card too; the
@@ -940,14 +947,19 @@ final class SystemMonitor: ObservableObject {
                 if take(plan.fanSpeedKind) {
                     if let speeds = self.readFanSpeeds() {
                         self.lastFanSpeeds = speeds
+                        self.lastFanSpeedsReadAt = now
                         self.missedFanSpeedSamples = 0
                     } else if self.missedFanSpeedSamples < 3 {
                         self.missedFanSpeedSamples += 1
                     } else {
                         self.lastFanSpeeds = []
+                        self.lastFanSpeedsReadAt = nil
                     }
                 }
                 next.fanSpeeds = self.lastFanSpeeds
+                // Carried over unchanged on skipped ticks, so repeats cannot
+                // count as a sustained imbalance.
+                next.fanSpeedsReadAt = self.lastFanSpeedsReadAt
             }
 
             if plan.needConnectedDevices {

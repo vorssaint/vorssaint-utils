@@ -600,6 +600,7 @@ extension AppFeature {
         (DefaultsKey.monitorAlertMemory, .monitorMemory),
         (DefaultsKey.monitorAlertDisk, .monitorDisk),
         (DefaultsKey.monitorAlertBattery, .monitorPower),
+        (DefaultsKey.monitorAlertFanRPMImbalance, .fanControl),
     ]
 
     static func anyMonitorAlertEnabled(includingDisk: Bool = true,

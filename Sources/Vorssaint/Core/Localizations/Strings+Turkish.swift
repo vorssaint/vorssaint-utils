@@ -103,6 +103,8 @@ extension Strings {
         notifySessionEndedBody: "Süre doldu. Mac yeniden normal şekilde uyuyacak.",
         notifyBatteryTitle: "Vorssaint devre dışı",
         notifyBatteryBody: "Pil düşük. Şarjı korumak için normal uyku geri yüklendi.",
+        notifyFanNotReportingTitle: "Fan not reporting",
+        notifyFanNotReportingBody: "A fan stopped reporting its speed.",
         adminPromptClamshellOn: "Vorssaint’in, Mac’i kapak kapalıyken çalıştırmak için parolana ihtiyacı var.",
         adminPromptClamshellOff: "Vorssaint’in, Mac’in normal uykusunu geri yüklemek için parolana ihtiyacı var.",
         adminPromptRecover: "Mac’in uykusu kapalıyken Vorssaint kapandı. Normal uykuyu geri yüklemek için parolayı gir.",

@@ -345,7 +345,12 @@ extension MonitorAlertFeatureStrings {
         batteryTemperature: "높은 배터리 온도",
         batteryTemperatureThreshold: "온도",
         batteryTemperatureTitle: "배터리 과열",
-        batteryTemperatureBodyFormat: "배터리 온도가 %@에 도달했습니다."
+        batteryTemperatureBodyFormat: "배터리 온도가 %@에 도달했습니다.",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 }
 
@@ -2734,6 +2739,11 @@ struct MonitorAlertFeatureStrings {
     let batteryTemperatureThreshold: String
     let batteryTemperatureTitle: String
     let batteryTemperatureBodyFormat: String
+    let fanRPMImbalance: String
+    let fanRPMImbalanceThreshold: String
+    let fanRPMFormat: String
+    let fanRPMImbalanceTitle: String
+    let fanRPMImbalanceBodyFormat: String
 
     static let enUS = MonitorAlertFeatureStrings(
         section: "Alerts",
@@ -2767,7 +2777,12 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "High battery temperature",
         batteryTemperatureThreshold: "Temperature above",
         batteryTemperatureTitle: "Hot battery",
-        batteryTemperatureBodyFormat: "Battery reached %@."
+        batteryTemperatureBodyFormat: "Battery reached %@.",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 
     static let ptBR = MonitorAlertFeatureStrings(
@@ -2802,7 +2817,12 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Temperatura alta da bateria",
         batteryTemperatureThreshold: "Temperatura acima de",
         batteryTemperatureTitle: "Bateria quente",
-        batteryTemperatureBodyFormat: "A bateria chegou a %@."
+        batteryTemperatureBodyFormat: "A bateria chegou a %@.",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 
     static let tr = MonitorAlertFeatureStrings(
@@ -2837,7 +2857,12 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Yüksek pil sıcaklığı",
         batteryTemperatureThreshold: "Sıcaklık şu değerin üstünde",
         batteryTemperatureTitle: "Pil sıcak",
-        batteryTemperatureBodyFormat: "Pil %@ değerine ulaştı."
+        batteryTemperatureBodyFormat: "Pil %@ değerine ulaştı.",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 
     static let ru = MonitorAlertFeatureStrings(
@@ -2872,7 +2897,12 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Высокая температура батареи",
         batteryTemperatureThreshold: "Температура выше",
         batteryTemperatureTitle: "Батарея перегрета",
-        batteryTemperatureBodyFormat: "Батарея достигла %@."
+        batteryTemperatureBodyFormat: "Батарея достигла %@.",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 
     static let es = MonitorAlertFeatureStrings(
@@ -2907,7 +2937,12 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Temperatura de la batería alta",
         batteryTemperatureThreshold: "Temperatura por encima de",
         batteryTemperatureTitle: "Batería caliente",
-        batteryTemperatureBodyFormat: "La batería llegó a %@."
+        batteryTemperatureBodyFormat: "La batería llegó a %@.",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 
     static let sk = MonitorAlertFeatureStrings(
@@ -2942,7 +2977,12 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Vysoká teplota batérie",
         batteryTemperatureThreshold: "Teplota nad",
         batteryTemperatureTitle: "Horúca batéria",
-        batteryTemperatureBodyFormat: "Batéria dosiahla %@."
+        batteryTemperatureBodyFormat: "Batéria dosiahla %@.",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 
     static let de = MonitorAlertFeatureStrings(
@@ -2977,7 +3017,12 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Hohe Akkutemperatur",
         batteryTemperatureThreshold: "Temperatur über",
         batteryTemperatureTitle: "Heißer Akku",
-        batteryTemperatureBodyFormat: "Der Akku hat %@ erreicht."
+        batteryTemperatureBodyFormat: "Der Akku hat %@ erreicht.",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 
     static let fr = MonitorAlertFeatureStrings(
@@ -3012,7 +3057,12 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Température de la batterie élevée",
         batteryTemperatureThreshold: "Température au-dessus de",
         batteryTemperatureTitle: "Batterie chaude",
-        batteryTemperatureBodyFormat: "La batterie a atteint %@."
+        batteryTemperatureBodyFormat: "La batterie a atteint %@.",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 
     static let it = MonitorAlertFeatureStrings(
@@ -3047,7 +3097,12 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Temperatura batteria alta",
         batteryTemperatureThreshold: "Temperatura sopra",
         batteryTemperatureTitle: "Batteria calda",
-        batteryTemperatureBodyFormat: "La batteria ha raggiunto %@."
+        batteryTemperatureBodyFormat: "La batteria ha raggiunto %@.",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 
     static let ja = MonitorAlertFeatureStrings(
@@ -3082,7 +3137,12 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "バッテリー温度が高い",
         batteryTemperatureThreshold: "温度が次を超過",
         batteryTemperatureTitle: "バッテリーが高温",
-        batteryTemperatureBodyFormat: "バッテリーが %@ に達しました。"
+        batteryTemperatureBodyFormat: "バッテリーが %@ に達しました。",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 
     static let zhHans = MonitorAlertFeatureStrings(
@@ -3117,7 +3177,12 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "电池温度过高",
         batteryTemperatureThreshold: "温度高于",
         batteryTemperatureTitle: "电池过热",
-        batteryTemperatureBodyFormat: "电池已达到 %@。"
+        batteryTemperatureBodyFormat: "电池已达到 %@。",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 
     static let zhTW = MonitorAlertFeatureStrings(
@@ -3152,7 +3217,12 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "電池溫度過高",
         batteryTemperatureThreshold: "溫度高於",
         batteryTemperatureTitle: "電池過熱",
-        batteryTemperatureBodyFormat: "電池已達到 %@。"
+        batteryTemperatureBodyFormat: "電池已達到 %@。",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 
     static let zhHK = MonitorAlertFeatureStrings(
@@ -3187,7 +3257,12 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "電池溫度過高",
         batteryTemperatureThreshold: "溫度高於",
         batteryTemperatureTitle: "電池過熱",
-        batteryTemperatureBodyFormat: "電池已達到 %@。"
+        batteryTemperatureBodyFormat: "電池已達到 %@。",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 }
 
@@ -3398,7 +3473,12 @@ extension MonitorAlertFeatureStrings {
         batteryTemperature: "Висока температура акумулятора",
         batteryTemperatureThreshold: "Температура вище",
         batteryTemperatureTitle: "Гарячий акумулятор",
-        batteryTemperatureBodyFormat: "Акумулятор нагрівся до %@."
+        batteryTemperatureBodyFormat: "Акумулятор нагрівся до %@.",
+        fanRPMImbalance: "Fan RPM imbalance",
+        fanRPMImbalanceThreshold: "Fans differ by more than",
+        fanRPMFormat: "%d RPM",
+        fanRPMImbalanceTitle: "Fan RPM imbalance",
+        fanRPMImbalanceBodyFormat: "Fans differ by %d RPM (%d and %d)"
     )
 }
 

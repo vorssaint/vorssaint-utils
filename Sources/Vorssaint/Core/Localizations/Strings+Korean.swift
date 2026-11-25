@@ -103,6 +103,8 @@ extension Strings {
         notifySessionEndedBody: "설정한 시간이 지났습니다. Mac이 다시 평소처럼 절전 모드로 전환됩니다.",
         notifyBatteryTitle: "Vorssaint를 껐습니다",
         notifyBatteryBody: "배터리 잔량이 낮습니다. 충전을 보호하기 위해 일반 절전 모드로 되돌렸습니다.",
+        notifyFanNotReportingTitle: "Fan not reporting",
+        notifyFanNotReportingBody: "A fan stopped reporting its speed.",
         adminPromptClamshellOn: "덮개를 닫아도 계속 사용하려면 Vorssaint에 관리자 암호가 필요합니다.",
         adminPromptClamshellOff: "Mac의 일반 절전 모드를 복원하려면 관리자 암호가 필요합니다.",
         adminPromptRecover: "Mac의 절전이 비활성화된 상태에서 Vorssaint가 종료되었습니다. 일반 절전 모드를 복원하려면 암호를 입력하세요.",

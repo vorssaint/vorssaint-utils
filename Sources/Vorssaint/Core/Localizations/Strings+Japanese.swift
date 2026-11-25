@@ -103,6 +103,8 @@ extension Strings {
         notifySessionEndedBody: "時間になりました。Mac は再び通常どおりスリープします。",
         notifyBatteryTitle: "Vorssaint をオフにしました",
         notifyBatteryBody: "バッテリー残量が少なくなりました。充電を保護するため通常のスリープに戻しました。",
+        notifyFanNotReportingTitle: "Fan not reporting",
+        notifyFanNotReportingBody: "A fan stopped reporting its speed.",
         adminPromptClamshellOn: "ふたを閉じても続けるには、Vorssaint にパスワードが必要です。",
         adminPromptClamshellOff: "Mac の通常のスリープを元に戻すにはパスワードが必要です。",
         adminPromptRecover: "Mac のスリープを無効化したまま Vorssaint が終了しました。通常のスリープに戻すにはパスワードを入力してください。",

@@ -259,6 +259,8 @@ struct Strings {
     let notifySessionEndedBody: String
     let notifyBatteryTitle: String
     let notifyBatteryBody: String
+    let notifyFanNotReportingTitle: String
+    let notifyFanNotReportingBody: String
 
     // MARK: Administrator prompts (shown by macOS password dialogs)
     let adminPromptClamshellOn: String
@@ -1443,6 +1445,8 @@ extension Strings {
         notifySessionEndedBody: "O tempo acabou. O Mac voltará a suspender normalmente.",
         notifyBatteryTitle: "Vorssaint desativado",
         notifyBatteryBody: "Bateria baixa. A suspensão normal foi restaurada para proteger a carga.",
+        notifyFanNotReportingTitle: "Fan not reporting",
+        notifyFanNotReportingBody: "A fan stopped reporting its speed.",
         adminPromptClamshellOn: "O Vorssaint precisa da sua senha para manter o Mac ativo com a tampa fechada.",
         adminPromptClamshellOff: "O Vorssaint precisa da sua senha para reativar a suspensão normal do Mac.",
         adminPromptRecover: "O Vorssaint foi encerrado com a suspensão do Mac desativada. Digite a senha para restaurar a suspensão normal.",
@@ -2579,6 +2583,8 @@ extension Strings {
         notifySessionEndedBody: "Time is up. The Mac will sleep normally again.",
         notifyBatteryTitle: "Vorssaint disabled",
         notifyBatteryBody: "Low battery. Normal sleep was restored to protect the charge.",
+        notifyFanNotReportingTitle: "Fan not reporting",
+        notifyFanNotReportingBody: "A fan stopped reporting its speed.",
         adminPromptClamshellOn: "Vorssaint needs your password to keep the Mac going with the lid closed.",
         adminPromptClamshellOff: "Vorssaint needs your password to restore the Mac’s normal sleep.",
         adminPromptRecover: "Vorssaint quit while the Mac’s sleep was disabled. Enter the password to restore normal sleep.",

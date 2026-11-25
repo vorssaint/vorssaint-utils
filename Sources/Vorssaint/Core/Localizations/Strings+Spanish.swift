@@ -103,6 +103,8 @@ extension Strings {
         notifySessionEndedBody: "Se acabó el tiempo. El Mac volverá a entrar en reposo con normalidad.",
         notifyBatteryTitle: "Vorssaint desactivado",
         notifyBatteryBody: "Batería baja. Se restauró el reposo normal para proteger la carga.",
+        notifyFanNotReportingTitle: "Fan not reporting",
+        notifyFanNotReportingBody: "A fan stopped reporting its speed.",
         adminPromptClamshellOn: "Vorssaint necesita tu contraseña para seguir con la tapa cerrada.",
         adminPromptClamshellOff: "Vorssaint necesita tu contraseña para restaurar el reposo normal del Mac.",
         adminPromptRecover: "Vorssaint se cerró mientras el reposo del Mac estaba desactivado. Introduce la contraseña para restaurar el reposo normal.",

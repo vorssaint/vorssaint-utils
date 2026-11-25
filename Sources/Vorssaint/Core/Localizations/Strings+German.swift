@@ -103,6 +103,8 @@ extension Strings {
         notifySessionEndedBody: "Die Zeit ist abgelaufen. Der Mac wechselt wieder normal in den Ruhezustand.",
         notifyBatteryTitle: "Vorssaint deaktiviert",
         notifyBatteryBody: "Niedriger Batteriestand. Der normale Ruhezustand wurde wiederhergestellt, um die Ladung zu schonen.",
+        notifyFanNotReportingTitle: "Fan not reporting",
+        notifyFanNotReportingBody: "A fan stopped reporting its speed.",
         adminPromptClamshellOn: "Vorssaint benötigt dein Passwort, um bei zugeklapptem Mac weiterzulaufen.",
         adminPromptClamshellOff: "Vorssaint benötigt dein Passwort, um den normalen Ruhezustand des Mac wiederherzustellen.",
         adminPromptRecover: "Vorssaint wurde beendet, während der Ruhezustand des Mac deaktiviert war. Gib das Passwort ein, um den normalen Ruhezustand wiederherzustellen.",

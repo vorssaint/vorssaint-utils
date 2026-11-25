@@ -13,6 +13,7 @@ final class MonitorAlertService {
     private var cpuUsageGate = SustainedAlertGate()
     private var cpuTemperatureGate = SustainedAlertGate()
     private var batteryTemperatureGate = SustainedAlertGate()
+    private var fanImbalanceGate = SustainedAlertGate()
     private var lastSent: [MonitorAlertKind: Date] = [:]
     private var diskAlertGate = DiskAlertGate()
 
@@ -60,6 +61,7 @@ final class MonitorAlertService {
         cpuUsageGate.reset()
         cpuTemperatureGate.reset()
         batteryTemperatureGate.reset()
+        fanImbalanceGate.reset()
     }
 
     private func evaluate(_ snapshot: SystemSnapshot) {
@@ -68,6 +70,7 @@ final class MonitorAlertService {
             cpuUsageGate.reset()
             cpuTemperatureGate.reset()
             batteryTemperatureGate.reset()
+            fanImbalanceGate.reset()
             return
         }
         let strings = FeatureStrings.monitorAlerts(L10n.shared.language)
@@ -94,6 +97,12 @@ final class MonitorAlertService {
             evaluateBatteryTemperature(snapshot, defaults: defaults, strings: strings)
         } else {
             batteryTemperatureGate.reset()
+        }
+
+        if alertOn(DefaultsKey.monitorAlertFanRPMImbalance, .fanControl) {
+            evaluateFanRPM(snapshot, defaults: defaults, strings: strings)
+        } else {
+            fanImbalanceGate.reset()
         }
 
         if alertOn(DefaultsKey.monitorAlertMemory, .monitorMemory),
@@ -185,6 +194,35 @@ final class MonitorAlertService {
                           Self.formattedTemperature(temperature, defaults: defaults)))
     }
 
+    private func evaluateFanRPM(_ snapshot: SystemSnapshot,
+                                defaults: UserDefaults,
+                                strings: MonitorAlertFeatureStrings) {
+        // A missing or invalid fan is a different problem from a spread between
+        // two working fans. The monitor needs several failed reads before it
+        // drops a cached set, so a one-off SMC glitch does not reach this point.
+        if FanControlPolicy.fansNotReporting(snapshot.fanSpeeds,
+                                             expectedCount: SystemMonitor.fanTelemetryCount) {
+            fanImbalanceGate.reset()
+            let base = L10n.shared.s
+            send(.fanNotReporting,
+                 title: base.notifyFanNotReportingTitle,
+                 body: base.notifyFanNotReportingBody)
+            return
+        }
+        let threshold = Defaults.sanitizedFanRPMImbalanceThreshold(
+            defaults.integer(forKey: DefaultsKey.monitorAlertFanRPMImbalanceThreshold))
+        guard let imbalance = FanControlPolicy.fanImbalance(snapshot.fanSpeeds),
+              imbalance > Double(threshold),
+              fanImbalanceGate.shouldAlert(reading: imbalance,
+                                           threshold: Double(threshold),
+                                           readAt: snapshot.fanSpeedsReadAt) else { return }
+        let speeds = snapshot.fanSpeeds.filter(FanControlPolicy.validReading).map { Int($0.rounded()) }
+        send(.fanImbalance,
+             title: strings.fanRPMImbalanceTitle,
+             body: String(format: strings.fanRPMImbalanceBodyFormat,
+                          Int(imbalance.rounded()), speeds.max() ?? 0, speeds.min() ?? 0))
+    }
+
     private static func formattedTemperature(_ celsius: Double, defaults: UserDefaults) -> String {
         let unit = TemperatureUnit(rawValue: defaults.string(forKey: DefaultsKey.temperatureUnit) ?? "") ?? .celsius
         return MetricFormat.temperature(celsius, unit: unit)
@@ -204,7 +242,8 @@ final class MonitorAlertService {
 }
 
 private enum MonitorAlertKind: Hashable {
-    case cpu, cpuTemperature, memory, battery, batteryTemperature
+    case cpu, cpuTemperature, memory, disk, battery, batteryTemperature
+    case fanImbalance, fanNotReporting
 }
 
 /// A volume's first warning and its escalation each start a six-hour interval
