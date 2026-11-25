@@ -27,7 +27,9 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     let player: AVPlayer
 
     @Published private(set) var duration: Double = 0
-    @Published private(set) var currentTime: Double = 0
+    /// The playhead always uses the original recording's clock, even while
+    /// the player still holds the composition for a previous trim.
+    @Published private(set) var sourceTime: Double = 0
     @Published private(set) var isPlaying = false
     @Published private(set) var thumbnails: [CGImage] = []
     @Published private(set) var isExporting = false
@@ -58,9 +60,13 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     private var waveformTask: Task<Void, Never>?
     private var previewTask: Task<Void, Never>?
     private var compositionTask: Task<Void, Never>?
+    private var sourcePreviewTask: Task<Void, Never>?
+    private var previewSeeks = RecorderPreviewSeeks()
+    private var isScrubbing = false
+    @Published private var draftTrim: RecorderSupport.Trim?
+    /// Timing of the installed item. The initial item is the whole source.
+    private var installedEdit = RecorderEditDocument()
     private lazy var sourceAsset = AVURLAsset(url: take.videoURL)
-    /// How long the finished video is, which is what the transport shows.
-    @Published private(set) var outputDuration: Double = 0
     private(set) var sourceSize: CGSize = .zero
     private var sourceFrameRate = 60
     private var audioTrackIDs: [RecorderAudioSource: CMPersistentTrackID] = [:]
@@ -76,7 +82,15 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     }
 
     var trim: RecorderSupport.Trim {
-        document.trim(duration: duration)
+        draftTrim ?? document.trim(duration: duration)
+    }
+
+    var currentTime: Double {
+        RecorderTimeline.outputTime(forSource: sourceTime, trim: trim, cuts: document.cuts) ?? 0
+    }
+
+    var outputDuration: Double {
+        RecorderTimeline.outputDuration(trim: trim, cuts: document.cuts)
     }
 
     init(take: RecorderTakeStore.Take) {
@@ -118,6 +132,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         waveformTask?.cancel()
         previewTask?.cancel()
         compositionTask?.cancel()
+        sourcePreviewTask?.cancel()
     }
 
     // MARK: - Loading
@@ -152,23 +167,40 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     /// scrubbing instead of skipped over by a player pretending.
     func rebuildComposition() {
         compositionTask?.cancel()
-        guard duration > 0 else { return }
-        let ranges = document.keptRanges(duration: duration)
+        guard duration > 0, draftTrim == nil else { return }
+        previewTask?.cancel()
+        player.pause()
+        let edit = document
+        let ranges = edit.keptRanges(duration: duration)
         let asset = sourceAsset
         compositionTask = Task { @MainActor [weak self] in
-            guard let result = await RecorderComposition.build(from: asset,
-                                                               ranges: ranges,
-                                                               includesAudio: true),
-                  let self, !Task.isCancelled
-            else { return }
+            let result = await RecorderComposition.build(from: asset, ranges: ranges, includesAudio: true)
+            guard let self, !Task.isCancelled else { return }
+            defer {
+                if !Task.isCancelled {
+                    self.compositionTask = nil
+                    self.resumePreviewIfReady()
+                }
+            }
+            guard let result else {
+                self.pause()
+                return
+            }
+            var appearance = self.document
+            appearance.trimStart = edit.trimStart
+            appearance.trimEnd = edit.trimEnd
+            appearance.cuts = edit.cuts
             let item = AVPlayerItem(asset: result.asset)
+            let videoComposition = await self.makePreviewComposition(asset: result.asset, edit: appearance)
+            guard !Task.isCancelled else { return }
+            if !self.isPickingBlurArea, !self.isAimingZoom { item.videoComposition = videoComposition }
             self.audioTrackIDs = result.audioTrackIDs
             item.audioMix = RecorderComposition.audioMix(trackIDs: result.audioTrackIDs,
                                                          document: self.document)
-            self.player.replaceCurrentItem(with: item)
+            self.installPreview(item, edit: edit)
             self.player.isMuted = false
-            self.outputDuration = CMTimeGetSeconds(result.duration)
-            self.rebuildPreview()
+            self.seek(to: self.sourceTime)
+            if appearance.affectsPicture(self.document) { self.rebuildPreview() }
         }
     }
 
@@ -222,49 +254,78 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     private func observeTime() {
         timeObserver = player.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 1.0 / 30, preferredTimescale: 600),
-            queue: .main) { [weak self] time in
-                guard let self else { return }
-                // The player runs on the FINISHED video's clock; the strip,
-                // the lane and everything else run on the recording's. One
-                // conversion, in one place.
-                self.currentTime = CMTimeGetSeconds(time)
-                if self.isPlaying, self.currentTime >= self.outputDuration - 0.02 {
+            queue: .main) { [weak self] _ in
+                guard let self, self.isPlaying, self.previewCanPlay else { return }
+                // Read the installed item, since a queued tick can belong to
+                // the item that was just replaced or to an earlier seek.
+                let time = self.player.currentTime().seconds
+                guard time.isFinite else { return }
+                self.sourceTime = RecorderTimeline.sourceTime(
+                    forOutput: time, trim: self.installedEdit.trim(duration: self.duration),
+                    cuts: self.installedEdit.cuts)
+                if self.currentTime >= self.outputDuration - 0.02 {
                     self.pause()
-                    self.seekOutput(to: 0)
+                    self.seek(to: self.trim.start)
                 }
             }
     }
 
-    /// Where the playhead is in the RECORDING, which is what the timeline draws.
-    var sourceTime: Double {
-        RecorderTimeline.sourceTime(forOutput: currentTime,
-                                    trim: document.trim(duration: duration),
-                                    cuts: RecorderTimeline.normalized(cuts: document.cuts,
-                                                                      duration: duration))
+    private var previewCanPlay: Bool {
+        !isScrubbing && draftTrim == nil && compositionTask == nil && !previewSeeks.isBusy
     }
 
-    private func seekOutput(to seconds: Double) {
-        let clamped = max(0, min(seconds, max(0, outputDuration)))
-        currentTime = clamped
-        player.seek(to: CMTime(seconds: clamped, preferredTimescale: 600),
-                    toleranceBefore: .zero,
-                    toleranceAfter: .zero)
+    private func resumePreviewIfReady() {
+        if isPlaying, previewCanPlay, player.rate == 0 { player.play() }
+    }
+
+    private func installPreview(_ item: AVPlayerItem, edit: RecorderEditDocument) {
+        previewTask?.cancel()
+        previewSeeks.reset()
+        player.currentItem?.cancelPendingSeeks()
+        installedEdit = edit
+        player.replaceCurrentItem(with: item)
+    }
+
+    @discardableResult
+    private func seekPreview(to source: Double, exact: Bool) -> Bool {
+        let playerTrim = installedEdit.trim(duration: duration)
+        guard let last = RecorderTimeline.keptRanges(trim: playerTrim, cuts: installedEdit.cuts).last else { return false }
+        // Keep the final seek within the last segment, even for a sub-frame tail.
+        let target = last.contains(source)
+            ? min(source, RecorderTimeline.lastPreviewTime(in: last, frameDuration: 1 / Double(sourceFrameRate)))
+            : source
+        guard let time = RecorderTimeline.outputTime(forSource: target, trim: playerTrim,
+                                                      cuts: installedEdit.cuts) else { return false }
+        previewSeeks.enqueue(.init(time: time, exact: exact))
+        performNextPreviewSeek()
+        return true
+    }
+
+    private func performNextPreviewSeek() {
+        guard let next = previewSeeks.takeNext() else {
+            resumePreviewIfReady()
+            return
+        }
+        let time = CMTime(seconds: next.request.time, preferredTimescale: 60_000)
+        let tolerance = next.request.exact ? CMTime.zero : CMTime(value: 1, timescale: CMTimeScale(sourceFrameRate))
+        player.seek(to: time, toleranceBefore: tolerance, toleranceAfter: tolerance) { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self, self.previewSeeks.finish(next.id) else { return }
+                self.performNextPreviewSeek()
+            }
+        }
     }
 
     func togglePlay() {
         isPlaying ? pause() : play()
     }
 
-    /// The playhead is already on the FINISHED video's clock, and so is the
-    /// composition the player holds: the trim is baked into it. So the only
-    /// thing play has to catch is a playhead sitting at the very end, which
-    /// would otherwise play nothing.
     func play() {
         if outputDuration > 0, currentTime >= outputDuration - 0.05 {
-            seekOutput(to: 0)
+            seek(to: trim.start)
         }
-        player.play()
         isPlaying = true
+        resumePreviewIfReady()
     }
 
     func pause() {
@@ -272,38 +333,105 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         isPlaying = false
     }
 
-    /// Takes a moment of the RECORDING. A moment that was cut out lands on
-    /// the nearest one that still exists, so the playhead can never sit in a
-    /// place the video does not have.
-    func seek(to seconds: Double) {
-        let trim = document.trim(duration: duration)
-        let cuts = RecorderTimeline.normalized(cuts: document.cuts, duration: duration)
-        if let output = RecorderTimeline.outputTime(forSource: seconds, trim: trim, cuts: cuts) {
-            seekOutput(to: output)
-            return
+    /// Move the timeline immediately. Pending playback callbacks cannot move
+    /// it back while the player catches up.
+    func seek(to seconds: Double, exact: Bool = true) {
+        let ranges = RecorderTimeline.keptRanges(trim: trim, cuts: document.cuts)
+        guard let target = RecorderTimeline.nearestKeptTime(to: seconds, in: ranges) else { return }
+        if sourceTime != target { sourceTime = target }
+        seekPreview(to: target, exact: exact)
+    }
+
+    func scrub(to seconds: Double) {
+        if !isScrubbing {
+            isScrubbing = true
+            player.pause()
         }
-        let ranges = RecorderTimeline.keptRanges(trim: trim, cuts: cuts)
-        guard let nearest = ranges.min(by: {
-            abs($0.lowerBound - seconds) < abs($1.lowerBound - seconds)
-        }) else { return }
-        seek(to: nearest.lowerBound)
+        seek(to: seconds, exact: false)
+    }
+
+    func finishScrubbing() {
+        guard isScrubbing else { return }
+        isScrubbing = false
+        seek(to: sourceTime)
+        resumePreviewIfReady()
     }
 
     // MARK: - Editing
 
-    func setTrimStart(_ seconds: Double) {
-        var next = document
-        next.trimStart = seconds
-        next.trimEnd = document.trimEnd == 0 ? duration : document.trimEnd
-        document = next.sanitized(duration: duration)
-        seek(to: trim.start)
+    typealias TrimEdge = RecorderTimeline.Edge
+
+    func dragTrim(_ edge: TrimEdge, offset: Double) {
+        guard duration > 0, offset.isFinite else { return }
+        let original = document.trim(duration: duration)
+        let minimum = min(RecorderSupport.minimumTrimSeconds, duration)
+        var next = original
+        switch edge {
+        case .start:
+            next.start = min(max(0, original.start + offset), max(0, original.end - minimum))
+        case .end:
+            next.end = min(duration, max(original.start + minimum, original.end + offset))
+        }
+        guard next != trim,
+              let time = RecorderTimeline.trimPreviewTime(for: edge, trim: next, cuts: document.cuts,
+                                                          frameDuration: 1 / Double(sourceFrameRate))
+        else { return }
+        if draftTrim == nil {
+            pause()
+            compositionTask?.cancel()
+            compositionTask = nil
+        }
+        draftTrim = next
+        if sourceTime != time { sourceTime = time }
+        if !seekTrimPreview(to: time) { prepareSourcePreview() }
     }
 
-    func setTrimEnd(_ seconds: Double) {
+    @discardableResult
+    private func seekTrimPreview(to time: Double) -> Bool {
+        // A one-frame seek tolerance can reach across the join even when
+        // the requested frame is on the kept side.
+        let frame = 1 / Double(sourceFrameRate)
+        let nearCut = document.cuts.contains { time >= $0.start - frame && time <= $0.end + frame }
+        return seekPreview(to: time, exact: nearCut)
+    }
+
+    func finishTrimming() {
+        guard let draftTrim else { return }
+        sourcePreviewTask?.cancel()
+        sourcePreviewTask = nil
+        self.draftTrim = nil
         var next = document
-        next.trimEnd = seconds
-        document = next.sanitized(duration: duration)
-        seek(to: max(trim.start, trim.end - 0.05))
+        if draftTrim != document.trim(duration: duration) {
+            next.trimStart = draftTrim.start
+            next.trimEnd = draftTrim.end
+            document = next
+        } else if installedEdit.affectsTiming(document) {
+            rebuildComposition()
+        } else {
+            seek(to: sourceTime)
+        }
+    }
+
+    /// Shrinking a range can scrub in the existing item. Extending it may
+    /// reveal footage that item doesn't contain, so prepare the whole source
+    /// once and keep it until the drag ends.
+    private func prepareSourcePreview() {
+        guard sourcePreviewTask == nil else { return }
+        let asset = sourceAsset
+        var edit = document
+        edit.trimStart = 0
+        edit.trimEnd = duration
+        edit.cuts = []
+        sourcePreviewTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let videoComposition = await self.makePreviewComposition(asset: asset, edit: edit)
+            guard !Task.isCancelled, self.draftTrim != nil else { return }
+            let item = AVPlayerItem(asset: asset)
+            if !self.isPickingBlurArea, !self.isAimingZoom { item.videoComposition = videoComposition }
+            self.audioTrackIDs = [:]
+            self.installPreview(item, edit: edit)
+            self.seekTrimPreview(to: self.sourceTime)
+        }
     }
 
     func toggleSound() {
@@ -381,39 +509,33 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         previewTask?.cancel()
         // While an area is being drawn the stage shows the recording as
         // captured; whatever changed meanwhile is drawn when the drawing ends.
-        guard duration > 0, sourceSize.width > 0, !isPickingBlurArea, !isAimingZoom else { return }
-        let document = document
-        let track = pointerTrack
-        let sourceSize = sourceSize
-        let frameRate = sourceFrameRate
-        let duration = duration
+        guard let item = player.currentItem, !isPickingBlurArea, !isAimingZoom else { return }
+        var edit = document
+        edit.trimStart = installedEdit.trimStart
+        edit.trimEnd = installedEdit.trimEnd
+        edit.cuts = installedEdit.cuts
         previewTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 120_000_000)
-            guard !Task.isCancelled, let self, let item = self.player.currentItem else { return }
-            guard let plan = RecorderComposer.makePlan(document: document,
-                                                       track: track,
-                                                       sourceSize: sourceSize,
-                                                       frameRate: frameRate,
-                                                       duration: duration) else {
-                item.videoComposition = nil
-                return
-            }
-            let composer = RecorderComposer(plan: plan)
-            let asset = item.asset
-            guard let videoTrack = try? await asset.loadTracks(withMediaType: .video).first,
-                  !Task.isCancelled
-            else { return }
-            let composition = await RecorderComposer.videoComposition(
-                track: videoTrack,
-                asset: asset,
-                duration: CMTime(seconds: duration, preferredTimescale: 600),
-                frameRate: frameRate,
-                composer: composer,
-                sourceSize: sourceSize,
-                outputSize: composer.canvasSize)
-            guard !Task.isCancelled else { return }
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled, let self, self.player.currentItem === item else { return }
+            let composition = await self.makePreviewComposition(asset: item.asset, edit: edit)
+            guard !Task.isCancelled, self.player.currentItem === item else { return }
             item.videoComposition = composition
         }
+    }
+
+    private func makePreviewComposition(asset: AVAsset, edit: RecorderEditDocument) async -> AVVideoComposition? {
+        let size = sourceSize
+        let rate = sourceFrameRate
+        let duration = duration
+        guard let plan = RecorderComposer.makePlan(document: edit, track: pointerTrack, sourceSize: size,
+                                                   frameRate: rate, duration: duration),
+              let track = try? await asset.loadTracks(withMediaType: .video).first,
+              !Task.isCancelled
+        else { return nil }
+        let composer = RecorderComposer(plan: plan)
+        return await RecorderComposer.videoComposition(
+            track: track, asset: asset, duration: CMTime(seconds: duration, preferredTimescale: 600),
+            frameRate: rate, composer: composer, sourceSize: size, outputSize: composer.canvasSize)
     }
 
     func undo() {

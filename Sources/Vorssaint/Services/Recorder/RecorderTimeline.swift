@@ -152,8 +152,31 @@ enum RecorderTimeline {
         return ranges.filter { $0.upperBound - $0.lowerBound > 0.001 }
     }
 
+    /// At a join, the upper bound already belongs to the next segment.
+    static func lastPreviewTime(in range: ClosedRange<Double>, frameDuration: Double) -> Double {
+        max(range.lowerBound, range.upperBound - frameDuration)
+    }
+
+    static func trimPreviewTime(for edge: Edge, trim: RecorderSupport.Trim,
+                                cuts: [Cut], frameDuration: Double) -> Double? {
+        let ranges = keptRanges(trim: trim, cuts: cuts)
+        switch edge {
+        case .start: return ranges.first?.lowerBound
+        case .end: return ranges.last.map { lastPreviewTime(in: $0, frameDuration: frameDuration) }
+        }
+    }
+
     static func outputDuration(trim: RecorderSupport.Trim, cuts: [Cut]) -> Double {
         keptRanges(trim: trim, cuts: cuts).reduce(0) { $0 + ($1.upperBound - $1.lowerBound) }
+    }
+
+    /// Clamp to the kept footage, including either side of a cut and the end
+    /// of the last segment. Outside the trim, the nearest end wins.
+    static func nearestKeptTime(to time: Double, in ranges: [ClosedRange<Double>]) -> Double? {
+        guard time.isFinite else { return nil }
+        return ranges.lazy
+            .map { min(max(time, $0.lowerBound), $0.upperBound) }
+            .min { abs($0 - time) < abs($1 - time) }
     }
 
     /// Finished-video time to recording time. The composer draws frames the

@@ -15,6 +15,8 @@ enum RecorderFeatureTests {
     static func run(_ suite: TestSuite) {
         RecorderSystemAudioTapLifecycleTests.run(suite)
         RecorderSystemAudioTrustTests.run(suite)
+        previewSeekCoalescing(suite)
+        trimPreviewBoundaries(suite)
         func pageVisible(_ page: SettingsPage, available: Set<AppFeature>) -> Bool {
             FeatureVisibilitySupport.isPageVisible(page) { available.contains($0) }
         }
@@ -1550,5 +1552,70 @@ enum RecorderFeatureTests {
                "an app nested in an Applications subfolder counts as installed, same as installedApplications' own recursive walk")
 
         scratchPaths.forEach { try? FileManager.default.removeItem(at: $0) }
+    }
+
+    private static func previewSeekCoalescing(_ suite: TestSuite) {
+        var seeks = RecorderPreviewSeeks()
+        seeks.enqueue(.init(time: 1, exact: false))
+        guard let first = seeks.takeNext() else {
+            suite.expect(false, "the first preview seek starts immediately")
+            return
+        }
+        seeks.enqueue(.init(time: 2, exact: false))
+        seeks.enqueue(.init(time: 3, exact: false))
+        seeks.enqueue(.init(time: 3, exact: true))
+        suite.expect(seeks.takeNext() == nil && seeks.isBusy,
+                     "scrubbing lets the current frame finish instead of cancelling every seek")
+        suite.expect(seeks.finish(first.id), "the current seek can complete")
+        guard let last = seeks.takeNext() else {
+            suite.expect(false, "the released position is still queued")
+            return
+        }
+        suite.expect(last.request == .init(time: 3, exact: true),
+                     "release supersedes intermediate seeks and requests an exact frame")
+        seeks.reset()
+        seeks.enqueue(.init(time: 0, exact: true))
+        let replacement = seeks.takeNext()
+        suite.expect(!seeks.finish(last.id) && seeks.isBusy,
+                     "an old item's delayed completion cannot advance the replacement item's queue")
+        suite.expect(replacement.map { seeks.finish($0.id) } == true && !seeks.isBusy,
+                     "the replacement seek drains normally")
+
+        let kept = [1.0...3.0, 5.0...7.0]
+        suite.expect(RecorderTimeline.nearestKeptTime(to: 8, in: kept) == 7
+                    && RecorderTimeline.nearestKeptTime(to: 3.2, in: kept) == 3
+                    && RecorderTimeline.nearestKeptTime(to: 4.8, in: kept) == 5,
+                     "scrubbing snaps to the nearest kept boundary, including the right trim edge")
+    }
+
+    private static func trimPreviewBoundaries(_ suite: TestSuite) {
+        let frame = 1.0 / 30
+        let original = RecorderSupport.Trim(start: 0, end: 12)
+        let cuts = [RecorderTimeline.Cut(start: 2, end: 4), RecorderTimeline.Cut(start: 7, end: 9)]
+        // The installed item joins source 0–2, 4–7 and 9–12 at output times 2 and 5.
+        let cases: [(edge: RecorderTimeline.Edge, handle: Double, source: Double, output: Double)] = [
+            (.end, 8, 7 - frame, 5 - frame), // inside the second cut
+            (.end, 7, 7 - frame, 5 - frame), // exactly at the join
+            (.start, 8, 9, 5),                // the opposite handle keeps the following segment
+            (.end, 6, 6 - frame, 4 - frame), // in continuous footage
+            (.end, 9.01, 9, 5),              // less than a frame of the final segment survives
+        ]
+        for test in cases {
+            var draft = original
+            switch test.edge {
+            case .start: draft.start = test.handle
+            case .end: draft.end = test.handle
+            }
+            let label = "\(test.edge) trim at \(test.handle)s"
+            guard let source = RecorderTimeline.trimPreviewTime(for: test.edge, trim: draft, cuts: cuts,
+                                                                frameDuration: frame),
+                  let output = RecorderTimeline.outputTime(forSource: source, trim: original, cuts: cuts)
+            else {
+                suite.expect(false, "\(label) has a preview in the installed composition")
+                continue
+            }
+            suite.expectClose(source, test.source, "\(label) previews the retained source frame")
+            suite.expectClose(output, test.output, "\(label) seeks to its position in the installed composition")
+        }
     }
 }

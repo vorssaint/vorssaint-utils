@@ -39,7 +39,7 @@ struct RecorderEditorView: View {
             HStack(spacing: 0) {
                 stage
                 Divider().opacity(0.5)
-                RecorderInspector(model: model)
+                RecorderInspector(model: model).equatable()
             }
             bottomBand
         }
@@ -790,7 +790,6 @@ private struct PlayerSurface: NSViewRepresentable {
 /// second place to type numbers, because there does not need to be.
 private struct Filmstrip: View {
     @ObservedObject var model: RecorderEditorModel
-    private enum Handle { case start, end }
 
     private let handleWidth: CGFloat = 12
     private let coordinateSpace = "recorderFilmstrip"
@@ -798,6 +797,8 @@ private struct Filmstrip: View {
     /// scrubbing. Decided on its first movement and kept, so letting go of
     /// Shift halfway through does not turn the pick into a scrub.
     @State private var dragPicksCut: Bool?
+    @GestureState private var scrubbing = false
+    @GestureState private var trimming = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -810,7 +811,7 @@ private struct Filmstrip: View {
             ZStack(alignment: .topLeading) {
                 // The strip itself is what scrubbing listens to. The handles
                 // sit above it with their own gestures, so a drag that starts
-                // on a handle trims and never moves the playhead too.
+                // on a handle trims instead of starting a second scrub.
                 // Dragging across the film scrubs, the way every simple
                 // editor does; holding Shift while dragging picks a stretch
                 // to remove instead. The picture follows the pointer either
@@ -820,6 +821,7 @@ private struct Filmstrip: View {
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 2)
+                            .updating($scrubbing) { _, active, _ in active = true }
                             .onChanged { value in
                                 let picksCut = dragPicksCut
                                     ?? NSEvent.modifierFlags.contains(.shift)
@@ -829,9 +831,9 @@ private struct Filmstrip: View {
                                     let from = seconds(at: value.startLocation.x, width: width)
                                     model.setCutSelection(min(from, to)...max(from, to))
                                 }
-                                model.seek(to: to)
+                                model.scrub(to: to)
                             }
-                            .onEnded { _ in dragPicksCut = nil }
+                            .onEnded { _ in finishScrubbing() }
                     )
                     .onTapGesture { location in
                         // A click goes to that moment and puts down any
@@ -896,6 +898,17 @@ private struct Filmstrip: View {
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .coordinateSpace(.named(coordinateSpace))
         }
+        .onChange(of: scrubbing) { _, active in
+            if !active { finishScrubbing() }
+        }
+        .onChange(of: trimming) { _, active in
+            if !active { model.finishTrimming() }
+        }
+    }
+
+    private func finishScrubbing() {
+        dragPicksCut = nil
+        model.finishScrubbing()
     }
 
     private var thumbnails: some View {
@@ -935,15 +948,14 @@ private struct Filmstrip: View {
             .allowsHitTesting(false)
     }
 
-    private func drag(_ handle: Handle, width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpace))
+    private func drag(_ handle: RecorderEditorModel.TrimEdge, width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 1, coordinateSpace: .named(coordinateSpace))
+            .updating($trimming) { _, active, _ in active = true }
             .onChanged { value in
-                let time = seconds(at: value.location.x, width: width)
-                switch handle {
-                case .start: model.setTrimStart(time)
-                case .end: model.setTrimEnd(time)
-                }
+                guard width > 0 else { return }
+                model.dragTrim(handle, offset: Double(value.translation.width / width) * model.duration)
             }
+            .onEnded { _ in model.finishTrimming() }
     }
 
     private func position(_ seconds: Double, width: CGFloat) -> CGFloat {
@@ -964,6 +976,7 @@ private struct Filmstrip: View {
 /// first question anybody asks about an automatic zoom: why is it here.
 private struct ClickRuler: View {
     @ObservedObject var model: RecorderEditorModel
+    @GestureState private var scrubbing = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -977,15 +990,18 @@ private struct ClickRuler: View {
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 0)
+                            .updating($scrubbing) { _, active, _ in active = true }
                             .onChanged { value in
-                                model.seek(to: Double(min(1, max(0, value.location.x / width)))
-                                            * duration)
+                                guard width > 0 else { return }
+                                model.scrub(to: Double(min(1, max(0, value.location.x / width))) * duration)
                             }
+                            .onEnded { _ in model.finishScrubbing() }
                     )
                 Rectangle()
                     .fill(Color.white.opacity(0.05))
                     .frame(height: 1)
                     .offset(y: proxy.size.height - 1)
+                    .allowsHitTesting(false)
                 ForEach(Array(model.pointerTrack.clicks.filter(\.isDown).enumerated()),
                         id: \.offset) { _, click in
                     Rectangle()
@@ -993,12 +1009,17 @@ private struct ClickRuler: View {
                         .frame(width: 1.5, height: 7)
                         .offset(x: CGFloat(min(1, max(0, click.time / duration))) * width,
                                 y: proxy.size.height - 8)
+                        .allowsHitTesting(false)
                 }
                 Rectangle()
                     .fill(Color.white)
                     .frame(width: 2, height: proxy.size.height)
                     .offset(x: CGFloat(min(1, max(0, model.sourceTime / duration))) * width - 1)
+                    .allowsHitTesting(false)
             }
+        }
+        .onChange(of: scrubbing) { _, active in
+            if !active { model.finishScrubbing() }
         }
     }
 }
