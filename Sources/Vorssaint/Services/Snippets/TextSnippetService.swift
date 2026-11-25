@@ -287,8 +287,10 @@ final class TextSnippetService {
             return Unmanaged.passUnretained(event)
         }
         guard type == .keyDown else { return Unmanaged.passUnretained(event) }
-        // Never react to our own synthetic typing.
-        guard event.getIntegerValueField(.eventSourceUserData) != Self.syntheticMarker else {
+        // Never react to our own synthetic typing, nor to Layout Fix's,
+        // which goes out through the same routine.
+        let userData = event.getIntegerValueField(.eventSourceUserData)
+        guard userData != Self.syntheticMarker, userData != OwnKeyEvent.layoutFixMarker else {
             return Unmanaged.passUnretained(event)
         }
         // Password fields: the system enables secure input; typing there must
@@ -462,9 +464,10 @@ final class TextSnippetService {
                               trailingText: String = "",
                               failureKeyCode: CGKeyCode? = nil,
                               failureFlags: CGEventFlags = [],
-                              didExpand: (() -> Void)? = nil) -> Bool {
+                              didExpand: (() -> Void)? = nil,
+                              marker: Int64 = syntheticMarker) -> Bool {
         let source = CGEventSource(stateID: .hidSystemState)
-        source?.userData = syntheticMarker
+        source?.userData = marker
 
         func post(_ event: CGEvent?) {
             event?.post(tap: .cghidEventTap)
