@@ -22,6 +22,10 @@ enum MenuBarBatteryWarningTests {
         typealias ReviewDefaults = MenuBarBatteryWarningTests.ReviewDefaults
         typealias MenuBarMetricSpacing = MenuBarBatteryWarningTests.MenuBarMetricSpacing
         typealias MenuBarMetricAppearance = MenuBarBatteryWarningTests.MenuBarMetricAppearance
+        static let stackedFontSize: CGFloat = 9.4
+        static let singleLineFontSize: CGFloat = 11.6
+        static let rateBlockReservedLines = ["↓999Kb", "↑999Kb", "R8888B", "W8888B",
+                                             "↓8888M", "↑8888M", "R8888M", "W8888M"]
         static let blockImageCache = NSCache<NSString, NSImage>()
         static let legacyBlockAttachmentNudge: CGFloat = 0
         static var style = MenuBarBlockStyle.dense
