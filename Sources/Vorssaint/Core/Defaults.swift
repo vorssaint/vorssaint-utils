@@ -647,6 +647,12 @@ enum DefaultsKey {
     static let wallpaperExcludedOwnPaths = "wallpaperExcludedOwnPaths"
     static let scratchpadShortcutEnabled = "scratchpadShortcutEnabled"
     static let scratchpadShortcut = "scratchpadShortcut"
+    static let aiBarShortcutEnabled = "aiBarShortcutEnabled"
+    static let aiBarShortcut = "aiBarShortcut"
+    static let aiBarEndpoint = "aiBarEndpoint"               // OpenAI-compatible base URL
+    static let aiBarModel = "aiBarModel"                     // model name; empty until chosen
+    static let aiBarLocalContext = "aiBarLocalContext"       // AIBarContextLevel for a model on this Mac
+    static let aiBarRemoteContext = "aiBarRemoteContext"     // AIBarContextLevel for any other endpoint
     static let commandBarShortcutEnabled = "commandBarShortcutEnabled"
     static let commandBarShortcut = "commandBarShortcut"
     /// Compact mode: an empty field shows nothing but itself. Off by default
@@ -1903,6 +1909,12 @@ enum Defaults {
         DefaultsKey.wallpaperFilter: "all",
         DefaultsKey.scratchpadShortcutEnabled: false,
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
+        DefaultsKey.aiBarShortcutEnabled: false,
+        DefaultsKey.aiBarShortcut: GlobalShortcut.aiBarDefault.storageValue,
+        DefaultsKey.aiBarEndpoint: "http://localhost:11434/v1",
+        DefaultsKey.aiBarModel: "",
+        DefaultsKey.aiBarLocalContext: AIBarContextLevel.fullPaths.rawValue,
+        DefaultsKey.aiBarRemoteContext: AIBarContextLevel.namesOnly.rawValue,
         DefaultsKey.commandBarShortcutEnabled: false,
         DefaultsKey.commandBarCompactMode: false,
         DefaultsKey.commandBarASCIILayoutEnabled: false,

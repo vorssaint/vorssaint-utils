@@ -206,7 +206,7 @@ enum WhatsNewInfo {
         "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
         "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
         "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview", "radialMenu",
-        "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager",
+        "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "aiBar",
         "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories",
         "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch",
         "notchMascot",
