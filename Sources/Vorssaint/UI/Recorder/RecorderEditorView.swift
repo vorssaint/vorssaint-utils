@@ -39,7 +39,7 @@ struct RecorderEditorView: View {
             HStack(spacing: 0) {
                 stage
                 Divider().opacity(0.5)
-                RecorderInspector(model: model)
+                RecorderInspector(model: model).equatable()
             }
             bottomBand
         }

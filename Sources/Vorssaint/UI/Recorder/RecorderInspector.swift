@@ -1,13 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 /// The panel down the side of the editor: three looks to start from, then the
 /// handful of things worth changing. Everything here changes the picture the
 /// preview is already showing, so nothing has to be imagined.
-struct RecorderInspector: View {
-    @ObservedObject var model: RecorderEditorModel
+struct RecorderInspector: View, Equatable {
+    let model: RecorderEditorModel
+    private let document: RecorderEditDocument
+    private let duration: Double
+    private let selectedText: RecorderTextOverlay?
+    private let selectedImage: RecorderImageOverlay?
+    private let selectedBlur: RecorderBlurRegion?
+    private let selectedZoom: RecorderTimeline.ZoomSegment?
+    private let isPickingBlurArea: Bool
     @ObservedObject private var l10n = L10n.shared
     @State private var showsBackdropPopover = false
     @State private var tab: Tab = .look
@@ -17,6 +25,42 @@ struct RecorderInspector: View {
     /// several lines, so Return is a new line and not a commit.
     @FocusState private var textFieldFocused: Bool
 
+    private static let width: CGFloat = 272
+    private static let horizontalInset: CGFloat = 16
+
+    init(model: RecorderEditorModel) {
+        self.model = model
+        document = model.document
+        duration = model.duration
+        selectedText = model.selectedText
+        selectedImage = model.selectedImage
+        selectedBlur = model.selectedBlur
+        selectedZoom = model.selectedZoom
+        isPickingBlurArea = model.isPickingBlurArea
+    }
+
+    // The editor's clock and trim are not inputs to the inspector. Comparing
+    // its displayed values keeps playback updates out of the panel's layout.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.model === rhs.model
+            && lhs.duration == rhs.duration
+            && lhs.selectedText == rhs.selectedText
+            && lhs.selectedImage == rhs.selectedImage
+            && lhs.selectedBlur == rhs.selectedBlur
+            && lhs.selectedZoom == rhs.selectedZoom
+            && lhs.isPickingBlurArea == rhs.isPickingBlurArea
+            && lhs.document.backdrop == rhs.document.backdrop
+            && lhs.document.aspect == rhs.document.aspect
+            && lhs.document.showsPointer == rhs.document.showsPointer
+            && lhs.document.pointerSmoothing == rhs.document.pointerSmoothing
+            && lhs.document.pointerSize == rhs.document.pointerSize
+            && lhs.document.showsClickRing == rhs.document.showsClickRing
+            && lhs.document.zoomEnabled == rhs.document.zoomEnabled
+            && lhs.document.zoomAmount == rhs.document.zoomAmount
+            && lhs.document.zoomsOnTyping == rhs.document.zoomsOnTyping
+            && lhs.document.zoomSegments.isEmpty == rhs.document.zoomSegments.isEmpty
+    }
+
     private var strings: RecorderFeatureStrings {
         FeatureStrings.recorder(l10n.language)
     }
@@ -25,22 +69,25 @@ struct RecorderInspector: View {
         FeatureStrings.screenshot(l10n.language)
     }
 
-    private enum Tab: String, CaseIterable {
+    private enum Tab: Int {
         case look, pointer, zoom
     }
+
+    private var backdropStyle: ScreenshotSupport.BackdropStyle { document.resolvedBackdrop }
+    private var showsBackdrop: Bool { backdropStyle.kind != .none }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 // Selecting a zoom swaps the whole panel to that zoom. The
                 // swap is what teaches the selection model, without a word.
-                if let text = model.selectedText {
+                if let text = selectedText {
                     selectedTextSection(text)
-                } else if let image = model.selectedImage {
+                } else if let image = selectedImage {
                     selectedImageSection(image)
-                } else if model.selectedBlur != nil {
-                    selectedBlurSection
-                } else if let selected = model.selectedZoom {
+                } else if let blur = selectedBlur {
+                    selectedBlurSection(blur)
+                } else if let selected = selectedZoom {
                     selectedZoomSection(selected)
                 } else {
                     tabPicker
@@ -63,22 +110,66 @@ struct RecorderInspector: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, Self.horizontalInset)
             .padding(.vertical, 14)
         }
         .scrollIndicators(.never)
-        .frame(width: 272)
+        .frame(width: Self.width)
         .background(.ultraThinMaterial)
     }
 
     private var tabPicker: some View {
-        Picker("", selection: $tab) {
-            Text(strings.lookLabel).tag(Tab.look)
-            Text(strings.pointerSectionLabel).tag(Tab.pointer)
-            Text(strings.zoomSectionLabel).tag(Tab.zoom)
+        TabPicker(labels: [strings.lookLabel, strings.pointerSectionLabel, strings.zoomSectionLabel],
+                  width: Self.width - 2 * Self.horizontalInset, selection: $tab)
+    }
+
+    private struct TabPicker: NSViewRepresentable {
+        let labels: [String]
+        let width: CGFloat
+        @Binding var selection: Tab
+
+        func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
+
+        func makeNSView(context: Context) -> NSSegmentedControl {
+            let control = NSSegmentedControl(labels: labels, trackingMode: .selectOne,
+                                             target: context.coordinator, action: #selector(Coordinator.selectTab(_:)))
+            updateNSView(control, context: context)
+            return control
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+
+        func updateNSView(_ control: NSSegmentedControl, context: Context) {
+            let coordinator = context.coordinator
+            coordinator.selection = $selection
+            if coordinator.labels != labels {
+                coordinator.labels = labels
+                for (index, label) in labels.enumerated() { control.setLabel(label, forSegment: index) }
+                let measurement = NSSegmentedControl(labels: labels, trackingMode: .selectOne, target: nil, action: nil)
+                measurement.segmentDistribution = .fillEqually
+                let size = measurement.intrinsicContentSize
+                coordinator.size = CGSize(width: min(size.width, width), height: size.height)
+                control.segmentDistribution = size.width <= width ? .fillEqually : .fillProportionally
+            }
+            if control.selectedSegment != selection.rawValue { control.selectedSegment = selection.rawValue }
+            control.isEnabled = context.environment.isEnabled
+        }
+
+        // The control can draw in the space reserved for the panel, even
+        // when its natural equal-segment width exceeds that space.
+        func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSSegmentedControl, context: Context) -> CGSize? {
+            context.coordinator.size
+        }
+
+        final class Coordinator: NSObject {
+            var selection: Binding<Tab>
+            var labels: [String] = []
+            var size: CGSize = .zero
+
+            init(selection: Binding<Tab>) { self.selection = selection }
+
+            @objc func selectTab(_ sender: NSSegmentedControl) {
+                if let tab = Tab(rawValue: sender.selectedSegment) { selection.wrappedValue = tab }
+            }
+        }
     }
 
     // MARK: - Look
@@ -98,7 +189,7 @@ struct RecorderInspector: View {
     private func lookCard(_ look: RecorderEditDocument.Look,
                           title: String,
                           icon: String) -> some View {
-        let selected = model.document.matches(look)
+        let selected = document.matches(look)
         let hovered = hoveredLook == look
         return Button {
             withAnimation(.easeOut(duration: 0.16)) {
@@ -177,14 +268,14 @@ struct RecorderInspector: View {
                 HStack(spacing: 8) {
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(LinearGradient(
-                            colors: BackdropPickerAssets.previewColors(for: model.backdropStyle),
+                            colors: BackdropPickerAssets.previewColors(for: backdropStyle),
                             startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(width: 26, height: 20)
                         .overlay {
                             RoundedRectangle(cornerRadius: 5, style: .continuous)
                                 .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
                         }
-                    Text(model.showsBackdrop
+                    Text(showsBackdrop
                          ? strings.backgroundSectionLabel
                          : FeatureStrings.screenshot(l10n.language).backdropNone)
                         .font(.system(size: 12))
@@ -209,18 +300,18 @@ struct RecorderInspector: View {
             }
             .pickerStyle(.menu)
 
-            if model.showsBackdrop {
+            if showsBackdrop {
                 VStack(spacing: 7) {
                     backgroundSlider(title: screenshotStrings.backdropPaddingLabel,
-                                     value: model.backdropStyle.padding,
+                                     value: backdropStyle.padding,
                                      onChange: { updateBackdrop(\.padding, to: $0) },
                                      onReset: { updateBackdrop(\.padding, to: 0.5) })
                     backgroundSlider(title: screenshotStrings.backdropCornersLabel,
-                                     value: model.backdropStyle.cornerRadius,
+                                     value: backdropStyle.cornerRadius,
                                      onChange: { updateBackdrop(\.cornerRadius, to: $0) },
                                      onReset: { updateBackdrop(\.cornerRadius, to: 0) })
                     backgroundSlider(title: screenshotStrings.backdropBlurLabel,
-                                     value: model.backdropStyle.blur,
+                                     value: backdropStyle.blur,
                                      onChange: { updateBackdrop(\.blur, to: $0) },
                                      onReset: { updateBackdrop(\.blur, to: 0) })
                 }
@@ -488,7 +579,7 @@ struct RecorderInspector: View {
 
     /// The area is the whole thing, and it is drawn on the picture rather than
     /// typed here: a blur that misses by a few pixels is not a blur.
-    private var selectedBlurSection: some View {
+    private func selectedBlurSection(_ blur: RecorderBlurRegion) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
                 model.selectLaneItem(.blur, id: nil)
@@ -515,26 +606,24 @@ struct RecorderInspector: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
-            .disabled(model.isPickingBlurArea)
-            Text(model.isPickingBlurArea ? strings.blurPickAreaHint : strings.blurCaption)
+            .disabled(isPickingBlurArea)
+            Text(isPickingBlurArea ? strings.blurPickAreaHint : strings.blurCaption)
                 .font(.system(size: 10.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let blur = model.selectedBlur {
-                let levels = ScreenshotSupport.BlurStrength.levels
-                valueSlider(title: screenshotStrings.blurStrengthLabel,
-                            value: Double(blur.strength),
-                            range: Double(levels.lowerBound)...Double(levels.upperBound),
-                            format: "%.0f",
-                            step: 1,
-                            onChange: { model.setSelectedBlurStrength(Int($0.rounded())) },
-                            onCommit: { model.commitZoomEdit() },
-                            onReset: {
-                                model.setSelectedBlurStrength(ScreenshotSupport.BlurStrength.defaultLevel)
-                                model.commitZoomEdit()
-                            })
-            }
+            let levels = ScreenshotSupport.BlurStrength.levels
+            valueSlider(title: screenshotStrings.blurStrengthLabel,
+                        value: Double(blur.strength),
+                        range: Double(levels.lowerBound)...Double(levels.upperBound),
+                        format: "%.0f",
+                        step: 1,
+                        onChange: { model.setSelectedBlurStrength(Int($0.rounded())) },
+                        onCommit: { model.commitZoomEdit() },
+                        onReset: {
+                            model.setSelectedBlurStrength(ScreenshotSupport.BlurStrength.defaultLevel)
+                            model.commitZoomEdit()
+                        })
 
             Button(strings.removeZoom) { model.removeSelectedBlur() }
                 .buttonStyle(.bordered)
@@ -621,7 +710,7 @@ struct RecorderInspector: View {
             Toggle(strings.pointerShowToggle, isOn: boolBinding(\.showsPointer))
                 .toggleStyle(.switch)
                 .controlSize(.mini)
-            if model.document.showsPointer {
+            if document.showsPointer {
                 Picker(strings.pointerSmoothingLabel, selection: smoothingBinding) {
                     Text(strings.pointerSmoothingOff)
                         .tag(RecorderMotion.Smoothing.off.rawValue)
@@ -634,7 +723,7 @@ struct RecorderInspector: View {
                 }
                 .pickerStyle(.menu)
                 valueSlider(title: strings.pointerSizeLabel,
-                            value: model.document.pointerSize,
+                            value: document.pointerSize,
                             range: RecorderSupport.pointerSizeRange,
                             format: "%.2f×",
                             onChange: { doubleBinding(\.pointerSize).wrappedValue = $0 },
@@ -658,7 +747,7 @@ struct RecorderInspector: View {
                     .toggleStyle(.switch)
                     .controlSize(.mini)
             }
-            if model.document.zoomEnabled {
+            if document.zoomEnabled {
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle(strings.typingZoomToggle, isOn: Binding(
                         get: { model.document.zoomsOnTyping },
@@ -670,12 +759,12 @@ struct RecorderInspector: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                if model.document.zoomSegments.isEmpty {
+                if document.zoomSegments.isEmpty {
                     zoomEmptyState
                 } else {
                     VStack(alignment: .leading, spacing: 9) {
                         valueSlider(title: strings.zoomAmountLabel,
-                                    value: model.document.zoomAmount,
+                                    value: document.zoomAmount,
                                     range: RecorderSupport.zoomAmountRange,
                                     format: "%.1f×",
                                     onChange: { doubleBinding(\.zoomAmount).wrappedValue = $0 },
