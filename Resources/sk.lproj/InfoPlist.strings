@@ -11,7 +11,7 @@
 "NSMicrophoneUsageDescription" = "Vorssaint nahráva váš mikrofón len vtedy, keď ho zapnete pre nahrávanie obrazovky. Zvuk ostáva na vašom Macu, pokiaľ sa nerozhodnete vytvoriť dočasný odkaz.";
 
 /* macOS Camera permission prompt. */
-"NSCameraUsageDescription" = "Vorssaint zobrazuje vašu kameru len v okne náhľadu, ktoré otvoríte, aby ste pred hovorom videli, ako vyzeráte. Nič sa nenahráva a nič neopustí váš Mac.";
+"NSCameraUsageDescription" = "Vorssaint zobrazuje vašu kameru len v okne náhľadu, ktoré otvoríte, aby ste pred hovorom videli, ako vyzeráte. Nič sa nenahráva a nič neopustí váš Mac. Používa ju aj Odomknutie tvárou, len keď je Mac zamknutý a vy ste ho zapli, na rozpoznanie vás; žiadny obraz sa neukladá.";
 
 /* macOS Downloads folder permission prompt. */
 "NSDownloadsFolderUsageDescription" = "Vorssaint kontroluje lokálne metadáta v priečinku Stiahnuté, aby preveril, usporiadal alebo presunul do Koša len potvrdené súbory z WhatsAppu, ktoré vyberiete. Čistenie tiež hľadá zabudnuté snímky obrazovky, ak ich sem ukladáte.";

@@ -130,6 +130,10 @@ extension AppFeature {
         // Log changes arrive as file events; a timer keeps countdowns and
         // limits current while the section is on.
         case .notch, .notchCalendar, .notchLyrics, .notchLiveEqualizer, .notchAgents: return .periodic
+        // Lock and wake notifications, and one coarse timer for the session.
+        case .faceUnlock: return .periodic
+        // App launch and activation notifications; the Services handler idles.
+        case .privacyLock: return .idle
         case .clipboardHistory, .urlCleaner, .extraBrightness,
              .monitorCPU, .monitorGPU, .monitorMemory,
              .monitorNetwork, .monitorDisk, .monitorPower, .connectedDevices:
