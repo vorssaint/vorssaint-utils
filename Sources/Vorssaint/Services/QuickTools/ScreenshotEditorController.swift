@@ -1435,8 +1435,12 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         FeatureStrings.screenshot(L10n.shared.language)
     }
 
+    /// The app the capture shows, kept for the copy the editor makes.
+    private let sourceBundleID: String?
+
     init(capture: ScreenshotSelectionController.Capture) {
         model = ScreenshotEditorModel(image: capture.image, scale: capture.scale)
+        sourceBundleID = capture.sourceBundleID
         sourceFormat = capture.sourceFormat
         super.init()
     }
@@ -1710,7 +1714,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     /// and the window's job is done, so nothing lingers to tidy up.
     func copyToClipboard() {
         guard let export = model.exportImage() else { return }
-        guard Self.copyImage(export, fileNamePrefix: strings.fileNamePrefix) else {
+        guard Self.copyImage(export, fileNamePrefix: strings.fileNamePrefix, source: sourceBundleID) else {
             NSSound.beep()
             return
         }
@@ -1720,12 +1724,13 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     @discardableResult
-    static func copyImage(_ export: ScreenshotRenderer.Export, fileNamePrefix: String) -> Bool {
+    static func copyImage(_ export: ScreenshotRenderer.Export, fileNamePrefix: String,
+                          source: String? = nil) -> Bool {
         guard let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
         else { return false }
         let payload = clipboardPayload(from: export, png: data)
         if UserDefaults.standard.bool(forKey: DefaultsKey.screenshotCopyImageOnly) {
-            return copyClipboardPayload(payload)
+            return copyClipboardPayload(payload, source: source)
         }
         guard let folder = ScreenshotSupport.copiedFilesDirectory() else { return false }
         let name = ScreenshotSupport.fileName(prefix: fileNamePrefix, date: Date())
@@ -1733,7 +1738,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                                                          directory: folder) else {
             return false
         }
-        guard copyFile(url, payload: payload, imageOnly: false) else {
+        guard copyFile(url, payload: payload, imageOnly: false, source: source) else {
             try? FileManager.default.removeItem(at: url)
             return false
         }
@@ -1744,11 +1749,12 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     @discardableResult
     static func copyFile(_ url: URL?, payload: ClipboardPayload,
                          imageOnly: Bool = UserDefaults.standard.bool(
-                            forKey: DefaultsKey.screenshotCopyImageOnly)) -> Bool {
+                            forKey: DefaultsKey.screenshotCopyImageOnly),
+                         source: String? = nil) -> Bool {
         // Chromium treats a file URL as a file even when the same item has
         // PNG/TIFF data. Keep the file representation for apps that need it,
         // and let image-only copies reach image paste targets instead.
-        if imageOnly { return copyClipboardPayload(payload) }
+        if imageOnly { return copyClipboardPayload(payload, source: source) }
         guard let url else { return false }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -1761,7 +1767,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             item.setData(tiff, forType: .tiff)
         }
         guard pasteboard.writeObjects([item]) else { return false }
-        pasteboard.declareVorssaintSource()
+        pasteboard.declareSource(source)
         return true
     }
 
@@ -1782,7 +1788,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     @discardableResult
-    static func copyClipboardPayload(_ payload: ClipboardPayload) -> Bool {
+    static func copyClipboardPayload(_ payload: ClipboardPayload, source: String? = nil) -> Bool {
         guard payload.png != nil || payload.tiff != nil else { return false }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -1794,7 +1800,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             item.setData(tiff, forType: .tiff)
         }
         guard pasteboard.writeObjects([item]) else { return false }
-        pasteboard.declareVorssaintSource()
+        pasteboard.declareSource(source)
         return true
     }
 
