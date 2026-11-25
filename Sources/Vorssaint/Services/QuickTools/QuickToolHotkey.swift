@@ -18,6 +18,7 @@ final class QuickToolHotkey {
     /// hears about this hotkey coming and going.
     private var claimedKey: String?
     var onPress: (() -> Void)?
+    var isRegistered: Bool { hotKeyRef != nil }
 
     init(id: UInt32) {
         hotKeyID = id

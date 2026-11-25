@@ -1276,7 +1276,7 @@ enum ClipboardFeatureTests {
             expectFormat(alertStrings.cpuBodyFormat, ["d"], "\(language.rawValue) CPU alert format")
             expectFormat(alertStrings.cpuTemperatureBodyFormat, ["@"],
                          "\(language.rawValue) CPU temperature alert format")
-            expectFormat(alertStrings.diskBodyFormat, ["@", "d"], "\(language.rawValue) disk alert format")
+            expectFormat(alertStrings.diskBodyFormat, ["@", "@"], "\(language.rawValue) disk alert format")
             expectFormat(alertStrings.batteryBodyFormat, ["d"], "\(language.rawValue) battery alert format")
             expectFormat(alertStrings.batteryTemperatureBodyFormat, ["@"],
                          "\(language.rawValue) battery temperature alert format")
@@ -1675,6 +1675,15 @@ enum ClipboardFeatureTests {
                                                                  plainText: "/tmp/example.txt") ?? "",
                     "/tmp/example.txt",
                     "clipboard history ignores non-web URL pasteboard types")
+        suite.expect(ClipboardHistoryPasteboardText.containsHTMLCells(
+                        "<TABLE class='sheet'><TR><TH>total</TH></TR></TABLE>"),
+                     "cell markup may include attributes and a single header cell")
+        for html in ["<p>chart</p>", "<table></table>",
+                     "<table-view><tr><td>chart</td></tr></table-view>",
+                     "<table><tr><td><img src='chart.png'></td></tr></table>"] {
+            suite.expect(!ClipboardHistoryPasteboardText.containsHTMLCells(html),
+                         "rich content and pictures in layout tables keep their image")
+        }
         suite.expect(!ClipboardHistorySensitiveText.looksSensitive("http://localhost:3000/page"),
                "clipboard history does not treat normal web URLs as secrets")
         suite.expect(ClipboardHistorySensitiveText.looksSensitive("https://example.com/callback?token=abc"),
@@ -1993,8 +2002,11 @@ enum ClipboardPreviewContract {
             struct Preferences {
                 var skipSensitive = Defaults.registeredDefaults[
                     DefaultsKey.clipboardHistoryFilterSensitiveText] as? Bool ?? true
+                var includeImages = false
                 func bool(forKey key: String) -> Bool {
-                    key == DefaultsKey.clipboardHistoryFilterSensitiveText && skipSensitive
+                    if key == DefaultsKey.clipboardHistoryFilterSensitiveText { return skipSensitive }
+                    if key == DefaultsKey.clipboardHistoryIncludeImagesFiles { return includeImages }
+                    return false
                 }
             }
             static var standard = Preferences()

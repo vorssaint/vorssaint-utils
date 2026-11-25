@@ -16,7 +16,10 @@ enum AgentUsagePollingTests {
         var turns: [String: Int] = [:]
         var waiting: [String: Int] = [:]
     }
-    struct Cursor { var modified: Date }
+    struct Cursor {
+        var modified: Date
+        var cursorPrefix = CursorTranscriptPrefix()
+    }
     class Fixture {
         static let poll: TimeInterval = 2
         static let pollWindow: TimeInterval = 30 * 60
