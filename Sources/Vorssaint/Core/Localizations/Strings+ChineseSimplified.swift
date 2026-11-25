@@ -556,6 +556,8 @@ extension Strings {
         shelfStep3: "需要时再把每个项目拖回任何 App。",
         shelfShakeToggle: "拖动时晃动鼠标打开",
         shelfShakeCaption: "按住某个项目时快速晃动指针，即可在光标附近呼出暂存架。",
+        shelfShiftToggle: "拖动时按下 Shift 键打开",
+        shelfShiftCaption: "按住某个项目时按下 Shift 键，即可在光标附近呼出暂存架。",
         shelfDropZoneToggle: "将拖动的文件保留在菜单栏",
         shelfDropZoneCaption: "拖动文件时，暂存架会出现在菜单栏图标下方。放下的内容就保存在那里，收进一个点按即可收起或打开的按钮，暂存架清空后按钮会消失。",
         shelfDropZoneCaptionTopCenter: "拖动文件时，暂存架会以徽章形式出现在屏幕顶部中间。放下的内容就保存在那里，收进一个点按即可打开的徽章，暂存架清空后徽章会消失。",

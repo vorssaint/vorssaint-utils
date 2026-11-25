@@ -2586,6 +2586,9 @@ enum SwitcherModelFeatureTests {
                "shelf shortcut defaults to Ctrl+Opt+Cmd+D")
         suite.expect(registeredDefaults[DefaultsKey.shelfShakeToOpen] as? Bool == true,
                "shelf shake opens by default once shelf is enabled")
+        suite.expect(registeredDefaults[DefaultsKey.shelfShiftToOpen] as? Bool == false
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.shelfShiftToOpen),
+               "opening the shelf with Shift during a drag is opt-in and travels with settings backups")
         suite.expect(registeredDefaults[DefaultsKey.shelfEdgeDragEnabled] as? Bool == false,
                "new shelf edge opening stays off by default")
         suite.expect(registeredDefaults[DefaultsKey.shelfCloseAfterDrop] as? Bool == false,

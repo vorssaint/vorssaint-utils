@@ -167,6 +167,7 @@ final class ShelfService: ObservableObject {
     private var mouseMonitor: Any?
     private var shakeSamples: [(t: TimeInterval, x: CGFloat)] = []
     private var lastSummon: TimeInterval = 0
+    private var shiftTrigger = ShelfShiftDragTrigger()
     /// Screen frame of the app's menu bar icon, set by the AppDelegate. The
     /// docked shelf hangs right under it, so this service can anchor there
     /// without reaching into the app layer. It lives on the type, not the
@@ -378,13 +379,14 @@ final class ShelfService: ObservableObject {
         if automaticExclusions != sanitized { automaticExclusions = sanitized }
     }
 
-    /// Re-reads the sub-preferences that need the global drag monitor (shake to
-    /// open and the docked shelf); the monitor lives only while the shelf is on
-    /// and at least one of them wants it.
+    /// Re-reads the sub-preferences that need the global drag monitor (shake or
+    /// Shift to open and the docked shelf); the monitor lives only while the
+    /// shelf is on and at least one of them wants it.
     func syncDragMonitor() {
         let defaults = UserDefaults.standard
         let wanted = defaults.bool(forKey: DefaultsKey.shelfEnabled)
             && (defaults.bool(forKey: DefaultsKey.shelfShakeToOpen)
+                || defaults.bool(forKey: DefaultsKey.shelfShiftToOpen)
                 || defaults.bool(forKey: DefaultsKey.shelfDropZoneEnabled)
                 || defaults.bool(forKey: DefaultsKey.shelfEdgeDragEnabled)
                 || NotchSupport.revealsShelfDrag())
@@ -468,8 +470,10 @@ final class ShelfService: ObservableObject {
             case .leftMouseDown:
                 self.beginDragGesture(with: event)
                 self.shakeSamples.removeAll()
+                self.shiftTrigger.reset()
             case .leftMouseUp:
                 self.closeDragGesture()
+                self.shiftTrigger.reset()
                 self.endDockedDrag()
                 self.endEdgePeekDrag()
             default:
@@ -487,6 +491,9 @@ final class ShelfService: ObservableObject {
                 let defaults = UserDefaults.standard
                 if defaults.bool(forKey: DefaultsKey.shelfShakeToOpen) {
                     self.handleDrag(event)
+                }
+                if defaults.bool(forKey: DefaultsKey.shelfShiftToOpen) {
+                    self.handleShiftDrag(event)
                 }
                 if defaults.bool(forKey: DefaultsKey.shelfDropZoneEnabled) {
                     self.handleDragForDock(event)
@@ -509,6 +516,7 @@ final class ShelfService: ObservableObject {
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
         mouseMonitor = nil
         shakeSamples.removeAll()
+        shiftTrigger.reset()
         dragSourceBundleIdentifier = nil
         dockedWatchdog?.invalidate()
         dockedWatchdog = nil
@@ -551,6 +559,20 @@ final class ShelfService: ObservableObject {
             shakeSamples.removeAll()
             DispatchQueue.main.async { [weak self] in self?.summon() }
         }
+    }
+
+    /// Opens the shelf at the cursor when Shift goes down during a content
+    /// drag, the same summon as the shake without the gesture. Mouse events
+    /// carry the modifier state, so this needs no keyboard monitoring; with
+    /// the pointer perfectly still it waits for the next drag event.
+    private func handleShiftDrag(_ event: NSEvent) {
+        let opens = shiftTrigger.shouldOpen(shiftDown: event.modifierFlags.contains(.shift)) {
+            isContentDragActive() && automaticOpenAllowed
+        }
+        guard opens else { return }
+        lastSummon = event.timestamp
+        shakeSamples.removeAll()
+        DispatchQueue.main.async { [weak self] in self?.summon() }
     }
 
     private func isContentDragActive() -> Bool {

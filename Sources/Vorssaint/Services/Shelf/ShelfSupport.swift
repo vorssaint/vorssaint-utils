@@ -67,6 +67,30 @@ struct ShelfShortcutSelectionRequests {
     }
 }
 
+/// Opens the Shelf when Shift goes down during a content drag. One press opens
+/// it once: closing the Shelf while the key is still held does not bring it
+/// back, and releasing and pressing again does. Each gesture starts armed, so
+/// Shift held before the drag begins counts as well.
+struct ShelfShiftDragTrigger {
+    private var armed = true
+
+    mutating func reset() {
+        armed = true
+    }
+
+    /// `contentDrag` is only consulted while Shift is down and the trigger is
+    /// armed, so ordinary drags never pay for the pasteboard check.
+    mutating func shouldOpen(shiftDown: Bool, contentDrag: () -> Bool) -> Bool {
+        guard shiftDown else {
+            armed = true
+            return false
+        }
+        guard armed, contentDrag() else { return false }
+        armed = false
+        return true
+    }
+}
+
 /// A Shelf item reduced to what revealing needs: identity and nesting. A pure
 /// stand-in for the service's item tree, like ShelfEdgeScreen is for NSScreen,
 /// so the rules below stay in the unit harness.

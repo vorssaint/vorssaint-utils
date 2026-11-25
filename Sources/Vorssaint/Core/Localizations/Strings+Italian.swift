@@ -556,6 +556,8 @@ extension Strings {
         shelfStep3: "Trascina di nuovo fuori ogni elemento verso qualsiasi app quando ti serve.",
         shelfShakeToggle: "Apri scuotendo il mouse durante il trascinamento",
         shelfShakeCaption: "Scuoti rapidamente il puntatore mentre tieni un elemento per richiamarlo vicino al cursore.",
+        shelfShiftToggle: "Apri premendo Maiuscole durante il trascinamento",
+        shelfShiftCaption: "Premi Maiuscole mentre tieni un elemento per richiamare il ripiano vicino al cursore.",
         shelfDropZoneToggle: "Tieni nella barra dei menu i file trascinati",
         shelfDropZoneCaption: "Mentre trascini un file, il ripiano appare sotto l’icona della barra dei menu. Quello che rilasci resta lì, in un pulsante che riduci e apri con un clic e che scompare quando il ripiano è vuoto.",
         shelfDropZoneCaptionTopCenter: "Mentre trascini un file, il ripiano appare come un badge in alto, al centro dello schermo. Quello che rilasci resta lì, in un badge che apri con un clic e che scompare quando il ripiano è vuoto.",

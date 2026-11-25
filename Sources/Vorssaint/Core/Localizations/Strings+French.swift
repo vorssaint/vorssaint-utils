@@ -556,6 +556,8 @@ extension Strings {
         shelfStep3: "Glissez chaque élément vers n’importe quelle app au moment voulu.",
         shelfShakeToggle: "Ouvrir en secouant la souris pendant un glissement",
         shelfShakeCaption: "Secouez rapidement le pointeur tout en tenant un élément pour faire apparaître l’étagère près du curseur.",
+        shelfShiftToggle: "Ouvrir en appuyant sur Maj pendant un glissement",
+        shelfShiftCaption: "Appuyez sur Maj tout en tenant un élément pour faire apparaître l’étagère près du curseur.",
         shelfDropZoneToggle: "Garder les fichiers glissés dans la barre des menus",
         shelfDropZoneCaption: "Pendant que vous faites glisser un fichier, l’étagère apparaît sous l’icône de la barre des menus. Ce que vous déposez y reste, dans un bouton que vous réduisez et ouvrez d’un clic et qui disparaît une fois l’étagère vide.",
         shelfDropZoneCaptionTopCenter: "Pendant que vous faites glisser un fichier, l’étagère apparaît sous forme de badge en haut, au centre de l’écran. Ce que vous déposez y reste, dans un badge que vous ouvrez d’un clic et qui disparaît une fois l’étagère vide.",

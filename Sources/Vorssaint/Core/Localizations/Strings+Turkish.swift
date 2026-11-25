@@ -556,6 +556,8 @@ extension Strings {
         shelfStep3: "Gerektiğinde her öğeyi istediğin uygulamaya geri sürükle.",
         shelfShakeToggle: "Sürüklerken fareyi sallayınca aç",
         shelfShakeCaption: "Bir öğeyi tutarken imleci hızlıca sallarsan raf imlecin yanında belirir.",
+        shelfShiftToggle: "Sürüklerken Shift tuşuna basınca aç",
+        shelfShiftCaption: "Bir öğeyi tutarken Shift tuşuna basarsan raf imlecin yanında belirir.",
         shelfDropZoneToggle: "Sürüklenen dosyaları menü çubuğunda tut",
         shelfDropZoneCaption: "Bir dosyayı sürüklerken raf, menü çubuğu simgesinin altında belirir. Bıraktıkların tam orada, tek tıkla daraltıp açtığın bir düğmede kalır ve raf boşaldığında kaybolur.",
         shelfDropZoneCaptionTopCenter: "Bir dosyayı sürüklerken raf, ekranın üst ortasında bir rozet olarak belirir. Bıraktıkların tam orada, tek tıkla açtığın bir rozette kalır ve raf boşaldığında kaybolur.",
