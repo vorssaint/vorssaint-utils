@@ -150,6 +150,7 @@ final class MediaWorkspaceSelection: ObservableObject {
     @Published var outputURL: URL?
     @Published var outputWasChosenManually = false
     @Published var tool: MediaTool?
+    var pendingDrop: UUID?
     var loadedInitialInputs = false
     var durationLoading = MediaDurationLoading()
 }

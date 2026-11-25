@@ -47,6 +47,12 @@ struct SwitcherPendingSessionStart {
     var additionalNavigation = 0
     var commitWhenReady = false
     var isSecureInputReplay = false
+    var awaitsWindowSelection = false
+    var activatingWindow: SwitcherItem?
+
+    var cancelsReleasedReplay: Bool {
+        isSecureInputReplay && (scope == .frontmostApp || awaitsWindowSelection)
+    }
 
     mutating func observeModifiers(_ flags: CGEventFlags) {
         if !shortcut.requiredModifiersHeld(in: flags) { commitWhenReady = true }
@@ -160,7 +166,8 @@ struct SwitcherWindowServerSnapshot: Sendable {
     let windowIDs: Set<CGWindowID>
     let normalLevelWindowIDs: Set<CGWindowID>
     let normalLevelOwnerPIDs: [pid_t]
-    private let ownerWindowIDs: [pid_t: Set<CGWindowID>]?
+    let windowIDsByOwner: [pid_t: Set<CGWindowID>]
+    private let hasCompleteOwnerBaseline: Bool
 
     init(windowInfo: [[String: Any]], capturesActivationBaseline: Bool) {
         var ids: Set<CGWindowID> = []
@@ -187,15 +194,16 @@ struct SwitcherWindowServerSnapshot: Sendable {
         windowIDs = ids
         normalLevelWindowIDs = normalIDs
         normalLevelOwnerPIDs = normalOwners
-        ownerWindowIDs = capturesActivationBaseline && complete ? owners : nil
+        windowIDsByOwner = owners
+        hasCompleteOwnerBaseline = capturesActivationBaseline && complete
     }
 
     func activationWindowIDs(ownerPID: pid_t, targetWindowID: CGWindowID,
                              currentWindowIDs: Set<CGWindowID>) -> Set<CGWindowID>? {
-        guard let ownerWindowIDs,
+        guard hasCompleteOwnerBaseline,
               currentWindowIDs.contains(targetWindowID),
               currentWindowIDs.isSubset(of: windowIDs),
-              let known = ownerWindowIDs[ownerPID],
+              let known = windowIDsByOwner[ownerPID],
               known.contains(targetWindowID) else { return nil }
         return known.intersection(currentWindowIDs)
     }
@@ -898,18 +906,18 @@ enum SwitcherSupport {
     /// (Xcode's Device Hub) as -1 while the process owning their windows is
     /// absent from it, so such an entry has no windows, no icon and nothing to
     /// activate (issue #2960). A window owner missing from the list is looked up
-    /// by pid instead, and only a regular app is admitted so helper processes
-    /// stay out.
+    /// by pid instead. Embedded helpers can contribute windows to a known host.
     static func usableApps<App>(_ apps: [App],
                                 windowOwnerPIDs: [pid_t],
                                 pid: (App) -> pid_t,
                                 isRegular: (App) -> Bool,
+                                isEmbeddedHelper: (App) -> Bool = { _ in false },
                                 resolve: (pid_t) -> App?) -> [App] {
         var usable = apps.filter { pid($0) > 0 }
         var known = Set(usable.map(pid))
         for owner in windowOwnerPIDs where owner > 0 && !known.contains(owner) {
             known.insert(owner)
-            if let app = resolve(owner), pid(app) == owner, isRegular(app) {
+            if let app = resolve(owner), pid(app) == owner, isRegular(app) || isEmbeddedHelper(app) {
                 usable.append(app)
             }
         }
@@ -2041,10 +2049,8 @@ enum SwitcherSupport {
         })
     }
 
-    /// Source app for the delayed focus guards only. A session source wins;
-    /// otherwise the app a caller saw in front when the activation began keeps
-    /// the handoff retry settling, without reclaiming focus after a later
-    /// unrelated activation. The target and this process are never a handoff.
+    /// Source app for delayed focus checks. Fall back to the foreground app
+    /// captured by the caller so an unrelated activation can end the retry.
     static func focusRetrySourcePID(sessionSourcePID: pid_t?,
                                     handoffSourcePID: pid_t?,
                                     targetPID: pid_t,
@@ -2123,10 +2129,11 @@ enum SwitcherSupport {
     static func pendingKeyDecision(sessionIsActive: Bool,
                                    hasPendingStart: Bool,
                                    commitWhenReady: Bool,
-                                   matchesShortcut: Bool) -> SwitcherPendingKeyDecision {
+                                   matchesShortcut: Bool,
+                                   isEscape: Bool = false) -> SwitcherPendingKeyDecision {
         if sessionIsActive { return .handleActiveSession }
         guard hasPendingStart, !matchesShortcut else { return .routeShortcut }
-        return commitWhenReady ? .cancelAndSwallow : .swallow
+        return isEscape || commitWhenReady ? .cancelAndSwallow : .swallow
     }
 
     /// The explicit takeover setting is the authority to change WindowServer's
@@ -2155,13 +2162,17 @@ enum SwitcherSupport {
     /// pass true only when no Carbon stand-in is registered, and asking for
     /// nothing then keeps ⌘Tab working instead of leaving it dead until the
     /// app holding it lets go.
+    ///
+    /// Full-screen games that can cover the panel also release the native
+    /// shortcuts so the user can switch apps through macOS.
     static func nativeHotkeyIDs(takeOverSystemShortcuts: Bool,
                                 secureInputEnabled: Bool,
+                                exclusiveFullscreen: Bool = false,
                                 appsShortcut: GlobalShortcut,
                                 windowShortcut: GlobalShortcut,
                                 allWindowsShortcut: GlobalShortcut? = nil,
                                 liveEntries: [LiveSystemShortcut]) -> Set<Int32> {
-        guard !secureInputEnabled else { return [] }
+        guard !secureInputEnabled, !exclusiveFullscreen else { return [] }
         let nativeShortcuts = Dictionary(
             liveEntries.compactMap { entry -> (SwitcherNativeSymbolicHotKey, GlobalShortcut)? in
                 SwitcherNativeSymbolicHotKey(rawValue: entry.id).map { ($0, entry.shortcut) }
@@ -2172,6 +2183,24 @@ enum SwitcherSupport {
                                            windowShortcut: windowShortcut,
                                            allWindowsShortcut: allWindowsShortcut,
                                            nativeShortcuts: nativeShortcuts).map(\.rawValue))
+    }
+
+    /// A frontmost game can cover the switcher with a window at or above its
+    /// status-bar level. An incomplete snapshot leaves the last decision in effect.
+    static func frontmostAppRaisesFullscreen(windows: [NotchAppFullscreen.WindowInfo]?,
+                                             frontmostPID: pid_t?, ownPID: pid_t,
+                                             displays: [CGRect]) -> Bool? {
+        guard let windows, let frontmostPID, !displays.isEmpty,
+              displays.allSatisfy({ frame in
+                  !frame.isInfinite && frame.origin.x.isFinite && frame.origin.y.isFinite
+                      && frame.size.width.isFinite && frame.size.height.isFinite
+                      && frame.size.width > 0 && frame.size.height > 0
+              }) else { return nil }
+        guard frontmostPID != ownPID else { return false }
+        return windows.contains { window in
+            window.ownerPID == frontmostPID && window.layer >= NSWindow.Level.statusBar.rawValue && window.alpha > 0
+                && displays.contains { NotchAppFullscreen.covers(window.bounds, $0) }
+        }
     }
 
     static func secureInputHotKeysWanted(canStartSession: Bool, capturingShortcut: Bool,
