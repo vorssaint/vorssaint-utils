@@ -250,6 +250,7 @@ enum CommandBarCatalog {
         case .tools: return hub.groupTools
         case .dynamicIsland: return FeatureStrings.notch(L10n.shared.language).title
         case .monitor: return hub.groupMonitor
+        case .weather: return FeatureStrings.weather(L10n.shared.language).groupTitle
         }
     }
 

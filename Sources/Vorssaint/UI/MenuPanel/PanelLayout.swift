@@ -10,8 +10,8 @@ protocol PanelOrderItem: RawRepresentable, CaseIterable, Hashable where RawValue
 /// stable identifiers persisted in the saved order and the collapsed set, so
 /// renaming a case would orphan a user's stored layout — keep them stable.
 enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
-    case keepAwake, brightness, mixer, system, network, disk, power, fanControl, utilities, controls,
-         toggles, wallpaper
+    case keepAwake, brightness, weather, mixer, system, network, disk, power, fanControl, utilities,
+         controls, toggles, wallpaper
 
     var id: String { rawValue }
 
@@ -20,6 +20,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .keepAwake: return s.keepAwakeTitle
         case .brightness: return FeatureStrings.brightness(L10n.shared.language).pageTitle
+        case .weather: return FeatureStrings.weather(L10n.shared.language).sectionTitle
         case .mixer: return s.mixerSection
         case .system: return s.systemSection
         case .network: return s.networkSection
@@ -37,6 +38,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .keepAwake: return "moon.zzz.fill"
         case .brightness: return "display.2"
+        case .weather: return "cloud.sun.fill"
         case .mixer: return "speaker.wave.2"
         case .system: return "cpu"
         case .network: return "network"
@@ -57,6 +59,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .keepAwake: return DefaultsKey.panelShowKeepAwake
         case .brightness: return DefaultsKey.panelShowBrightness
+        case .weather: return DefaultsKey.panelShowWeather
         case .mixer: return DefaultsKey.monitorShowMixer
         case .system: return DefaultsKey.monitorShowSystem
         case .network: return DefaultsKey.monitorShowNetwork
@@ -81,6 +84,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .keepAwake: return [.keepAwake]
         case .brightness: return [.brightness]
+        case .weather: return [.weather]
         case .mixer: return [.mixer, .audioPriority]
         case .system: return [.monitorCPU, .monitorGPU, .monitorMemory, .connectedDevices]
         case .network: return [.monitorNetwork]
@@ -101,7 +105,16 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    var isAvailable: Bool { featureGate.contains(where: \.isAvailable) }
+    var isAvailable: Bool { isAvailable(in: .standard) }
+
+    /// A section can require its feature to be installed and, for Weather,
+    /// switched on: install alone leaves the section out until the person
+    /// turns the feature on in its page.
+    func isAvailable(in defaults: UserDefaults) -> Bool {
+        guard featureGate.contains(where: { $0.isAvailable(in: defaults) }) else { return false }
+        guard self == .weather else { return true }
+        return defaults.bool(forKey: DefaultsKey.weatherEnabled)
+    }
 }
 
 /// Persisted panel layout: the order the sections appear in and which ones are
@@ -130,6 +143,12 @@ enum PanelLayout {
                 // New in 3.1.13: saved orders predate it, so it slots in at
                 // its canonical place instead of the end.
                 result.insert(id, at: keepAwakeIndex + 1)
+            } else if id == .weather, let brightnessIndex = result.firstIndex(of: .brightness) {
+                result.insert(id, at: brightnessIndex + 1)
+            } else if id == .weather, let keepAwakeIndex = result.firstIndex(of: .keepAwake) {
+                result.insert(id, at: keepAwakeIndex + 1)
+            } else if id == .weather, let systemIndex = result.firstIndex(of: .system) {
+                result.insert(id, at: systemIndex)
             } else {
                 result.append(id)
             }

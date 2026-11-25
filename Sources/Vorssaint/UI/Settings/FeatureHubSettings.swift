@@ -444,6 +444,7 @@ struct FeatureHubSettings: View {
         case .tools: return hub.groupTools
         case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
         case .monitor: return hub.groupMonitor
+        case .weather: return FeatureStrings.weather(l10n.language).groupTitle
         }
     }
 }
@@ -591,6 +592,7 @@ private extension FeatureGroup {
         case .tools: return "wrench.and.screwdriver.fill"
         case .dynamicIsland: return AppFeature.notch.symbolName
         case .monitor: return "chart.line.uptrend.xyaxis"
+        case .weather: return AppFeature.weather.symbolName
         }
     }
 }
@@ -1219,6 +1221,7 @@ extension AppFeature {
         case .monitorPower: return s.powerSection
         case .connectedDevices: return FeatureStrings.connectedDevices(language).title
         case .fanControl: return FeatureStrings.fanControl(language).title
+        case .weather: return FeatureStrings.weather(language).title
         }
     }
 
@@ -1312,6 +1315,7 @@ extension AppFeature {
         case .monitorPower: return hub.descMonitorPower
         case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).hubDescription
         case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).hubDescription
+        case .weather: return FeatureStrings.weather(L10n.shared.language).description
         }
     }
 }
