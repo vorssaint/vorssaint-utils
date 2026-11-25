@@ -1735,11 +1735,12 @@ final class NotchService: ObservableObject {
     }
 
     /// A mirrored banner waits under the pointer, as the native one does, and
-    /// a deliberate hover opens its whole message in place.
+    /// a deliberate hover opens its whole message in place. With "Open on
+    /// hover" off the hold is a no-op, so the banner still expires on its own.
     private func holdNotification(_ id: UUID) {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover) else { return }
         noticeWork?.cancel(); noticeWork = nil
-        guard !noticeExpanded, !hoverState.suppressed,
-              UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover) else { return }
+        guard !noticeExpanded, !hoverState.suppressed else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.hoverWork = nil

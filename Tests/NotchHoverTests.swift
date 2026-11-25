@@ -1701,15 +1701,12 @@ enum NotchHoverTests {
         arrive(clickOnly)
         clickOnly.hover(true)
         DispatchQueue.main.advance(2)
-        expect(clickOnly.noticeWork == nil && clickOnly.notice != nil && !clickOnly.noticeExpanded && clickOnly.hoverWork == nil,
-               "click-only opening still holds the banner under the pointer without opening it")
-        leave(clickOnly)
+        expect(clickOnly.noticeWork != nil && clickOnly.notice != nil && !clickOnly.noticeExpanded && clickOnly.hoverWork == nil,
+               "without opening on hover a banner keeps its timer under the pointer instead of holding")
+        DispatchQueue.main.advance(0.9)
+        expect(clickOnly.notice != nil, "the banner stays for its full display time under the pointer")
         DispatchQueue.main.advance(0.2)
-        expect(clickOnly.notice != nil && clickOnly.noticeWork != nil, "the resumed banner counts from the moment the pointer left")
-        DispatchQueue.main.advance(2.9)
-        expect(clickOnly.notice != nil, "the resumed banner keeps its full duration")
-        DispatchQueue.main.advance(0.2)
-        expect(clickOnly.notice == nil, "a held banner resumes its timer once the pointer leaves")
+        expect(clickOnly.notice == nil, "and then expires without waiting for the pointer to leave")
 
         let preview = fixture(false)
         UserDefaults.standard.expands = false
