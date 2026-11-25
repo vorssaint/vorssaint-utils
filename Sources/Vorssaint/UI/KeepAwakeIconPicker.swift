@@ -80,17 +80,7 @@ struct KeepAwakeIconPicker: View {
             .frame(maxWidth: 21, maxHeight: compact ? 14 : 16)
             .frame(maxWidth: .infinity)
             .frame(height: compact ? 29 : 35)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.14)
-                                   : Color.secondary.opacity(0.06))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor.opacity(0.75)
-                                           : Color.secondary.opacity(0.13),
-                                  lineWidth: selected ? 1.2 : 1)
-            )
+            .choiceTile(selected: selected)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -156,5 +146,23 @@ struct KeepAwakeIconPicker: View {
         case .pink: return .pink
         case .none: return nil
         }
+    }
+}
+
+extension View {
+    /// The rounded tile one choice in a row of choices sits in, picked or
+    /// not: the Keep Awake icons and the presentation pointer's looks.
+    func choiceTile(selected: Bool) -> some View {
+        background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(selected ? Color.accentColor.opacity(0.14)
+                               : Color.secondary.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(selected ? Color.accentColor.opacity(0.75)
+                                       : Color.secondary.opacity(0.13),
+                              lineWidth: selected ? 1.2 : 1)
+        )
     }
 }

@@ -153,7 +153,25 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             pointer.start()
             typing.start()
         }
+        await MainActor.run { watchPointerWindows() }
         return nil
+    }
+
+    /// The presentation pointer turned on, or onto a new display, during the
+    /// take is part of what the viewer sees, so it is recorded. Main thread.
+    private func watchPointerWindows() {
+        NotificationCenter.default.addObserver(self, selector: #selector(pointerWindowsChanged(_:)),
+                                               name: PresentationPointerService.overlayWindowsDidChange, object: nil)
+        // A pointer turned on while the recording was starting opened its
+        // windows before anyone was listening.
+        let showing = PresentationPointerService.overlayWindowNumbers
+        if !showing.isEmpty { engine.admitOwnWindows(showing) }
+    }
+
+    @objc private func pointerWindowsChanged(_ notification: Notification) {
+        guard let numbers = notification.userInfo?[PresentationPointerService.windowNumbersKey] as? [Int]
+        else { return }
+        engine.admitOwnWindows(numbers)
     }
 
     /// The app whose window is being recorded, so the sound follows the
@@ -206,6 +224,8 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
                                                      streamHeardSound: streamHeardSound(against: tap)),
                 forKey: DefaultsKey.recorderSystemAudioTapVerified)
         }
+        NotificationCenter.default.removeObserver(self, name: PresentationPointerService.overlayWindowsDidChange,
+                                                  object: nil)
         let (track, typingTrack) = await MainActor.run { (pointer.stop(), typing.stop()) }
         writerQueue.sync {}
         let written = await writer.finish(at: end)

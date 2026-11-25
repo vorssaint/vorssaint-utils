@@ -1593,6 +1593,13 @@ def main():
           + "}\n}\n")
     write("OverlayPanelDeclaration.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/UI/OverlayPanel.swift", "class OverlayPanel:"))
+    # The drawing surface as shipped; its screen initializer stays behind,
+    # since the tests place it on frames of their own.
+    write("PresentationPointerOverlayDeclaration.swift", "import AppKit\nimport QuartzCore\n\n"
+          + declaration("Sources/Vorssaint/Services/PresentationPointer/PresentationPointerOverlay.swift",
+                        "final class PresentationPointerOverlay")
+          + declaration("Sources/Vorssaint/Services/PresentationPointer/PresentationPointerOverlay.swift",
+                        "final class PointerPanel"))
     shelf = "Sources/Vorssaint/Services/Shelf/ShelfService.swift"
     shelf_tiles = "Sources/Vorssaint/UI/Shelf/ShelfTilesView.swift"
     write("ShelfDragCompletion.swift", "import AppKit\n\nextension ShelfDragCompletionContract {\n"

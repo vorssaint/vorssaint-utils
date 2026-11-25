@@ -172,6 +172,10 @@ enum SettingsBackupSupport {
         DefaultsKey.whatsAppDownloadsExclusions,
         DefaultsKey.whatsAppDownloadsAccessConfirmed,
         DefaultsKey.whatsAppOrganizerDestinationPath,
+        // A sound file chosen on this Mac is a path that means nothing on
+        // another; the choice of a custom sound still travels, and falls back
+        // to the default sound until a file is chosen there.
+        DefaultsKey.presentationPointerCustomSoundPath,
         DefaultsKey.whatsAppOrganizerRecords,
         DefaultsKey.whatsAppOrganizerUndoTransaction,
         DefaultsKey.whatsAppOrganizerLastRun,
