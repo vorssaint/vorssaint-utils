@@ -19,6 +19,13 @@ extension FeatureStrings {
                 gifSize: "GIF size",
                 customSize: "Custom size",
                 frameRate: "Frame rate")
+        case .nl:
+            return RecorderExportFormatStrings(
+                format: "Exportformaat",
+                video: "Video",
+                gifSize: "GIF-grootte",
+                customSize: "Aangepaste grootte",
+                frameRate: "Beelden per seconde")
         case .ptBR:
             return RecorderExportFormatStrings(
                 format: "Formato de exportação",

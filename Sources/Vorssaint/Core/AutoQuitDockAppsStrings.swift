@@ -15,6 +15,7 @@ extension FeatureStrings {
     static func autoQuitDockApps(_ language: AppLanguage) -> AutoQuitDockAppsStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -40,6 +41,14 @@ extension AutoQuitDockAppsStrings {
         addButton: "Add an app…",
         removeButton: "Remove",
         emptyNote: "No menu bar apps available to add."
+    )
+
+    static let nl = AutoQuitDockAppsStrings(
+        listTitle: "Menubalkapps om te stoppen",
+        caption: "Menubalkapps blijven standaard geopend. Apps die je hier selecteert, kunnen stoppen zodra hun laatste venster sluit terwijl ze in het Dock staan. Uitzonderingen blijven geopend.",
+        addButton: "Voeg een app toe…",
+        removeButton: "Verwijder",
+        emptyNote: "Er zijn geen menubalkapps beschikbaar om toe te voegen."
     )
 
     static let ptBR = AutoQuitDockAppsStrings(

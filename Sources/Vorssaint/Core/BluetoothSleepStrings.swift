@@ -20,6 +20,7 @@ extension FeatureStrings {
     static func bluetoothSleep(_ language: AppLanguage) -> BluetoothSleepStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -47,6 +48,16 @@ extension BluetoothSleepStrings {
         restoreToggle: "Turn Bluetooth back on when the Mac wakes",
         restoreCaption: "Only when Vorssaint was the one that switched it off.",
         unsupported: "This Mac has no Bluetooth controller."
+    )
+
+    static let nl = BluetoothSleepStrings(
+        pageTitle: "Bluetooth bij sluimerstand",
+        hubDescription: "Schakelt Bluetooth uit wanneer de Mac sluimert, zodat koptelefoons in een tas geen verbinding meer maken.",
+        enable: "Schakel Bluetooth uit wanneer de Mac sluimert",
+        enableCaption: "Als Bluetooth al vóór de sluimerstand uitstaat, blijft het ook daarna uit.",
+        restoreToggle: "Schakel Bluetooth weer in wanneer de Mac uit de sluimerstand komt",
+        restoreCaption: "Alleen als Vorssaint het had uitgeschakeld.",
+        unsupported: "Deze Mac heeft geen Bluetooth-controller."
     )
 
     static let ptBR = BluetoothSleepStrings(

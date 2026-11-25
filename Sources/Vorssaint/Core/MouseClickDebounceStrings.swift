@@ -15,6 +15,7 @@ extension FeatureStrings {
     static func mouseClickDebounce(_ language: AppLanguage) -> MouseClickDebounceStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -40,6 +41,14 @@ extension MouseClickDebounceStrings {
         moreOptions: "More options",
         windowLabel: "Filter window",
         windowCaption: "A repeated click inside this interval is treated as an accidental duplicate."
+    )
+
+    static let nl = MouseClickDebounceStrings(
+        title: "Filter voor extra klikken",
+        caption: "Negeert snelle extra klikken van versleten muisknoppen zonder normale klikken te vertragen.",
+        moreOptions: "Meer opties",
+        windowLabel: "Filtertijdvenster",
+        windowCaption: "Een herhaalde klik binnen dit interval wordt als onbedoeld dubbel beschouwd."
     )
 
     static let ptBR = MouseClickDebounceStrings(

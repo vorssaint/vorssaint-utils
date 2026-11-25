@@ -65,6 +65,7 @@ struct MediaImageConverterStrings {
     static func localized(_ language: AppLanguage) -> MediaImageConverterStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -141,6 +142,66 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "%d images saved",
         batchPartialFormat: "%d saved, %d failed",
         batchSummaryHeaderFormat: "%d saved, %d failed",
+        batchSummaryItemFormat: "%@ -> %@"
+    )
+
+    static let nl = MediaImageConverterStrings(
+        filesSelectedFormat: "%d bestanden geselecteerd",
+        profile: "Profiel",
+        noProfile: "Geen profiel",
+        profileName: "Profielnaam",
+        saveAsNew: "Bewaar nieuw profiel",
+        updateProfile: "Werk bij",
+        deleteProfile: "Verwijder profiel",
+        profileModified: "Gewijzigd",
+        profileDefaultNameFormat: "Profiel %d",
+        presetWeb: "Web",
+        presetSocial: "Sociaal",
+        presetDocs: "Documenten",
+        resize: "Pas grootte aan",
+        resizeNone: "Geen wijziging",
+        resizeMax: "Langste zijde",
+        resizeWidth: "Breedte",
+        resizeHeight: "Hoogte",
+        resizeExact: "Aangepast",
+        exactStretch: "Rek uit",
+        exactFit: "Pas in",
+        exactFill: "Vul",
+        height: "Hoogte",
+        watermark: "Watermerk",
+        watermarkOff: "Uit",
+        watermarkText: "Tekst",
+        watermarkLogo: "Logo",
+        watermarkBoth: "Tekst en logo",
+        watermarkTextPlaceholder: "Watermerktekst",
+        noLogo: "Geen logo",
+        chooseLogo: "Kies logo",
+        position: "Positie",
+        topLeft: "Linksboven",
+        topRight: "Rechtsboven",
+        center: "Centreer",
+        bottomLeft: "Linksonder",
+        bottomRight: "Rechtsonder",
+        opacity: "Dekking",
+        margin: "Marge",
+        scale: "Schaal",
+        rename: "Wijzig naam",
+        preview: "Voorvertoning",
+        outputName: "Uitvoer",
+        background: "Achtergrond",
+        backgroundTransparent: "Transparant",
+        backgroundWhite: "Wit",
+        backgroundBlack: "Zwart",
+        preserveDate: "Behoud oorspronkelijke wijzigingsdatum",
+        saveInSubfolder: "Bewaar in submap ‘Geconverteerd’",
+        moreOptions: "Meer opties",
+        tooLarge: "Deze afmetingen zijn te groot om veilig te verwerken. Kies een kleiner formaat.",
+        copySummary: "Kopieer samenvatting",
+        savedBytesFormat: "%@ bewaard",
+        grewBytesFormat: "%@ groter",
+        batchSavedFormat: "%d afbeeldingen bewaard",
+        batchPartialFormat: "%d bewaard, %d mislukt",
+        batchSummaryHeaderFormat: "%d bewaard, %d mislukt",
         batchSummaryItemFormat: "%@ -> %@"
     )
 

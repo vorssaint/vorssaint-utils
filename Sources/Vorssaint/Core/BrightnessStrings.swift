@@ -67,6 +67,7 @@ extension FeatureStrings {
     static func brightness(_ language: AppLanguage) -> BrightnessFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -137,6 +138,58 @@ extension BrightnessFeatureStrings {
         speakersMinimumCaption: "The volume down key stops here. The mute key works only on monitors with a mute control.",
         speakersMaximum: "Maximum volume",
         speakersMaximumCaption: "Volume up stops here."
+    )
+
+    static let nl = BrightnessFeatureStrings(
+        pageTitle: "Beeldschermen",
+        hubDescription: "Helderheid en aan/uit-bediening voor elk beeldscherm",
+        enable: "Bedien beeldschermen",
+        enableCaption: "Helderheid en aan/uit-bediening voor ingebouwde en externe beeldschermen, hier en in het menubalkpaneel.",
+        externalCaption: "Externe beeldschermen worden via hetzelfde protocol als hun eigen knoppen aangestuurd. Als de verbinding dit niet ondersteunt, zoals bij HDMI-adapters, dimt de schuifknop het beeld. Zo blijft helderheidsregeling beschikbaar.",
+        noDisplays: "Geen beeldscherm gevonden.",
+        displayOff: "Uit",
+        turnOffDisplay: "Schakel beeldscherm uit",
+        turnOnDisplay: "Schakel beeldscherm in",
+        lastDisplayCaption: "Er moet minstens één beeldscherm aanblijven.",
+        switchUnavailable: "Het schakelen van beeldschermen is niet beschikbaar op deze Mac.",
+        switchFailed: "Dit beeldscherm kon niet worden aangepast.",
+        openLidToEnable: "Open het beeldscherm van je Mac om het ingebouwde beeldscherm in te schakelen.",
+        keysToggle: "Helderheidstoetsen volgen de aanwijzer",
+        keysCaption: "De helderheidstoetsen wijzigen het beeldscherm onder de aanwijzer.",
+        keyStep: "Stappen voor helderheidstoetsen",
+        keyStepCaption: "Kleinere stappen bij elke druk op de helderheidstoetsen en sneltoetsen voor beeldschermhelderheid.",
+        keyStepStandard: "Standaard",
+        keyStepHalf: "Halve stappen",
+        keyStepQuarter: "Kwartstappen",
+        osdToggle: "Toon helderheid bij aanpassen",
+        osdCaption: "Toont het helderheidspercentage wanneer je de helderheidstoetsen of schuifknoppen gebruikt.",
+        displayBrightnessShortcuts: "Gebruik sneltoetsen voor beeldschermhelderheid",
+        displayBrightnessShortcutCaption: "Sneltoetsen passen het hoofdbeeldscherm aan, of het beeldscherm onder de aanwijzer als volgen is ingeschakeld.",
+        displayBrightnessDecrease: "Verlaag beeldschermhelderheid",
+        displayBrightnessIncrease: "Verhoog beeldschermhelderheid",
+        keyboardLight: "Toetsenbordverlichting",
+        keyboardLightCaption: "Schakelt de toetsenbordverlichting in of uit.",
+        volumeToggle: "Beeldschermluidsprekers",
+        volumeCaption: "Beeldschermen met eigen luidsprekers krijgen hier een volumeschuifknop, die via hetzelfde protocol als de knoppen op het beeldscherm werkt. Beeldschermen zonder luidsprekers tonen geen volumeschuifknop.",
+        volumeLabel: "Volume",
+        mute: "Geluid uit",
+        unmute: "Geluid aan",
+        volumeKeysToggle: "Bedien beeldschermluidsprekers met de volumetoetsen",
+        volumeKeysCaption: "Als het geluid via een beeldscherm wordt afgespeeld, passen de volumetoetsen het volume van dat beeldscherm aan in plaats van een volume dat macOS niet kan wijzigen.",
+        keyboardBrightnessShortcuts: "Gebruik sneltoetsen voor toetsenbordhelderheid",
+        keyboardBrightnessDecrease: "Verlaag toetsenbordhelderheid",
+        keyboardBrightnessIncrease: "Verhoog toetsenbordhelderheid",
+        softwareDimming: "Dim het beeld",
+        extendedDimming: "Extra dimmen",
+        islandPromptTitle: "Helderheid tonen in Dynamic Island?",
+        islandPromptMessage: "Dynamic Island toont helderheidswijzigingen alleen als ‘Bedien beeldschermen’ is ingeschakeld in de beeldscherminstellingen.",
+        islandPromptKeepOff: "Laat uitgeschakeld",
+        speakersStep: "Volumestap",
+        speakersStepStandard: "Standaard (6,25%)",
+        speakersMinimum: "Minimumvolume",
+        speakersMinimumCaption: "Het volume kan niet verder worden verlaagd dan deze waarde. Met ‘Geluid uit’ kun je het geluid nog steeds uitschakelen.",
+        speakersMaximum: "Maximumvolume",
+        speakersMaximumCaption: "Het volume kan niet verder worden verhoogd dan deze waarde."
     )
 
     static let ptBR = BrightnessFeatureStrings(

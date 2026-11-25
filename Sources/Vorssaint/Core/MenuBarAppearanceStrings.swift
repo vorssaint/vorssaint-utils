@@ -20,6 +20,7 @@ extension FeatureStrings {
     static func menuBarAppearance(_ language: AppLanguage) -> MenuBarAppearanceStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -50,6 +51,19 @@ extension MenuBarAppearanceStrings {
         highColor: "High color",
         mediumFrom: "Medium from",
         highFrom: "High from"
+    )
+
+    static let nl = MenuBarAppearanceStrings(
+        label: "Gebruiksweergave",
+        values: "Waarden",
+        bars: "Balken",
+        caption: "Balken gelden voor CPU-, GPU-, geheugen- en schijfgebruik. Andere metingen blijven numeriek.",
+        customize: "Balkkleuren en limieten",
+        normalColor: "Normale kleur",
+        mediumColor: "Kleur gemiddeld",
+        highColor: "Kleur hoog",
+        mediumFrom: "Gemiddeld vanaf",
+        highFrom: "Hoog vanaf"
     )
 
     static let ptBR = MenuBarAppearanceStrings(

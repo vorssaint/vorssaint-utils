@@ -39,6 +39,7 @@ extension FeatureStrings {
     static func feedback(_ language: AppLanguage) -> FeedbackStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -88,6 +89,38 @@ extension FeedbackStrings {
         commandFeature: "Suggest a feature",
         commandSubtitle: "Send feedback",
         diagnosticsChannelLabel: "Update channel"
+    )
+
+    static let nl = FeedbackStrings(
+        sectionTitle: "Feedback",
+        sectionCaption: "Stuur een foutrapport of functievoorstel rechtstreeks naar de beheerder van Vorssaint.",
+        openButton: "Verstuur feedback",
+        windowTitle: "Verstuur feedback",
+        bugTitle: "Fout",
+        featureTitle: "Functievoorstel",
+        messageLabel: "Wat wil je delen?",
+        bugPlaceholder: "Vertel wat er gebeurde en wat je verwachtte.",
+        featurePlaceholder: "Beschrijf het idee en hoe het zou helpen.",
+        charactersFormat: "%d van 2000 tekens",
+        includeDiagnostics: "Voeg technische gegevens toe",
+        includeDiagnosticsCaption: "Voegt alleen de hieronder getoonde technische gegevens toe, zonder logbestanden.",
+        whatSentTitle: "Wat wordt verstuurd",
+        whatSentBasic: "Je gekozen categorie en bovenstaande tekst.",
+        whatSentDiagnostics: "De onderstaande technische gegevens.",
+        privacyNote: "Naam, account, e-mailadres, apparaat-ID, logbestanden, schermafbeeldingen, bestanden en klembordinhoud worden niet meegestuurd. Je openbare IP-adres wordt tijdelijk verwerkt ter voorkoming van misbruik en wordt niet aan de feedback gekoppeld.",
+        retentionNote: "Na aflevering blijft de tekst in afgeschermde ondersteuningskanalen staan totdat de dienstbeheerder deze verwijdert. Een niet-afgeleverde kopie wordt na 7 dagen definitief verwijderd.",
+        sendButton: "Verstuur feedback",
+        sending: "Versturen…",
+        sentTitle: "Feedback verstuurd",
+        sentCaption: "Bedankt. Er zijn geen contactgegevens verstuurd, dus je ontvangt geen rechtstreeks antwoord.",
+        unavailableError: "Verbinding mislukt. Controleer je internetverbinding en probeer het opnieuw.",
+        rateLimitError: "Te veel inzendingen vanaf dit netwerk. Probeer het later opnieuw.",
+        genericError: "De feedback kan momenteel niet worden verstuurd.",
+        done: "Gereed",
+        commandBug: "Meld een fout",
+        commandFeature: "Stel een functie voor",
+        commandSubtitle: "Verstuur feedback",
+        diagnosticsChannelLabel: "Updatekanaal"
     )
 
     static let ptBR = FeedbackStrings(
