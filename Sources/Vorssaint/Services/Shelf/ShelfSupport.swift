@@ -25,6 +25,21 @@ enum ShelfSelectionSupport {
     }
 }
 
+enum ShelfQuickLookSupport {
+    /// Space opens and closes Quick Look the way it does in Finder. A held
+    /// Space does not flicker the panel, and Space with a modifier stays free
+    /// for other shortcuts.
+    static func isToggleShortcut(keyCode: UInt16, hasModifiers: Bool, isRepeat: Bool) -> Bool {
+        keyCode == 49 && !hasModifiers && !isRepeat
+    }
+
+    /// The preview opens on the file of the tile clicked last when it is one
+    /// of the files being shown, and on the first file otherwise.
+    static func initialIndex(of urls: [URL], focusing focus: URL?) -> Int {
+        focus.flatMap { urls.firstIndex(of: $0) } ?? 0
+    }
+}
+
 /// Tracks the shelf shortcut's asynchronous Finder selection read. Every press
 /// takes a new ticket, and a later press, clearing the Shelf or turning it off
 /// retires the older one, so a slow Finder or a permission prompt answering late

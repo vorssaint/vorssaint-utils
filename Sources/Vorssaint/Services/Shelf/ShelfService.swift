@@ -4,6 +4,7 @@
 import AppKit
 import Carbon.HIToolbox
 import Combine
+import Quartz
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -1070,6 +1071,34 @@ final class ShelfService: ObservableObject {
         override func cancelOperation(_ sender: Any?) {
             ShelfService.shared.clearSelection()
         }
+
+        /// Space previews the shelf with Quick Look. It is caught here, before
+        /// AppKit hands it to the tile or SwiftUI view under focus, which would
+        /// otherwise swallow it; a text field keeps its own Space.
+        override func sendEvent(_ event: NSEvent) {
+            if event.type == .keyDown, !(firstResponder is NSText) {
+                let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+                if ShelfQuickLookSupport.isToggleShortcut(keyCode: event.keyCode,
+                                                          hasModifiers: !modifiers.isEmpty,
+                                                          isRepeat: event.isARepeat) {
+                    ShelfQuickLookSource.shared.toggle()
+                    return
+                }
+            }
+            super.sendEvent(event)
+        }
+
+        // The Quick Look panel looks for its controller along the key window's
+        // responder chain, which ends at this panel while the shelf is key.
+        override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool { true }
+
+        override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+            ShelfQuickLookSource.shared.begin(panel)
+        }
+
+        override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
+            ShelfQuickLookSource.shared.end(panel)
+        }
     }
 
     private func ensureDockedPanel() -> NSPanel {
@@ -1350,6 +1379,14 @@ final class ShelfService: ObservableObject {
 
     private var selectionOrEverything: [Item] {
         selection.isEmpty ? items : selectedItems()
+    }
+
+    /// What Space previews: the same files the panel's buttons act on, opened
+    /// on the tile clicked last when it is among them.
+    func quickLookPreview() -> (urls: [URL], index: Int) {
+        let urls = fileURLsForActions()
+        let focus = selectionAnchor.flatMap { item(withID: $0) }.flatMap { fileURLs(in: [$0]).first }
+        return (urls, ShelfQuickLookSupport.initialIndex(of: urls, focusing: focus))
     }
 
     private func fileURLs(in candidates: [Item]) -> [URL] {
