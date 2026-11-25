@@ -15,6 +15,29 @@ enum KeepAwakeAutomationAction: Equatable {
     case deactivate
 }
 
+struct KeepAwakePowerDisconnectGrace {
+    private var disconnectedAt: ContinuousClock.Instant?
+
+    mutating func deadline(powerEnabled: Bool,
+                           wasOnPower: Bool,
+                           onPower: Bool,
+                           delaySeconds: Int,
+                           now: ContinuousClock.Instant = .now) -> ContinuousClock.Instant? {
+        guard powerEnabled, !onPower, delaySeconds > 0 else {
+            disconnectedAt = nil
+            return nil
+        }
+        if wasOnPower { disconnectedAt = now }
+        guard let disconnectedAt else { return nil }
+        let deadline = disconnectedAt + .seconds(delaySeconds)
+        guard now < deadline else {
+            self.disconnectedAt = nil
+            return nil
+        }
+        return deadline
+    }
+}
+
 enum KeepAwakeAutomationSupport {
     private static let screenLockedKey = "CGSSessionScreenIsLocked"
 

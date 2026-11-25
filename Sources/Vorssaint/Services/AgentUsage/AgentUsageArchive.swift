@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 4
+    private static let format = 8
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -71,22 +71,48 @@ enum AgentUsageArchive {
     /// read, not the log, so the latest reading stays: a fresh read would
     /// fall back to an older one. `unchanged` tells whether the result is
     /// still what was saved.
-    static func resume(_ contents: Contents, logs found: Set<String>, since horizon: Date)
-        -> (store: AgentUsageStore, cursors: [String: AgentLogCursor], unchanged: Bool) {
-        let store = AgentUsageStore(saved: contents.store)
+    typealias Resumed = (store: AgentUsageStore, cursors: [String: AgentLogCursor], unchanged: Bool)
+
+    static func resume(_ contents: Contents, logs found: Set<String>, since horizon: Date, cursorRoot: URL? = nil) -> Resumed {
+        // Only cancellation can interrupt a restore.
+        resume(contents, logs: found, since: horizon, cursorRoot: cursorRoot, shouldContinue: { true })!
+    }
+
+    static func resume(_ contents: Contents, logs found: Set<String>, since horizon: Date, cursorRoot: URL?,
+                       shouldContinue: () -> Bool) -> Resumed? {
         var cursors: [String: AgentLogCursor] = [:]
-        for saved in contents.cursors where found.contains(saved.path) {
-            cursors[saved.path] = AgentLogCursor(saved: saved)
+        let root = cursorRoot.map { AgentLogRoot(provider: .cursor, url: $0) }
+        var cursorChanged = false
+        for saved in contents.cursors {
+            guard shouldContinue() else { return nil }
+            guard found.contains(saved.path), (saved.provider == .cursor) == (root?.accepts(saved.path) == true) else { continue }
+            cursors[saved.path] = AgentLogCursor(saved: saved, cursorRoot: cursorRoot, shouldContinue: shouldContinue)
+            if saved.provider == .cursor {
+                let pruned = cursors[saved.path]?.dropCursorCoverage(before: horizon) == true
+                if pruned || saved.cursorSample == nil { cursorChanged = true }
+            }
         }
+        guard shouldContinue() else { return nil }
+        let store = AgentUsageStore(saved: contents.store)
+        // The archive holds one selected reading for copies of a Cursor reply.
+        // On replay verified open turns still get the reader's prefix check.
+        let sharedTranscripts = Set(contents.store.records.lazy
+            .filter { $0.record.provider == .cursor && $0.key.hasPrefix("cursor-transcript:") && $0.sources.count > 1 }
+            .flatMap(\.sources))
         var gone = store.files.subtracting(cursors.keys)
-        let sharing = store.files(sharingWith: gone).subtracting(gone)
+        let sharing = store.files(sharingWith: gone).subtracting(gone).subtracting(sharedTranscripts)
         for file in sharing { cursors[file] = nil }
         gone.formUnion(sharing)
         store.forget(files: gone)
+        let shared = sharedTranscripts.subtracting(gone)
+        if !shared.isEmpty {
+            store.forgetUsage(files: shared)
+            for path in shared { cursors[path]?.needsUsageReplay = true }
+        }
         // Prices may be newer than the ones the counts were saved with.
         store.reprice()
         store.dropRecords(before: horizon)
-        return (store, cursors, cursors.count == contents.cursors.count && store.saved == contents.store)
+        return (store, cursors, !cursorChanged && shared.isEmpty && cursors.count == contents.cursors.count && store.saved == contents.store)
     }
 
     static func remove() {
@@ -112,7 +138,9 @@ enum AgentUsageArchive {
             if !same { body.tokens(entry.billable.tokens) }
             body.bool(entry.billable.isAggregate)
             body.int(entry.billable.longCacheWrite)
-            body.bool(entry.billable.fast)
+            body.bytes.append(entry.billable.serviceTier.rawValue)
+            body.bool(entry.billable.hasEventTimestamp)
+            body.bool(entry.billable.assumesStandardTier)
             body.bool(entry.billable.domestic)
             body.int(entry.billable.webSearches)
             body.count(entry.sources.count)
@@ -134,8 +162,9 @@ enum AgentUsageArchive {
             body.unsigned(cursor.identity)
             body.bool(cursor.discarding)
             body.date(cursor.modified)
-            body.state(cursor.state)
+            body.state(cursor.state, provider: cursor.provider)
             body.unsigned(cursor.fingerprint)
+            if cursor.provider == .cursor { body.optional(cursor.cursorSample) { $0.unsigned($1) } }
         }
         var data = Data(magic)
         var header = Writer()
@@ -189,7 +218,8 @@ enum AgentUsageArchive {
                 let same = try reader.bool()
                 let billable = AgentBillable(tokens: same ? record.tokens : try reader.tokens(),
                                              isAggregate: try reader.bool(),
-                                             longCacheWrite: try reader.amount(), fast: try reader.bool(),
+                                             longCacheWrite: try reader.amount(), serviceTier: try reader.serviceTier(),
+                                             hasEventTimestamp: try reader.bool(), assumesStandardTier: try reader.bool(),
                                              domestic: try reader.bool(), webSearches: try reader.amount())
                 var sources: [String] = []
                 for _ in 0..<(try reader.count()) { sources.append(try reader.string()) }
@@ -202,10 +232,15 @@ enum AgentUsageArchive {
             for _ in 0..<(try reader.count()) { store.waiting.append(try reader.session()) }
             var cursors: [AgentLogCursor.Saved] = []
             for _ in 0..<(try reader.count()) {
-                cursors.append(AgentLogCursor.Saved(path: try reader.string(), provider: try reader.provider(),
-                                                    offset: try reader.unsigned(), identity: try reader.unsigned(),
+                let path = try reader.string()
+                let provider = try reader.provider()
+                let offset = try reader.unsigned()
+                cursors.append(AgentLogCursor.Saved(path: path, provider: provider,
+                                                    offset: offset, identity: try reader.unsigned(),
                                                     discarding: try reader.bool(), modified: try reader.date(),
-                                                    state: try reader.state(), fingerprint: try reader.unsigned()))
+                                                    state: try reader.state(provider: provider, offset: offset),
+                                                    fingerprint: try reader.unsigned(),
+                                                    cursorSample: provider == .cursor ? try reader.optional { try $0.unsigned() } : nil))
             }
             guard reader.atEnd else { return nil }
             return Contents(providers: providers, store: store, cursors: cursors)
@@ -315,14 +350,14 @@ enum AgentUsageArchive {
             double(value.cost)
         }
 
-        mutating func state(_ value: AgentLogState) {
+        mutating func state(_ value: AgentLogState, provider: AgentProvider) {
             string(value.session)
             string(value.project)
             string(value.model)
             bool(value.turnOpen)
             bool(value.sawUsageRecords)
             optional(value.lastTotal) { $0.tokens($1) }
-            bool(value.fast)
+            optional(value.serviceTier) { $0.bytes.append($1.rawValue) }
             bool(value.codexSubagent)
             bool(value.codexHeaderRead)
             string(value.codexRoot)
@@ -333,6 +368,24 @@ enum AgentUsageArchive {
             dictionary(value.copilotReportedRequests) { $0.int($1) }
             optional(value.copilotTurnID) { $0.string($1) }
             bool(value.copilotFinalResponse)
+            if provider == .cursor {
+                int(value.cursorPromptCount)
+                optional(value.cursorPromptTimestamp) { $0.date($1) }
+                optional(value.cursorLastActivity) { $0.date($1) }
+                let ranges = value.cursorUnmeteredMinutes.rangeView
+                count(ranges.count)
+                for range in ranges {
+                    unsigned(UInt64(range.lowerBound))
+                    unsigned(UInt64(range.count))
+                }
+                dictionary(value.cursorUnmeteredModelMinutes) { $0.int($1) }
+                optional(value.cursorUndatedResponseThrough) { $0.date($1) }
+                dictionary(value.cursorUnmeteredResponses) { writer, gap in
+                    writer.optional(gap.minute) { $0.int($1) }
+                    writer.string(gap.model)
+                    writer.optional(gap.undatedThrough) { $0.date($1) }
+                }
+            }
         }
     }
 
@@ -353,6 +406,11 @@ enum AgentUsageArchive {
             guard position < bytes.count else { throw Malformed() }
             defer { position += 1 }
             return bytes[position]
+        }
+
+        mutating func serviceTier() throws -> AgentServiceTier {
+            guard let tier = AgentServiceTier(rawValue: try byte()) else { throw Malformed() }
+            return tier
         }
 
         mutating func take(_ length: Int) throws -> ArraySlice<UInt8> {
@@ -477,9 +535,9 @@ enum AgentUsageArchive {
                              tokens: try tokens(), cost: try double())
         }
 
-        mutating func state() throws -> AgentLogState {
+        mutating func state(provider: AgentProvider, offset: UInt64) throws -> AgentLogState {
             var value = AgentLogState(session: try string(), project: try string(), model: try string(), turnOpen: try bool(),
-                                      sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, fast: try bool())
+                                      sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, serviceTier: try optional { try $0.serviceTier() })
             value.codexSubagent = try bool()
             value.codexHeaderRead = try bool()
             value.codexRoot = try string()
@@ -490,6 +548,39 @@ enum AgentUsageArchive {
             value.copilotReportedRequests = try dictionary { try $0.amount() }
             value.copilotTurnID = try optional { try $0.string() }
             value.copilotFinalResponse = try bool()
+            if provider == .cursor {
+                value.cursorPromptCount = try amount()
+                // Each prompt consumed at least one JSON line before this offset.
+                guard UInt64(value.cursorPromptCount) <= offset / 8 else { throw Malformed() }
+                value.cursorPromptTimestamp = try optional { try $0.date() }
+                value.cursorLastActivity = try optional { try $0.date() }
+                let ranges = try count()
+                var remaining = min(offset / 8, UInt64(AgentUsageSnapshot.historyDuration / 60) + 1)
+                var previousEnd: UInt64?
+                for _ in 0..<ranges {
+                    let start = try unsigned(), length = try unsigned()
+                    guard length > 0, length <= remaining, start < UInt64(Int.max), length <= UInt64(Int.max) - start,
+                          previousEnd.map({ start > $0 }) ?? true else { throw Malformed() }
+                    let end = start + length
+                    value.cursorUnmeteredMinutes.insert(integersIn: Int(start)..<Int(end))
+                    previousEnd = end
+                    remaining -= length
+                }
+                value.cursorUnmeteredModelMinutes = try dictionary { try $0.amount() }
+                guard value.cursorUnmeteredModelMinutes.allSatisfy({ model, minute in
+                    !model.isEmpty && model.utf8.count <= 256 && !model.hasPrefix("<") && value.cursorUnmeteredMinutes.contains(minute)
+                }) else { throw Malformed() }
+                value.cursorUndatedResponseThrough = try optional { try $0.date() }
+                let responses = try dictionary { reader in
+                    CursorUnmeteredResponse(minute: try reader.optional { try $0.amount() }, model: try reader.string(),
+                                            undatedThrough: try reader.optional { try $0.date() })
+                }
+                guard UInt64(responses.count) <= offset / 8, responses.allSatisfy({ id, gap in
+                    !id.isEmpty && id.utf8.count <= 256 && gap.model.utf8.count <= 256 && !gap.model.hasPrefix("<")
+                        && (gap.minute == nil) != (gap.undatedThrough == nil) && gap.minute != Int.max
+                }) else { throw Malformed() }
+                value.restoreUnmeteredResponses(responses)
+            }
             return value
         }
     }

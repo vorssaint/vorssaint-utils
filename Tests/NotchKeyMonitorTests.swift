@@ -198,6 +198,14 @@ enum NotchKeyMonitorTests {
                       ".accessibilityAction(named:text.collapse){service.collapse()}"]
                         .allSatisfy(islandSource.contains),
                      "the open island names Keep open, Settings and Collapse as accessibility actions")
+        // Swapping the gallery out for its empty state rebuilt the top row, and
+        // the search field there took focus again with its query selected, so
+        // the next key replaced what was typed (#4244).
+        let sectionsSource = ((try? String(contentsOfFile: "Sources/Vorssaint/UI/Notch/NotchSectionsView.swift",
+                                           encoding: .utf8)) ?? "")
+            .filter { !$0.isWhitespace }
+        suite.expect(sectionsSource.contains("gallery.accessibilityHidden(sections.isEmpty).overlay{ifsections.isEmpty{NotchEmptyView("),
+                     "Explore keeps its gallery mounted under No results, so typing a search keeps the query")
         // A top row that cannot wrap the camera takes a row below it, so a
         // custom island leaves the Tools rail fewer rows than the island
         // without its page would. The arrows walk the rail the page draws.

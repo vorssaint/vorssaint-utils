@@ -24,7 +24,8 @@ enum SettingsBackup {
     }
 
     /// Writes the backup file; false when it could not be saved.
-    static func write(to url: URL, from defaults: UserDefaults = .standard) -> Bool {
+    static func write(to url: URL, from defaults: UserDefaults = .standard,
+                      requiresOwnerRead: Bool = false) -> Bool {
         // object(forKey:) sees through to registered defaults, so the file is
         // a complete snapshot: importing it reproduces this exact setup even
         // where the user never touched a control.
@@ -46,29 +47,40 @@ enum SettingsBackup {
             } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
                 exists = false
             }
+            var allowedMode: mode_t = 0o600
             if exists {
                 let attributes = try manager.attributesOfItem(atPath: target.path)
                 guard attributes[.type] as? FileAttributeType == .typeRegular,
+                      let permissions = attributes[.posixPermissions] as? NSNumber,
                       manager.isWritableFile(atPath: target.path) else { return false }
+                allowedMode &= permissions.uint16Value
             }
             let directory = target.deletingLastPathComponent()
             try manager.createDirectory(at: directory,
                                         withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            // mkstemp creates a 0600 file on the destination volume before any
-            // snippet bytes are written, including in a shared dotfiles folder.
-            var template = Array(directory.appendingPathComponent(".vorssaint-XXXXXX").path.utf8CString)
-            let descriptor = mkstemp(&template)
+            // Stage on the same volume, outside the dotfiles folder's inherited ACLs.
+            let stagingDirectory = try manager.url(for: .itemReplacementDirectory, in: .userDomainMask,
+                                                   appropriateFor: directory, create: true)
+            defer { try? manager.removeItem(at: stagingDirectory) }
+            let staged = stagingDirectory.appendingPathComponent("settings.plist")
+            let descriptor = open(staged.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, allowedMode)
             guard descriptor >= 0 else { return false }
-            let staged = URL(fileURLWithPath: String(cString: template))
-            defer { try? manager.removeItem(at: staged) }
             let file = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+            // Check the effective protection before writing any preferences.
+            guard let security = filesec_init() else { return false }
+            defer { filesec_free(security) }
+            var info = stat()
+            var volume = statfs()
+            var hasACL: Int32 = 0
+            guard fstatx_np(descriptor, &info, security) == 0,
+                  info.st_uid == geteuid(), info.st_mode & 0o7777 & ~allowedMode == 0,
+                  !requiresOwnerRead || info.st_mode & 0o400 != 0,
+                  filesec_query_property(security, FILESEC_ACL, &hasACL) == 0, hasACL == 0,
+                  fstatfs(descriptor, &volume) == 0,
+                  volume.f_flags & UInt32(MNT_IGNORE_OWNERSHIP) == 0 else { return false }
             try file.write(contentsOf: data)
             try file.close()
-            if exists {
-                _ = try manager.replaceItemAt(target, withItemAt: staged)
-            } else {
-                try MediaSupport.installStagedOutput(staged, at: target, replacingExisting: false)
-            }
+            try MediaSupport.installStagedOutput(staged, at: target, replacingExisting: exists)
             return true
         } catch {
             return false
@@ -227,6 +239,12 @@ enum SettingsBackup {
             isDeveloperBuild: AppInfo.isDeveloperBuild)
     }
 
+    /// The Advanced page's explicit save to the settings file. The app never
+    /// writes it on its own. The next launch must be able to read the snapshot.
+    static func writeConfigFile(to url: URL = configFileURL, from defaults: UserDefaults = .standard) -> Bool {
+        write(to: url, from: defaults, requiresOwnerRead: true)
+    }
+
     /// A normal app launch overlays the declared keys after migrating local
     /// settings, so a migration cannot copy a declaration into an omitted key.
     /// The plist is owned by the user or their dotfiles manager.
@@ -247,10 +265,24 @@ enum SettingsBackup {
         if settings[DefaultsKey.mediaImageWatermarkKind] != nil { comparisonKeys.insert(DefaultsKey.mediaImageWatermarkText) }
         let local = comparisonKeys.reduce(into: [String: Any]()) { $0[$1] = defaults.object(forKey: $1) }
         let portable = SettingsBackupSupport.portableSettings(local)
-        if settings.contains(where: { portable[$0.key] as? NSObject != $0.value as? NSObject }) {
-            apply(settings: SettingsBackupSupport.keepingLocalMediaLogos(settings, local: local),
-                  replacingMissing: false, in: defaults)
-            if settings[DefaultsKey.appVolumes] != nil {
+        var changed = settings.filter { key, value in
+            !SettingsBackupSupport.matchesPortableValue(value, local: portable[key], key: key)
+        }
+        // Treat mixer values and their units as one declaration. A file that
+        // explicitly stores slider positions can compare them without a gain conversion.
+        if let positions = settings[DefaultsKey.appVolumesArePositions] as? Bool, positions,
+           local[DefaultsKey.appVolumesArePositions] as? Bool == true,
+           settings[DefaultsKey.appVolumes] as? NSDictionary == local[DefaultsKey.appVolumes] as? NSDictionary {
+            changed.removeValue(forKey: DefaultsKey.appVolumes)
+            changed.removeValue(forKey: DefaultsKey.appVolumesArePositions)
+        } else if changed[DefaultsKey.appVolumes] != nil || changed[DefaultsKey.appVolumesArePositions] != nil {
+            changed[DefaultsKey.appVolumes] = settings[DefaultsKey.appVolumes]
+            changed[DefaultsKey.appVolumesArePositions] = settings[DefaultsKey.appVolumesArePositions]
+        }
+        if !changed.isEmpty {
+            let incoming = SettingsBackupSupport.keepingLocalMediaLogos(changed, local: local)
+            apply(settings: incoming, replacingMissing: false, in: defaults)
+            if incoming[DefaultsKey.appVolumes] != nil {
                 Defaults.migrateAppVolumesToPositions(in: defaults)
             }
         }

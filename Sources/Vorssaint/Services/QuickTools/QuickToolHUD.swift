@@ -33,9 +33,9 @@ enum QuickToolHUD {
         return scrollingPanel.windowNumber
     }
 
-    static func show(icon: String, message: String, swatch: NSColor? = nil) {
+    static func show(icon: String, message: String, swatch: NSColor? = nil, showsFullMessage: Bool = false) {
         guard Thread.isMainThread else {
-            DispatchQueue.main.async { show(icon: icon, message: message, swatch: swatch) }
+            DispatchQueue.main.async { show(icon: icon, message: message, swatch: swatch, showsFullMessage: showsFullMessage) }
             return
         }
         let content = HStack(spacing: 8) {
@@ -64,15 +64,19 @@ enum QuickToolHUD {
                 // on the second line is cut at a line break, not inside one,
                 // and middle truncation leaves no mark at all there — the
                 // preview then reads as the whole of what was copied.
-                .lineLimit(2)
+                .lineLimit(showsFullMessage ? nil : 2)
                 .truncationMode(.tail)
+                // The hosting panel measures its ideal size before showing.
+                // Give full instructions a width at which Text can wrap.
+                .fixedSize(horizontal: false, vertical: showsFullMessage)
+                .frame(width: showsFullMessage ? messageWidthLimit : nil, alignment: .leading)
                 .frame(maxWidth: messageWidthLimit, alignment: .leading)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-        present(AnyView(content), dismissAfter: 1.5)
+        present(AnyView(content), dismissAfter: showsFullMessage ? 4 : 1.5)
     }
 
     static func showCountdown(_ value: Int) {

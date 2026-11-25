@@ -29,6 +29,9 @@ enum KeepAwakeLidSleepContract {
                 }
             }
             func asyncAfter(deadline: Instant, execute: @escaping () -> Void) { pending.append(execute) }
+            func asyncAfter(deadline: Instant, execute work: DispatchWorkItem) {
+                pending.append { work.perform() }
+            }
             func advance() {
                 let ready = pending
                 pending.removeAll()
@@ -36,6 +39,20 @@ enum KeepAwakeLidSleepContract {
             }
         }
     }
+    final class PowerNotificationSource {
+        let notify: () -> Void
+        init(notify: @escaping () -> Void) { self.notify = notify }
+    }
+    enum RunLoopMode { case defaultMode, commonModes }
+    static func IOPSNotificationCreateRunLoopSource(
+        _ callback: @escaping @convention(c) (UnsafeMutableRawPointer?) -> Void, _ context: UnsafeMutableRawPointer?
+    ) -> Unmanaged<PowerNotificationSource>? {
+        .passRetained(PowerNotificationSource { callback(context) })
+    }
+    static func CFRunLoopGetMain() -> RunLoop { .main }
+    static func CFRunLoopAddSource(_ loop: RunLoop, _ source: PowerNotificationSource, _ mode: RunLoopMode) {}
+    static func CFRunLoopRemoveSource(_ loop: RunLoop, _ source: PowerNotificationSource, _ mode: RunLoopMode) {}
+
     enum BrightnessService {
         static var lid: Bool? = true
         static func lidClosed() -> Bool? { lid }
@@ -238,5 +255,203 @@ enum KeepAwakeLidSleepTests {
         expect(C.calls == 0 && C.closes == 0, "an unavailable sleep service is not called or closed")
         KeepAwakeClamshellTests.run(expect: expect)
         KeepAwakeDimmingTests.run(expect: expect)
+        powerNotifications(expect: expect)
+        powerDisconnectDelay(expect: expect)
+    }
+
+    private static func powerNotifications(expect: (Bool, String) -> Void) {
+        let service = C.reset()
+        service.clamshellPreferred = false
+        service.recoveryCompleted = true
+        service.setPowerMonitoringEnabled(true)
+        guard let source = service.powerSourceRunLoopSource else {
+            expect(false, "Keep Awake registers its power callback")
+            return
+        }
+        defer {
+            service.setPowerMonitoringEnabled(false)
+            service.deactivate(reason: .manual)
+        }
+
+        // With the default zero delay, a brief source change is still coalesced.
+        service.matchingConditions = [.power]
+        source.notify()
+        expect(!service.isActive, "zero delay preserves the existing power notification debounce")
+        C.DispatchQueue.main.advance()
+        expect(service.isActive, "the debounced power evaluation starts the automatic session")
+        service.matchingConditions = []
+        source.notify()
+        expect(service.isActive && service.assertionsHeld,
+               "a brief unplug retains the session until the default debounce runs")
+        service.matchingConditions = [.power]
+        source.notify()
+        C.DispatchQueue.main.advance()
+        expect(service.isActive && service.assertionsHeld && service.assertionReleases == 0
+                && service.powerDisconnectEvaluation == nil,
+               "a reconnect inside the default debounce leaves the powered session active")
+
+        C.UserDefaults.standard.set(15, forKey: C.DefaultsKey.keepAwakePowerDisconnectDelay)
+        service.matchingConditions = []
+        source.notify()
+        guard let first = service.powerDisconnectEvaluation?.deadline else {
+            expect(false, "a reported disconnect sets a deadline in the power callback")
+            return
+        }
+        service.powerSample = (isOnBattery: false, isOnExternalPower: false)
+        source.notify()
+        expect(service.powerDisconnectEvaluation?.deadline == first,
+               "a source description with no power state preserves the original deadline")
+        service.matchingConditions = []
+        source.notify()
+        expect(service.powerDisconnectEvaluation?.deadline == first,
+               "a subsequent battery reading does not restart the delay")
+
+        // Deliver both edges before another main-queue evaluation can run.
+        service.matchingConditions = [.power]
+        source.notify()
+        expect(service.isActive && service.assertionsHeld && service.assertionReleases == 0
+                && service.powerDisconnectEvaluation == nil,
+               "the confirmed reconnect clears the first deadline synchronously")
+        service.matchingConditions = []
+        source.notify()
+        expect(service.powerDisconnectEvaluation.map { $0.deadline > first } == true,
+               "a second reported dropout gets a new deadline even before the debounce would fire")
+    }
+
+    private static func powerDisconnectDelay(expect: (Bool, String) -> Void) {
+        func evaluate(_ service: C.Service, matching conditions: Set<KeepAwakeAutomationCondition>) {
+            service.matchingConditions = conditions
+            service.evaluateAutomation()
+        }
+
+        func poweredSession(delay: Int, conditions: Set<KeepAwakeAutomationCondition> = [.power],
+                            requireAll: Bool = false) -> C.Service {
+            let service = C.reset()
+            service.clamshellPreferred = false
+            service.recoveryCompleted = true
+            C.UserDefaults.standard.set(delay, forKey: C.DefaultsKey.keepAwakePowerDisconnectDelay)
+            service.enabledConditions = conditions
+            service.requireAll = requireAll
+            evaluate(service, matching: conditions)
+            return service
+        }
+
+        let immediate = poweredSession(delay: 0)
+        evaluate(immediate, matching: [])
+        expect(!immediate.isActive && !immediate.assertionsHeld,
+               "a zero power disconnect delay ends the automatic session immediately")
+
+        let stopped = poweredSession(delay: 20)
+        evaluate(stopped, matching: [])
+        stopped.toggle()
+        expect(!stopped.isActive && !stopped.assertionsHeld && stopped.powerDisconnectEvaluation == nil,
+               "switching off during the delay releases assertions and cancels the deadline")
+        evaluate(stopped, matching: [.power])
+        expect(stopped.isActive && stopped.sessionTrigger == .automation,
+               "a new connection starts automation after a stop on battery without an intervening evaluation")
+        stopped.deactivate(reason: .manual)
+
+        let stoppedWithApp = poweredSession(delay: 20, conditions: [.power, .runningApps])
+        evaluate(stoppedWithApp, matching: [.runningApps])
+        stoppedWithApp.toggle()
+        evaluate(stoppedWithApp, matching: [.power, .runningApps])
+        expect(!stoppedWithApp.isActive && !stoppedWithApp.assertionsHeld
+                && stoppedWithApp.powerDisconnectEvaluation == nil,
+               "stopping with an Any app still running suppresses automation through reconnection")
+        evaluate(stoppedWithApp, matching: [])
+        evaluate(stoppedWithApp, matching: [.runningApps])
+        expect(stoppedWithApp.isActive, "a new Any match can start a session after all conditions clear")
+        stoppedWithApp.deactivate(reason: .manual)
+
+        let all = poweredSession(delay: 20, conditions: [.externalDisplay, .power], requireAll: true)
+        evaluate(all, matching: [.externalDisplay])
+        expect(all.isActive && all.waitingForPower,
+               "All waits for power when the other required condition still matches")
+        evaluate(all, matching: [])
+        expect(!all.isActive && !all.assertionsHeld && all.powerDisconnectEvaluation == nil,
+               "All ends immediately if the external display condition is lost during the delay")
+
+        // Exercise all five-second deadlines in the same pass through the main run loop.
+        let manual = poweredSession(delay: 5)
+        let any = poweredSession(delay: 5, conditions: [.power, .runningApps])
+        let allWithDisplay = poweredSession(delay: 5, conditions: [.power, .externalDisplay], requireAll: true)
+        let locked = poweredSession(delay: 5)
+        let delayed = poweredSession(delay: 5)
+        C.UserDefaults.standard.set(true, forKey: C.DefaultsKey.keepAwakePauseWhenLocked)
+
+        evaluate(manual, matching: [])
+        manual.activate(minutes: 15)
+        let manualEnd = manual.endDate
+        expect(manual.isActive && manual.sessionTrigger == .manual && manual.powerDisconnectEvaluation == nil,
+               "a manual replacement clears the automatic session's pending stop")
+
+        evaluate(any, matching: [])
+        evaluate(any, matching: [.runningApps])
+        expect(any.isActive && any.assertionsHeld && !any.waitingForPower,
+               "a selected app can take over while an Any session is waiting for power")
+        evaluate(allWithDisplay, matching: [.externalDisplay])
+
+        locked.screenLockStateDidChange(locked: true)
+        evaluate(locked, matching: [])
+        expect(locked.sessionPausedForScreenLock && !locked.assertionsHeld && !locked.waitingForPower,
+               "disconnecting power while locked leaves assertions paused")
+        locked.screenLockStateDidChange(locked: false)
+        expect(locked.isActive && locked.assertionsHeld && locked.waitingForPower,
+               "unlocking before the deadline resumes the automatic session on battery")
+        locked.screenLockStateDidChange(locked: true)
+
+        evaluate(delayed, matching: [])
+        let firstDeadline = delayed.powerDisconnectEvaluation?.deadline
+        expect(delayed.isActive && delayed.assertionsHeld && delayed.waitingForPower && firstDeadline != nil,
+               "disconnecting power retains the automatic session and its assertions")
+        delayed.evaluateAutomation()
+        expect(delayed.powerDisconnectEvaluation?.deadline == firstDeadline,
+               "repeated evaluations do not extend a disconnect delay")
+        evaluate(delayed, matching: [.power])
+        expect(delayed.isActive && delayed.assertionsHeld && !delayed.waitingForPower
+                && delayed.powerDisconnectEvaluation == nil,
+               "reconnecting power cancels the pending stop without releasing assertions")
+        evaluate(delayed, matching: [])
+        let timeout = Date().addingTimeInterval(7)
+        while (delayed.isActive || allWithDisplay.isActive || any.powerDisconnectEvaluation != nil), Date() < timeout {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        }
+        expect(!delayed.isActive && !delayed.assertionsHeld && delayed.powerDisconnectEvaluation == nil,
+               "a later disconnect expires on its own and releases assertions")
+        delayed.evaluateAutomation()
+        expect(!delayed.isActive, "a Mac already on battery cannot start a session through the delay")
+        expect(any.isActive && any.assertionsHeld && any.assertionReleases == 0 && any.powerDisconnectEvaluation == nil,
+               "a matching Any app keeps the session and assertions past the power deadline")
+        evaluate(any, matching: [])
+        expect(!any.isActive && !any.assertionsHeld,
+               "losing the last Any match after the deadline ends the session immediately")
+        expect(!allWithDisplay.isActive && !allWithDisplay.assertionsHeld,
+               "reaching the deadline ends an All session with only the display still matching")
+        locked.screenLockStateDidChange(locked: false)
+        expect(!locked.isActive && !locked.assertionsHeld && locked.powerDisconnectEvaluation == nil,
+               "unlocking after the deadline on battery leaves the automatic session stopped")
+        expect(manual.isActive && manual.assertionsHeld && manualEnd != nil && manual.endDate == manualEnd,
+               "the old power deadline leaves the replacement session and its chosen end time intact")
+        manual.deactivate(reason: .manual)
+
+        let lowBattery = poweredSession(delay: 20)
+        C.UserDefaults.standard.set(10, forKey: C.DefaultsKey.batteryLimit)
+        C.SystemInfo.battery = (isOnBattery: true, percent: 11)
+        evaluate(lowBattery, matching: [])
+        var endReason: C.EndReason?
+        lowBattery.onSessionEnded = { endReason = $0 }
+        C.SystemInfo.battery = (isOnBattery: true, percent: 10)
+        lowBattery.evaluateAutomation()
+        expect(endReason == .battery && !lowBattery.isActive && !lowBattery.assertionsHeld
+                && lowBattery.powerDisconnectEvaluation == nil,
+               "reaching the battery cutoff during the delay ends the session and cancels its deadline")
+
+        let lowBatteryWithApp = poweredSession(delay: 20, conditions: [.power, .runningApps])
+        C.UserDefaults.standard.set(10, forKey: C.DefaultsKey.batteryLimit)
+        C.SystemInfo.battery = (isOnBattery: true, percent: 5)
+        evaluate(lowBatteryWithApp, matching: [.runningApps])
+        expect(!lowBatteryWithApp.isActive && !lowBatteryWithApp.assertionsHeld
+                && lowBatteryWithApp.powerDisconnectEvaluation == nil,
+               "battery protection wins on unplug even if another Any condition still matches")
     }
 }
