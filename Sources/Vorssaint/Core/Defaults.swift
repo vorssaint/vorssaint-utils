@@ -1222,7 +1222,7 @@ enum Defaults {
     ]
 
     static let allowedDurations = [0, 15, 30, 60, 120, 240, 480]
-    static let allowedKeepAwakeMouseJiggleIntervals = [1, 2, 5, 10, 15]
+    static let keepAwakeMouseJiggleIntervalRange = 1...10
     static let allowedBatteryLimits = [0, 5, 10, 15, 20]
     static let allowedKeepAwakePowerDisconnectDelays = Array(stride(from: 0, through: 60, by: 5))
     static let allowedMonitorIntervals = [1, 2, 5]
@@ -2567,7 +2567,7 @@ enum Defaults {
     }
 
     static func sanitizedKeepAwakeMouseJiggleInterval(_ minutes: Int) -> Int {
-        allowedKeepAwakeMouseJiggleIntervals.contains(minutes) ? minutes : 5
+        keepAwakeMouseJiggleIntervalRange.contains(minutes) ? minutes : 5
     }
 
     static func sanitizedKeepAwakeIconTint(_ rawValue: String?) -> KeepAwakeIconTint {
