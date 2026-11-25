@@ -26,6 +26,7 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotFileNumberNext) private var nextNumber = 1
     @AppStorage(DefaultsKey.screenshotIncludePointer) private var includePointer = false
     @AppStorage(DefaultsKey.screenshotShowLastRegion) private var showLastRegion = true
+    @AppStorage(DefaultsKey.screenshotSquareSelectionCorners) private var squareSelectionCorners = false
     @AppStorage(DefaultsKey.screenshotHighlightWindows) private var highlightWindows = true
     @AppStorage(DefaultsKey.screenshotLoupeStartsOn) private var loupeStartsOn = false
     @AppStorage(DefaultsKey.screenshotLoupeRememberZoom) private var rememberLoupeZoom = false
@@ -151,6 +152,7 @@ struct ScreenshotCaptureSettings: View {
                 if tool != .scrolling {
                     Toggle(strings.pointerToggle, isOn: $includePointer)
                 }
+                Toggle(strings.squareSelectionCornersToggle, isOn: $squareSelectionCorners)
                 Toggle(strings.lastRegionToggle, isOn: $showLastRegion)
                 Toggle(strings.highlightWindowsToggle, isOn: $highlightWindows)
                 Text(strings.highlightWindowsCaption)
