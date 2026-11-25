@@ -830,6 +830,14 @@ final class WindowLayoutService: ObservableObject {
                                                               actualSize: frame.size,
                                                               visibleFrame: visibleFrame)
         let requestedFrame = axFrame(fromAppKit: requestedRect)
+        // A shrinking window takes its new size first, so the in-between frame
+        // stays inside the old one. Moved first at its old, larger size, it
+        // ran past the screen edge for a moment, which apps that redraw slowly
+        // (Outlook) showed as a flicker.
+        if let current = self.frame(of: window)?.size,
+           frame.size.width < current.width || frame.size.height < current.height {
+            _ = setSize(frame.size, on: window)
+        }
         _ = setPosition(requestedFrame.origin, on: window)
         _ = setSize(frame.size, on: window)
         let acceptedSize = self.frame(of: window)?.size ?? frame.size
