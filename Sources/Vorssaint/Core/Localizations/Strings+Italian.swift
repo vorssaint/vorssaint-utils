@@ -176,6 +176,7 @@ extension Strings {
         mouseNavigationSection: "Navigazione",
         mouseNavigationEnable: "Usa i pulsanti laterali per Indietro e Avanti",
         mouseNavigationCaption: "Trasforma i pulsanti Indietro e Avanti del mouse in comandi di navigazione per Finder, browser e app compatibili.",
+        mouseNavigationSwipe: "Simula scorrimenti sul trackpad",
         middleClickSection: "Clic centrale da trackpad",
         middleClickEnable: "Il clic con tre dita agisce da clic centrale",
         middleClickEnableCaption: "Premere il trackpad con tre dita funziona come il clic della rotellina del mouse: aprire i link in una nuova scheda, chiudere le schede e tutto ciò che fa il tasto centrale.",

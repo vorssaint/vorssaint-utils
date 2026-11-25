@@ -176,6 +176,7 @@ extension Strings {
         mouseNavigationSection: "ナビゲーション",
         mouseNavigationEnable: "サイドボタンで戻ると進むを操作",
         mouseNavigationCaption: "マウスの戻るボタンと進むボタンを、Finder、ブラウザ、対応アプリのナビゲーション操作に変換します。",
+        mouseNavigationSwipe: "トラックパッドのスワイプをシミュレート",
         middleClickSection: "トラックパッドの中クリック",
         middleClickEnable: "3本指クリックを中クリックにする",
         middleClickEnableCaption: "トラックパッドを3本指で押すと、マウスのホイールクリックと同じように動作します。リンクを新しいタブで開く、タブを閉じるなど、中ボタンでできることすべてに使えます。",

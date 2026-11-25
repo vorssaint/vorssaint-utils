@@ -176,6 +176,7 @@ extension Strings {
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Utiliser les boutons latéraux pour Précédent et Suivant",
         mouseNavigationCaption: "Transforme les boutons Précédent et Suivant de la souris en commandes de navigation dans le Finder, les navigateurs et les apps compatibles.",
+        mouseNavigationSwipe: "Simuler des balayages sur le trackpad",
         middleClickSection: "Clic du milieu au trackpad",
         middleClickEnable: "Le clic à trois doigts devient un clic du milieu",
         middleClickEnableCaption: "Appuyer sur le trackpad avec trois doigts agit comme un clic sur la molette de la souris\u{00A0}: ouvrir les liens dans un nouvel onglet, fermer des onglets et tout ce que fait le bouton du milieu.",
