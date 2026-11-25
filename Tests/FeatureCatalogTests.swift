@@ -1442,6 +1442,65 @@ enum FeatureCatalogTests {
                 && FanControlPolicy.menuBarWidthUnits(fanCount: 2) == 18
                 && FanControlPolicy.menuBarWidthUnits(fanCount: 0) == 0,
                "fan RPM menu bar width reserves one or several five-digit readings")
+        suite.expect(FanControlPolicy.menuBarReserveDigits(maxRPM: 5_800) == 4
+                && FanControlPolicy.menuBarReserveDigits(maxRPM: 12_000) == 5
+                && FanControlPolicy.menuBarReserveDigits(maxRPM: nil) == 4
+                && FanControlPolicy.menuBarReserveDigits(maxRPM: 0) == 4
+                && FanControlPolicy.menuBarReserveDigits(maxRPM: -1) == 4
+                && FanControlPolicy.menuBarReserveDigits(maxRPM: .nan) == 4
+                && FanControlPolicy.menuBarReserveDigits(maxRPM: 25_000) == 4,
+               "fan RPM reserve follows the hardware maximum, with a four-digit fallback")
+        suite.expect(FanControlPolicy.menuBarReserveDigits(maxSpeeds: [5_800, 12_000]) == 5
+                && FanControlPolicy.menuBarReserveDigits(maxSpeeds: []) == 4,
+               "fan RPM reserve uses the widest maximum and falls back for a short list")
+        suite.expect(FanControlPolicy.menuBarReserveString(fanCount: 2, maxSpeeds: [5_800, 5_800]) == "8888/8888"
+                && FanControlPolicy.menuBarReserveString(fanCount: 2, maxSpeeds: [5_800, 12_000]) == "8888/88888"
+                && FanControlPolicy.menuBarReserveString(fanCount: 3, maxSpeeds: [5_800]) == "8888/8888/8888",
+               "per-fan reserve sizes each reading from its own maximum")
+        suite.expect(FanControlPolicy.menuBarAverageReserveString(maxSpeeds: [5_800, 5_900]) == "8888"
+                && FanControlPolicy.menuBarAverageReserveString(maxSpeeds: [5_800, 12_000]) == "88888"
+                && FanControlPolicy.menuBarAverageReserveString(maxSpeeds: []) == "8888",
+               "average reserve sizes one number from the fastest fan")
+        suite.expect(FanControlPolicy.menuBarWidthUnits(fanCount: 2, digits: 4) == 16
+                && FanControlPolicy.menuBarWidthUnits(fanCount: 2, digits: 5) == 18
+                && FanControlPolicy.menuBarAverageWidthUnits(fanCount: 2, digits: 4) == 11
+                && FanControlPolicy.menuBarAverageWidthUnits(fanCount: 2, digits: 5) == 12,
+               "column estimates track the same reserve digit count as the drawing")
+        suite.expect(FanControlPolicy.validReading(20_000),
+               "the full five-digit RPM range stays a valid reading")
+        suite.expect(FanControlPolicy.averageMenuBarValue(for: [1_200, 1_400]) == "1300"
+                && FanControlPolicy.averageMenuBarValue(for: [1_000, 2_000, 3_000]) == "2000"
+                && FanControlPolicy.averageMenuBarValue(for: [0, 2_000]) == "1000",
+               "average fan RPM rounds the mean of every valid reading, including zero")
+        suite.expect(FanControlPolicy.averageMenuBarValue(for: []) == nil
+                && FanControlPolicy.averageMenuBarValue(for: [1_200, .infinity]) == nil
+                && FanControlPolicy.averageMenuBarValue(for: [1_200, -1]) == nil,
+               "average fan RPM hides the readout when any reading is invalid")
+        suite.expect(FanControlPolicy.menuBarAverageWidthUnits(fanCount: 2) == 12
+                && FanControlPolicy.menuBarAverageWidthUnits(fanCount: 2)
+                    < FanControlPolicy.menuBarWidthUnits(fanCount: 2)
+                && FanControlPolicy.menuBarAverageWidthUnits(fanCount: 0) == 0,
+               "average fan RPM reserves one number instead of a joined per-fan reading")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.menuBarFanAverageRPM] as? Bool == false,
+               "average fan RPM is opt-in through a registered default")
+        suite.expect(FanControlPolicy.averageMenuBarValueAvailable(fanCount: 1, featureAvailable: true) == false
+                && FanControlPolicy.averageMenuBarValueAvailable(fanCount: 2, featureAvailable: false) == false
+                && FanControlPolicy.averageMenuBarValueAvailable(fanCount: 2, featureAvailable: true),
+               "average fan RPM needs Fan Control and at least two fans")
+        suite.expect(!FanControlPolicy.usesAverageMenuBarValue(fanCount: 2,
+                                                              featureAvailable: true,
+                                                              isEnabled: false),
+               "average fan RPM stays off until the user enables it")
+        suite.expect(FanControlPolicy.usesAverageMenuBarValue(fanCount: 2,
+                                                              featureAvailable: true,
+                                                              isEnabled: true)
+                && !FanControlPolicy.usesAverageMenuBarValue(fanCount: 1,
+                                                             featureAvailable: true,
+                                                             isEnabled: true)
+                && !FanControlPolicy.usesAverageMenuBarValue(fanCount: 2,
+                                                             featureAvailable: false,
+                                                             isEnabled: true),
+               "the average toggle takes effect only with two fans and Fan Control available")
 
         let floatRPM = SMCValueCodec.encode(4_850, type: "flt ", size: 4)
         suite.expect(floatRPM.flatMap { SMCValueCodec.decode($0, type: "flt ") } == 4_850,

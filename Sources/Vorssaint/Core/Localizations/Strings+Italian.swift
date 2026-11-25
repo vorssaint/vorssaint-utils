@@ -746,6 +746,8 @@ extension Strings {
         monitorMenuBarSection: "Nella barra dei menu",
         monitorMenuBarPreview: "Anteprima della barra dei menu",
         monitorMenuBarCaption: "Scegli cosa appare accanto all’icona nella barra dei menu.",
+        monitorAverageFanRPM: "Average RPM",
+        monitorAverageFanRPMCaption: "Shows one averaged RPM number instead of a reading per fan.",
         monitorCombineTemperatures: "Combina uso e temperatura",
         monitorCombineTemperaturesCaption: "Quando uso e temperatura dello stesso elemento sono attivi, vengono mostrati in un solo blocco.",
         monitorSeparateMenuBarMetrics: "Separa le metriche in elementi propri",

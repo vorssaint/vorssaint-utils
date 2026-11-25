@@ -18,6 +18,7 @@ struct MonitorSettings: View {
     @AppStorage(DefaultsKey.menuBarMetricSpacing) private var metricSpacing = "standard"
     @AppStorage(DefaultsKey.menuBarMetricAppearance) private var metricAppearance = "values"
     @AppStorage(DefaultsKey.menuBarHideIconWithMetrics) private var hideIconWithMetrics = false
+    @AppStorage(DefaultsKey.menuBarFanAverageRPM) private var averageFanRPM = false
     @AppStorage(DefaultsKey.monitorInterval) private var interval = 2
     @AppStorage(DefaultsKey.monitorGraphScale) private var graphScale = true
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
@@ -112,6 +113,15 @@ struct MonitorSettings: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             MenuBarMetricTiles()
+            if FanControlPolicy.averageMenuBarValueAvailable(
+                fanCount: SystemMonitor.fanTelemetryCount,
+                featureAvailable: AppFeature.fanControl.isAvailable
+            ) {
+                SettingsRow(symbol: "fanblades", title: l10n.s.monitorAverageFanRPM,
+                            caption: l10n.s.monitorAverageFanRPMCaption) {
+                    Toggle(l10n.s.monitorAverageFanRPM, isOn: $averageFanRPM).labelsHidden()
+                }
+            }
             Text(FeatureStrings.notchEditor(l10n.language).reorderHint)
                 .font(.caption)
                 .foregroundStyle(.secondary)

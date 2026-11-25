@@ -338,6 +338,23 @@ enum MenuBarRenderer {
         return columns > 0 ? columns + statusTextGapColumns : 0
     }
 
+    /// The opt-in single-number fan readout. Fan Control must be available and
+    /// the machine must report at least two fans; the setting alone is not
+    /// enough on a single-fan Mac. The app owns this preference lookup; the
+    /// fan helper only receives the resolved boolean.
+    private static var usesAverageFanRPM: Bool {
+        let isEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.menuBarFanAverageRPM)
+        return FanControlPolicy.usesAverageMenuBarValue(fanCount: SystemMonitor.fanTelemetryCount,
+                                                        featureAvailable: AppFeature.fanControl.isAvailable,
+                                                        isEnabled: isEnabled)
+    }
+
+    /// The live hardware maxima drive both the reserve string and the column
+    /// estimate, so width measurement and drawing agree on the digit count.
+    private static var currentFanMaxSpeeds: [Double] {
+        SystemMonitor.shared.snapshot.fanMaxSpeeds
+    }
+
     private static func blockSegments(for snapshot: SystemSnapshot,
                                       metrics: [MenuBarMetric],
                                       style: MenuBarBlockStyle) -> [MenuBarSegment] {
@@ -589,9 +606,17 @@ enum MenuBarRenderer {
                                                 pressure: nil)])
                 }
             case .fanSpeed:
-                if let value = FanControlPolicy.menuBarValue(for: snapshot.fanSpeeds) {
-                    let minimumValue = Array(repeating: "20000", count: snapshot.fanSpeeds.count)
-                        .joined(separator: "/")
+                // The average path shows one number; per-fan readings keep
+                // their existing joined form and width reservation.
+                let showAverage = usesAverageFanRPM
+                let value = showAverage
+                    ? FanControlPolicy.averageMenuBarValue(for: snapshot.fanSpeeds)
+                    : FanControlPolicy.menuBarValue(for: snapshot.fanSpeeds)
+                if let value {
+                    let minimumValue = showAverage
+                        ? FanControlPolicy.menuBarAverageReserveString(maxSpeeds: snapshot.fanMaxSpeeds)
+                        : FanControlPolicy.menuBarReserveString(fanCount: snapshot.fanSpeeds.count,
+                                                                maxSpeeds: snapshot.fanMaxSpeeds)
                     groups.append([.metricBlock(label: "RPM",
                                                 value: value,
                                                 minimumValue: minimumValue,
@@ -679,7 +704,10 @@ enum MenuBarRenderer {
             return 6       // symbol + " 99"
         case (_, .fanSpeed):
             let count = max(1, SystemMonitor.fanTelemetryCount)
-            return FanControlPolicy.menuBarWidthUnits(fanCount: count)
+            let digits = FanControlPolicy.menuBarReserveDigits(maxSpeeds: currentFanMaxSpeeds)
+            return usesAverageFanRPM
+                ? FanControlPolicy.menuBarAverageWidthUnits(fanCount: count, digits: digits)
+                : FanControlPolicy.menuBarWidthUnits(fanCount: count, digits: digits)
         }
     }
 
@@ -1171,7 +1199,15 @@ enum MenuBarRenderer {
         snapshot.cpuTemperature = 125
         snapshot.gpuTemperature = 125
         snapshot.batteryTemperature = 125
-        snapshot.fanSpeeds = Array(repeating: 20_000, count: fanCount)
+        // The estimate is what the width is measured from, so its fan text
+        // must have the same digit count as the live reserve. A wider sample
+        // would reintroduce the old five-digit reservation on quieter Macs.
+        let maxima = (0..<fanCount).map { index in
+            FanControlPolicy.fanReserveMaximum(index < currentFanMaxSpeeds.count
+                                               ? currentFanMaxSpeeds[index] : nil)
+        }
+        snapshot.fanSpeeds = maxima
+        snapshot.fanMaxSpeeds = maxima
         snapshot.netDownBytesPerSec = 1_000_000_000
         snapshot.netUpBytesPerSec = 1_000_000_000
         snapshot.disk = DiskReading(devices: [

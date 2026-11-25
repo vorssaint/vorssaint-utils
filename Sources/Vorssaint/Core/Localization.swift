@@ -937,6 +937,8 @@ struct Strings {
     let monitorMenuBarSection: String
     let monitorMenuBarPreview: String
     let monitorMenuBarCaption: String
+    let monitorAverageFanRPM: String
+    let monitorAverageFanRPMCaption: String
     let monitorCombineTemperatures: String
     let monitorCombineTemperaturesCaption: String
     let monitorSeparateMenuBarMetrics: String
@@ -2087,6 +2089,8 @@ extension Strings {
         monitorMenuBarSection: "Na barra de menus",
         monitorMenuBarPreview: "Prévia da barra de menus",
         monitorMenuBarCaption: "Escolha o que aparece ao lado do ícone na barra de menus.",
+        monitorAverageFanRPM: "RPM média",
+        monitorAverageFanRPMCaption: "Mostra um número de RPM médio em vez de uma leitura por ventilador.",
         monitorCombineTemperatures: "Combinar uso e temperatura",
         monitorCombineTemperaturesCaption: "Quando uso e temperatura do mesmo item estiverem ativos, mostra tudo em um bloco só.",
         monitorSeparateMenuBarMetrics: "Separar métricas em itens próprios",
@@ -3223,6 +3227,8 @@ extension Strings {
         monitorMenuBarSection: "In the menu bar",
         monitorMenuBarPreview: "Menu bar preview",
         monitorMenuBarCaption: "Choose what appears next to the icon in the menu bar.",
+        monitorAverageFanRPM: "Average RPM",
+        monitorAverageFanRPMCaption: "Shows one averaged RPM number instead of a reading per fan.",
         monitorCombineTemperatures: "Combine usage and temperature",
         monitorCombineTemperaturesCaption: "When usage and temperature for the same item are enabled, show them in one block.",
         monitorSeparateMenuBarMetrics: "Separate metrics into their own items",

@@ -723,6 +723,8 @@ extension Strings {
         monitorMenuBarSection: "На смузі меню",
         monitorMenuBarPreview: "Попередній перегляд смуги меню",
         monitorMenuBarCaption: "Виберіть, що показувати біля значка на смузі меню.",
+        monitorAverageFanRPM: "Average RPM",
+        monitorAverageFanRPMCaption: "Shows one averaged RPM number instead of a reading per fan.",
         monitorCombineTemperatures: "Об’єднувати навантаження та температуру",
         monitorCombineTemperaturesCaption: "Коли увімкнені і навантаження, і температура одного елемента, показувати їх одним блоком.",
         monitorSeparateMenuBarMetrics: "Виводити метрики окремими елементами",

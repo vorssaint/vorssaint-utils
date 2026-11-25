@@ -428,6 +428,7 @@ enum DefaultsKey {
     static let menuBarConnectedDevices = "menuBarConnectedDevices"
     static let menuBarPower = "menuBarPower"
     static let menuBarFanSpeed = "menuBarFanSpeed"
+    static let menuBarFanAverageRPM = "menuBarFanAverageRPM" // average the two-fan menu bar reading
     static let menuBarPreset = "menuBarPreset"           // dense
     static let menuBarMetricSpacing = "menuBarMetricSpacing" // standard | compact
     static let menuBarMetricAppearance = "menuBarMetricAppearance" // values | bars
@@ -1723,6 +1724,7 @@ enum Defaults {
         DefaultsKey.menuBarPeripheralBattery: false,
         DefaultsKey.menuBarConnectedDevices: false,
         DefaultsKey.menuBarFanSpeed: false,
+        DefaultsKey.menuBarFanAverageRPM: false,
         DefaultsKey.menuBarPreset: "dense",
         DefaultsKey.menuBarMetricSpacing: "compact",  // owner's call: compact by default in 3.1.8
         DefaultsKey.menuBarMetricAppearance: "values",

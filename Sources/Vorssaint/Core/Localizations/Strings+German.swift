@@ -746,6 +746,8 @@ extension Strings {
         monitorMenuBarSection: "In der Menüleiste",
         monitorMenuBarPreview: "Vorschau der Menüleiste",
         monitorMenuBarCaption: "Wähle, was neben dem Symbol in der Menüleiste erscheint.",
+        monitorAverageFanRPM: "Average RPM",
+        monitorAverageFanRPMCaption: "Shows one averaged RPM number instead of a reading per fan.",
         monitorCombineTemperatures: "Auslastung und Temperatur kombinieren",
         monitorCombineTemperaturesCaption: "Wenn Auslastung und Temperatur desselben Elements aktiv sind, erscheinen sie in einem Block.",
         monitorSeparateMenuBarMetrics: "Messwerte in eigene Elemente trennen",

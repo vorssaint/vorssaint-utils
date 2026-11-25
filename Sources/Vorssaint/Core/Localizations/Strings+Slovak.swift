@@ -746,6 +746,8 @@ extension Strings {
         monitorMenuBarSection: "V lište s ponukami",
         monitorMenuBarPreview: "Náhľad lišty s ponukami",
         monitorMenuBarCaption: "Vyberte, čo sa zobrazí vedľa ikony v lište s ponukami.",
+        monitorAverageFanRPM: "Average RPM",
+        monitorAverageFanRPMCaption: "Shows one averaged RPM number instead of a reading per fan.",
         monitorCombineTemperatures: "Spojiť využitie a teplotu",
         monitorCombineTemperaturesCaption: "Keď sú pre tú istú položku zapnuté využitie aj teplota, zobrazia sa v jednom bloku.",
         monitorSeparateMenuBarMetrics: "Rozdeliť metriky do samostatných položiek",
