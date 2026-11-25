@@ -22,6 +22,10 @@ struct MonitorSettings: View {
     @AppStorage(DefaultsKey.monitorGraphScale) private var graphScale = true
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
     @AppStorage(DefaultsKey.networkSpeedUnit) private var networkSpeedUnit = NetworkSpeedUnit.bytes
+    @AppStorage(DefaultsKey.networkConnectivityCheck) private var connectivityCheck = false
+    @AppStorage(DefaultsKey.networkConnectivityInterval) private var connectivityInterval = NetworkStatusService.defaultProbeInterval
+    @AppStorage(DefaultsKey.networkConnectivityHost) private var connectivityHost = ""
+    @AppStorage(DefaultsKey.networkPublicIP) private var showPublicIP = false
     @AppStorage(DefaultsKey.monitorMemoryMetric) private var memoryMetric = "used"
     @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
 
@@ -189,6 +193,37 @@ struct MonitorSettings: View {
                     .labelsHidden()
                     .fixedSize()
                 }
+                let status = FeatureStrings.networkStatus(l10n.language)
+                SettingsRow(symbol: "wifi", title: status.check, caption: status.checkCaption) {
+                    Toggle(status.check, isOn: $connectivityCheck).labelsHidden()
+                }
+                .onChange(of: connectivityCheck) { _, _ in NetworkStatusService.shared.syncWithPreferences() }
+                Group {
+                    SettingsRow(symbol: "timer", title: status.interval) {
+                        Picker(status.interval, selection: $connectivityInterval) {
+                            ForEach(NetworkStatusService.probeIntervals, id: \.self) { seconds in
+                                Text(intervalLabel(seconds)).tag(seconds)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+                    .onChange(of: connectivityInterval) { _, _ in NetworkStatusService.shared.syncWithPreferences() }
+                    SettingsRow(symbol: "server.rack", title: status.host,
+                                caption: NetworkStatusService.probeURL(host: connectivityHost) == nil
+                                    ? status.hostInvalid : nil) {
+                        // Read by every check, so a typed host applies without a restart.
+                        TextField(status.host, text: $connectivityHost, prompt: Text(verbatim: "speed.cloudflare.com"))
+                            .textFieldStyle(.roundedBorder)
+                            .labelsHidden()
+                            .frame(width: 200)
+                    }
+                }
+                .disabled(!connectivityCheck)
+                SettingsRow(symbol: "globe", title: status.showPublicIP, caption: status.publicIPCaption) {
+                    Toggle(status.showPublicIP, isOn: $showPublicIP).labelsHidden()
+                }
             }
             if AppFeature.monitorMemory.isAvailable {
                 SettingsRow(symbol: "memorychip", title: l10n.s.monitorMemoryMetricLabel) {
@@ -202,6 +237,11 @@ struct MonitorSettings: View {
                 }
             }
         }
+    }
+
+    private func intervalLabel(_ seconds: Int) -> String {
+        Duration.seconds(seconds).formatted(.units(allowed: [.seconds, .minutes], width: .narrow)
+            .locale(l10n.language.formattingLocale()))
     }
 
     private func intervalChip(_ seconds: Int, title: String) -> some View {

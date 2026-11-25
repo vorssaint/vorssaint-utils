@@ -32,6 +32,7 @@ struct MonitorPanelConfig: View {
     @AppStorage(DefaultsKey.monitorNetTotals) private var netTotals = true
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
     @AppStorage(DefaultsKey.monitorNetAddresses) private var netAddresses = true
+    @AppStorage(DefaultsKey.monitorNetStatus) private var netStatus = true
 
     @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
     @AppStorage(DefaultsKey.monitorDiskUsage) private var diskUsage = true
@@ -148,10 +149,12 @@ struct MonitorPanelConfig: View {
         case .network:
             itemTile(l10n.s.monitorItemNetSpeed, symbol: "speedometer", value: $netSpeed, available: available,
                      options: AnyView(chartOption($graphNetwork)), summary: chartSummary(graphNetwork))
-            itemTile(l10n.s.networkApps, symbol: "app.badge", value: $netApps, available: available)
+            itemTile(FeatureStrings.networkStatus(l10n.language).title, symbol: "wifi", value: $netStatus,
+                     available: available)
             itemTile(l10n.s.monitorItemNetTotals, symbol: "sum", value: $netTotals, available: available)
             itemTile(l10n.s.networkIPAddresses, symbol: "network", value: $netAddresses, available: available)
             itemTile(l10n.s.monitorItemNetTest, symbol: "gauge.with.needle", value: $netTest, available: available)
+            itemTile(l10n.s.networkApps, symbol: "app.badge", value: $netApps, available: available)
         case .disk:
             itemTile(l10n.s.monitorItemDiskUsage, symbol: "internaldrive", value: $diskUsage, available: available)
             itemTile(l10n.s.monitorItemDiskActivity, symbol: "arrow.up.arrow.down", value: $diskActivity, available: available,
@@ -227,10 +230,11 @@ struct MonitorPanelConfig: View {
         if AppFeature.monitorNetwork.isAvailable {
             block(.network, title: l10n.s.networkSection, master: $showNetwork) {
                 Toggle(l10n.s.monitorItemNetSpeed, isOn: $netSpeed)
-                Toggle(l10n.s.networkApps, isOn: $netApps)
+                Toggle(FeatureStrings.networkStatus(l10n.language).title, isOn: $netStatus)
                 Toggle(l10n.s.monitorItemNetTotals, isOn: $netTotals)
                 Toggle(l10n.s.networkIPAddresses, isOn: $netAddresses)
                 Toggle(l10n.s.monitorItemNetTest, isOn: $netTest)
+                Toggle(l10n.s.networkApps, isOn: $netApps)
             }
         }
         if AppFeature.monitorDisk.isAvailable {

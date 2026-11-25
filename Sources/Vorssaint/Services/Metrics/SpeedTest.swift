@@ -33,7 +33,8 @@ final class SpeedTest: NSObject, ObservableObject {
 
     private enum Kind { case none, download, upload }
 
-    private let host = "https://speed.cloudflare.com"
+    /// Also the endpoint `NetworkStatusService` probes, so the app talks to one provider.
+    static let host = "https://speed.cloudflare.com"
     private let sampleSeconds: TimeInterval
     private let clock: Clock
     private let scheduleTimeBox: TimeBoxScheduler
@@ -106,7 +107,7 @@ final class SpeedTest: NSObject, ObservableObject {
             startTransfer(.download)
             return
         }
-        let url = URL(string: "\(host)/__down?bytes=0")!
+        let url = URL(string: "\(Self.host)/__down?bytes=0")!
         let started = clock()
         let generation = self.generation
         task = session.dataTask(with: url) { [weak self] _, response, error in
@@ -151,9 +152,9 @@ final class SpeedTest: NSObject, ObservableObject {
         guard !finished else { return }
         let task: URLSessionTask
         if kind == .download {
-            task = session.dataTask(with: URL(string: "\(host)/__down?bytes=\(downloadBytes)")!)
+            task = session.dataTask(with: URL(string: "\(Self.host)/__down?bytes=\(downloadBytes)")!)
         } else {
-            var request = URLRequest(url: URL(string: "\(host)/__up")!)
+            var request = URLRequest(url: URL(string: "\(Self.host)/__up")!)
             request.httpMethod = "POST"
             request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
             task = session.uploadTask(with: request, from: Data(count: uploadBytes))

@@ -379,8 +379,11 @@ enum SettingsDirectory {
                                                   barStyle.bars, barStyle.values, s.monitorSeparateMenuBarMetrics,
                                                   s.monitorIntervalLabel, s.temperatures, GraphScaleStrings.localized(language).title],
                                        featureKeywords: [
-                                        (.monitorMemory, [s.monitorMemoryPressureDot, s.monitorMemoryMetricLabel]),
-                                        (.monitorNetwork, [FeatureStrings.monitorLayout(language).networkSpeedUnit]),
+                                        (.monitorMemory, [s.monitorMemoryPressureDot]),
+                                        (.monitorNetwork, [FeatureStrings.monitorLayout(language).networkSpeedUnit,
+                                                           FeatureStrings.networkStatus(language).check,
+                                                           FeatureStrings.networkStatus(language).host,
+                                                           FeatureStrings.networkStatus(language).showPublicIP]),
                                         (.fanControl, [FeatureStrings.fanControl(language).menuBarTitle]),
                                        ], terms: [
                                         .init([s.monitorCombineTemperatures], when: !state.bars),
