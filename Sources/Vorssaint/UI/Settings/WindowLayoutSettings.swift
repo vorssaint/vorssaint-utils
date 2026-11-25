@@ -28,6 +28,7 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowReserveStageManagerSpace) private var reserveStageManagerSpace = false
     @AppStorage(DefaultsKey.windowLayoutMarginPercent) private var marginPercent = WindowLayoutMargin.defaultPercent
     @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
+    @AppStorage(DefaultsKey.windowLayoutNudgeStep) private var nudgeStep = WindowLayoutNudge.defaultStep
     @State private var directionalError: String?
     @State private var systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
     // Same preference the Switcher page exposes next to Dock Preview; it is
@@ -364,6 +365,9 @@ struct WindowLayoutSettings: View {
     private static let cornerActions: [WindowLayoutAction] = [
         .topLeft, .topRight, .bottomLeft, .bottomRight,
     ]
+    private static let nudgeActions: [WindowLayoutAction] = [
+        .nudgeLeft, .nudgeRight, .nudgeUp, .nudgeDown,
+    ]
 
     /// The placement families, grouped so the form body stays within the
     /// ten-view ViewBuilder limit.
@@ -383,6 +387,15 @@ struct WindowLayoutSettings: View {
         actionSection(text.quarterColumns, Self.quarterColumnActions)
         actionSection(text.sixths, Self.sixthActions)
         actionSection(text.corners, Self.cornerActions)
+        Section(text.nudgeSection) {
+            WindowNudgeStepStepper(step: $nudgeStep, title: text.nudgeStep)
+            ForEach(Self.nudgeActions) { action in
+                actionRow(action)
+            }
+            Text(text.nudgeCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     /// One section per placement family. Building the rows from an array keeps
@@ -431,6 +444,24 @@ struct WindowLayoutSettings: View {
         case .success: return .green
         case .failure: return .orange
         case nil: return .secondary
+        }
+    }
+}
+
+/// The nudge distance, shown beside the nudge actions on the Window Layout and
+/// Shortcuts pages. The owner keeps the `@AppStorage` so its action titles,
+/// which carry the distance, refresh as the value changes. The step is read on
+/// every nudge, so no service sync is needed.
+struct WindowNudgeStepStepper: View {
+    @Binding var step: Int
+    let title: String
+
+    var body: some View {
+        Stepper(value: Binding(
+            get: { WindowLayoutNudge.sanitizedStep(step) },
+            set: { step = WindowLayoutNudge.sanitizedStep($0) }
+        ), in: WindowLayoutNudge.stepRange) {
+            LabeledContent(title, value: "\(WindowLayoutNudge.sanitizedStep(step)) px")
         }
     }
 }

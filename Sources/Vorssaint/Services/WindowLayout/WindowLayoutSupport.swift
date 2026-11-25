@@ -36,6 +36,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case topLeft, topRight, bottomLeft, bottomRight
     case maximize, marginMaximize, fullScreen, center
     case previousDisplay, nextDisplay, restore
+    case nudgeLeft, nudgeRight, nudgeUp, nudgeDown
 
     var id: String { rawValue }
 
@@ -50,6 +51,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         .topLeft, .topRight, .bottomLeft, .bottomRight,
         .maximize, .marginMaximize, .fullScreen, .center, .restore,
         .previousDisplay, .nextDisplay,
+        .nudgeLeft, .nudgeRight, .nudgeUp, .nudgeDown,
     ]
 
     var supportsShortcut: Bool {
@@ -58,7 +60,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
 
     var targetCapability: WindowLayoutTargetCapability {
         switch self {
-        case .center, .restore:
+        case .center, .restore, .nudgeLeft, .nudgeRight, .nudgeUp, .nudgeDown:
             return .position
         case .fullScreen:
             return .fullScreen
@@ -112,6 +114,10 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .leftMiddleQuarter: return 68
         case .rightMiddleQuarter: return 69
         case .rightQuarter: return 70
+        case .nudgeLeft: return 71
+        case .nudgeRight: return 72
+        case .nudgeUp: return 73
+        case .nudgeDown: return 74
         }
     }
 
@@ -163,6 +169,10 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomLeftSixth: return DefaultsKey.windowLayoutShortcutBottomLeftSixth
         case .bottomCenterSixth: return DefaultsKey.windowLayoutShortcutBottomCenterSixth
         case .bottomRightSixth: return DefaultsKey.windowLayoutShortcutBottomRightSixth
+        case .nudgeLeft: return DefaultsKey.windowLayoutShortcutNudgeLeft
+        case .nudgeRight: return DefaultsKey.windowLayoutShortcutNudgeRight
+        case .nudgeUp: return DefaultsKey.windowLayoutShortcutNudgeUp
+        case .nudgeDown: return DefaultsKey.windowLayoutShortcutNudgeDown
         }
     }
 
@@ -193,7 +203,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
                 .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
                 .topQuarter, .upperMiddleQuarter, .lowerMiddleQuarter, .bottomQuarter,
                 .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter,
-                .marginMaximize, .fullScreen, .previousDisplay, .centerHalf, .centerTwoThirds:
+                .marginMaximize, .fullScreen, .previousDisplay, .centerHalf, .centerTwoThirds,
+                .nudgeLeft, .nudgeRight, .nudgeUp, .nudgeDown:
             // New actions must never claim a system-wide combination unasked.
             return nil
         }
@@ -235,7 +246,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         actions.map(\.rawValue).sorted().joined(separator: ",")
     }
 
-    func title(_ text: WindowLayoutFeatureStrings) -> String {
+    /// Nudge titles carry the distance, so every list shows how far they move.
+    func title(_ text: WindowLayoutFeatureStrings, nudgeStep: Int = WindowLayoutNudge.step) -> String {
         switch self {
         case .leftHalf: return text.leftHalf
         case .rightHalf: return text.rightHalf
@@ -278,6 +290,10 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomRightSixth: return text.bottomRightSixth
         case .previousDisplay: return text.previousDisplay
         case .nextDisplay: return text.nextDisplay
+        case .nudgeLeft: return String(format: text.nudgeLeft, nudgeStep)
+        case .nudgeRight: return String(format: text.nudgeRight, nudgeStep)
+        case .nudgeUp: return String(format: text.nudgeUp, nudgeStep)
+        case .nudgeDown: return String(format: text.nudgeDown, nudgeStep)
         }
     }
 
@@ -320,6 +336,10 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .previousDisplay: return "arrow.left.to.line"
         case .nextDisplay: return "arrow.right.to.line"
         case .restore: return "arrow.uturn.backward"
+        case .nudgeLeft: return "arrow.left.square"
+        case .nudgeRight: return "arrow.right.square"
+        case .nudgeUp: return "arrow.up.square"
+        case .nudgeDown: return "arrow.down.square"
         }
     }
 }
@@ -350,6 +370,36 @@ enum WindowLayoutMargin {
     static func sanitizedPercent(_ value: Double) -> Double {
         guard value.isFinite else { return defaultPercent }
         return min(max(value, percentRange.lowerBound), percentRange.upperBound)
+    }
+}
+
+/// How far one nudge moves the active window, in points.
+enum WindowLayoutNudge {
+    static let defaultStep = 10
+    static let stepRange = 1...100
+
+    static var step: Int {
+        sanitizedStep(UserDefaults.standard.object(forKey: DefaultsKey.windowLayoutNudgeStep) as? Int
+            ?? defaultStep)
+    }
+
+    static func sanitizedStep(_ value: Int) -> Int {
+        min(max(value, stepRange.lowerBound), stepRange.upperBound)
+    }
+}
+
+extension WindowLayoutAction {
+    /// The move a nudge makes in Accessibility coordinates (y grows downward),
+    /// or nil for every action that places the window instead.
+    func nudgeOffset(step: Int) -> CGVector? {
+        let step = CGFloat(step)
+        switch self {
+        case .nudgeLeft: return CGVector(dx: -step, dy: 0)
+        case .nudgeRight: return CGVector(dx: step, dy: 0)
+        case .nudgeUp: return CGVector(dx: 0, dy: -step)
+        case .nudgeDown: return CGVector(dx: 0, dy: step)
+        default: return nil
+        }
     }
 }
 
@@ -544,7 +594,8 @@ enum WindowLayoutGeometry {
         // actions that return the current frame.
         let frame: CGRect
         switch action {
-        case .marginMaximize, .center, .restore, .previousDisplay, .nextDisplay, .fullScreen:
+        case .marginMaximize, .center, .restore, .previousDisplay, .nextDisplay, .fullScreen,
+                .nudgeLeft, .nudgeRight, .nudgeUp, .nudgeDown:
             frame = visibleFrame
         default:
             frame = screenGapFrame(visibleFrame, screenGap: screenGap)
@@ -577,7 +628,7 @@ enum WindowLayoutGeometry {
         guard windowGap > 0 else { return rect }
         switch action {
         case .maximize, .marginMaximize, .fullScreen, .center, .restore,
-                .previousDisplay, .nextDisplay:
+                .previousDisplay, .nextDisplay, .nudgeLeft, .nudgeRight, .nudgeUp, .nudgeDown:
             return rect
         default:
             break
@@ -733,7 +784,7 @@ enum WindowLayoutGeometry {
                           height: height).integral
         case .previousDisplay, .nextDisplay:
             return current.integral
-        case .restore:
+        case .restore, .nudgeLeft, .nudgeRight, .nudgeUp, .nudgeDown:
             return current.integral
         case .fullScreen:
             // Handled by the system, not by a frame.
@@ -747,7 +798,7 @@ enum WindowLayoutGeometry {
                              visibleFrame: CGRect) -> CGRect {
         guard action != .maximize, action != .restore,
               action != .previousDisplay, action != .nextDisplay,
-              action != .fullScreen else { return targetRect.integral }
+              action != .fullScreen, action.nudgeOffset(step: 1) == nil else { return targetRect.integral }
 
         let size = CGSize(width: max(1, actualSize.width),
                           height: max(1, actualSize.height))
@@ -811,7 +862,8 @@ enum WindowLayoutGeometry {
         case .marginMaximize, .center:
             origin.x = targetRect.midX - size.width / 2
             origin.y = targetRect.midY - size.height / 2
-        case .maximize, .previousDisplay, .nextDisplay, .restore, .fullScreen:
+        case .maximize, .previousDisplay, .nextDisplay, .restore, .fullScreen,
+                .nudgeLeft, .nudgeRight, .nudgeUp, .nudgeDown:
             break
         }
 
@@ -926,7 +978,7 @@ enum WindowLayoutGeometry {
                 && abs(actualRect.midY - targetRect.midY) <= anchorTolerance
         case .previousDisplay, .nextDisplay:
             return overlap > 0.72
-        case .restore:
+        case .restore, .nudgeLeft, .nudgeRight, .nudgeUp, .nudgeDown:
             return false
         case .fullScreen:
             return false

@@ -14,6 +14,7 @@ struct ShortcutsSettings: View {
     @AppStorage(DefaultsKey.keyboardBrightnessShortcutsEnabled) private var keyboardBrightnessShortcutsEnabled = false
     @AppStorage(DefaultsKey.keepAwakeShortcut) private var keepAwakeShortcut = GlobalShortcut.keepAwakeDefault.storageValue
     @AppStorage(DefaultsKey.snippetLibraryShortcut) private var snippetLibraryShortcut = GlobalShortcut.snippetLibraryDefault.storageValue
+    @AppStorage(DefaultsKey.windowLayoutNudgeStep) private var nudgeStep = WindowLayoutNudge.defaultStep
     /// Keyed by group too: brightness has a row in two groups, and each opens on its own.
     @State private var expandedFeatures: [FeatureGroup: Set<AppFeature>] = [.tools: [.screenshot]]
     @State private var showsAppShortcuts = false
@@ -125,6 +126,12 @@ struct ShortcutsSettings: View {
             if expandedFeatures[group, default: []].contains(feature) {
                 if feature == .windowLayout {
                     ForEach(WindowLayoutAction.shortcutActions) { action in
+                        // Right above the nudge shortcuts, like the brightness controls above theirs.
+                        if action == .nudgeLeft {
+                            WindowNudgeStepStepper(step: $nudgeStep,
+                                                   title: FeatureStrings.windowLayout(l10n.language).nudgeStep)
+                                .disclosureIndent()
+                        }
                         CentralWindowLayoutShortcutRow(
                             action: action,
                             shortcutsEnabled: UserDefaults.standard.bool(
