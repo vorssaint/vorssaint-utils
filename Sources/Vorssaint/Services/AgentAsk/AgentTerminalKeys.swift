@@ -44,13 +44,13 @@ enum AgentTerminalKeys {
     }
 
     /// Each question's picks, in order. One pick is a single choice: down to it, Enter.
-    /// A multi-select question's are ticked from the top with Space, moving down between them, then Enter.
+    /// A multi-select question's are ticked from the top with Space, then Down to its Submit row and Enter. `multiSelect` maps such a question to its option count.
     /// The last Enter confirms the review before sending.
-    static func answers(_ chosen: [[Int]], multiSelect: Set<Int> = []) -> [AgentTerminalKey]? {
+    static func answers(_ chosen: [[Int]], multiSelect: [Int: Int] = [:]) -> [AgentTerminalKey]? {
         guard !chosen.isEmpty, chosen.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0 >= 0 } }) else { return nil }
         var keys: [AgentTerminalKey] = []
         for (question, picks) in chosen.enumerated() {
-            if !multiSelect.contains(question) {
+            if multiSelect[question] == nil {
                 guard picks.count == 1 else { return nil }
                 keys += Array(repeating: .down, count: picks[0]) + [.enter]
             } else {
@@ -59,7 +59,9 @@ enum AgentTerminalKeys {
                     keys += Array(repeating: .down, count: pick - cursor) + [.space]
                     cursor = pick
                 }
-                keys.append(.enter)
+                // Below the options come "Type something" and then the question's own
+                // Submit row; Enter on the last tick would not leave the question.
+                keys += Array(repeating: .down, count: (multiSelect[question] ?? 0) + 1 - cursor) + [.enter]
             }
         }
         return keys + [.enter]

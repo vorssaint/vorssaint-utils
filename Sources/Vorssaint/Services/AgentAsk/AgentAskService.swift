@@ -236,9 +236,9 @@ final class AgentAskService: ObservableObject {
 
     /// `chosen` is the picked option's position in each question, in order.
     func answer(_ request: AgentAskRequest, chosen: [[Int]]) {
-        var multi = Set<Int>()
+        var multi: [Int: Int] = [:]
         if case .questions(let questions) = request.kind {
-            multi = Set(questions.indices.filter { questions[$0].multiSelect })
+            for index in questions.indices where questions[index].multiSelect { multi[index] = questions[index].options.count }
         }
         guard let keys = AgentTerminalKeys.answers(chosen, multiSelect: multi) else { goToTerminal(request); return }
         type(keys, for: request)

@@ -15,8 +15,8 @@ enum AgentTerminalKeysTests {
                      "a single answer moves down to its option and confirms")
         suite.expect(AgentTerminalKeys.answers([1, 0]) == [.down, .enter, .enter, .enter],
                      "several questions are answered in turn, then sent")
-        suite.expect(AgentTerminalKeys.answers([[0, 2]], multiSelect: [0]) == [.space, .down, .down, .space, .enter, .enter]
-                        && AgentTerminalKeys.answers([[1]], multiSelect: [0]) == [.down, .space, .enter, .enter],
+        suite.expect(AgentTerminalKeys.answers([[0, 2]], multiSelect: [0: 3]) == [.space, .down, .down, .space, .down, .down, .enter, .enter]
+                        && AgentTerminalKeys.answers([[1]], multiSelect: [0: 3]) == [.down, .space, .down, .down, .down, .enter, .enter],
                      "a multi-select question ticks each pick with Space, then confirms")
         suite.expect(AgentTerminalKeys.answers([]) == nil && AgentTerminalKeys.answers([-1]) == nil,
                      "nothing is typed for an answer that is not an option")
