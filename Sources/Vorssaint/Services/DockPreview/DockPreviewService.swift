@@ -163,6 +163,7 @@ final class DockPreviewService: ObservableObject {
         guard isVisible, windows.contains(item) else { return }
         cancelPendingHide()
         selectedWindowID = item.windowID
+        DockPreviewPeek.shared.hover(item)
     }
 
     /// Whether a preview panel (session or pinned) covers the given top-left-
@@ -194,6 +195,7 @@ final class DockPreviewService: ObservableObject {
     }
 
     func endPreview(_ item: SwitcherItem) {
+        DockPreviewPeek.shared.leave(item)
         guard isVisible else { return }
         guard selectedWindowID == item.windowID else { return }
         selectedWindowID = nil
@@ -235,6 +237,7 @@ final class DockPreviewService: ObservableObject {
               let windowID = item.windowID
         else { return }
 
+        DockPreviewPeek.shared.dismiss()
         DockPreviewSupport.performCloseAction(
             quitAppOnClose: quitAppOnClose,
             requestQuit: { [weak self] in
@@ -263,6 +266,7 @@ final class DockPreviewService: ObservableObject {
               !item.isFullscreen
         else { return }
 
+        DockPreviewPeek.shared.dismiss()
         let shouldMinimize = !item.isMinimized
         guard WindowActivator.setWindowMinimized(shouldMinimize,
                                                  windowID: windowID,
@@ -293,6 +297,7 @@ final class DockPreviewService: ObservableObject {
         releaseDockAutohideHold()
         cancelPendingHide()
         cancelPendingHover()
+        DockPreviewPeek.shared.dismiss()
         DockPreviewDragGhost.shared.begin(image: image, at: NSEvent.mouseLocation)
     }
 
@@ -798,6 +803,7 @@ final class DockPreviewService: ObservableObject {
     /// so the same session can be re-pointed during a Dock switch.
     private func tearDownVisuals() {
         cancelPendingMinimizeConfirmations()
+        DockPreviewPeek.shared.dismiss()
 
         windows = []
         previews = [:]
@@ -1446,17 +1452,12 @@ final class DockPreviewService: ObservableObject {
     }
 
     private func appKitFrame(fromAX rect: CGRect) -> CGRect {
-        CGRect(x: rect.minX,
-               y: menuBarScreenTopY - rect.maxY,
-               width: rect.width,
-               height: rect.height)
+        DockPreviewSupport.appKitFrame(fromTopLeft: rect, menuBarScreenTopY: menuBarScreenTopY)
     }
 
     private var menuBarScreenTopY: CGFloat {
-        let menuBarScreen = NSScreen.screens.first {
-            abs($0.frame.minX) < 0.5 && abs($0.frame.minY) < 0.5
-        }
-        return (menuBarScreen ?? NSScreen.main ?? NSScreen.screens.first)?.frame.maxY ?? 0
+        DockPreviewSupport.menuBarScreenTopY(screenFrames: NSScreen.screens.map(\.frame),
+                                             fallback: NSScreen.main?.frame)
     }
 }
 
@@ -1542,14 +1543,17 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
     func preview(_ item: SwitcherItem) {
         guard windows.contains(item) else { return }
         selectedWindowID = item.windowID
+        DockPreviewPeek.shared.hover(item)
     }
 
     func endPreview(_ item: SwitcherItem) {
+        DockPreviewPeek.shared.leave(item)
         guard selectedWindowID == item.windowID else { return }
     }
 
     func commit(_ item: SwitcherItem) {
         guard windows.contains(item) else { return }
+        DockPreviewPeek.shared.dismiss()
         guard WindowEnumerator.dockPreviewMayActivate(item) else {
             refreshWindows()
             return
@@ -1574,6 +1578,7 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
               let windowID = item.windowID
         else { return }
 
+        DockPreviewPeek.shared.dismiss()
         DockPreviewSupport.performCloseAction(
             quitAppOnClose: quitAppOnClose,
             requestQuit: { [weak self] in
@@ -1598,6 +1603,7 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
               !item.isFullscreen
         else { return }
 
+        DockPreviewPeek.shared.dismiss()
         let shouldMinimize = !item.isMinimized
         guard WindowActivator.setWindowMinimized(shouldMinimize,
                                                  windowID: windowID,
@@ -1609,6 +1615,7 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
     }
 
     func closePreviewPanel() {
+        DockPreviewPeek.shared.dismiss()
         refreshTimer?.invalidate()
         pendingMinimizeConfirmations.removeAll()
         previewCaptureTask?.cancel()
