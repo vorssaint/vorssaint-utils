@@ -457,6 +457,7 @@ if (( TEST )); then
         Sources/Vorssaint/UI/MenuPanel/PanelHomebrewFilterPicker.swift
         Sources/Vorssaint/UI/HomebrewOperationStatusView.swift
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift
+        Sources/Vorssaint/Services/AppUpdates/HermesInstalledVersion.swift
         Sources/Vorssaint/Services/AppUpdates/AppUpdateFeedSupport.swift
         Sources/Vorssaint/Core/AppUpdateStrings.swift
         Sources/Vorssaint/Core/DiskImageInstallerStrings.swift
