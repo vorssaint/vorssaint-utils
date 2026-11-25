@@ -1861,12 +1861,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     // MARK: - Windows
 
     func openSettingsWindow() {
-        // Intentionally does NOT close the panel: the panel uses applicationDefined
-        // dismissal, so it stays open beside Settings for a live preview.
         // Capture the destination before activation changes the key window.
         let targetScreen = (popover.isShown
             ? popoverAnchor?.screen ?? popover.contentViewController?.view.window?.screen
             : nil) ?? NSScreen.withMouse
+        // Settings takes over from the panel. Left open, the panel kept
+        // covering Settings until a click outside it dismissed it.
+        if popover.isShown { closePopover(preservingNotch: true) }
         let createdWindow = settingsWindow == nil
         if settingsWindow == nil {
             let host = NSHostingController(rootView: SettingsView())
