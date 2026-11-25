@@ -379,7 +379,13 @@ struct NotchLockScreenActivities: View {
                         .foregroundStyle(.white.opacity(0.7))
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel(countdown.ongoing ? text.ongoing : text.next)
+                .accessibilityLabel({
+                    switch countdown.phase(at: date) {
+                    case .ongoing: return text.ongoing
+                    case .starting: return text.starting
+                    case .coming: return text.coming
+                    }
+                }())
             }
         case .agents:
             let working = AgentProvider.allCases.filter { provider in usage.snapshot.live.contains { $0.provider == provider } }

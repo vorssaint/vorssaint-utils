@@ -19,11 +19,15 @@ struct NotchNoticeView: View {
         case .agents: return notice.symbol.hasPrefix("exclamationmark") ? .orange : notice.agent?.tint ?? .white
         // The timer's notice keeps the orange its strip and page wear.
         case .timer: return .orange
+        // Starting-now calendar notices carry a bounce reaction.
+        case .calendar: return notice.mascot == .bounce ? .orange : .white
         default: return .white
         }
     }
     /// The words of a timer's notice share its orange too.
-    private var textTint: Color { notice.event == .timer ? .orange : .white }
+    private var textTint: Color {
+        notice.event == .timer || (notice.event == .calendar && notice.mascot == .bounce) ? .orange : .white
+    }
     /// With the companion on, it stands in for the symbol, and reacts unless
     /// its reactions are off.
     private var companionReaction: NotchMascotReaction? {

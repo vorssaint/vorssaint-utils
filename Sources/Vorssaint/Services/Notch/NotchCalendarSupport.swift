@@ -12,6 +12,16 @@ struct NotchCalendarColor: Equatable, Sendable {
     static let fallback = Self(red: 0.35, green: 0.65, blue: 1)
 }
 
+enum NotchCalendarJoinProvider: String, Equatable, Sendable {
+    case zoom, teams, meet
+}
+
+/// How a start countdown reads in the closed island: still approaching, or
+/// in the final minute before it begins. Ongoing end-countdowns stay separate.
+enum NotchCalendarCountdownPhase: Equatable, Sendable {
+    case coming, starting, ongoing
+}
+
 struct NotchCalendarEvent: Equatable, Identifiable, Sendable {
     let id: String
     let title: String
@@ -26,6 +36,9 @@ struct NotchCalendarEvent: Equatable, Identifiable, Sendable {
     /// How a countdown chosen from the event's menu remembers it; see
     /// `NotchCalendarSupport.countdownKey`.
     var countdownKey = ""
+    /// Zoom, Teams or Meet link found on the event, if any.
+    var joinURL: URL? = nil
+    var joinProvider: NotchCalendarJoinProvider? = nil
 }
 
 /// What the closed island counts down to: an event's start or, while the
@@ -41,6 +54,11 @@ struct NotchCalendarCountdown: Equatable, Sendable {
     func isShown(at now: Date, leadTime: TimeInterval) -> Bool {
         target > now && target.timeIntervalSince(now) <= (ongoing ? NotchCalendarSupport.timeLeftLeadTime : leadTime)
             && (!ongoing || event.start <= now)
+    }
+
+    func phase(at now: Date) -> NotchCalendarCountdownPhase {
+        if ongoing { return .ongoing }
+        return target.timeIntervalSince(now) <= NotchCalendarSupport.startingLeadTime ? .starting : .coming
     }
 }
 
@@ -62,6 +80,10 @@ enum NotchCalendarSupport {
     static let defaultCountdownLeadMinutes = 60
     static let countdownLeadPresets = [15, 30, 60, 120]
     static let countdownLeadRange = 5...240
+
+    /// The final minute before a start reads as "starting" on the strip and
+    /// fires a second island notice.
+    static let startingLeadTime: TimeInterval = 60
 
     static func countdownLeadMinutes(_ minutes: Int) -> Int {
         min(countdownLeadRange.upperBound, max(countdownLeadRange.lowerBound, minutes))
@@ -306,10 +328,63 @@ enum NotchCalendarSupport {
             .flatMap { event in
                 followedMoments(event, starts: starts, ends: ends, chosen: chosen).flatMap { ongoing in
                     ongoing ? [max(event.start, event.end.addingTimeInterval(-timeLeftLeadTime)), event.end]
-                        : [event.start.addingTimeInterval(-leadTime), event.start]
+                        : [event.start.addingTimeInterval(-leadTime),
+                           event.start.addingTimeInterval(-startingLeadTime),
+                           event.start]
                 }
             }
             .filter { $0 > now }.min()
+    }
+
+    /// Zoom, Teams or Meet from the event URL, location, then notes. Notes are
+    /// only scanned in memory; nothing from them is stored.
+    static func conferenceJoin(url: URL?, location: String, notes: String?)
+        -> (url: URL, provider: NotchCalendarJoinProvider)? {
+        if let url, let provider = conferenceProvider(for: url) { return (url, provider) }
+        for candidate in urls(in: location) + urls(in: notes ?? "") {
+            if let provider = conferenceProvider(for: candidate) { return (candidate, provider) }
+        }
+        return nil
+    }
+
+    static func conferenceProvider(for url: URL) -> NotchCalendarJoinProvider? {
+        let scheme = (url.scheme ?? "").lowercased()
+        if scheme == "zoommtg" || scheme == "zoomus" { return .zoom }
+        if scheme == "msteams" { return .teams }
+        let host = (url.host ?? "").lowercased()
+        guard !host.isEmpty else { return nil }
+        if host == "meet.google.com" || host.hasSuffix(".meet.google.com") { return .meet }
+        if host == "zoom.us" || host == "zoom.com"
+            || host.hasSuffix(".zoom.us") || host.hasSuffix(".zoom.com") { return .zoom }
+        if host == "teams.microsoft.com" || host == "teams.live.com"
+            || host.hasSuffix(".teams.microsoft.com") { return .teams }
+        return nil
+    }
+
+    static func urls(in text: String) -> [URL] {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        else { return [] }
+        let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
+        return detector.matches(in: trimmed, options: [], range: range).compactMap(\.url)
+    }
+
+    /// Whether the location line is only the join URL, so the agenda can hide
+    /// the pin behind the Join control. A room name with a link stays shown.
+    static func locationIsJoinURL(_ event: NotchCalendarEvent) -> Bool {
+        guard let join = event.joinURL else { return false }
+        let location = event.location.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !location.isEmpty else { return false }
+        if location.caseInsensitiveCompare(join.absoluteString) == .orderedSame { return true }
+        let found = urls(in: location)
+        guard found.count == 1,
+              let only = found.first,
+              only.absoluteString.caseInsensitiveCompare(join.absoluteString) == .orderedSame
+        else { return false }
+        let withoutURL = location.replacingOccurrences(of: only.absoluteString, with: "", options: .caseInsensitive)
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        return withoutURL.isEmpty
     }
 
     static let stripDotWidth: CGFloat = 6

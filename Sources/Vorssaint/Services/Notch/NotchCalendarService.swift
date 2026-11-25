@@ -23,12 +23,15 @@ private actor NotchCalendarReader {
             let recurring = event.hasRecurrenceRules || event.isDetached
             let countdownKey = NotchCalendarSupport.countdownKey(
                 identifier: identifier, occurrence: recurring ? event.occurrenceDate ?? start : nil)
+            let location = event.location ?? ""
+            let join = NotchCalendarSupport.conferenceJoin(url: event.url, location: location, notes: event.notes)
             return NotchCalendarEvent(id: identifier + ":" + String(start.timeIntervalSinceReferenceDate),
                                       title: event.title ?? "", calendar: event.calendar.title,
                                       start: start, end: end, allDay: event.isAllDay,
-                                      location: event.location ?? "", color: Self.tint(event.calendar),
+                                      location: location, color: Self.tint(event.calendar),
                                       calendarItemIdentifier: event.calendarItemIdentifier,
-                                      recurring: recurring, countdownKey: countdownKey)
+                                      recurring: recurring, countdownKey: countdownKey,
+                                      joinURL: join?.url, joinProvider: join?.provider)
         }
     }
 
@@ -71,6 +74,9 @@ final class NotchCalendarService: NSObject, ObservableObject {
     /// How long before a start the island counts down, from Settings.
     private(set) var countdownLeadTime = NotchCalendarSupport.countdownLeadTime()
     private var excludedCalendars = Set<String>()
+    /// Last coming/starting notice announced per countdown key, so a refresh
+    /// does not flash the same phase again.
+    private var announcedPhases: [String: NotchCalendarCountdownPhase] = [:]
 
     private override init() { super.init() }
 
@@ -181,6 +187,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
             self.countdown = NotchCalendarSupport.countdown(currentEvents, now: now, starts: self.countdownEnabled,
                                                             ends: self.timeLeftEnabled, chosen: self.chosenCountdowns,
                                                             leadTime: self.countdownLeadTime)
+            self.announceCountdownPhase(self.countdown, now: now)
             self.loading = false
             self.task = nil
             let agendaRefresh = NotchCalendarSupport.nextRefresh(self.events, now: now)
@@ -195,6 +202,26 @@ final class NotchCalendarService: NSObject, ObservableObject {
             RunLoop.main.add(timer, forMode: .common)
             self.refreshTimer = timer
         }
+    }
+
+    /// Flashes a brief island notice when a start countdown enters the lead
+    /// window or its final minute. Ongoing end-countdowns stay quiet here.
+    private func announceCountdownPhase(_ countdown: NotchCalendarCountdown?, now: Date) {
+        guard let countdown, !countdown.ongoing else { return }
+        let key = countdown.event.countdownKey.isEmpty ? countdown.event.id : countdown.event.countdownKey
+        let phase = countdown.phase(at: now)
+        guard phase == .coming || phase == .starting else { return }
+        if announcedPhases[key] == phase { return }
+        if announcedPhases[key] == .starting, phase == .coming { return }
+        announcedPhases[key] = phase
+        announcedPhases = announcedPhases.filter { entry in
+            if entry.key == key { return true }
+            return events.contains {
+                let eventKey = $0.countdownKey.isEmpty ? $0.id : $0.countdownKey
+                return eventKey == entry.key && $0.end > now
+            }
+        }
+        NotchService.shared.showCalendarCountdownNotice(countdown, phase: phase)
     }
 
     @objc private func timedRefresh() { refresh() }
@@ -224,6 +251,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
         timeLeftEnabled = false
         excludedCalendars = []
         if !chosenCountdowns.isEmpty { chosenCountdowns = [] }
+        announcedPhases = [:]
         events = []; countdown = nil; loading = false
     }
 }

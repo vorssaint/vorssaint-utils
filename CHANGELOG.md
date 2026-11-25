@@ -105,6 +105,9 @@ This update fixes a startup crash on macOS Sonoma 14.0 and 14.1. It also adds vo
 ### Contributors
 Thanks to @0mgABear, @andy-kelly, @CanSonmezz, @carlhuareforge, @Chubi01, @COMEBACKISREAL, @EugeneCarldotme, @heyseere, @ilim-cell, @iva-zhu, @jairuspace, @jankorbay, @jerome-queck, @kit101, @lsopenad, @MaximilianMauroner, @maxmeis, @meowvan666, @mevichitra, @morhaf-ko, @nikigan, @nisayera, @oskarsss, @oyjt, @phatina, @roypadina, @ruvelro, @sambet1997, @samueljim, @stieludv, @sugar-king, @Tomaubier, @victorioustr, @VlodekH, @Wahab417, @whizzzkid, @yavuzmeteafsar, @zamai, @Zekuath, @zepeng-jin and @zhanghao87.
 
+### Added
+- Dynamic Island calendar agenda rows with a Zoom, Teams or Google Meet link join the call on click; Open Calendar stays in the context menu. Countdown strips still open the island, with Coming up and Starting now notices in the lead window.
+
 ## [3.4.3] - 2026-10-29
 
 ### Summary
