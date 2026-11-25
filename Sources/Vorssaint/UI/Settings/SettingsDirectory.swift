@@ -305,6 +305,8 @@ enum SettingsDirectory {
                    notch.panel, notch.tools, notch.files, notch.captures, notchEditor.privacy, notch.showInCaptures,
                    notchEditor.hideMenuBarIcon], notch: .behavior),
             .init([notchEditor.hiddenShowsActivity], notch: .behavior, when: hover && state.on(DefaultsKey.notchHideUntilHover)),
+            .init([notchEditor.growOnHover], notch: .behavior,
+                  when: !hover || (!state.on(DefaultsKey.notchHoverExpands) && !state.on(DefaultsKey.notchHideUntilHover))),
             .init([notchEditor.activationTime], notch: .behavior, when: hoverDelay),
             .init([notchEditor.closeTime], notch: .behavior, when: hoverDelay && state.on(DefaultsKey.notchHoverExpands)),
             .init([notch.hoverInFullscreen], notch: .behavior, when: hideFullscreen),

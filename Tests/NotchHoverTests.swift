@@ -24,7 +24,7 @@ enum NotchHoverTests {
     enum UserDefaults {
         static var standard = Preferences()
         struct Preferences {
-            var enabled = true, expands = true, hides = false, fullscreenHover = false
+            var enabled = true, expands = true, hides = false, fullscreenHover = false, grows = true
             var delay = NotchSupport.defaultHoverDelay
             var closeDelay = NotchSupport.defaultCloseDelay
             func bool(forKey key: String) -> Bool {
@@ -32,6 +32,7 @@ enum NotchHoverTests {
                 case DefaultsKey.notchHideUntilHover: return hides
                 case DefaultsKey.notchOpenOnHover: return enabled
                 case DefaultsKey.notchHoverInFullscreen: return fullscreenHover
+                case DefaultsKey.notchHoverGrows: return grows
                 default: return expands
                 }
             }
@@ -267,6 +268,20 @@ enum NotchHoverTests {
         reducedMotion.hover(true)
         suite.expect(reducedMotion.surfaceSize == reducedResting,
                      "Reduce Motion leaves the resting island still on hover")
+        // Click to open and Preview on hover both grow the closed island
+        // unless the person turned that off; the hover opening still runs.
+        for preview in [false, true] {
+            let still = fixture()
+            UserDefaults.standard.enabled = preview
+            UserDefaults.standard.expands = !preview
+            UserDefaults.standard.grows = false
+            let stillResting = still.surfaceSize
+            still.hover(true)
+            suite.expect(!still.hoverEmphasized && still.surfaceSize == stillResting
+                         && (still.hoverWork != nil) == preview,
+                         "turning off Grow on hover keeps the island at rest without changing how it opens")
+            leave(still)
+        }
         for physical in [false, true] {
             for opensOnHover in [false, true] {
                 let compactPulse = fixture(physical: physical)
