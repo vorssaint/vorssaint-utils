@@ -75,10 +75,11 @@ final class WindowUseTracker {
     }
 
     func recordObservedFocus(windowID: CGWindowID, pid: pid_t) {
-        stateLock.withLock {
-            guard recording, let request = focusHistory.current, request.focusPID == pid,
-                  focusHistory.focus(windowID, for: request) else { return }
-            windowHistory = WindowUseOrder.promoting(windowID, in: windowHistory)
+        guard let request = stateLock.withLock({ recording ? focusHistory.current : nil }),
+              request.focusPID == pid else { return }
+        // Verify the WindowServer hint before changing either use history.
+        performOnWatcher { [weak self] in
+            _ = self?.readFocusedWindow(for: request, matching: windowID)
         }
     }
 
@@ -433,12 +434,14 @@ final class WindowUseTracker {
         observedPID = nil
     }
 
-    private func readFocusedWindow(for request: WindowFocusHistory.Request) -> Bool {
+    private func readFocusedWindow(for request: WindowFocusHistory.Request,
+                                   matching expectedWindowID: CGWindowID? = nil) -> Bool {
         guard stateLock.withLock({ recording && focusHistory.beginFocusRead(for: request) }) else { return false }
         let windowID = WindowActivator.focusedWindowID(for: request.focusPID)
+        let confirmed = expectedWindowID == nil || windowID == expectedWindowID ? windowID : nil
         return stateLock.withLock {
-            guard recording, focusHistory.finishFocusRead(windowID, for: request), let windowID else { return false }
-            windowHistory = WindowUseOrder.promoting(windowID, in: windowHistory)
+            guard recording, focusHistory.finishFocusRead(confirmed, for: request), let confirmed else { return false }
+            windowHistory = WindowUseOrder.promoting(confirmed, in: windowHistory)
             return true
         }
     }
