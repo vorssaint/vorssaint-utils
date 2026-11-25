@@ -109,11 +109,18 @@ final class AgentUsageStore {
                 let turn = historyOnly ? nil : tracksTurns ? file : parent
                 add(record, billable: billable, key: key, source: file, turn: turn, subagent: !tracksTurns)
             case .usageModel(let key, let model):
-                guard let position = index[key], records[position].model.isEmpty else { continue }
-                let old = records[position]
-                records[position] = AgentUsageRecord(provider: old.provider, date: old.date, model: model,
-                    project: old.project, session: old.session, requests: old.requests,
-                    tokens: old.tokens, cost: old.cost, savings: old.savings, reportedCost: old.reportedCost)
+                guard let position = index[key] else { continue }
+                if provider == .cursor {
+                    // Keep model attribution with the copy that supplied the counts, including on replay.
+                    guard sources[position].contains(file) else { continue }
+                    var reading = cursorCopies[position]?[file] ?? records[position]
+                    guard reading.model.isEmpty else { continue }
+                    reading.model = model
+                    updateCursorResponse(reading, at: position, from: file)
+                    continue
+                }
+                guard records[position].model.isEmpty else { continue }
+                records[position].model = model
                 // Incremental token updates keep the same model; attribution
                 // changes instead rebuild model buckets from the records.
                 summary.invalidate()
@@ -213,8 +220,23 @@ final class AgentUsageStore {
             }
             if !sources[position].contains(source) { sources[position].append(source) }
             let old = records[position]
+            let previous = billables[position]
             let merged = old.tokens.merged(with: record.tokens)
-            if merged == old.tokens {
+            let tier = mergedServiceTier(previous, billable, provider: record.provider)
+            let assumesStandardTier = previous.assumesStandardTier && billable.assumesStandardTier
+            let hasEventTimestamp = previous.hasEventTimestamp || billable.hasEventTimestamp
+            var date = old.date
+            if record.provider == .codex && billable.hasEventTimestamp {
+                if !previous.hasEventTimestamp {
+                    date = record.date
+                } else if record.date < date, tier == .ultrafast || AgentPricing.price(for: old.model)?.ultrafast != nil {
+                    // Copies of a response can arrive out of order across a rate change.
+                    date = record.date
+                }
+            }
+            let pricingChanged = record.provider == .codex && (tier != previous.serviceTier || date != old.date
+                || assumesStandardTier != previous.assumesStandardTier || hasEventTimestamp != previous.hasEventTimestamp)
+            if merged == old.tokens && !pricingChanged {
                 if record.provider == .opencode {
                     let newCost: Double?
                     let isReported: Bool
@@ -243,15 +265,17 @@ final class AgentUsageStore {
                 }
                 return
             }
-            summary.recordChanged(at: position, previous: old)
-            var combined = billables[position]
+            if date == old.date { summary.recordChanged(at: position, previous: old) } else { summary.invalidate() }
+            var combined = previous
             combined.tokens = merged
             combined.longCacheWrite = max(combined.longCacheWrite, billable.longCacheWrite)
             combined.webSearches = max(combined.webSearches, billable.webSearches)
-            combined.fast = combined.fast || billable.fast
+            combined.serviceTier = tier
+            combined.assumesStandardTier = assumesStandardTier
+            combined.hasEventTimestamp = hasEventTimestamp
             combined.domestic = combined.domestic || billable.domestic
             combined.isAggregate = combined.isAggregate || billable.isAggregate
-            let priced = AgentPricing.cost(combined, model: old.model)
+            let priced = AgentPricing.cost(combined, model: old.model, at: hasEventTimestamp ? date : nil)
             let newCost: Double?
             let isReported: Bool
             if record.provider == .opencode {
@@ -276,6 +300,7 @@ final class AgentUsageStore {
                                 reasoning: merged.reasoning - old.tokens.reasoning)
             extra = (newCost ?? 0) - (old.cost ?? 0)
             billables[position] = combined
+            records[position].date = date
             records[position].tokens = merged
             records[position].cost = newCost
             records[position].savings = priced.savings
@@ -303,6 +328,14 @@ final class AgentUsageStore {
             if !record.project.isEmpty { turn.project = record.project }
         }
         turns[file] = turn
+    }
+
+    /// A copied Codex response may be missing the settings that selected its tier.
+    private func mergedServiceTier(_ previous: AgentBillable, _ incoming: AgentBillable, provider: AgentProvider) -> AgentServiceTier {
+        guard provider == .codex else { return previous.serviceTier == .fast ? .fast : incoming.serviceTier }
+        if previous.assumesStandardTier { return incoming.serviceTier }
+        if incoming.assumesStandardTier || previous.serviceTier == incoming.serviceTier { return previous.serviceTier }
+        return .unknown
     }
 
     private func updateCursorResponse(_ incoming: AgentUsageRecord, at position: Int, from file: String) {
@@ -349,7 +382,7 @@ final class AgentUsageStore {
         guard newBucket || old.tokens != reading.tokens else { return false }
         if newBucket { summary.invalidate() } else { summary.recordChanged(at: position, previous: old) }
         let billable = AgentBillable(tokens: reading.tokens)
-        let priced = AgentPricing.cost(billable, model: reading.model)
+        let priced = AgentPricing.cost(billable, model: reading.model, at: reading.date)
         var selected = reading
         selected.cost = priced.cost
         selected.savings = priced.savings
@@ -364,7 +397,9 @@ final class AgentUsageStore {
         summary.invalidate()
         for position in records.indices {
             guard !records[position].reportedCost else { continue }
-            let priced = AgentPricing.cost(billables[position], model: records[position].model)
+            let billable = billables[position]
+            let date = billable.hasEventTimestamp ? records[position].date : nil
+            let priced = AgentPricing.cost(billable, model: records[position].model, at: date)
             // A zero OpenCode recorded for a model the list still does not
             // know stays that reply's cost.
             let recordedZero = records[position].provider == .opencode && records[position].cost == 0
@@ -1002,6 +1037,7 @@ enum AgentLogReader {
                     }
                 } else if replay {
                     switch entry {
+                    case .usageModel: apply([entry])
                     case .turnBegan(let date): replayStart = date; succeeded = false
                     case .turnEnded(_, let completed, _): succeeded = completed
                     default: break

@@ -47,7 +47,7 @@ enum ScreenshotCanvasModelTests {
         /// states sharing one capture are charged once.
         static var undoByteBudget = 256 << 20
         static let undoAnnotationBytes = 512
-        var canUndo = false, canRedo = false, isDirty = false
+        var isDirty = false
         weak var cleanImage: CGImage?
         var cleanAnnotations: [ScreenshotSupport.SavedAnnotation] = []
         let backdropStyle = ScreenshotSupport.BackdropStyle()
@@ -181,6 +181,7 @@ enum ScreenshotCanvasModelTests {
             model.editingText = blank
             suite.expect(controller.windowShouldClose(window) && Alert.shown == 0,
                          "an empty or whitespace-only first caption closes without a discard prompt")
+            suite.expect(!model.canUndo && !model.canRedo, "a blank first caption has no history action")
         }
         model.commitText(emptyID)
         suite.expect(model.annotations.isEmpty && !model.canUndo && !model.isDirty,
@@ -194,15 +195,26 @@ enum ScreenshotCanvasModelTests {
         model.editingText = "First"
         suite.expect(!controller.windowShouldClose(window) && Alert.shown == 1
                      && model.editingTextID == id && model.editingText == "First"
-                     && model.annotations.first?.text == "" && !model.canUndo && !model.isDirty,
+                     && model.annotations.first?.text == "" && model.undoStack.isEmpty && !model.isDirty,
                      "canceling red-button close preserves the first unsubmitted caption for further typing")
         model.editingText += " caption "
+        suite.expect(model.canUndo && !model.canRedo, "Undo is available before the first caption is submitted")
         model.commitText(id)
         suite.expect(model.annotations.map(\.text) == ["First caption"] && model.undoStack.count == 1,
                      "submitting after cancel keeps the continued caption as one edit")
         model.undo()
         suite.expect(model.annotations.isEmpty && !model.canUndo && !model.isDirty,
                      "undoing the caption returns to the original clean capture")
+        tapText()
+        guard let secondID = model.editingTextID else {
+            suite.expect(false, "another caption can be started after undo")
+            return
+        }
+        model.editingText = "Replacement"
+        suite.expect(model.canUndo && !model.canRedo, "a pending replacement can be undone and would discard redo")
+        model.editingText = "  "
+        suite.expect(!model.canUndo && model.canRedo, "clearing the replacement preserves redo")
+        model.commitText(secondID)
         model.redo()
         suite.expect(model.annotations.map(\.text) == ["First caption"] && model.isDirty
                      && !controller.windowShouldClose(window) && Alert.shown == 2,

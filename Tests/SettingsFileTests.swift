@@ -71,7 +71,7 @@ enum SettingsFileTests {
                 .init(kind: .image, imagePath: "/local/logo.png"), .init(kind: .text, text: "Work"),
             ])
             defaults.set(savedPresets, forKey: DefaultsKey.screenshotWatermarkPresets)
-            suite.expect(Backup.write(to: link, from: defaults),
+            suite.expect(Backup.writeConfigFile(to: link, from: defaults),
                          "saving to the settings file replaces the earlier snapshot")
             let beforeLaunch = defaults.persistentDomain(forName: domain) ?? [:]
             _ = launch()
@@ -256,6 +256,13 @@ enum SettingsFileTests {
         suite.expect(try mode() == 0o600 && !hasACL(), "the replacement grants access only to the owner")
 
         try original.write(to: target)
+        try manager.setAttributes([.posixPermissions: 0o244], ofItemAtPath: target.path)
+        suite.expect(!Backup.writeConfigFile(to: config, from: defaults),
+                     "saving a launch configuration refuses a write-only target")
+        suite.expect(try mode() == 0o244 && manager.destinationOfSymbolicLink(atPath: config.path) == target.path,
+                     "the refusal preserves the target permissions and the XDG link")
+        try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+        suite.expect(try Data(contentsOf: target) == original, "the refused save keeps the original contents")
         try manager.setAttributes([.posixPermissions: 0o244], ofItemAtPath: target.path)
         suite.expect(Backup.write(to: target, from: defaults), "export can replace a file write-only for its owner")
         suite.expect(try mode() == 0o200, "export removes shared access and preserves the stricter owner mode")

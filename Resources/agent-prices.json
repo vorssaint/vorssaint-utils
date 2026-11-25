@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated": "2026-11-13",
+  "updated": "2026-11-24",
   "sources": [
     "https://platform.claude.com/docs/en/about-claude/pricing",
     "https://platform.claude.com/docs/en/models/overview",
@@ -20,6 +20,7 @@
     "https://support.claude.com/en/articles/17154008-monthly-api-credits-for-max-ultra-and-team-plans",
     "https://www.anthropic.com/glasswing",
     "https://developers.openai.com/api/docs/pricing",
+    "https://developers.openai.com/api/docs/pricing.md",
     "https://developers.openai.com/api/docs/models/gpt-6-cyber",
     "https://developers.openai.com/api/docs/guides/decisions",
     "https://developers.openai.com/api/docs/guides/amazon-bedrock",
@@ -30,6 +31,8 @@
     "https://openai.com/index/new-models-and-developer-products-announced-at-devday/",
     "https://developers.openai.com/api/docs/models",
     "https://developers.openai.com/api/docs/models/all",
+    "https://developers.openai.com/api/docs/models/gpt-6.2-astra",
+    "https://developers.openai.com/api/docs/models/gpt-6.2-sol",
     "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
     "https://developers.openai.com/api/docs/models/gpt-5.6-sol",
     "https://developers.openai.com/api/docs/models/gpt-5.6-cyber",
@@ -115,7 +118,9 @@
   ],
   "notes": [
     "The API promotion for gpt-5.6-sol and its gpt-5.6 and gpt-daybreak-blue-latest aliases ends on 2026-11-30. Review those rates and the Bedrock IDs for the same models after that date.",
-    "The published gpt-6-astra-law rates are promotional through at least 2026-12-31. Only Standard input, output and cached input rates are listed. Review after that date.",
+    "Global Standard rates for gpt-6-astra-law and gpt-6-rosalind are promotional through at least 2026-12-31. Review both after that date. OpenAI lists no cache write rate for gpt-6-astra-law. Regional processing costs 10% above global rates for both models. Standalone FedRAMP endpoints charge 10% above global rates for gpt-6-rosalind.",
+    "The gpt-6.2-astra-law Standard rates are promotional through at least 2026-12-31. Review after that date. OpenAI lists no Fast or Ultrafast API rate for this configuration.",
+    "Ultrafast for gpt-6.2-astra and gpt-6.2-sol costs 3x Standard through 2027-02-28 and 6x starting 2027-03-01 (Pacific time). The tieredModels section is for readers that price the service tier recorded for each response.",
     "The deprecated gpt-daybreak-blue-latest and gpt-daybreak-red-latest aliases currently resolve to gpt-5.6-sol and gpt-5.6-cyber, respectively.",
     "claude-sonnet-4-5 and claude-sonnet-4 now have a 200K window. Their long-context premium only prices older history.",
     "o3 keeps its Standard rates of 2/0.5/8 for input/cache reads/output, matching the pricing table and the first table on its model page. A second, unlabeled model-page table lists 1/0.25/4; verify its meaning before changing Standard rates.",
@@ -196,6 +201,16 @@
     ]
   },
   "codex": {
+    "tieredModels": [
+      { "id": "gpt-6.2-astra", "input": 8, "output": 40, "cacheRead": 0.4, "cacheWrite": 10, "cacheWriteLong": 20, "fastMultiplier": 2,
+        "ultrafast": { "promotionalMultiplier": 3, "listMultiplier": 6, "listStartsAt": "2027-03-01T08:00:00Z" },
+        "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },
+      { "id": "gpt-6.2-astra-law", "input": 8, "output": 40, "cacheRead": 0.4, "cacheWrite": 10, "cacheWriteLong": 20,
+        "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },
+      { "id": "gpt-6.2-sol", "input": 2, "output": 10, "cacheRead": 0.1, "cacheWrite": 2.5, "cacheWriteLong": 5, "fastMultiplier": 2,
+        "ultrafast": { "promotionalMultiplier": 3, "listMultiplier": 6, "listStartsAt": "2027-03-01T08:00:00Z" },
+        "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } }
+    ],
     "models": [
       { "id": "gpt-6.1-sol", "input": 2, "output": 10, "cacheRead": 0.1, "cacheWrite": 2.5, "fastMultiplier": 2,
         "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },
@@ -203,8 +218,9 @@
         "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },
       { "id": "gpt-6-astra", "input": 10, "output": 50, "cacheRead": 1, "cacheWrite": 12.5, "fastMultiplier": 2,
         "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },
-      { "id": "gpt-6-astra-law", "input": 10, "output": 50, "cacheRead": 1 },
-      { "id": "gpt-6-rosalind", "input": 15, "output": 75, "cacheRead": 1.5, "cacheWrite": 18.75,
+      { "id": "gpt-6-astra-law", "input": 10, "output": 50, "cacheRead": 1,
+        "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },
+      { "id": "gpt-6-rosalind", "input": 10, "output": 50, "cacheRead": 1, "cacheWrite": 12.5,
         "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },
       { "id": "gpt-6-sol", "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite": 2.5, "fastMultiplier": 2,
         "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },

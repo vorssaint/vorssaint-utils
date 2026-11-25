@@ -32,6 +32,7 @@ enum QuickLauncherContract {
     struct State {
         var isActive = false
         var isMuted = false
+        var warning: String?
         var isRecording = false
     }
 
@@ -150,6 +151,11 @@ enum QuickLauncherContract {
                      "an embedded camera switches the notch before hiding the launcher, without a close-and-reopen delay")
         cameraInNotch = false
         var tile = Tile()
+        tile.micMute.isMuted = true
+        suite.expect(tile.display(.micMute) == ("mic.slash.fill", true), "the launcher shows a confirmed active mute")
+        tile.micMute.warning = "Partial mute"
+        suite.expect(tile.display(.micMute) == ("exclamationmark.triangle", true),
+                     "the launcher warns about incomplete confirmation while keeping the mute action active")
         suite.expect(tile.display(.screenRecorder) == ("record.circle", false),
                      "an idle recording tile offers recording")
         tile.recorder.isRecording = true

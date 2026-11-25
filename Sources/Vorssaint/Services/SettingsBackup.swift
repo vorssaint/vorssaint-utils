@@ -24,7 +24,8 @@ enum SettingsBackup {
     }
 
     /// Writes the backup file; false when it could not be saved.
-    static func write(to url: URL, from defaults: UserDefaults = .standard) -> Bool {
+    static func write(to url: URL, from defaults: UserDefaults = .standard,
+                      requiresOwnerRead: Bool = false) -> Bool {
         // object(forKey:) sees through to registered defaults, so the file is
         // a complete snapshot: importing it reproduces this exact setup even
         // where the user never touched a control.
@@ -73,6 +74,7 @@ enum SettingsBackup {
             var hasACL: Int32 = 0
             guard fstatx_np(descriptor, &info, security) == 0,
                   info.st_uid == geteuid(), info.st_mode & 0o7777 & ~allowedMode == 0,
+                  !requiresOwnerRead || info.st_mode & 0o400 != 0,
                   filesec_query_property(security, FILESEC_ACL, &hasACL) == 0, hasACL == 0,
                   fstatfs(descriptor, &volume) == 0,
                   volume.f_flags & UInt32(MNT_IGNORE_OWNERSHIP) == 0 else { return false }
@@ -238,10 +240,9 @@ enum SettingsBackup {
     }
 
     /// The Advanced page's explicit save to the settings file. The app never
-    /// writes it on its own; this is the same complete snapshot as an export,
-    /// with the same refusal to replace a read-only or non-regular target.
+    /// writes it on its own. The next launch must be able to read the snapshot.
     static func writeConfigFile(to url: URL = configFileURL, from defaults: UserDefaults = .standard) -> Bool {
-        write(to: url, from: defaults)
+        write(to: url, from: defaults, requiresOwnerRead: true)
     }
 
     /// A normal app launch overlays the declared keys after migrating local

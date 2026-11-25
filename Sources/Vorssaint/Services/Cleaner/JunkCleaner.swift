@@ -170,7 +170,7 @@ final class JunkCleaner: ObservableObject {
 
     // MARK: - Clean
 
-    /// Each cleanup shares one app inventory across its serial removal checks.
+    /// Each batch shares one app inventory across its serial removal checks.
     private static func cachedAppLookup(_ load: @escaping () -> Set<String>) -> () -> Set<String> {
         var cached: Set<String>?
         return {
@@ -179,6 +179,13 @@ final class JunkCleaner: ObservableObject {
             cached = apps
             return apps
         }
+    }
+
+    private static func removalCheck(for items: [Item]) -> (Item) -> Bool {
+        let needsPluginIDs = items.contains { [.leftovers, .loginItems, .caches, .logs].contains($0.category) }
+        let audioPluginIDs = needsPluginIDs ? installedAudioPluginBundleIDs() : []
+        let installedApps = cachedAppLookup(installedBundleIDs)
+        return { mayRemove($0, installedApps: installedApps, audioPluginIDs: audioPluginIDs) }
     }
 
     /// `escalate: false` leaves whatever the Trash move refused in place
@@ -191,10 +198,6 @@ final class JunkCleaner: ObservableObject {
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let fm = FileManager.default
-            // A recommended cache or log may have lost its owning app since the scan.
-            let needsPluginIDs = chosen.contains { [.leftovers, .caches, .logs].contains($0.category) }
-            let audioPluginIDs = needsPluginIDs ? Self.installedAudioPluginBundleIDs() : []
-            let installedApps = Self.cachedAppLookup(Self.installedBundleIDs)
             var freed: Int64 = 0
             var failed = 0
             var stubborn: [Item] = []
@@ -207,19 +210,12 @@ final class JunkCleaner: ObservableObject {
                 if Self.emptyTrash() { freed += item.size } else { failed += 1 }
             }
 
+            // Emptying the Trash may have waited for Finder. Read ownership after it returns.
+            let canRemove = Self.removalCheck(for: chosen)
             for item in chosen where item.category != .trash {
-                guard Self.mayRemove(item, installedApps: installedApps, audioPluginIDs: audioPluginIDs) else {
+                guard canRemove(item) else {
                     failed += 1
                     continue
-                }
-                if item.category == .loginItems {
-                    // Retire the job first so nothing keeps running from a
-                    // plist that is about to leave; then the regular move.
-                    Self.bootoutUserAgent(item.url)
-                    guard Self.mayRemove(item, installedApps: installedApps, audioPluginIDs: audioPluginIDs) else {
-                        failed += 1
-                        continue
-                    }
                 }
                 do {
                     try fm.trashItem(at: item.url, resultingItemURL: nil)
@@ -229,27 +225,20 @@ final class JunkCleaner: ObservableObject {
                 }
             }
 
-            // Root owned files (system LaunchDaemons and friends) go through
-            // Finder, which shows the standard administrator prompt and moves
-            // them to the Trash exactly like a drag would. One batch, one
-            // prompt; a cancel leaves them in place and they count as failed.
-            if !escalate {
-                // Unattended pass: nobody can answer the prompt, so they
-                // stay put and count as failed.
+            // Finder may wait for an administrator password after receiving the URLs.
+            // A login item can regain its owner during that wait, so leave its plist in place.
+            let candidates = escalate ? stubborn.filter { $0.category != .loginItems && canRemove($0) } : []
+            if !candidates.isEmpty, AppleScriptRunner.consentToAutomate(bundleID: "com.apple.finder") {
+                // An owner may have been installed while the consent prompt was open.
+                let stillSafe = candidates.filter(Self.removalCheck(for: candidates))
+                if !stillSafe.isEmpty {
+                    Self.trashViaFinder(stillSafe.map(\.url))
+                }
+                let removed = stillSafe.filter { UninstallerSupport.isConfirmedAbsent(at: $0.url) }
+                freed += removed.reduce(0) { $0 + $1.size }
+                failed += stubborn.count - removed.count
+            } else {
                 failed += stubborn.count
-            } else if !stubborn.isEmpty {
-                let stillSafe = stubborn.filter {
-                    Self.mayRemove($0, installedApps: installedApps, audioPluginIDs: audioPluginIDs)
-                }
-                failed += stubborn.count - stillSafe.count
-                Self.trashViaFinder(stillSafe.map(\.url))
-                for item in stillSafe {
-                    if fm.fileExists(atPath: item.url.path) {
-                        failed += 1
-                    } else {
-                        freed += item.size
-                    }
-                }
             }
 
             DispatchQueue.main.async { [weak self] in
@@ -302,6 +291,11 @@ final class JunkCleaner: ObservableObject {
                   !CleanerSupport.isProtectedBundleID(item.detail),
                   !hasLivingLeftoverOwner(item.detail, at: url, installed: installed) else { return false }
         }
+        if item.category == .loginItems {
+            // Only move the selected plist. launchd may have loaded another file with the same label.
+            let installed = installedApps().union(audioPluginIDs)
+            guard orphanedLaunchPlistDetail(at: url, installed: installed) == item.detail else { return false }
+        }
         if item.category == .screenshots {
             guard isScreenshotFolderChild(url), isScreenCapture(url) else { return false }
         }
@@ -310,8 +304,6 @@ final class JunkCleaner: ObservableObject {
     }
 
     private static func trashViaFinder(_ urls: [URL]) {
-        guard !urls.isEmpty else { return }
-        guard AppleScriptRunner.consentToAutomate(bundleID: "com.apple.finder") else { return }
         let targets = urls
             .map { "set end of targets to POSIX file \(AppleScriptRunner.literal($0.path))" }
             .joined(separator: "\n")
@@ -328,25 +320,6 @@ final class JunkCleaner: ObservableObject {
     private static func emptyTrash() -> Bool {
         guard AppleScriptRunner.consentToAutomate(bundleID: "com.apple.finder") else { return false }
         return AppleScriptRunner.run("tell application \"Finder\" to empty trash").ok
-    }
-
-    /// Unloads a user launch agent before its plist is trashed, so the job
-    /// does not keep running until logout. Best effort: a plist that was
-    /// never loaded simply makes launchctl exit nonzero, which is fine.
-    private static func bootoutUserAgent(_ plistURL: URL) {
-        guard plistURL.path.hasPrefix(NSHomeDirectory() + "/Library/LaunchAgents/") else { return }
-        guard let plist = NSDictionary(contentsOf: plistURL) as? [String: Any],
-              let label = plist["Label"] as? String, !label.isEmpty,
-              !label.contains("/"), !label.contains("..") else { return }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        process.arguments = ["bootout", "gui/\(getuid())/\(label)"]
-        // A plist that was never loaded makes launchctl complain; that is
-        // expected and not worth a line in anyone's console.
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        try? process.run()
-        process.waitUntilExit()
     }
 
     // MARK: - Installed apps oracle
@@ -584,27 +557,31 @@ final class JunkCleaner: ObservableObject {
             guard let entries = try? fm.contentsOfDirectory(atPath: root) else { continue }
             for entry in entries where entry.hasSuffix(".plist") {
                 let url = URL(fileURLWithPath: root).appendingPathComponent(entry)
-                guard !UninstallerSupport.isSymbolicLink(url) else { continue }
-                guard let plist = NSDictionary(contentsOfFile: url.path) as? [String: Any] else { continue }
-                let label = plist["Label"] as? String
-                let executables = CleanerSupport.executablePaths(inLaunchPlist: plist)
-                guard CleanerSupport.launchPlistIsRemovableOrphan(
-                    label: label,
-                    executables: executables,
-                    // A missing binary on an external volume is inconclusive
-                    // (the volume may just be unmounted), so it counts as
-                    // present and the plist is left alone.
-                    executableExists: { $0.hasPrefix("/Volumes/") || fm.fileExists(atPath: $0) }) else { continue }
-                // Second signal: the label itself must not belong to anything
-                // installed either (a moved binary is not an uninstalled app).
-                if let label, hasLivingOwner(label, installed: installed) { continue }
+                guard !UninstallerSupport.isSymbolicLink(url),
+                      let detail = orphanedLaunchPlistDetail(at: url, installed: installed) else { continue }
                 found.append(Item(url: url, category: .loginItems,
                                   size: directorySize(of: url, fm: fm),
-                                  detail: label ?? entry,
+                                  detail: detail,
                                   recommended: CleanerPolicy.precheckLoginItems))
             }
         }
         return sorted(found)
+    }
+
+    /// Reads the current plist so a selected job must still qualify at cleanup.
+    private static func orphanedLaunchPlistDetail(at url: URL, installed: Set<String>) -> String? {
+        guard let plist = NSDictionary(contentsOf: url) as? [String: Any] else { return nil }
+        let label = plist["Label"] as? String
+        let executables = CleanerSupport.executablePaths(inLaunchPlist: plist)
+        guard CleanerSupport.launchPlistIsRemovableOrphan(
+            label: label,
+            executables: executables,
+            executableIsConfirmedAbsent: { path in
+                UninstallerSupport.isConfirmedAbsent(at: URL(fileURLWithPath: path, isDirectory: false))
+            }
+        ) else { return nil }
+        if let label, hasLivingOwner(label, installed: installed) { return nil }
+        return label ?? url.lastPathComponent
     }
 
     private static func scanCaches(excluding claimed: Set<String>, audioPluginIDs: Set<String>) -> [Item] {
