@@ -67,6 +67,7 @@ enum MixerUniversalRoutingContract {
         var currentOutputDeviceUID: String? = "speakers"
         var outputSwitchError: String?
         var apps: [MixerApp] = []
+        var engines: [String: Void] = [:]
         var savedRoutes: [String: String] = [:]
         var volumes: [String: Double] {
             get { Preferences.standard.savedLevels }

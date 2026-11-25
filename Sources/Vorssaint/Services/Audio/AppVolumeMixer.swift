@@ -1617,6 +1617,10 @@ final class AppVolumeMixer: ObservableObject {
                                            targetOutputDeviceUID: app.effectiveOutputDeviceUID,
                                            defaultOutputDeviceUID: app.effectiveOutputDeviceUID,
                                            universalOutputRouteUID: app.universalOutputRouteUID)
+            || MixerRoutingSupport.keepsEngine(hasEngine: engines[app.id] != nil,
+                                               isPlaying: app.isPlaying,
+                                               hasAudioObjects: !app.audioObjects.isEmpty,
+                                               targetOutputDeviceUID: app.effectiveOutputDeviceUID)
     }
 
     private func applyOutputRoute(to app: inout MixerApp,
