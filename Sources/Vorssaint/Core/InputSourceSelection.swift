@@ -103,6 +103,16 @@ enum InputSourceSelection {
                        name: inputSourceString(source, property: kTISPropertyLocalizedName) ?? "")
     }
 
+    /// Every enabled source as the Input menu lists them, for the notice's selector.
+    static func allReadings() -> [Reading] {
+        selectableInputSources().compactMap { source in
+            guard let id = inputSourceString(source, property: kTISPropertyInputSourceID) else { return nil }
+            return Reading(id: id,
+                           code: shortCode(languages: languages(of: source)),
+                           name: inputSourceString(source, property: kTISPropertyLocalizedName) ?? "")
+        }
+    }
+
     /// The languages a source types, in the order TIS keeps them.
     static func languages(of source: TISInputSource) -> [String] {
         guard let pointer = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages),
