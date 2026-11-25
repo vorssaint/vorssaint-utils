@@ -774,8 +774,7 @@ def main():
               "    private enum CapturedContent", "    private func captureIfChanged(",
               "    private static func readPasteboard(", "    private func matchingEntry(",
               "    private func stop()", "    private func promote(", "    private func touch(",
-              "    private var firstRecentIndex:", "    private func normalizeEntryOrder(",
-              "    private func insertPromoted("])
+              "    private func retainedEntries(", "    private func commitPromoted("])
           + "func setEntries(_ values: [ClipboardHistoryEntry]) { entries = values }\n"
           + "}\n}\n")
     write("ClipboardCommandBarUpdates.swift", "import Combine\nimport Foundation\nextension ClipboardPreviewContract {\n"
@@ -788,17 +787,32 @@ def main():
     write("ClipboardPreview.swift", "import Foundation\nimport Combine\n"
           + "extension ClipboardPreviewContract {\nfinal class Service: Fixture {\n"
           + declaration(clipboard, "    @Published private(set) var entries:")
+          + declaration(clipboard, "    @Published var quickQuery =")
+          + declaration(clipboard, "    @Published private(set) var quickShelfSearchExpanded =")
           + declaration(clipboard, "    func updateText(")
+          + declaration(clipboard, "    func renameEntry(")
           + "".join(declaration(clipboard, prefix).replace("private ", "", 1) for prefix in [
               "    func togglePin(", "    func clearRecent(", "    var recentEntries:", "    var recentEntriesSnapshot:",
-              "    func copy(_ entry:", "    func copy(_ selectedEntries:", "    private func touch(",
-              "    private var firstRecentIndex:", "    private func normalizeEntryOrder(",
+              "    func copy(_ entry:", "    func copy(_ selectedEntries:", "    private func copyEntries(",
+              "    private func touch(", "    var quickSearchIsActive:",
+              "    var quickShelfSearchIsActive:", "    private func isQuickShelfSearchActive(",
+              "    private func quickSearchSurface(", "    func beginQuickShelfSearch(",
+              "    func clearQuickShelfSearch(",
+              "    private func retainedEntries(", "    func addToPasteStack(",
+              "    private func prunePasteStack(", "    private func syncPasteStackStatus(",
+              "    private func shelfStackWriteGuard(",
               "    func cancelSearch(", "    func filteredEntries(", "    var filteredQuickEntries:", "    var selectedQuickEntry:",
+              "    private var quickSearchSurface:", "    func setQuickSourceApp(",
+              "    func setQuickContentType(", "    func setQuickCollection(", "    private func setQuickFilter(",
+              "    func createPinboard(", "    func renamePinboard(", "    func deletePinboard(",
+              "    func assignPinboard(", "    private func entriesAssigningPinboard(",
+              "    private func storePinboards(",
+              "    private func resetQuickSelection(", "    func clearQuickBatchSelection(",
               "    private func scheduleDeferredSearch(",
               "    func moveQuickSelection(", "    func removeSelectedQuickEntries(",
               "    private var quickBatchEntries:", "    private func quickEntriesForPrimaryAction(",
               "    private func selectedQuickIndex(", "    private func promote(",
-              "    private func insertPromoted("])
+              "    private func commitPromoted("])
           + "func setEntries(_ values: [ClipboardHistoryEntry]) { entries = values }\n"
           + "}\n}\n")
     write("CommandBarInputSource.swift", "import Foundation\n"

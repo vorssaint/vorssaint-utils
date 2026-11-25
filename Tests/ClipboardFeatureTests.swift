@@ -11,6 +11,7 @@ import Foundation
 import ImageIO
 import SwiftUI
 import VMStatisticsCompat
+import os
 
 enum ClipboardFeatureTests {
     /// Runs the production placement and geometry observers on panels that
@@ -35,6 +36,8 @@ enum ClipboardFeatureTests {
             static let standard = Foundation.UserDefaults(suiteName: name)!
         }
         var quickLayout = ClipboardHistoryLayout.cards
+        var quickShelfEdge = ClipboardShelfEdge.bottom
+        var quickShelfClick = ClipboardShelfClick.select
         var quickPreviewPresented = false
         var adjustingPanelFrame = false
         var panelResizeObserver: NSObjectProtocol?
@@ -79,6 +82,16 @@ enum ClipboardFeatureTests {
         var promptedForAccessibility = false
         init() { Self.host = self }
         func AXIsProcessTrusted() -> Bool { trusted }
+        var targetIsFrontmost = true
+        var quickWindowPresentationID = UUID()
+        func isFrontmost(_ app: NSRunningApplication) -> Bool { targetIsFrontmost }
+        func verifyAndPostShelfPaste(to app: NSRunningApplication, expectedChangeCount: Int,
+                                     presentation: UUID, stackRequest: ClipboardPasteStack.Request?) {
+            events.append("verified paste")
+        }
+        func finishPasteStackRequest(_ request: ClipboardPasteStack.Request?) {
+            if request != nil { events.append("stack request ended") }
+        }
         static func postPasteShortcut() { host?.events.append("paste") }
     }
 
@@ -244,7 +257,53 @@ enum ClipboardFeatureTests {
         suite.expect(panel.frame == fallback, "a partially saved origin uses the default placement")
     }
 
+    private static func pasteStack(_ suite: TestSuite) {
+        let first = UUID()
+        let removed = UUID()
+        let last = UUID()
+        var stack = ClipboardPasteStack()
+        stack.append([first, removed])
+        stack.append([removed, last])
+        guard let failing = stack.beginPaste() else {
+            suite.expect(false, "a stack with items can start a paste")
+            return
+        }
+        suite.expect(failing.entryID == first && stack.count == 3 && stack.beginPaste() == nil,
+                     "a stack keeps queue order and accepts one request at a time")
+        suite.expect(stack.status.hasPendingPaste, "Paste Next remains unavailable until the pending request finishes")
+        suite.expect(!stack.post(failing) { false }, "a failed shortcut cannot consume a clip")
+        stack.finishPaste(failing)
+        suite.expect(!stack.status.hasPendingPaste && stack.status.count == 3,
+                     "completing a failed request restores availability without advancing the stack")
+        guard let retry = stack.beginPaste() else {
+            suite.expect(false, "a failed paste can be retried")
+            return
+        }
+        suite.expect(retry.entryID == first && stack.post(retry) { true } && stack.count == 2,
+                     "retry pastes the original first clip and advances once")
+        guard let deleted = stack.beginPaste() else {
+            suite.expect(false, "successful paste leaves the rest of the stack ready")
+            return
+        }
+        stack.prune(keeping: [last])
+        suite.expect(deleted.entryID == removed && !stack.post(deleted) { true } && stack.count == 1,
+                     "deleting a clip removes it from the queue and cancels its pending paste")
+
+        let previous = stack.beginPaste()
+        stack.clear()
+        stack.append([last])
+        guard let previous, let current = stack.beginPaste() else {
+            suite.expect(false, "clearing the stack allows the same clip in a new stack")
+            return
+        }
+        stack.finishPaste(previous)
+        suite.expect(current.entryID == last && !stack.post(previous) { true }
+                     && stack.post(current) { true } && stack.count == 0,
+                     "a cleared request cannot post or interrupt a new request for the same clip")
+    }
+
     static func run(_ suite: TestSuite) {
+        pasteStack(suite)
         ClipboardSensitiveTextPreferenceTests.run(suite)
         ClipboardPreviewContract.run(suite)
         ClipboardCaptureRestoreTests.run(suite)
@@ -981,11 +1040,23 @@ enum ClipboardFeatureTests {
                                      styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
                                      backing: .buffered, defer: true)
         let placementScreen = PanelPlacementHost.Screen.pointerVisibleFrame
-        placement.position(placementPanel)
-        suite.expect(!placementPanel.styleMask.contains(.resizable)
-                     && placementPanel.frame == NSRect(x: placementScreen.minX + 16, y: placementScreen.minY + 8,
-                                                       width: placementScreen.width - 32, height: 318),
-               "the cards make a shelf along the bottom of the screen that does not resize")
+        let expectedShelfFrames: [ClipboardShelfEdge: NSRect] = [
+            .bottom: NSRect(x: 0, y: 25, width: 1512, height: 324),
+            .top: NSRect(x: 0, y: 621, width: 1512, height: 324),
+            .left: NSRect(x: 0, y: 25, width: 280, height: 920),
+            .right: NSRect(x: 1232, y: 25, width: 280, height: 920),
+        ]
+        for edge in ClipboardShelfEdge.allCases {
+            placement.quickShelfEdge = edge
+            placement.position(placementPanel)
+            suite.expect(!placementPanel.styleMask.contains(.resizable) && !placementPanel.isMovable
+                         && placementPanel.level == .statusBar && placementScreen.contains(placementPanel.frame)
+                         && placementPanel.frame == expectedShelfFrames[edge],
+                         "the \(edge) shelf stays within the pointer display: \(placementPanel.frame)")
+        }
+        let negativeOrigin = CGRect(x: -1280, y: -160, width: 1280, height: 768)
+        suite.expect(ClipboardShelfEdge.right.frame(in: negativeOrigin).maxX == 0,
+                     "a right shelf on a display left of the primary one stays on that display")
         placement.quickLayout = .list
         placement.position(placementPanel)
         suite.expect(placementPanel.styleMask.contains(.resizable)
@@ -1004,9 +1075,10 @@ enum ClipboardFeatureTests {
         suite.expect(placementPanel.frame == NSRect(x: 100, y: 200, width: 700, height: 500),
                "reopening the list reads its saved coordinates and restores its frame")
         placement.quickLayout = .cards
+        placement.quickShelfEdge = .bottom
         placement.position(placementPanel)
-        suite.expect(placementPanel.frame.minX == placementScreen.minX + 16
-                     && placementPanel.frame.minY == placementScreen.minY + 8,
+        suite.expect(placementPanel.frame.minX == placementScreen.minX
+                     && placementPanel.frame.minY == placementScreen.minY,
                "saved list coordinates do not move the card shelf")
         placement.quickLayout = .list
         placementDefaults.removeObject(forKey: DefaultsKey.clipboardHistoryWindowX)
@@ -1106,6 +1178,18 @@ enum ClipboardFeatureTests {
                "plain side arrows walk the cards")
         suite.expect(step(.list, kVK_RightArrow) == nil && step(.list, kVK_LeftArrow) == nil,
                "the list leaves plain side arrows to the search field's caret")
+
+        let navigationBoard = ClipboardPinboard(id: UUID(), name: "Studio")
+        let boardTab = ClipboardShelfCollection.pinboard(navigationBoard.id)
+        let nextBoard = UInt16(kVK_RightArrow), previousBoard = UInt16(kVK_LeftArrow)
+        suite.expect(ClipboardShelfCollection.history.adjacent(for: nextBoard, boards: [navigationBoard]) == .pinned
+                     && ClipboardShelfCollection.pinned.adjacent(for: nextBoard, boards: [navigationBoard]) == boardTab
+                     && boardTab.adjacent(for: nextBoard, boards: [navigationBoard]) == .history
+                     && ClipboardShelfCollection.history.adjacent(for: previousBoard, boards: [navigationBoard]) == boardTab,
+                     "board navigation follows the toolbar and wraps in either direction")
+        suite.expect(ClipboardShelfCollection.history.adjacent(for: previousBoard, boards: []) == .pinned
+                     && boardTab.adjacent(for: UInt16(kVK_DownArrow), boards: []) == nil,
+                     "with no named boards navigation cycles through History and Pinned, ignoring other keys")
 
         // MARK: Clipboard menu bar preview
 
@@ -1639,6 +1723,9 @@ enum ClipboardFeatureTests {
                                                            "/Users/a/Pictures/Photo.png"])
         expectEqual(filesEntry.preview, "Report.pdf, Photo.png",
                     "clipboard files preview lists the file names")
+        suite.expect(filesEntry.plainTextForPaste == filesEntry.filePaths.joined(separator: "\n")
+                     && imageEntry.plainTextForPaste == nil,
+                     "plain paste writes full file paths in order and excludes images")
         suite.expect(filesEntry.searchableText(imageLabel: "Image").contains("Report.pdf"),
                "clipboard files entries are searchable by file name")
         suite.expect(filesEntry.searchableText(imageLabel: "Image").contains("Image"),
@@ -1908,8 +1995,8 @@ enum ClipboardFeatureTests {
         let historySource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift",
             encoding: .utf8)) ?? ""
-        let hideBody = historySource.components(separatedBy: "    func hideHistoryWindow() {").dropFirst().first?
-            .components(separatedBy: "\n    }\n").first ?? ""
+        let hideBody = historySource.components(separatedBy: "    func hideHistoryWindow(").dropFirst().first?
+            .components(separatedBy: "    func rememberPasteTarget").first ?? ""
         suite.expect(hideBody.contains("panel.endSheet(sheet)")
                      && (hideBody.range(of: "endSheet")?.lowerBound ?? hideBody.endIndex)
                         < (hideBody.range(of: "orderOut")?.lowerBound ?? hideBody.startIndex)
@@ -1937,6 +2024,26 @@ enum ClipboardFeatureTests {
             suite.expect(host.events == expected,
                    "quick paste beeps or asks for Accessibility when it cannot paste, found \(host.events)")
         }
+        let shelfPaste = QuickPasteHost()
+        let target = QuickPasteHost.App(isTerminated: false)
+        let presentation = shelfPaste.quickWindowPresentationID
+        shelfPaste.targetIsFrontmost = false
+        shelfPaste.pasteIntoPreviousApp(target, shelfPaste: (42, presentation))
+        suite.expect(shelfPaste.events.isEmpty, "a closed shelf does not reactivate an app the user left")
+        shelfPaste.targetIsFrontmost = true
+        shelfPaste.pasteIntoPreviousApp(target, shelfPaste: (42, presentation))
+        suite.expect(shelfPaste.events == ["verified paste"],
+                     "a shelf paste waits for clipboard and destination verification")
+        shelfPaste.quickWindowPresentationID = UUID()
+        shelfPaste.pasteIntoPreviousApp(target, shelfPaste: (42, presentation))
+        suite.expect(shelfPaste.events == ["verified paste"],
+                     "a write completing after a new shelf presentation cannot dispatch Paste")
+        let stackRequest = ClipboardPasteStack.Request(entryID: UUID())
+        shelfPaste.events.removeAll()
+        shelfPaste.pasteIntoPreviousApp(target, shelfPaste: (42, presentation), stackRequest: stackRequest)
+        suite.expect(shelfPaste.events == ["stack request ended"],
+                     "losing the shelf presentation releases a stack request for retry")
+
         for bundleID in ["com.microsoft.rdc.macos", "com.microsoft.rdc.mac"] {
             let host = QuickPasteHost()
             host.pasteIntoPreviousApp(QuickPasteHost.App(isTerminated: false, bundleIdentifier: bundleID))
@@ -1978,6 +2085,11 @@ enum ClipboardPreviewContract {
 
     class Fixture {
         func pruneQuickBatchSelection() {}
+        let pasteStack = OSAllocatedUnfairLock(initialState: ClipboardPasteStack())
+        let shelfPasteSession = OSAllocatedUnfairLock(initialState: UUID())
+        var pasteStackStatus = ClipboardPasteStack.Status()
+        var pasteStackCount: Int { pasteStackStatus.count }
+        var isRunning = true
         var latestPasteboardEntry: ClipboardHistoryEntry?
         var entriesStamp = 0
         var searchCache = ClipboardHistorySearchCache()
@@ -1985,17 +2097,23 @@ enum ClipboardPreviewContract {
         var deferredSearchWork: [ClipboardHistorySearchSurface: Task<Void, Never>] = [:]
         let objectWillChange = PassthroughSubject<Void, Never>()
         var pendingWrite: ((Bool) -> Void)?
-        func writeToPasteboard(_ list: [ClipboardHistoryEntry], completion: @escaping (Bool) -> Void) {
-            pendingWrite = completion
+        func writeToPasteboard(_ list: [ClipboardHistoryEntry], plainText: String?,
+                               canStartWrite: (() -> Bool)?, completion: @escaping (Int?) -> Void) {
+            pendingWrite = { copied in completion(copied ? 1 : nil) }
         }
         var encodedHistoryByteLimit = ClipboardHistoryEditing.maxEncodedHistoryBytes
-        func trimToLimit() {}
+        var editingEntryID: UUID?
         func save() {}
-        var quickQuery = ""
+        var quickLayout = ClipboardHistoryLayout.list
+        var quickSourcePickerPresented = false
+        var quickTypePickerPresented = false
+        var quickFilter = ClipboardShelfFilter()
+        var pinboards: [ClipboardPinboard] = []
         var quickSelectionID: UUID?
         var quickSelectionIsVisible = false
         var quickBatchEntryIDs: Set<UUID> = []
         var keyboardSelectionPointer: NSPoint?
+        enum NSSound { static func beep() {} }
         enum NSCursor { static func setHiddenUntilMouseMoves(_ hidden: Bool) {} }
         enum NSEvent { static let mouseLocation = NSPoint.zero }
         enum UserDefaults {
@@ -2003,7 +2121,11 @@ enum ClipboardPreviewContract {
                 var skipSensitive = Defaults.registeredDefaults[
                     DefaultsKey.clipboardHistoryFilterSensitiveText] as? Bool ?? true
                 var includeImages = false
+                var ignoreTransient = true
+                func set(_ value: Data, forKey key: String) {}
+                func integer(forKey key: String) -> Int { Defaults.registeredDefaults[key] as? Int ?? 0 }
                 func bool(forKey key: String) -> Bool {
+                    if key == DefaultsKey.clipboardHistoryIgnoreTransient { return ignoreTransient }
                     if key == DefaultsKey.clipboardHistoryFilterSensitiveText { return skipSensitive }
                     if key == DefaultsKey.clipboardHistoryIncludeImagesFiles { return includeImages }
                     return false
@@ -2017,7 +2139,34 @@ enum ClipboardPreviewContract {
         }
     }
 
+    private static func stackSurvivesHistoryChanges(_ suite: TestSuite) {
+        let recent = ClipboardHistoryEntry(text: "First queued clip")
+        let pinned = ClipboardHistoryEntry(text: "Second queued clip", pinnedAt: Date())
+        let service = Service()
+        service.quickLayout = .cards
+        service.setEntries([pinned, recent, ClipboardHistoryEntry(text: "Unqueued clip")])
+        service.addToPasteStack(recent)
+        service.addToPasteStack(pinned)
+
+        service.promote(recent.text, source: "com.example.editor", keepsSource: false)
+        suite.expect(service.pasteStackCount == 2 && service.latestPasteboardEntry?.id == recent.id,
+                     "recopying a queued clip preserves its identity and keeps it queued")
+        service.togglePin(pinned)
+        suite.expect(service.pasteStackCount == 2 && service.entries.first?.id == pinned.id
+                     && service.entries.first?.isPinned == false,
+                     "unpinning changes history order and keeps the clip queued")
+
+        let queued = service.pasteStack.withLock { stack -> [UUID] in
+            guard let first = stack.beginPaste(), stack.post(first, shortcut: { true }),
+                  let second = stack.beginPaste() else { return [] }
+            return [first.entryID, second.entryID]
+        }
+        suite.expect(queued == [recent.id, pinned.id],
+                     "recopying and unpinning preserve the original stack order")
+    }
+
     static func run(_ suite: TestSuite) {
+        stackSurvivesHistoryChanges(suite)
         let current = ClipboardHistoryEntry(text: "Actual clipboard text")
         let other = ClipboardHistoryEntry(text: "Another saved copy")
         let service = Service()
@@ -2233,8 +2382,265 @@ enum ClipboardPreviewContract {
             measureSearch(suite)
         }
         quickSelection(suite)
+        sourceAppSearch(suite)
+        shelfSearchScope(suite)
+        pinboardLifecycle(suite)
+        textSearchBatch(suite)
+        shelfPreviewAndEmoji(suite)
+        shelfCardSizing(suite)
         promotedSource(suite)
         sensitiveText(suite)
+    }
+
+    private static func shelfSearchScope(_ suite: TestSuite) {
+        let service = Service()
+        service.quickLayout = .cards
+        let work = UUID()
+        let browser = "example.browser"
+        var note = ClipboardHistoryEntry(text: "Needle notes", pinnedAt: Date(), pinboardID: work)
+        var savedLink = ClipboardHistoryEntry(text: "https://example.com/needle",
+                                               pinnedAt: Date(), pinboardID: UUID())
+        let pinned = ClipboardHistoryEntry(text: "https://example.net/needle", pinnedAt: Date())
+        var recentLink = ClipboardHistoryEntry(text: "https://example.org/other")
+        let recentNote = ClipboardHistoryEntry(text: "Needle checklist")
+        note.sourceBundleID = browser
+        savedLink.sourceBundleID = browser
+        recentLink.sourceBundleID = browser
+        let entries = [note, savedLink, pinned, recentLink, recentNote]
+        service.setEntries(entries)
+        service.setQuickCollection(.pinboard(work))
+        suite.expect(service.filteredQuickEntries == [note], "Cards browse the selected pinboard")
+
+        service.beginQuickShelfSearch()
+        suite.expect(service.filteredQuickEntries == entries, "Cards open search across all collections")
+        service.quickQuery = "needle"
+        let matches = service.filteredQuickEntries.map(\.id)
+        suite.expect(matches.count == 4 && Set(matches) == Set([note.id, savedLink.id, pinned.id, recentNote.id]),
+                     "content search returns matches from other boards, Pinned and history exactly once")
+
+        service.setQuickSourceApp(browser)
+        service.setQuickContentType(.link)
+        suite.expect(service.filteredQuickEntries == [savedLink],
+                     "content and type search intersect with the selected source across boards")
+        service.quickQuery = ""
+        suite.expect(service.filteredQuickEntries == [savedLink, recentLink],
+                     "source and type filters search across collections without a text query")
+
+        service.quickBatchEntryIDs = [recentLink.id]
+        service.quickSelectionID = recentLink.id
+        service.clearQuickShelfSearch()
+        suite.expect(service.quickFilter.collection == .pinboard(work)
+                     && service.filteredQuickEntries == [note] && service.quickBatchEntryIDs.isEmpty
+                     && service.selectedQuickEntry == note,
+                     "closing search restores the original pinboard and drops the search selection")
+
+        service.quickLayout = .list
+        service.quickQuery = "needle"
+        suite.expect(service.filteredQuickEntries == [note], "List search keeps its existing collection scope")
+    }
+
+    private static func sourceAppSearch(_ suite: TestSuite) {
+        let browserID = "example.browser"
+        let editorID = "example.editor"
+        var browserNote = ClipboardHistoryEntry(text: "Release notes")
+        browserNote.sourceBundleID = browserID
+        var browserLink = ClipboardHistoryEntry(text: "https://example.com")
+        browserLink.sourceBundleID = browserID
+        var editorNote = ClipboardHistoryEntry(text: "Release checklist")
+        editorNote.sourceBundleID = editorID
+        let unknown = ClipboardHistoryEntry(text: "Release date")
+
+        let service = Service()
+        service.setEntries([editorNote, browserNote, browserLink, unknown])
+        let apps = ClipboardHistorySourceApp.fromEntries(service.entries) { id in
+            ClipboardHistorySourceApp(id: id, name: id == browserID ? "Bráve Browser" : "Text Editor")
+        }
+        let suggested = ClipboardHistorySourceApp.suggestions(in: apps, for: " BR ")
+        suite.expect(apps.map(\.id) == [browserID, editorID] && suggested.map(\.id) == [browserID],
+                     "source suggestions deduplicate apps and match a typed name without case or accents")
+        let noteApps = [
+            ClipboardHistorySourceApp(id: "example.goodnotes", name: "Goodnotes"),
+            ClipboardHistorySourceApp(id: "example.notes", name: "Notes"),
+            ClipboardHistorySourceApp(id: "example.notesplus", name: "Notes Plus"),
+        ]
+        let noteSuggestions = ClipboardHistorySourceApp.suggestions(in: noteApps, for: "notes")
+        suite.expect(noteSuggestions.map(\.id) == ["example.notes", "example.notesplus", "example.goodnotes"],
+                     "Tab's first suggestion favors the exact name, then a prefix over a substring")
+
+        service.quickQuery = " br "
+        service.quickSourcePickerPresented = true
+        service.quickBatchEntryIDs = [editorNote.id]
+        service.quickSelectionID = editorNote.id
+        service.setQuickSourceApp(suggested.first?.id, completingQuery: true)
+        suite.expect(!service.quickSourcePickerPresented && service.quickQuery.isEmpty
+                     && service.filteredQuickEntries.map(\.id) == [browserNote.id, browserLink.id],
+                     "completing an app search activates its source filter and clears the typed app name")
+        suite.expect(service.quickEntriesForPrimaryAction().map(\.id) == [browserNote.id],
+                     "Return targets the visible app result instead of the earlier selection")
+
+        service.quickQuery = "release"
+        suite.expect(service.filteredQuickEntries.map(\.id) == [browserNote.id],
+                     "content search narrows results within the selected source")
+        service.setQuickSourceApp(nil)
+        suite.expect(service.quickQuery == "release" && Set(service.filteredQuickEntries.map(\.id)) ==
+                     Set([browserNote.id, editorNote.id, unknown.id]),
+                     "clearing the source filter preserves the text query and finds entries with no source")
+    }
+
+    private static func pinboardLifecycle(_ suite: TestSuite) {
+        let service = Service()
+        let clip = ClipboardHistoryEntry(text: "https://example.org/release",
+                                         copiedAt: Date.distantPast)
+        let other = ClipboardHistoryEntry(text: "release notes")
+        service.setEntries([other, clip])
+        guard let work = service.createPinboard(named: "  Work ", assigningEntryID: clip.id),
+              let reference = service.createPinboard(named: "Reference") else {
+            suite.expect(false, "both named pinboards were created")
+            return
+        }
+        suite.expect(service.entries.first?.id == clip.id
+                     && service.entries.first?.pinboardID == work.id
+                     && service.entries.last == other,
+                     "creating a pinboard pins the card that opened the menu")
+        suite.expect(service.createPinboard(named: "Vanished", assigningEntryID: UUID()) == nil
+                     && service.pinboards == [work, reference],
+                     "creating from a removed card leaves the pinboards unchanged")
+        service.setQuickCollection(.pinboard(work.id))
+        service.quickQuery = "release"
+        service.setQuickContentType(.link)
+        suite.expect(work.name == "Work" && service.filteredQuickEntries.map(\.id) == [clip.id],
+                     "pinboard membership, content type and text search intersect")
+        suite.expect(ClipboardHistoryEditing.retainedEntries(service.entries, recentLimit: 1, retentionDays: 1)
+            .contains(where: { $0.id == clip.id }), "a saved pinboard clip survives history expiry")
+
+        service.assignPinboard(reference.id, to: clip)
+        suite.expect(service.filteredQuickEntries.isEmpty && service.entries.first?.pinboardID == reference.id,
+                     "moving a clip removes it from its earlier pinboard")
+        guard let moved = service.entries.first else { return }
+        service.assignPinboard(nil, to: moved)
+        service.setQuickCollection(.pinned)
+        suite.expect(service.filteredQuickEntries.map(\.id) == [clip.id],
+                     "removing a clip from its board keeps it in Pinned")
+
+        service.assignPinboard(reference.id, to: clip)
+        service.setQuickCollection(.pinboard(reference.id))
+        service.deletePinboard(reference.id)
+        suite.expect(service.quickFilter.collection == .pinned
+                     && service.filteredQuickEntries.map(\.id) == [clip.id]
+                     && service.pinboards.map(\.id) == [work.id],
+                     "deleting a pinboard preserves its clip and opens Pinned")
+        let stored = try? JSONEncoder().encode(service.entries)
+        let restored = stored.flatMap { try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: $0) }
+        suite.expect(restored?.first?.isPinned == true && restored?.first?.pinboardID == nil,
+                     "saved history persists a pin without pinboard membership")
+
+        service.assignPinboard(work.id, to: clip)
+        service.setQuickCollection(.pinboard(work.id))
+        service.quickBatchEntryIDs = [clip.id]
+        service.togglePin(clip)
+        service.removeSelectedQuickEntries()
+        suite.expect(service.filteredQuickEntries.isEmpty && service.entries.contains(where: { $0.id == clip.id }),
+                     "a batch delete cannot delete a clip that left the current pinboard")
+        let swiftColor = ClipboardHistoryEntry(text: "Color(red: 0.200, green: 0.400, blue: 0.600)")
+        suite.expect(swiftColor.shelfContentType == .color, "color filters include the app's Swift color format")
+    }
+
+    private static func shelfCardSizing(_ suite: TestSuite) {
+        let layouts: [(viewport: CGSize, vertical: Bool, side: CGFloat)] = [
+            (CGSize(width: 1200, height: 280), false, 232),
+            (CGSize(width: 280, height: 840), true, 232),
+        ]
+        for (viewport, vertical, side) in layouts {
+            let square = CGSize(width: side, height: side)
+            let one = ClipboardShelfCardLayout.cardSize(in: viewport, entryCount: 1, vertical: vertical,
+                                                       legacyScrollerWidth: 15)
+            let many = ClipboardShelfCardLayout.cardSize(in: viewport, entryCount: 40, vertical: vertical)
+            let scrolled = ClipboardShelfCardLayout.cardSize(in: viewport, entryCount: 40, vertical: vertical,
+                                                            legacyScrollerWidth: 15)
+            suite.expect(one == square && many == square,
+                         "cards fill the shelf depth as squares regardless of the result count")
+            suite.expect(scrolled == CGSize(width: side - 15, height: side - 15),
+                         "cards stay square when the legacy scrollbar needs room")
+        }
+
+        let tight = ClipboardShelfCardLayout.cardSize(in: CGSize(width: 1040, height: 280), entryCount: 4,
+                                                     vertical: false, legacyScrollerWidth: 15)
+        suite.expect(tight == CGSize(width: 230, height: 230),
+                     "slightly smaller squares fit the whole row when that avoids a legacy scrollbar")
+    }
+
+    private static func shelfPreviewAndEmoji(_ suite: TestSuite) {
+        for address in ["file:///tmp/local.html", "custom://app/resource", "https://user:secret@example.org"] {
+            suite.expect(ClipboardHistoryEntry(text: address).shelfLink == nil,
+                         "the shelf never offers to load file URLs, custom schemes or URL credentials")
+        }
+        suite.expect(ClipboardHistoryEntry(text: "https://example.org/path").shelfLink != nil,
+                     "a plain HTTPS clip can open a web preview")
+
+        let screen = CGRect(x: -1920, y: 45, width: 1920, height: 1050)
+        let innerCorners: [ClipboardShelfEdge: RectangleCornerRadii] = [
+            .bottom: RectangleCornerRadii(topLeading: 22, topTrailing: 22),
+            .top: RectangleCornerRadii(bottomLeading: 22, bottomTrailing: 22),
+            .left: RectangleCornerRadii(bottomTrailing: 22, topTrailing: 22),
+            .right: RectangleCornerRadii(topLeading: 22, bottomLeading: 22),
+        ]
+        for edge in ClipboardShelfEdge.allCases {
+            let shelf = edge.frame(in: screen)
+            let preview = edge.previewFrame(beside: shelf, within: screen)
+            let gap: CGFloat
+            switch edge {
+            case .top: gap = shelf.minY - preview.maxY
+            case .bottom: gap = preview.minY - shelf.maxY
+            case .left: gap = preview.minX - shelf.maxX
+            case .right: gap = shelf.minX - preview.maxX
+            }
+            let availableWidth = screen.width - (edge.isVertical ? shelf.width : 0)
+            let availableHeight = screen.height - (edge.isVertical ? 0 : shelf.height)
+            suite.expect(screen.contains(preview) && gap >= 0 && gap <= 12
+                         && preview.width >= availableWidth * 0.9 && preview.height >= availableHeight * 0.9,
+                         "the \(edge.rawValue) preview fills the display area next to the shelf")
+            let card = CGRect(x: shelf.minX + 24, y: shelf.minY + 24, width: 80, height: 80)
+            let anchored = edge.previewFrame(beside: shelf, within: screen, alignedTo: card)
+            let movesTowardCard = edge.isVertical ? anchored.midY < preview.midY : anchored.midX < preview.midX
+            let cardGap: CGFloat
+            switch edge {
+            case .top: cardGap = card.minY - anchored.maxY
+            case .bottom: cardGap = anchored.minY - card.maxY
+            case .left: cardGap = anchored.minX - card.maxX
+            case .right: cardGap = card.minX - anchored.maxX
+            }
+            suite.expect(movesTowardCard && screen.contains(anchored) && (0...3).contains(cardGap),
+                         "the \(edge.rawValue) preview moves toward the card along the shelf")
+            suite.expect(edge.cornerRadii(22) == innerCorners[edge],
+                         "only the \(edge.rawValue) shelf corners that face the desktop are rounded")
+        }
+
+        let service = Service()
+        guard let work = service.createPinboard(named: "Work", emoji: "👩🏽‍💻") else {
+            suite.expect(false, "pinboard with emoji was created")
+            return
+        }
+        let encoded = try? JSONEncoder().encode(service.pinboards)
+        suite.expect(ClipboardPinboard.decode(encoded).first?.label == "👩🏽‍💻 Work",
+                     "a composed Unicode emoji survives pinboard storage")
+        service.renamePinboard(work.id, to: work.name, emoji: "📁")
+        suite.expect(service.pinboards.first?.emoji == "📁", "editing a board updates its emoji")
+        suite.expect(ClipboardPinboard.emoji(from: "1") == nil && ClipboardPinboard.emoji(from: "🚀📁") == nil,
+                     "the icon field accepts one emoji grapheme")
+    }
+
+    private static func textSearchBatch(_ suite: TestSuite) {
+        let service = Service()
+        let visible = ClipboardHistoryEntry(text: "Aurora release")
+        let hidden = ClipboardHistoryEntry(text: "Team lunch")
+        service.setEntries([hidden, visible])
+        service.quickBatchEntryIDs = [hidden.id, visible.id]
+        service.quickQuery = "aurora"
+        suite.expect(service.quickEntriesForPrimaryAction().map(\.id) == [visible.id],
+                     "a text search restricts a batch to the visible results")
+        service.removeSelectedQuickEntries()
+        suite.expect(service.entries.map(\.id) == [hidden.id],
+                     "a batch delete under text search retains the hidden entry")
     }
 
     private static func sensitiveText(_ suite: TestSuite) {
@@ -2276,7 +2682,36 @@ enum ClipboardPreviewContract {
         fromEditor.sourceBundleID = "com.example.editor"
         let other = ClipboardHistoryEntry(text: "Another copy")
         service.setEntries([other, fromEditor])
+        func rename(_ title: String, whileChecking: () -> Void = {}) -> Bool? {
+            var saved: Bool?
+            service.renameEntry(fromEditor.id, to: title) { saved = $0 }
+            whileChecking()
+            let deadline = Date().addingTimeInterval(5)
+            while saved == nil && Date() < deadline {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+            }
+            return saved
+        }
+
+        let originalLimit = service.encodedHistoryByteLimit
+        let originalEntries = service.entries
+        service.encodedHistoryByteLimit = (try? JSONEncoder().encode(originalEntries).count) ?? 1
+        suite.expect(rename(String(repeating: "x", count: 100)) == false && service.entries == originalEntries,
+                     "renaming near the encoded limit cannot evict another clipboard entry")
+        service.encodedHistoryByteLimit = originalLimit
+        let newer = ClipboardHistoryEntry(text: "Copied while renaming")
+        suite.expect(rename("Stale title", whileChecking: { service.setEntries([newer, fromEditor]) }) == false
+                     && service.entries == [newer, fromEditor],
+                     "a finished rename cannot overwrite newer history")
+        service.setEntries(originalEntries)
+        suite.expect(rename("  Release snippet  ") == true, "rename accepts a trimmed title")
         service.promote("Copied in an editor", source: nil, keepsSource: true)
+        let encoded = try? JSONEncoder().encode(service.entries)
+        let restored = encoded.flatMap { try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: $0) }
+        suite.expect(restored?.first?.customTitle == "Release snippet"
+                     && restored?.first?.text == fromEditor.text
+                     && service.filteredEntries(matching: "release snippet").map(\.id) == [fromEditor.id],
+                     "the title survives a repeat copy and reload and is searchable without changing paste content")
         suite.expect(service.entries.map(\.id) == [fromEditor.id, other.id]
                      && service.entries.first?.sourceBundleID == "com.example.editor",
                      "an entry copied again out of the history panel moves up and keeps the app it came from")

@@ -5,6 +5,7 @@ import AppKit
 
 struct ClipboardHistoryWriteTests {
     static func run(_ suite: TestSuite) {
+        cancelledStackWrite(suite)
         let png = Data([1, 2, 3])
         let tiff = Data([4, 5, 6])
         let rich = NSAttributedString(string: "saved rich text")
@@ -19,7 +20,7 @@ struct ClipboardHistoryWriteTests {
             pasteboard.rejectedOperations = [requiredOperation]
             let result = write.write(to: pasteboard, isExpired: { false })
             suite.expect(result?.succeeded == false, "failed \(name) write reports failure")
-            suite.expect(result?.changeCount == 12, "failed \(name) preserves final change count")
+            suite.expect(result?.changeCount == 11, "failed \(name) preserves the acquired change count")
             suite.expect(pasteboard.operations == ["clear", requiredOperation, "count"],
                    "failed \(name) skips optional representations")
         }
@@ -35,7 +36,7 @@ struct ClipboardHistoryWriteTests {
                    "successful \(name) remains successful if optional representation fails")
             suite.expect(pasteboard.operations.contains(optionalOperation),
                    "successful \(name) attempts optional representation")
-            suite.expect(result?.changeCount == 13, "\(name) returns count after optional write")
+            suite.expect(result?.changeCount == 11, "\(name) retains its acquired count after optional writes")
         }
 
         for (name, write, _) in writes {
@@ -45,16 +46,16 @@ struct ClipboardHistoryWriteTests {
         }
 
         // Expire before clear, after each mutation, and during the final
-        // count read. Timed-out mutations still need history bookkeeping.
+        // ownership check. Timed-out mutations still need history bookkeeping.
         for (name, write, requiredOperation) in writes {
             var mutations = ["clear", requiredOperation]
             if name == "PNG" { mutations.append("tiff") }
             if name == "rich" { mutations.append("string") }
             for allowedCalls in 0...(mutations.count + 1) {
                 let pasteboard = FakeHistoryPasteboard()
-                let result = write.write(to: pasteboard) {
+                let result = write.write(to: pasteboard, isExpired: {
                     pasteboard.operations.count >= allowedCalls
-                }
+                })
                 if allowedCalls == 0 {
                     suite.expect(result == nil && pasteboard.operations.isEmpty,
                            "expired \(name) leaves clipboard untouched before clear")
@@ -62,13 +63,19 @@ struct ClipboardHistoryWriteTests {
                     let expectedMutations = Array(mutations.prefix(allowedCalls))
                     suite.expect(result?.succeeded == false,
                            "expired \(name) reports failure at boundary \(allowedCalls)")
-                    suite.expect(result?.changeCount == 10 + expectedMutations.count,
-                           "expired \(name) retains final change count at boundary \(allowedCalls)")
+                    suite.expect(result?.changeCount == 11,
+                           "expired \(name) retains its acquired count at boundary \(allowedCalls)")
                     suite.expect(pasteboard.operations == expectedMutations + ["count"],
                            "expired \(name) only reads count after boundary \(allowedCalls)")
                 }
             }
         }
+
+        let replaced = FakeHistoryPasteboard()
+        replaced.replacedBeforeCountRead = true
+        let interrupted = ClipboardHistoryWrite.text("our clip").write(to: replaced, isExpired: { false })
+        suite.expect(interrupted?.succeeded == false && interrupted?.changeCount == 11,
+                     "a replacement after writing cannot be mistaken for the history write")
 
         let textPasteboard = FakeHistoryPasteboard()
         _ = ClipboardHistoryWrite.text("exact saved text").write(to: textPasteboard, isExpired: { false })
@@ -77,6 +84,43 @@ struct ClipboardHistoryWriteTests {
         _ = ClipboardHistoryWrite.image(png: png, tiff: tiff).write(to: imagePasteboard, isExpired: { false })
         suite.expect(imagePasteboard.data == [png, tiff], "image write preserves PNG and TIFF payloads")
     }
+
+    private static func cancelledStackWrite(_ suite: TestSuite) {
+        let history = ClipboardPreviewContract.Service()
+        let presentation = history.shelfPasteSession.withLock { $0 }
+        let clips = [UUID(), UUID(), UUID()]
+        let first = history.pasteStack.withLock { stack in
+            stack.append(clips)
+            return stack.beginPaste()
+        }
+        guard let first else {
+            suite.expect(false, "a queued clip can begin a paste request")
+            return
+        }
+        let canStart = history.shelfStackWriteGuard(for: first, presentation: presentation)
+        let pasteboard = FakeHistoryPasteboard()
+        let write = ClipboardHistoryWrite.text("queued clip")
+
+        let second = history.pasteStack.withLock { stack in
+            stack.removeFirst()
+            return stack.beginPaste()
+        }
+        suite.expect(write.write(to: pasteboard, canStart: canStart, isExpired: { false }) == nil
+                     && pasteboard.operations.isEmpty,
+                     "skipping an unavailable clip cancels its pending write before it clears the pasteboard")
+        guard let second else {
+            suite.expect(false, "skipping one clip leaves the next available")
+            return
+        }
+        suite.expect(second.entryID == clips[1] && history.pasteStack.withLock { $0.count } == 2,
+                     "skipping the first clip preserves the remaining stack order")
+
+        let canStartSecond = history.shelfStackWriteGuard(for: second, presentation: presentation)
+        history.shelfPasteSession.withLock { $0 = UUID() }
+        suite.expect(write.write(to: pasteboard, canStart: canStartSecond, isExpired: { false }) == nil
+                     && pasteboard.operations.isEmpty,
+                     "a delayed write for a previous shelf presentation leaves the pasteboard intact")
+    }
 }
 
 private final class FakeHistoryPasteboard: ClipboardHistoryPasteboard {
@@ -84,15 +128,18 @@ private final class FakeHistoryPasteboard: ClipboardHistoryPasteboard {
     var rejectedOperations: Set<String> = []
     var strings: [String] = []
     var data: [Data] = []
+    var replacedBeforeCountRead = false
     private var count = 10
 
     var changeCount: Int {
         operations.append("count")
+        if replacedBeforeCountRead { count += 1 }
         return count
     }
 
     func clearContents() -> Int {
         _ = mutate("clear")
+        count += 1
         return count
     }
 
@@ -112,7 +159,6 @@ private final class FakeHistoryPasteboard: ClipboardHistoryPasteboard {
 
     private func mutate(_ operation: String) -> Bool {
         operations.append(operation)
-        count += 1
         return !rejectedOperations.contains(operation)
     }
 }

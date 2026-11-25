@@ -439,6 +439,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/URLCleanerLinkMetadata.swift
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift
         Sources/Vorssaint/Services/Clipboard/ClipboardHistoryWrite.swift
+        Sources/Vorssaint/Services/Clipboard/ClipboardPasteStack.swift
         Sources/Vorssaint/Services/Audio/AirPlayRouteManager.swift
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift
         Sources/Vorssaint/Services/Audio/MusicLaunchSupport.swift
@@ -504,6 +505,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/MouseExceptionStrings.swift
         Sources/Vorssaint/Core/ClipboardIgnoredAppsStrings.swift
         Sources/Vorssaint/Core/ClipboardRetentionStrings.swift
+        Sources/Vorssaint/Core/ClipboardShelfStrings.swift
         Sources/Vorssaint/Core/WindowLayoutIgnoredAppsStrings.swift
         Sources/Vorssaint/Services/WindowLayout/WindowLayoutIgnoredApps.swift
         Sources/Vorssaint/Core/WindowPreviewExclusionStrings.swift

@@ -40,7 +40,8 @@ enum ClipboardCaptureRestoreTests {
             }
         }
         typealias GeneralPasteboardAccess = Lane
-        var isRunning = true
+        func clearPasteStack() {}
+        func prunePasteStack() {}
         var lastChangeCount = 0
         var captureState = ClipboardHistoryCaptureState()
         var panel: NSPanel?
@@ -127,6 +128,14 @@ enum ClipboardCaptureRestoreTests {
                          && notices == 1 && service.pendingRestore == nil,
                          "a marked temporary write restores the saved entry without another notice")
         }
+
+        let savedTemporary = start()
+        Fixture.UserDefaults.standard.ignoreTransient = false
+        copy("Temporary text", to: savedTemporary, mark: transient)
+        copy("Concealed text", to: savedTemporary, mark: "org.nspasteboard.ConcealedType")
+        suite.expect(savedTemporary.entries.map(\.text) == ["Temporary text"],
+                     "allowing temporary copies never admits concealed content")
+        Fixture.UserDefaults.standard.ignoreTransient = true
 
         for excluded in [false, true] {
             let service = start()

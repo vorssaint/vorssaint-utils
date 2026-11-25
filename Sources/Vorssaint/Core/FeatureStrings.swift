@@ -213,7 +213,9 @@ extension ClipboardFeatureStrings {
         historyLayout: "기록 레이아웃",
         historyLayoutCards: "카드",
         historyLayoutList: "목록",
-        showSourceAppIconsInList: "목록 보기에 원본 앱 아이콘 표시"
+        showSourceAppIconsInList: "목록 보기에 원본 앱 아이콘 표시",
+        filterBySourceApp: "원본 앱으로 필터링",
+        clearAppFilter: "앱 필터 지우기"
     )
 }
 
@@ -539,6 +541,8 @@ struct ClipboardFeatureStrings {
     let historyLayoutCards: String
     let historyLayoutList: String
     let showSourceAppIconsInList: String
+    let filterBySourceApp: String
+    let clearAppFilter: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -603,7 +607,9 @@ struct ClipboardFeatureStrings {
         historyLayout: "History layout",
         historyLayoutCards: "Cards",
         historyLayoutList: "List",
-        showSourceAppIconsInList: "Show source app icons in list view"
+        showSourceAppIconsInList: "Show source app icons in list view",
+        filterBySourceApp: "Filter by source app",
+        clearAppFilter: "Clear app filter"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -669,7 +675,9 @@ struct ClipboardFeatureStrings {
         historyLayout: "Layout do histórico",
         historyLayoutCards: "Cartões",
         historyLayoutList: "Lista",
-        showSourceAppIconsInList: "Mostrar ícones dos apps de origem na lista"
+        showSourceAppIconsInList: "Mostrar ícones dos apps de origem na lista",
+        filterBySourceApp: "Filtrar por app de origem",
+        clearAppFilter: "Limpar filtro de app"
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -735,7 +743,9 @@ struct ClipboardFeatureStrings {
         historyLayout: "Geçmiş yerleşimi",
         historyLayoutCards: "Kartlar",
         historyLayoutList: "Liste",
-        showSourceAppIconsInList: "Liste görünümünde kaynak uygulama simgelerini göster"
+        showSourceAppIconsInList: "Liste görünümünde kaynak uygulama simgelerini göster",
+        filterBySourceApp: "Kaynak uygulamaya göre filtrele",
+        clearAppFilter: "Uygulama filtresini temizle"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -801,7 +811,9 @@ struct ClipboardFeatureStrings {
         historyLayout: "Макет истории",
         historyLayoutCards: "Карточки",
         historyLayoutList: "Список",
-        showSourceAppIconsInList: "Показывать значки исходных приложений в списке"
+        showSourceAppIconsInList: "Показывать значки исходных приложений в списке",
+        filterBySourceApp: "Фильтр по приложению-источнику",
+        clearAppFilter: "Сбросить фильтр по приложению"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -867,7 +879,9 @@ struct ClipboardFeatureStrings {
         historyLayout: "Diseño del historial",
         historyLayoutCards: "Tarjetas",
         historyLayoutList: "Lista",
-        showSourceAppIconsInList: "Mostrar iconos de las apps de origen en la lista"
+        showSourceAppIconsInList: "Mostrar iconos de las apps de origen en la lista",
+        filterBySourceApp: "Filtrar por app de origen",
+        clearAppFilter: "Quitar filtro de app"
     )
 
     static let sk = ClipboardFeatureStrings(
@@ -933,7 +947,9 @@ struct ClipboardFeatureStrings {
         historyLayout: "Rozloženie histórie",
         historyLayoutCards: "Karty",
         historyLayoutList: "Zoznam",
-        showSourceAppIconsInList: "Zobraziť ikony zdrojových aplikácií v zozname"
+        showSourceAppIconsInList: "Zobraziť ikony zdrojových aplikácií v zozname",
+        filterBySourceApp: "Filtrovať podľa zdrojovej aplikácie",
+        clearAppFilter: "Zrušiť filter aplikácie"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -999,7 +1015,9 @@ struct ClipboardFeatureStrings {
         historyLayout: "Verlaufslayout",
         historyLayoutCards: "Karten",
         historyLayoutList: "Liste",
-        showSourceAppIconsInList: "Symbole der Quell-Apps in der Liste anzeigen"
+        showSourceAppIconsInList: "Symbole der Quell-Apps in der Liste anzeigen",
+        filterBySourceApp: "Nach Quell-App filtern",
+        clearAppFilter: "App-Filter entfernen"
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -1065,7 +1083,9 @@ struct ClipboardFeatureStrings {
         historyLayout: "Disposition de l’historique",
         historyLayoutCards: "Cartes",
         historyLayoutList: "Liste",
-        showSourceAppIconsInList: "Afficher les icônes des apps sources dans la liste"
+        showSourceAppIconsInList: "Afficher les icônes des apps sources dans la liste",
+        filterBySourceApp: "Filtrer par app source",
+        clearAppFilter: "Effacer le filtre par app"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -1131,7 +1151,9 @@ struct ClipboardFeatureStrings {
         historyLayout: "Layout cronologia",
         historyLayoutCards: "Schede",
         historyLayoutList: "Elenco",
-        showSourceAppIconsInList: "Mostra le icone delle app di origine nell’elenco"
+        showSourceAppIconsInList: "Mostra le icone delle app di origine nell’elenco",
+        filterBySourceApp: "Filtra per app di origine",
+        clearAppFilter: "Rimuovi il filtro per app"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -1197,7 +1219,9 @@ struct ClipboardFeatureStrings {
         historyLayout: "履歴のレイアウト",
         historyLayoutCards: "カード",
         historyLayoutList: "リスト",
-        showSourceAppIconsInList: "リストにコピー元のアプリのアイコンを表示"
+        showSourceAppIconsInList: "リストにコピー元のアプリのアイコンを表示",
+        filterBySourceApp: "コピー元のアプリで絞り込む",
+        clearAppFilter: "アプリの絞り込みを解除"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -1263,7 +1287,9 @@ struct ClipboardFeatureStrings {
         historyLayout: "历史布局",
         historyLayoutCards: "卡片",
         historyLayoutList: "列表",
-        showSourceAppIconsInList: "在列表中显示来源应用图标"
+        showSourceAppIconsInList: "在列表中显示来源应用图标",
+        filterBySourceApp: "按来源应用筛选",
+        clearAppFilter: "清除应用筛选"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -1329,7 +1355,9 @@ struct ClipboardFeatureStrings {
         historyLayout: "剪貼簿紀錄佈局",
         historyLayoutCards: "卡片",
         historyLayoutList: "列表",
-        showSourceAppIconsInList: "在列表中顯示來源 App 圖示"
+        showSourceAppIconsInList: "在列表中顯示來源 App 圖示",
+        filterBySourceApp: "依來源 App 篩選",
+        clearAppFilter: "清除 App 篩選"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -1395,7 +1423,9 @@ struct ClipboardFeatureStrings {
         historyLayout: "剪貼簿記錄佈局",
         historyLayoutCards: "卡片",
         historyLayoutList: "列表",
-        showSourceAppIconsInList: "在列表中顯示來源 App 圖示"
+        showSourceAppIconsInList: "在列表中顯示來源 App 圖示",
+        filterBySourceApp: "按來源 App 篩選",
+        clearAppFilter: "清除 App 篩選"
     )
 }
 
@@ -3266,7 +3296,9 @@ extension ClipboardFeatureStrings {
         historyLayout: "Розкладка історії",
         historyLayoutCards: "Картки",
         historyLayoutList: "Список",
-        showSourceAppIconsInList: "Показувати значки вихідних програм у списку"
+        showSourceAppIconsInList: "Показувати значки вихідних програм у списку",
+        filterBySourceApp: "Фільтрувати за програмою-джерелом",
+        clearAppFilter: "Скинути фільтр за програмою"
     )
 }
 
