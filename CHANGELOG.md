@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- AI Agents shows OpenCode's rolling five-hour and weekly allowance on its Limits card, beside the camera and in limit alerts, as it shows Codex's.
+- AI Agents prices OpenCode Go's models from the rates OpenCode publishes, so their API value shows instead of $0.00.
+
 ## [3.4.5] - 2026-11-25
 
 ### Summary

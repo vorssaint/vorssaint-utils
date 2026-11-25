@@ -409,12 +409,18 @@ enum AgentUsageArchiveTests {
         }
 
         let first = AgentUsageStore()
-        let contents = saving(first, launch(first))
+        let cursors = launch(first)
+        first.setLimits(AgentLimits(provider: .opencode, windows: [
+            AgentLimitWindow(id: "opencode.rolling", kind: .session, minutes: 300, scope: nil,
+                             usedPercent: 40, resetsAt: nil)], observedAt: now, source: .account))
+        let contents = saving(first, cursors)
         suite.expect(first.records.filter { $0.provider == .opencode }.count == 2
                         && first.turns["\(database)#s_k"] != nil
                         && !contents.store.records.contains { $0.record.provider == .opencode }
-                        && !(contents.store.turns + contents.store.waiting).contains { $0.provider == .opencode },
-                     "nothing OpenCode gave is saved, not even the turn of a reply still being written")
+                        && !(contents.store.turns + contents.store.waiting).contains { $0.provider == .opencode }
+                        && contents.store.limits.contains { $0.provider == .opencode
+                            && $0.windows.map(\.id) == ["opencode.rolling"] },
+                     "nothing OpenCode's database gave is saved, while its allowance is kept as the other agents' limits are")
 
         // The reply completes while the app is closed.
         NotchAgentTests.openCodeExec(database, """
