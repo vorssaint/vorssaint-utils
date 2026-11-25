@@ -418,6 +418,12 @@ enum SettingsDirectory {
                                          [FeatureStrings.mouseClickDebounce(language).title,
                                           FeatureStrings.mouseClickDebounce(language).windowLabel,
                                           "debounce"]),
+                                        (.trackpadEdgeSliders,
+                                         [FeatureStrings.trackpadEdgeSliders(language).title,
+                                          FeatureStrings.trackpadEdgeSliders(language).widthLabel,
+                                          FeatureStrings.trackpadEdgeSliders(language).sensitivityLabel,
+                                          FeatureStrings.trackpadEdgeSliders(language).hapticsLabel,
+                                          "trackpad edge", "volume", "brightness"]),
                                        ]),
                 SettingsDirectoryItem(page: .switcher, title: s.tabSwitcher, icon: "rectangle.on.rectangle",
                                        featureKeywords: [

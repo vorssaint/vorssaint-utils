@@ -46,6 +46,17 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
+    @AppStorage(DefaultsKey.trackpadEdgeSlidersEnabled) private var trackpadEdgeSlidersEnabled = false
+    @AppStorage(DefaultsKey.trackpadEdgeSlidersLeft) private var trackpadEdgeLeft =
+        TrackpadEdgeSliderAction.brightness.rawValue
+    @AppStorage(DefaultsKey.trackpadEdgeSlidersRight) private var trackpadEdgeRight =
+        TrackpadEdgeSliderAction.volume.rawValue
+    @AppStorage(DefaultsKey.trackpadEdgeSlidersWidth) private var trackpadEdgeWidth =
+        Defaults.defaultTrackpadEdgeSliderWidth
+    @AppStorage(DefaultsKey.trackpadEdgeSlidersSensitivity) private var trackpadEdgeSensitivity =
+        Defaults.defaultTrackpadEdgeSliderSensitivity
+    @AppStorage(DefaultsKey.trackpadEdgeSlidersHaptics) private var trackpadEdgeHaptics = true
+    @AppStorage(DefaultsKey.trackpadEdgeSlidersReversed) private var trackpadEdgeReversed = false
     @AppStorage(DefaultsKey.mouseClickDebounceEnabled) private var mouseClickDebounceEnabled = false
     @AppStorage(DefaultsKey.mouseClickDebounceWindowMs) private var mouseClickDebounceWindow =
         Defaults.defaultMouseClickDebounceWindowMs
@@ -53,6 +64,10 @@ struct MouseSettings: View {
 
     private var mouseClickDebounceText: MouseClickDebounceStrings {
         FeatureStrings.mouseClickDebounce(l10n.language)
+    }
+
+    private var trackpadEdgeSliderText: TrackpadEdgeSliderStrings {
+        FeatureStrings.trackpadEdgeSliders(l10n.language)
     }
 
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
@@ -113,6 +128,10 @@ struct MouseSettings: View {
                     middleClickCard
                         .settingsSectionAnchor(.middleClick, cornerRadius: 16)
                 }
+                if AppFeature.trackpadEdgeSliders.isAvailable {
+                    trackpadEdgeSlidersCard
+                        .settingsSectionAnchor(.trackpadEdgeSliders, cornerRadius: 16)
+                }
                 if accessibilityNoteVisible {
                     SettingsCard(title: l10n.s.permissionRequired) {
                         PermissionRow(kind: .accessibility)
@@ -134,7 +153,7 @@ struct MouseSettings: View {
     /// The mouse features on this page, in page order, for the legend.
     private var legendFeatures: [AppFeature] {
         [.scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .scrollSpeed, .mouseAcceleration,
-         .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .middleClick]
+         .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .middleClick, .trackpadEdgeSliders]
             .filter(\.isAvailable)
     }
 
@@ -154,6 +173,7 @@ struct MouseSettings: View {
         case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
         case .mouseClickDebounce: return mouseClickDebounceEnabled
         case .middleClick: return middleClickEnabled
+        case .trackpadEdgeSliders: return trackpadEdgeSlidersEnabled
         default: return false
         }
     }
@@ -598,6 +618,100 @@ struct MouseSettings: View {
         }
     }
 
+    private var trackpadEdgeSlidersCard: some View {
+        SettingsCard {
+            SettingsRow(symbol: "slider.vertical.3", title: trackpadEdgeSliderText.title,
+                        caption: trackpadEdgeSliderText.caption) {
+                Toggle(trackpadEdgeSliderText.title, isOn: $trackpadEdgeSlidersEnabled)
+                    .labelsHidden()
+                    .onChange(of: trackpadEdgeSlidersEnabled) { _, enabled in
+                        MiddleClickService.shared.syncWithPreferences()
+                        if enabled { permissions.requestAccessibility() }
+                    }
+            }
+            if trackpadEdgeSlidersEnabled {
+                VStack(alignment: .leading, spacing: 10) {
+                    edgeActionRow(trackpadEdgeSliderText.leftLabel,
+                                  selection: $trackpadEdgeLeft, fallback: .brightness)
+                    edgeActionRow(trackpadEdgeSliderText.rightLabel,
+                                  selection: $trackpadEdgeRight, fallback: .volume)
+                    sliderRow(trackpadEdgeSliderText.widthLabel,
+                              value: trackpadEdgeWidthBinding,
+                              range: Double(Defaults.allowedTrackpadEdgeSliderWidthRange.lowerBound)
+                                  ... Double(Defaults.allowedTrackpadEdgeSliderWidthRange.upperBound),
+                              step: 1,
+                              readout: "\(Defaults.sanitizedTrackpadEdgeSliderWidth(trackpadEdgeWidth))%")
+                    sliderRow(trackpadEdgeSliderText.sensitivityLabel,
+                              value: trackpadEdgeSensitivityBinding,
+                              range: Double(Defaults.allowedTrackpadEdgeSliderSensitivityRange.lowerBound)
+                                  ... Double(Defaults.allowedTrackpadEdgeSliderSensitivityRange.upperBound),
+                              step: 10,
+                              readout: String(format: "%.1f×",
+                                              locale: Locale(identifier: l10n.language.rawValue),
+                                              Double(Defaults.sanitizedTrackpadEdgeSliderSensitivity(
+                                                  trackpadEdgeSensitivity)) / 100))
+                    Toggle(trackpadEdgeSliderText.hapticsLabel, isOn: $trackpadEdgeHaptics)
+                        .onChange(of: trackpadEdgeHaptics) { _, _ in
+                            MiddleClickService.shared.syncWithPreferences()
+                        }
+                    Toggle(trackpadEdgeSliderText.reverseLabel, isOn: $trackpadEdgeReversed)
+                        .onChange(of: trackpadEdgeReversed) { _, _ in
+                            MiddleClickService.shared.syncWithPreferences()
+                        }
+                    if middleClick.touchDeviceMissing {
+                        Text(l10n.s.middleClickNoTrackpad)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(.leading, settingsRowTextInset)
+            }
+        }
+    }
+
+    private func edgeActionRow(_ title: String, selection: Binding<String>,
+                               fallback: TrackpadEdgeSliderAction) -> some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .frame(minWidth: 96, alignment: .leading)
+            Picker(title, selection: Binding(
+                get: { TrackpadEdgeSliderAction.sanitized(selection.wrappedValue, fallback: fallback) },
+                set: {
+                    selection.wrappedValue = $0.rawValue
+                    MiddleClickService.shared.syncWithPreferences()
+                }
+            )) {
+                ForEach(TrackpadEdgeSliderAction.allCases, id: \.self) { action in
+                    Text(trackpadEdgeSliderText.label(for: action)).tag(action)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var trackpadEdgeWidthBinding: Binding<Double> {
+        Binding(
+            get: { Double(Defaults.sanitizedTrackpadEdgeSliderWidth(trackpadEdgeWidth)) },
+            set: {
+                trackpadEdgeWidth = Defaults.sanitizedTrackpadEdgeSliderWidth(Int($0))
+                MiddleClickService.shared.syncWithPreferences()
+            }
+        )
+    }
+
+    private var trackpadEdgeSensitivityBinding: Binding<Double> {
+        Binding(
+            get: { Double(Defaults.sanitizedTrackpadEdgeSliderSensitivity(trackpadEdgeSensitivity)) },
+            set: {
+                trackpadEdgeSensitivity = Defaults.sanitizedTrackpadEdgeSliderSensitivity(Int($0))
+                MiddleClickService.shared.syncWithPreferences()
+            }
+        )
+    }
+
     private func tapChip(_ fingers: Int, title: String, symbol: String) -> some View {
         let selected = middleClickTapFingers == fingers
         return Button {
@@ -645,6 +759,7 @@ struct MouseSettings: View {
                 && AppFeature.mouseButtonShortcuts.isAvailable)
             || (mouseClickDebounceEnabled && AppFeature.mouseClickDebounce.isAvailable)
             || (middleClickEnabled && AppFeature.middleClick.isAvailable)
+            || (trackpadEdgeSlidersEnabled && AppFeature.trackpadEdgeSliders.isAvailable)
         return anyEngaged && !permissions.accessibility
     }
 
