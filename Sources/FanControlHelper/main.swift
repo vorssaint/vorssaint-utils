@@ -114,6 +114,7 @@ private final class FanControlController {
 
     func connectionClosed(_ id: UUID) {
         queue.async {
+            BatteryController.shared.closed(id)
             self.connectionCount = max(0, self.connectionCount - 1)
             if self.owner == id, self.isCooling {
                 _ = self.performRestore(reason: .appDisconnected)
@@ -566,7 +567,8 @@ private final class FanControlController {
         let generation = idleGeneration
         queue.asyncAfter(deadline: .now() + 1) {
             guard generation == self.idleGeneration,
-                  self.connectionCount == 0, !self.isCooling, !self.isRecovering else { return }
+                  self.connectionCount == 0, !self.isCooling, !self.isRecovering,
+                  !BatteryController.shared.isActive else { return }
             exit(EXIT_SUCCESS)
         }
     }
@@ -575,6 +577,13 @@ private final class FanControlController {
 private final class FanControlSession: NSObject, FanControlXPCProtocol {
     let id = UUID()
     private let controller: FanControlController
+
+    func batteryStatus(withReply reply: @escaping (Data) -> Void) {
+        BatteryController.shared.status(reply: reply)
+    }
+    func batteryRequest(_ request: Data, withReply reply: @escaping (Data) -> Void) {
+        BatteryController.shared.request(request, session: id, reply: reply)
+    }
 
     init(controller: FanControlController) {
         self.controller = controller
@@ -650,6 +659,7 @@ guard geteuid() == 0 else {
     exit(EXIT_FAILURE)
 }
 
+_ = BatteryController.shared
 private let controller = FanControlController()
 private let delegate = FanControlListenerDelegate(controller: controller)
 private let listener = NSXPCListener(machServiceName: FanControlIdentifiers.helperID)
@@ -662,14 +672,14 @@ signal(SIGINT, SIG_IGN)
 let termination = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
 termination.setEventHandler {
     controller.shutdown { restored in
-        if restored { exit(EXIT_SUCCESS) }
+        if restored && BatteryController.shared.shutdown() { exit(EXIT_SUCCESS) }
     }
 }
 termination.resume()
 let interruption = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
 interruption.setEventHandler {
     controller.shutdown { restored in
-        if restored { exit(EXIT_SUCCESS) }
+        if restored && BatteryController.shared.shutdown() { exit(EXIT_SUCCESS) }
     }
 }
 interruption.resume()

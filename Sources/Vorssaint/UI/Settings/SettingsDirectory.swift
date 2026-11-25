@@ -353,6 +353,7 @@ enum SettingsDirectory {
                                                       s.keepAwakeRightClickToggle, s.keepAwakeMouseJiggle]),
                                         (.brightness, [brightness.pageTitle, brightness.enable]),
                                         (.extraBrightness, [s.extraBrightnessName]),
+                                        (.batteryCare, [BatteryControlStrings.text("title", language)]),
                                         (.bluetoothSleep, [bluetooth.pageTitle]),
                                        ], terms: [
                                         .init([s.dimScreenOnLidCloseTitle], feature: .keepAwake,

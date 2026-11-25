@@ -403,6 +403,7 @@ final class FeatureRuntime: ObservableObject {
         .monitorNetwork: { FeatureRuntime.syncMonitor() },
         .monitorDisk: { FeatureRuntime.syncMonitor() },
         .monitorPower: { FeatureRuntime.syncMonitor() },
+        .batteryCare: { BatteryControlService.shared.syncWithPreferences() },
         .fanControl: {
             SystemMonitor.shared.planDidChange()
             let defaults = UserDefaults.standard
@@ -431,6 +432,8 @@ extension AppFeature {
     /// or when the feature depends on no hardware at all.
     var hardwareUnsupportedReason: String? {
         switch self {
+        case .batteryCare:
+            return PowerSampler.hasInternalBattery ? nil : BatteryControlStrings.text("noBattery", L10n.shared.language)
         case .fanControl:
             return FanControlHardware.hasControllableFan
                 ? nil : FeatureStrings.fanControl(L10n.shared.language).noFans

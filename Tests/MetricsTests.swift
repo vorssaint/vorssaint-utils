@@ -14,6 +14,7 @@ struct MetricsTests {
                 TestHarnessTests.run(suite)
                 PreferenceNamespaceTests.run(suite)
             }),
+            ("battery-care", { BatteryControlTests.run(suite); BatteryControlHardwareTests.run(suite); BatterySettingsApplyTests.run(suite) }),
             ("metrics", {
                 MetricsFeatureTests.run(suite)
                 DiskCapacityTests.run(suite)
