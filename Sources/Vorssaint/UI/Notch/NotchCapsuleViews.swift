@@ -429,7 +429,7 @@ private struct NotchCapsuleCompanionMark: View {
                     NotchCapsuleCalendarStrip.clockMark(countdown, now: context.date)
                 }
             }
-        case .timer, .keepAwake, .watch:
+        case .timer, .keepAwake, .watch, .pasteStack:
             EmptyView()
         }
     }
@@ -733,5 +733,46 @@ struct NotchCapsuleCaptureStrip: View {
             }
         }
         .accessibilityHidden(true)
+    }
+}
+
+/// A running paste stack: its mark, then how many cards are left to paste.
+struct NotchCapsulePasteStackStrip: View {
+    @ObservedObject var service: NotchService
+    let size: CGSize
+    /// Another display's capsule, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
+    @ObservedObject private var history = ClipboardHistoryService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let count = history.pasteStackIDs.count
+        NotchStripHold(count, shows: count > 0) { row(count: $0) }
+    }
+
+    private func row(count: Int) -> some View {
+        NotchCapsuleRow(size: size, geometry: displayGeometry ?? service.geometry) {
+            HStack(spacing: CapsuleLayout.spacing) {
+                Image(systemName: NotchPasteStackSupport.symbol)
+                    .font(.system(size: CapsuleLayout.symbolSize, weight: .medium))
+                    .symbolEffect(.bounce, value: count)
+                    .capsuleCentred(NotchPasteStackSupport.symbol)
+                Text("\(count)")
+                    .font(Font(CapsuleLayout.readingFont as CTFont))
+                    .lineLimit(1).fixedSize()
+                    .contentTransition(.numericText(countsDown: true))
+                    .animation(.snappy, value: count)
+                    // 10 becoming 9 narrows the capsule; the service measures the same.
+                    .onChange(of: "\(count)".count) { _, _ in
+                        DispatchQueue.main.async { service.refreshPresentation() }
+                    }
+            }
+            .foregroundStyle(Color(nsColor: .systemBlue))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(FeatureStrings.clipboard(l10n.language).pasteStackTitle)
+        .accessibilityValue(String(format: FeatureStrings.clipboard(l10n.language).pasteStackRemainingFormat, count))
+        .accessibilityHint(FeatureStrings.notch(l10n.language).open)
+        .accessibilityIdentifier("notch.pasteStack")
     }
 }
