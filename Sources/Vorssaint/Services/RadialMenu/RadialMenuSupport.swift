@@ -231,7 +231,7 @@ enum RadialMenuProfilePreset: String, CaseIterable, Identifiable {
 /// value. Submenus keep their actions in `children`.
 struct RadialMenuItem: Codable, Identifiable, Equatable {
     enum Kind: String, Codable, CaseIterable {
-        case app, file, url, shortcut, tool, quickToggle, windowLayout, media, submenu
+        case app, file, url, shortcut, snippet, tool, quickToggle, windowLayout, media, submenu
     }
 
     var id = UUID()
@@ -244,6 +244,10 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
 
     var tool: RadialMenuTool? {
         kind == .tool ? RadialMenuTool(rawValue: payload) : nil
+    }
+
+    var snippetID: UUID? {
+        kind == .snippet ? UUID(uuidString: payload) : nil
     }
 
     var mediaKey: RadialMenuMediaKey? {
@@ -266,6 +270,7 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
         case .file: return "folder"
         case .url: return "link"
         case .shortcut: return "command"
+        case .snippet: return AppFeature.textSnippets.symbolName
         case .tool: return tool?.symbolName ?? "wrench.and.screwdriver"
         case .quickToggle: return quickToggle?.symbolName ?? "togglepower"
         case .windowLayout: return windowLayoutAction?.symbolName ?? AppFeature.windowLayout.symbolName
@@ -698,12 +703,18 @@ enum RadialMenuSupport {
         case .app, .file: return !item.payload.isEmpty
         case .url: return normalizedURL(item.payload) != nil
         case .shortcut: return GlobalShortcut(storageValue: item.payload) != nil
+        case .snippet: return item.snippetID != nil
         case .tool: return item.tool != nil
         case .quickToggle: return item.quickToggle != nil
         case .windowLayout: return item.windowLayoutAction != nil
         case .media: return item.mediaKey != nil
         case .submenu: return true
         }
+    }
+
+    static func snippet(for item: RadialMenuItem, in snippets: [TextSnippet]) -> TextSnippet? {
+        guard let id = item.snippetID else { return nil }
+        return snippets.first { $0.id == id && $0.enabled }
     }
 
     /// Drops what cannot run (unknown tools or media keys, unparseable
@@ -801,7 +812,7 @@ enum RadialMenuSupport {
     static func needsAccessibility(_ items: [RadialMenuItem]) -> Bool {
         items.contains { item in
             switch item.kind {
-            case .shortcut, .windowLayout: return true
+            case .shortcut, .snippet, .windowLayout: return true
             case .media: return item.mediaKey?.auxKeyType != nil
             case .submenu: return needsAccessibility(item.children)
             default: return false

@@ -812,6 +812,21 @@ enum UtilitiesFeatureTests {
         suite.expect(RadialMenuSupport.decode(Data(lossyJSON.utf8)).count == 1,
                "unknown kinds from newer versions drop just that slice")
 
+        let snippetID = UUID()
+        let snippet = TextSnippet(id: snippetID, name: "Greeting", trigger: ";hello",
+                                  replacement: "Hello there")
+        let snippetItem = RadialMenuItem(kind: .snippet, payload: snippetID.uuidString)
+        suite.expect(RadialMenuSupport.decode(RadialMenuSupport.encode([snippetItem])) == [snippetItem]
+                && RadialMenuSupport.needsAccessibility([snippetItem])
+                && RadialMenuSupport.snippet(for: snippetItem, in: [snippet]) == snippet,
+               "a snippet slice keeps its target and requests Accessibility for insertion")
+        var disabledWheelSnippet = snippet
+        disabledWheelSnippet.enabled = false
+        suite.expect(RadialMenuSupport.snippet(for: snippetItem, in: [disabledWheelSnippet]) == nil
+                && RadialMenuSupport.snippet(for: snippetItem, in: []) == nil
+                && RadialMenuSupport.sanitized([RadialMenuItem(kind: .snippet, payload: "missing")]).isEmpty,
+               "disabled, deleted, and invalid snippet targets cannot run")
+
         suite.expect(RadialMenuSupport.normalizedURL("https://a.example/x") == "https://a.example/x"
                 && RadialMenuSupport.normalizedURL("mailto:someone@example.com") == "mailto:someone@example.com"
                 && RadialMenuSupport.normalizedURL("   ") == nil
