@@ -31,8 +31,7 @@ enum SwitcherWindowSelection {
         let defaults = UserDefaults.standard
         let rules = SwitcherAppRule.rules(storedValue: defaults.dictionary(forKey: DefaultsKey.switcherAppRules))
         let windowlessMode = SwitcherWindowlessApps.mode(
-            storedValue: defaults.string(forKey: DefaultsKey.switcherWindowlessApps),
-            takeOverSystemShortcuts: defaults.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts))
+            storedValue: defaults.string(forKey: DefaultsKey.switcherWindowlessApps))
         let candidates = remembered.items.filter(\.isAppEntry).map {
             SwitcherAppCandidate(pid: $0.pid, bundleIdentifier: remembered.bundleIdentifiers[$0.pid])
         }

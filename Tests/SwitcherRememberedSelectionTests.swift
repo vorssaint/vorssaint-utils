@@ -317,6 +317,52 @@ enum SwitcherRememberedSelectionTests {
         suite.expect(select().items.contains { $0.pid == 8 }, "a windowless per-app override applies at shortcut press")
         Preferences.standard.values[DefaultsKey.switcherAppRules] = [Defaults.finderBundleIdentifier: "hidden"]
         suite.expect(!select().items.contains { $0.pid == 7 }, "a newly hidden app is filtered from remembered results")
+        Preferences.standard.values = [
+            DefaultsKey.switcherTakeOverSystemShortcuts: true,
+        ]
+        suite.expect(!select().items.contains { $0.pid == 7 } && !select().items.contains { $0.pid == 8 },
+                     "replacing system shortcuts hides windowless Finder and other windowless apps by default")
+        Preferences.standard.values = [
+            DefaultsKey.switcherWindowlessApps: "off",
+            DefaultsKey.switcherTakeOverSystemShortcuts: true,
+        ]
+        suite.expect(!select().items.contains { $0.pid == 7 } && !select().items.contains { $0.pid == 8 },
+                     "Do not show removes windowless Finder even when replacing macOS ⌘Tab")
+        Preferences.standard.values = [
+            DefaultsKey.switcherWindowlessApps: "finder",
+            DefaultsKey.switcherTakeOverSystemShortcuts: true,
+        ]
+        suite.expect(select().items.contains { $0.pid == 7 } && !select().items.contains { $0.pid == 8 },
+                     "Finder only remains selectable when replacing macOS ⌘Tab")
+        Preferences.standard.values = [
+            DefaultsKey.switcherWindowlessApps: "all",
+            DefaultsKey.switcherTakeOverSystemShortcuts: true,
+        ]
+        suite.expect(select().items.contains { $0.pid == 7 } && select().items.contains { $0.pid == 8 },
+                     "All apps shows every windowless entry when replacing macOS ⌘Tab")
+        Preferences.standard.values = [
+            DefaultsKey.switcherWindowlessApps: "off",
+            DefaultsKey.switcherTakeOverSystemShortcuts: true,
+            DefaultsKey.switcherAppRules: [Defaults.finderBundleIdentifier: "showWithoutWindows"],
+        ]
+        suite.expect(select().items.contains { $0.pid == 7 } && !select().items.contains { $0.pid == 8 },
+                     "a per-app rule still opts Finder back in when Do not show is active")
+        var rememberedWithFinderWindow = Enumerator.WindowList(
+            items: [window(1), window(70, pid: 7)],
+            sourceItems: [])
+        rememberedWithFinderWindow.bundleIdentifiers = [7: Defaults.finderBundleIdentifier]
+        Preferences.standard.values = [
+            DefaultsKey.switcherWindowlessApps: "off",
+            DefaultsKey.switcherTakeOverSystemShortcuts: true,
+        ]
+        let withFinderWindow = Selection.select(
+            remembered: rememberedWithFinderWindow,
+            scope: .allApps,
+            frontmostPID: 1,
+            focusedWindowID: 1,
+            displayScope: nil)
+        suite.expect(withFinderWindow.items.contains { $0.windowID == 70 },
+                     "Finder still appears normally whenever it has an open window")
         Preferences.standard.values = [DefaultsKey.switcherWindowlessApps: "all"]
         remembered = Enumerator.WindowList(items: [window(1), window(2), window(3)], sourceItems: [])
         Tracker.shared.history = [3, 1, 2]

@@ -2381,10 +2381,10 @@ enum Defaults {
     }
 
     /// The "show the desktop app without windows" toggle became one choice of
-    /// the windowless apps picker. Only an explicit off has to travel: the
-    /// picker ships on the same choice the toggle shipped on, so a setup that
-    /// never touched it keeps the switcher it already had. Clearing the old
-    /// toggle is what makes this run once and never fight a later choice.
+    /// the windowless apps picker. Only an explicit off had to travel; a setup
+    /// that never touched it leaves the picker unset so it follows the current
+    /// default. Clearing the old toggle is what makes this run once and never
+    /// fight a later choice.
     static func migrateSwitcherWindowlessFinder(in defaults: UserDefaults) {
         let showsWindowlessFinder = defaults.bool(forKey: DefaultsKey.switcherShowWindowlessFinder)
         guard !showsWindowlessFinder else { return }
