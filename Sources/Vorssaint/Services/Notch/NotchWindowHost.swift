@@ -137,6 +137,16 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         canvas.setOutline(enabled: enabled, color: color)
     }
 
+    /// With resting glass the canvas leaves its black fill to the backdrop.
+    func setRestingGlass(_ enabled: Bool) {
+        canvas.setRestingGlass(enabled)
+    }
+
+    /// Resting glass darkens while the pointer is on the island.
+    func setPointerOver(_ over: Bool) {
+        if canvas.backdropPresentation.pointerOver != over { canvas.backdropPresentation.pointerOver = over }
+    }
+
     /// The companion stands in the window's own layer while it steps into a
     /// notice or back out, sliding from `from` to `to`, its centre's offset
     /// from the camera's, with its centre `baseline` below the top.
@@ -1156,6 +1166,7 @@ private final class NotchCanvas: NSView {
     private let silhouette = CAShapeLayer()
     private let edge = CAShapeLayer()
     private let edgeMask = CALayer()
+    private var restingGlass = false
     /// Nil hangs the island from the top edge; a capsule floats this far inside it.
     private(set) var floatingGap: CGFloat?
     /// The size the silhouette's model path was drawn for.
@@ -1521,8 +1532,17 @@ private final class NotchCanvas: NSView {
     /// changes: left to the backdrop alone, the island could vanish for a
     /// frame as it began to open or settled after closing. Under glass the
     /// fill gives way as the backdrop's resting black does.
+    func setRestingGlass(_ enabled: Bool) {
+        guard restingGlass != enabled else { return }
+        restingGlass = enabled
+        updateCanvasBlack()
+    }
+
+    /// Resting glass draws a light or clear island, so this fill would show
+    /// through it as black; the backdrop alone draws the surface then.
     func updateCanvasBlack() {
-        let alpha = usesGlass ? CGFloat(backdropPresentation.restingBlack) : 1
+        let resting: CGFloat = restingGlass ? 0 : 1
+        let alpha = usesGlass ? CGFloat(backdropPresentation.restingBlack) * resting : resting
         let color = NSColor.black.withAlphaComponent(alpha).cgColor
         guard layer?.backgroundColor != color else { return }
         CATransaction.begin()
