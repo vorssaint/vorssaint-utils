@@ -2271,7 +2271,7 @@ enum PointerInputFeatureTests {
         suite.expect(superKeyLinkDefinition
                 == "let \(superKeyLinkName) = \"\\(superKeyStrings.sourceLabel(superKeySource)) \\(keyCaps)\""
                 && panelSuperKeyCode.contains(
-                    "letkeyCaps=SuperKeySupport.modifiers(from:superKeyModifierStorage).keyCaps.joined()")
+                    "letkeyCaps=SuperKeySupport.modifiers(from:superKeyModifierStorage).displayChord")
                 && panelSuperKeyCode.contains("letmodifierCaption=String(format:superKeyStrings.panelCaptionFormat,"
                     + "superKeyStrings.sourceLabel(superKeySource),keyCaps)")
                 && panelSuperKeyCode.contains("caption:caption(modifierCaption,needsAccessibility:superKeyEnabled)"),

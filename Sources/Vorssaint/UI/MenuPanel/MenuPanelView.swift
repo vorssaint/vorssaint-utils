@@ -1822,7 +1822,7 @@ struct QuickControlsSection: View {
         case .superKey:
             let superKeyStrings = FeatureStrings.superKey(l10n.language)
             let superKeySource = SuperKeySource.sanitized(superKeySourceRaw)
-            let keyCaps = SuperKeySupport.modifiers(from: superKeyModifierStorage).keyCaps.joined()
+            let keyCaps = SuperKeySupport.modifiers(from: superKeyModifierStorage).displayChord
             let modifierCaption = String(
                 format: superKeyStrings.panelCaptionFormat,
                 superKeyStrings.sourceLabel(superKeySource),
