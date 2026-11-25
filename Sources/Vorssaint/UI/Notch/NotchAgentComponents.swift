@@ -35,6 +35,7 @@ struct NotchAgentCardChrome<Content: View>: View {
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
+            .notchCardHover()
     }
 }
 
