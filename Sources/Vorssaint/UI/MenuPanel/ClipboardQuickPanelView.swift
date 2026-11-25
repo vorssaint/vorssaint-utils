@@ -586,6 +586,23 @@ private struct QuickEntryView: View, Equatable {
 
     @ViewBuilder
     private func entryContent(_ entry: ClipboardHistoryEntry) -> some View {
+        if let note = entry.note {
+            VStack(alignment: .leading, spacing: 3) {
+                SearchHighlightText.text(note, tokens: tokens, fontSize: 11.5)
+                    .font(.system(size: 11.5))
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                entryBody(entry)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            entryBody(entry)
+        }
+    }
+
+    @ViewBuilder
+    private func entryBody(_ entry: ClipboardHistoryEntry) -> some View {
         switch entry.kind {
         case .text:
             HStack(alignment: isRow ? .center : .top, spacing: 8) {
@@ -728,6 +745,7 @@ private struct QuickEntryView: View, Equatable {
         Button(entry.isPinned ? text.unpin : text.pin) {
             history.togglePin(entry)
         }
+        Button(entry.note == nil ? text.addNote : text.editNote) { history.promptNote(for: entry) }
         Button(text.moveUp) {
             history.move(entry, .up)
         }

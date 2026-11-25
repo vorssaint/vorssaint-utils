@@ -213,7 +213,10 @@ extension ClipboardFeatureStrings {
         historyLayout: "기록 레이아웃",
         historyLayoutCards: "카드",
         historyLayoutList: "목록",
-        showSourceAppIconsInList: "목록 보기에 원본 앱 아이콘 표시"
+        showSourceAppIconsInList: "목록 보기에 원본 앱 아이콘 표시",
+        addNote: "설명 추가…",
+        editNote: "설명 편집…",
+        noteTitle: "설명"
     )
 }
 
@@ -539,6 +542,9 @@ struct ClipboardFeatureStrings {
     let historyLayoutCards: String
     let historyLayoutList: String
     let showSourceAppIconsInList: String
+    let addNote: String
+    let editNote: String
+    let noteTitle: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -603,7 +609,10 @@ struct ClipboardFeatureStrings {
         historyLayout: "History layout",
         historyLayoutCards: "Cards",
         historyLayoutList: "List",
-        showSourceAppIconsInList: "Show source app icons in list view"
+        showSourceAppIconsInList: "Show source app icons in list view",
+        addNote: "Add Description…",
+        editNote: "Edit Description…",
+        noteTitle: "Description"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -669,7 +678,10 @@ struct ClipboardFeatureStrings {
         historyLayout: "Layout do histórico",
         historyLayoutCards: "Cartões",
         historyLayoutList: "Lista",
-        showSourceAppIconsInList: "Mostrar ícones dos apps de origem na lista"
+        showSourceAppIconsInList: "Mostrar ícones dos apps de origem na lista",
+        addNote: "Adicionar descrição…",
+        editNote: "Editar descrição…",
+        noteTitle: "Descrição"
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -735,7 +747,10 @@ struct ClipboardFeatureStrings {
         historyLayout: "Geçmiş yerleşimi",
         historyLayoutCards: "Kartlar",
         historyLayoutList: "Liste",
-        showSourceAppIconsInList: "Liste görünümünde kaynak uygulama simgelerini göster"
+        showSourceAppIconsInList: "Liste görünümünde kaynak uygulama simgelerini göster",
+        addNote: "Açıklama Ekle…",
+        editNote: "Açıklamayı Düzenle…",
+        noteTitle: "Açıklama"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -801,7 +816,10 @@ struct ClipboardFeatureStrings {
         historyLayout: "Макет истории",
         historyLayoutCards: "Карточки",
         historyLayoutList: "Список",
-        showSourceAppIconsInList: "Показывать значки исходных приложений в списке"
+        showSourceAppIconsInList: "Показывать значки исходных приложений в списке",
+        addNote: "Добавить описание…",
+        editNote: "Изменить описание…",
+        noteTitle: "Описание"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -867,7 +885,10 @@ struct ClipboardFeatureStrings {
         historyLayout: "Diseño del historial",
         historyLayoutCards: "Tarjetas",
         historyLayoutList: "Lista",
-        showSourceAppIconsInList: "Mostrar iconos de las apps de origen en la lista"
+        showSourceAppIconsInList: "Mostrar iconos de las apps de origen en la lista",
+        addNote: "Añadir descripción…",
+        editNote: "Editar descripción…",
+        noteTitle: "Descripción"
     )
 
     static let sk = ClipboardFeatureStrings(
@@ -933,7 +954,10 @@ struct ClipboardFeatureStrings {
         historyLayout: "Rozloženie histórie",
         historyLayoutCards: "Karty",
         historyLayoutList: "Zoznam",
-        showSourceAppIconsInList: "Zobraziť ikony zdrojových aplikácií v zozname"
+        showSourceAppIconsInList: "Zobraziť ikony zdrojových aplikácií v zozname",
+        addNote: "Pridať popis…",
+        editNote: "Upraviť popis…",
+        noteTitle: "Popis"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -999,7 +1023,10 @@ struct ClipboardFeatureStrings {
         historyLayout: "Verlaufslayout",
         historyLayoutCards: "Karten",
         historyLayoutList: "Liste",
-        showSourceAppIconsInList: "Symbole der Quell-Apps in der Liste anzeigen"
+        showSourceAppIconsInList: "Symbole der Quell-Apps in der Liste anzeigen",
+        addNote: "Beschreibung hinzufügen…",
+        editNote: "Beschreibung bearbeiten…",
+        noteTitle: "Beschreibung"
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -1065,7 +1092,10 @@ struct ClipboardFeatureStrings {
         historyLayout: "Disposition de l’historique",
         historyLayoutCards: "Cartes",
         historyLayoutList: "Liste",
-        showSourceAppIconsInList: "Afficher les icônes des apps sources dans la liste"
+        showSourceAppIconsInList: "Afficher les icônes des apps sources dans la liste",
+        addNote: "Ajouter une description…",
+        editNote: "Modifier la description…",
+        noteTitle: "Description"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -1131,7 +1161,10 @@ struct ClipboardFeatureStrings {
         historyLayout: "Layout cronologia",
         historyLayoutCards: "Schede",
         historyLayoutList: "Elenco",
-        showSourceAppIconsInList: "Mostra le icone delle app di origine nell’elenco"
+        showSourceAppIconsInList: "Mostra le icone delle app di origine nell’elenco",
+        addNote: "Aggiungi descrizione…",
+        editNote: "Modifica descrizione…",
+        noteTitle: "Descrizione"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -1197,7 +1230,10 @@ struct ClipboardFeatureStrings {
         historyLayout: "履歴のレイアウト",
         historyLayoutCards: "カード",
         historyLayoutList: "リスト",
-        showSourceAppIconsInList: "リストにコピー元のアプリのアイコンを表示"
+        showSourceAppIconsInList: "リストにコピー元のアプリのアイコンを表示",
+        addNote: "説明を追加…",
+        editNote: "説明を編集…",
+        noteTitle: "説明"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -1263,7 +1299,10 @@ struct ClipboardFeatureStrings {
         historyLayout: "历史布局",
         historyLayoutCards: "卡片",
         historyLayoutList: "列表",
-        showSourceAppIconsInList: "在列表中显示来源应用图标"
+        showSourceAppIconsInList: "在列表中显示来源应用图标",
+        addNote: "添加说明…",
+        editNote: "编辑说明…",
+        noteTitle: "说明"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -1329,7 +1368,10 @@ struct ClipboardFeatureStrings {
         historyLayout: "剪貼簿紀錄佈局",
         historyLayoutCards: "卡片",
         historyLayoutList: "列表",
-        showSourceAppIconsInList: "在列表中顯示來源 App 圖示"
+        showSourceAppIconsInList: "在列表中顯示來源 App 圖示",
+        addNote: "新增說明…",
+        editNote: "編輯說明…",
+        noteTitle: "說明"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -1395,7 +1437,10 @@ struct ClipboardFeatureStrings {
         historyLayout: "剪貼簿記錄佈局",
         historyLayoutCards: "卡片",
         historyLayoutList: "列表",
-        showSourceAppIconsInList: "在列表中顯示來源 App 圖示"
+        showSourceAppIconsInList: "在列表中顯示來源 App 圖示",
+        addNote: "新增說明…",
+        editNote: "編輯說明…",
+        noteTitle: "說明"
     )
 }
 
@@ -3266,7 +3311,10 @@ extension ClipboardFeatureStrings {
         historyLayout: "Розкладка історії",
         historyLayoutCards: "Картки",
         historyLayoutList: "Список",
-        showSourceAppIconsInList: "Показувати значки вихідних програм у списку"
+        showSourceAppIconsInList: "Показувати значки вихідних програм у списку",
+        addNote: "Додати опис…",
+        editNote: "Змінити опис…",
+        noteTitle: "Опис"
     )
 }
 

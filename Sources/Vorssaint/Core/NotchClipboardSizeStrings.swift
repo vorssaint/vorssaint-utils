@@ -35,6 +35,8 @@ enum NotchClipboardCardSize: String, CaseIterable, Identifiable {
     static let openLineHeight: CGFloat = 16
     /// What an open entry needs besides its content: padding, spacing and the row of actions.
     static let openChrome: CGFloat = 48
+    /// The extra line an entry's note adds to an open card.
+    static let noteLineHeight: CGFloat = 17
     static let maximumOpenImage: CGFloat = 170
     static let minimumOpenImage: CGFloat = 80
 

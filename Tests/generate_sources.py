@@ -789,7 +789,9 @@ def main():
           + "extension ClipboardPreviewContract {\nfinal class Service: Fixture {\n"
           + declaration(clipboard, "    @Published private(set) var entries:")
           + declaration(clipboard, "    func updateText(")
+          + declaration(clipboard, "    func setNote(")
           + "".join(declaration(clipboard, prefix).replace("private ", "", 1) for prefix in [
+              "    private func keepEdit(",
               "    func togglePin(", "    func clearRecent(", "    var recentEntries:", "    var recentEntriesSnapshot:",
               "    func copy(_ entry:", "    func copy(_ selectedEntries:", "    private func touch(",
               "    private var firstRecentIndex:", "    private func normalizeEntryOrder(",
@@ -798,7 +800,10 @@ def main():
               "    func moveQuickSelection(", "    func removeSelectedQuickEntries(",
               "    private var quickBatchEntries:", "    private func quickEntriesForPrimaryAction(",
               "    private func selectedQuickIndex(", "    private func promote(",
+              "    private func promoteImage(", "    private func promoteFiles(",
               "    private func insertPromoted("])
+          + "static func sha256Hex(_ data: Data) -> String { data.base64EncodedString() }\n"
+          + "enum ClipboardImageStore { static func store(_ data: Data) -> String? { \"stored.png\" } }\n"
           + "func setEntries(_ values: [ClipboardHistoryEntry]) { entries = values }\n"
           + "}\n}\n")
     write("CommandBarInputSource.swift", "import Foundation\n"

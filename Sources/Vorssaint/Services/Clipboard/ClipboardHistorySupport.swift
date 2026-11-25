@@ -204,6 +204,9 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     /// a history written before it existed still decodes, and an older
     /// version reading this file skips the key.
     var sourceBundleID: String?
+    /// A short user-written label. Optional, so older histories decode and an
+    /// older version reading this file skips the key.
+    var note: String?
 
     init(id: UUID = UUID(),
          text: String,
@@ -214,7 +217,8 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
          imageFile: String? = nil,
          imageHash: String? = nil,
          imageWidth: Int? = nil,
-         imageHeight: Int? = nil) {
+         imageHeight: Int? = nil,
+         note: String? = nil) {
         self.id = id
         self.text = text
         self.copiedAt = copiedAt
@@ -225,6 +229,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         self.imageHash = imageHash
         self.imageWidth = imageWidth
         self.imageHeight = imageHeight
+        self.note = note
     }
 
     var isPinned: Bool {
@@ -323,8 +328,15 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         return end == text.endIndex ? (text, false) : (String(text[..<end]), true)
     }
 
-    /// Includes the localized image label and dimensions for image entries.
+    /// Includes the localized image label and dimensions for image entries,
+    /// and the note when there is one.
     func searchableText(imageLabel: String) -> String {
+        let base = contentSearchText(imageLabel: imageLabel)
+        return note.map { "\($0) \(base)" } ?? base
+    }
+
+    /// The searchable text without the note, for places that show it as a title.
+    func contentSearchText(imageLabel: String) -> String {
         switch kind {
         case .text: return text
         case .image: return "\(imageLabel) png \(imageDimensionsLabel)"
@@ -337,7 +349,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
 
     private enum CodingKeys: String, CodingKey {
         case id, text, copiedAt, pinnedAt, kind, filePaths, imageFile, imageHash, imageWidth, imageHeight
-        case sourceBundleID
+        case sourceBundleID, note
     }
 
     init(from decoder: Decoder) throws {
@@ -354,6 +366,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         imageWidth = try container.decodeIfPresent(Int.self, forKey: .imageWidth)
         imageHeight = try container.decodeIfPresent(Int.self, forKey: .imageHeight)
         sourceBundleID = try container.decodeIfPresent(String.self, forKey: .sourceBundleID)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
     }
 }
 
@@ -370,6 +383,17 @@ enum ClipboardHistoryEditing {
     /// A hover tooltip is a transient popup, not a list row: previewCharacters
     /// would let a whole page of prose through and read as a wall of text.
     static let tooltipCharacters = 200
+    static let maxNoteCharacters = 60
+
+    /// One trimmed line capped at `maxNoteCharacters`; nil when nothing is left.
+    static func normalizedNote(_ raw: String) -> String? {
+        let line = raw.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        let capped = String(line.prefix(maxNoteCharacters)).trimmingCharacters(in: .whitespaces)
+        return capped.isEmpty ? nil : capped
+    }
 
     struct EncodedHistory {
         let entries: [ClipboardHistoryEntry]
@@ -452,9 +476,10 @@ enum ClipboardHistoryEditing {
         // JSON escaping turns one UTF-8 byte into at most six, and an entry's
         // other fields stay well under 512 bytes, so a small pinned set is
         // never encoded on the main thread just to be measured.
-        let rawBound = pinned.reduce(0) { total, entry in
-            total + 512 + entry.text.utf8.count + (entry.imageFile?.utf8.count ?? 0)
-                + entry.filePaths.reduce(0) { $0 + $1.utf8.count + 3 }
+        let rawBound = pinned.reduce(0) { (total: Int, entry: ClipboardHistoryEntry) -> Int in
+            let paths = entry.filePaths.reduce(0) { $0 + $1.utf8.count + 3 }
+            let optional = (entry.imageFile?.utf8.count ?? 0) + (entry.note?.utf8.count ?? 0)
+            return total + 512 + entry.text.utf8.count + optional + paths
         }
         guard rawBound > (byteLimit - 2) / 6 else { return true }
         let encoder = JSONEncoder()

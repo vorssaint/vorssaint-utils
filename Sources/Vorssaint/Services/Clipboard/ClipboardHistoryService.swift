@@ -369,8 +369,37 @@ final class ClipboardHistoryService: ObservableObject {
         if entries[index].text == text { return true }
         let previousEntries = entries
         entries[index].text = text
+        return keepEdit(of: entry.id, from: previousEntries)
+    }
+
+    @discardableResult
+    func setNote(_ entry: ClipboardHistoryEntry, to draft: String) -> Bool {
+        guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return false }
+        let note = ClipboardHistoryEditing.normalizedNote(draft)
+        if entries[index].note == note { return true }
+        let previousEntries = entries
+        entries[index].note = note
+        return keepEdit(of: entry.id, from: previousEntries)
+    }
+
+    /// Asks for the entry's note above whatever is showing it; beeps when the note can't be kept.
+    func promptNote(for entry: ClipboardHistoryEntry) {
+        let text = FeatureStrings.clipboard(L10n.shared.language)
+        // Let the context menu close before the dialog opens.
+        DispatchQueue.main.async { [weak self] in
+            guard let value = NSAlert.textAboveIsland(text.noteTitle, initial: entry.note ?? "",
+                                                      placeholder: text.noteTitle,
+                                                      action: text.save, cancel: text.cancel)
+            else { return }
+            if self?.setNote(entry, to: value) == false { NSSound.beep() }
+        }
+    }
+
+    /// Keeps an in-place edit of one entry and saves it, or puts `previousEntries`
+    /// back when trimming would drop the entry or any pinned entry.
+    private func keepEdit(of id: UUID, from previousEntries: [ClipboardHistoryEntry]) -> Bool {
         trimToLimit()
-        guard let edited = entries.first(where: { $0.id == entry.id }),
+        guard let edited = entries.first(where: { $0.id == id }),
               ClipboardHistoryEditing.preservesPinnedEntries(from: previousEntries, in: entries),
               !edited.isPinned
                 || ClipboardHistoryEditing.pinnedEntriesFit(entries, byteLimit: encodedHistoryByteLimit)
@@ -964,7 +993,8 @@ final class ClipboardHistoryService: ObservableObject {
                                                  imageFile: existing.imageFile,
                                                  imageHash: hash,
                                                  imageWidth: existing.imageWidth,
-                                                 imageHeight: existing.imageHeight),
+                                                 imageHeight: existing.imageHeight,
+                                                 note: existing.note),
                            source: keepsSource ? existing.sourceBundleID : source)
         } else {
             guard let name = ClipboardImageStore.store(image.data) else { return }
@@ -989,7 +1019,8 @@ final class ClipboardHistoryService: ObservableObject {
                                                  copiedAt: Date(),
                                                  pinnedAt: existing.pinnedAt,
                                                  kind: .files,
-                                                 filePaths: paths),
+                                                 filePaths: paths,
+                                                 note: existing.note),
                            source: keepsSource ? existing.sourceBundleID : source)
         } else {
             insertPromoted(ClipboardHistoryEntry(text: "", kind: .files, filePaths: paths), source: source)
@@ -1039,7 +1070,8 @@ final class ClipboardHistoryService: ObservableObject {
             insertPromoted(ClipboardHistoryEntry(id: existing.id,
                                                  text: text,
                                                  copiedAt: Date(),
-                                                 pinnedAt: existing.pinnedAt),
+                                                 pinnedAt: existing.pinnedAt,
+                                                 note: existing.note),
                            source: keepsSource ? existing.sourceBundleID : source)
         } else {
             insertPromoted(ClipboardHistoryEntry(text: text), source: source)
@@ -1660,7 +1692,8 @@ final class ClipboardHistoryService: ObservableObject {
         let mouseEvents: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible else { return event }
-            if event.window !== panel, !Self.mouseIsInside(panel) {
+            // The note dialog is app-modal: clicks in it are no click outside.
+            if event.window !== panel, !Self.mouseIsInside(panel), NSApp.modalWindow == nil {
                 self.hideHistoryWindow()
             }
             return event

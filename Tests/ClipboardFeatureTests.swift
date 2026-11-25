@@ -1565,11 +1565,28 @@ enum ClipboardFeatureTests {
         """.utf8)
         if let legacy = try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: legacyClipboardJSON) {
             suite.expect(legacy.count == 1 && legacy[0].kind == .text && legacy[0].text == "hello"
-                   && legacy[0].sourceBundleID == nil,
+                   && legacy[0].sourceBundleID == nil && legacy[0].note == nil,
                    "clipboard histories saved before images, files and source apps decode as text")
         } else {
             suite.expect(false, "clipboard legacy history decodes")
         }
+        suite.expect(ClipboardHistoryEditing.normalizedNote("  Prod Stripe key \n") == "Prod Stripe key",
+                     "a note is trimmed")
+        suite.expect(ClipboardHistoryEditing.normalizedNote("line one\n\nline two") == "line one line two",
+                     "newlines in a note collapse to one space")
+        suite.expect(ClipboardHistoryEditing.normalizedNote(String(repeating: "a", count: 80))?.count == 60,
+                     "a note is capped at 60 characters")
+        suite.expect(ClipboardHistoryEditing.normalizedNote(" \n ") == nil, "an empty note clears it")
+        var noted = ClipboardHistoryEntry(text: "sk_live_123", note: "Prod Stripe key")
+        if let data = try? JSONEncoder().encode([noted]),
+           let back = try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: data) {
+            suite.expect(back.first?.note == "Prod Stripe key", "a note survives save and load")
+        } else { suite.expect(false, "a noted entry round-trips") }
+        suite.expect(noted.searchableText(imageLabel: "Image").contains("Stripe"),
+                     "search text includes the note")
+        noted.note = nil
+        suite.expect(noted.searchableText(imageLabel: "Image") == "sk_live_123",
+                     "an entry without a note searches its content only")
         // The search index is derived at runtime: an entry saves no index of
         // its own, so an older build reads the file exactly as it wrote it.
         let longSavedText = String(repeating: "строка документации\n", count: 400)
@@ -2130,6 +2147,49 @@ enum ClipboardPreviewContract {
         service.togglePin(heavy[0])
         suite.expect(service.entries.first { $0.id == heavy[0].id }?.isPinned == false,
                      "unpinning is never refused by the size of the saved file")
+
+        let noted = ClipboardHistoryEntry(text: "Connection string")
+        var notedPin = ClipboardHistoryEntry(text: "Pinned key")
+        notedPin.pinnedAt = Date()
+        service.encodedHistoryByteLimit = 1_000_000
+        service.setEntries([notedPin, noted])
+        suite.expect(service.setNote(noted, to: "  Staging DB  ")
+                     && service.entries.first { $0.id == noted.id }?.note == "Staging DB",
+                     "a note is stored normalized")
+        suite.expect(service.setNote(noted, to: "Staging DB"), "an unchanged note is accepted")
+        service.promote(noted.text, source: nil, keepsSource: true)
+        suite.expect(service.entries.first { $0.text == noted.text }?.note == "Staging DB",
+                     "copying the same text again keeps its note")
+        let notedImage = ClipboardHistoryEntry(text: "", kind: .image, imageFile: "a.png", imageHash: "AQID",
+                                               imageWidth: 1, imageHeight: 1, note: "Receipt")
+        let notedFiles = ClipboardHistoryEntry(text: "", kind: .files, filePaths: ["/tmp/a.txt"], note: "Spec")
+        service.setEntries([notedImage, notedFiles])
+        service.promoteImage((data: Data([1, 2, 3]), width: 1, height: 1), source: nil, keepsSource: true)
+        service.promoteFiles(["/tmp/a.txt"], source: nil, keepsSource: true)
+        suite.expect(service.entries.first { $0.id == notedImage.id }?.note == "Receipt",
+                     "copying the same image again keeps its note")
+        suite.expect(service.entries.first { $0.id == notedFiles.id }?.note == "Spec",
+                     "copying the same files again keeps their note")
+        suite.expect(notedImage.searchableText(imageLabel: "Image").contains("Receipt")
+                     && !notedImage.contentSearchText(imageLabel: "Image").contains("Receipt"),
+                     "content-only search text leaves the note out")
+        service.setEntries([notedPin, noted])
+        suite.expect(service.setNote(noted, to: "") && service.entries.first { $0.id == noted.id }?.note == nil,
+                     "an empty draft removes the note")
+        suite.expect(!service.setNote(ClipboardHistoryEntry(text: "gone"), to: "x"),
+                     "a note on a missing entry is refused")
+        _ = service.setNote(notedPin, to: "Pinned key note")
+        service.togglePin(notedPin)
+        suite.expect(service.entries.first { $0.id == notedPin.id }.map { !$0.isPinned && $0.note == "Pinned key note" } == true,
+                     "unpinning keeps the note")
+
+        service.setEntries(heavy)
+        service.encodedHistoryByteLimit = 5_000
+        let before = service.entries
+        let accepted = service.setNote(heavy[0], to: String(repeating: "\\", count: 60))
+        suite.expect(before.filter(\.isPinned).allSatisfy { p in service.entries.contains { $0.id == p.id } }
+                     && (accepted || service.entries == before),
+                     "a note never drops a pinned entry")
 
         let counted = ClipboardHistoryEntry(text: "Counted by the confirmation")
         let copiedLater = ClipboardHistoryEntry(text: "Copied while the confirmation was open")

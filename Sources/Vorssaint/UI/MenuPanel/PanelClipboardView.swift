@@ -244,6 +244,13 @@ struct PanelClipboardView: View {
                     .font(.system(size: 9.5, weight: .bold))
                     .foregroundStyle(Color.accentColor)
             }
+            if let note = entry.note {
+                SearchHighlightText.text(note, tokens: searchTokens, fontSize: 10)
+                    .font(.system(size: 10))
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
             entryPreview(entry)
             HStack(spacing: 6) {
                 Button {

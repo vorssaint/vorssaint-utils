@@ -913,6 +913,21 @@ extension NSAlert {
         return alert.runAboveIsland() == .alertFirstButtonReturn
     }
 
+    /// One-line text prompt above the island; nil when cancelled.
+    static func textAboveIsland(_ title: String, initial: String, placeholder: String,
+                                action: String, cancel: String) -> String? {
+        let alert = NSAlert()
+        alert.messageText = title
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.stringValue = initial
+        field.placeholderString = placeholder
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        alert.addButton(withTitle: action)
+        alert.addButton(withTitle: cancel).keyEquivalent = "\u{1b}"
+        return alert.runAboveIsland() == .alertFirstButtonReturn ? field.stringValue : nil
+    }
+
     private func runAboveIsland() -> NSApplication.ModalResponse {
         let island = NotchService.shared.presentationWindow
         var observers: [NSObjectProtocol] = []
