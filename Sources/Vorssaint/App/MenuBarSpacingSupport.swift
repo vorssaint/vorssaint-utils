@@ -31,13 +31,18 @@ enum MenuBarMetricAppearance: String, CaseIterable {
     }
 }
 
-/// How the bars appearance draws the charge. The glyph stays the default so
-/// turning on bars never changes a battery reading people already know.
-enum MenuBarBatteryStyle: String, CaseIterable {
-    case icon, bar
+/// How the menu bar draws the charge. `bar` only applies under the bars
+/// appearance; `regular` stays the default so turning on bars never changes a
+/// battery reading people already know.
+enum BatteryMenuBarStyle: String, CaseIterable {
+    case regular, bar
 
-    static var current: MenuBarBatteryStyle {
-        MenuBarBatteryStyle(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.menuBarBatteryStyle) ?? "") ?? .icon
+    static let defaultsKey = DefaultsKey.menuBarBatteryStyle
+
+    // Raw init rather than Defaults.sanitized…: the test harness extracts this
+    // enum without Defaults. Unknown values fall back to regular either way.
+    static var current: BatteryMenuBarStyle {
+        BatteryMenuBarStyle(rawValue: UserDefaults.standard.string(forKey: defaultsKey) ?? "") ?? .regular
     }
 }
 

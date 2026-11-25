@@ -250,9 +250,12 @@ enum MetricsFeatureTests {
                      "disk menu bar style registers the existing percentage default")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DiskMenuBarStyle.defaultsKey),
                      "disk menu bar style travels in settings backups")
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.menuBarBatteryStyle] as? String == MenuBarBatteryStyle.icon.rawValue
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.menuBarBatteryStyle] as? String == BatteryMenuBarStyle.regular.rawValue
                      && SettingsBackupSupport.exportKeys().contains(DefaultsKey.menuBarBatteryStyle),
                      "the battery keeps its glyph by default and its style travels in settings backups")
+        suite.expect(BatteryMenuBarStyle.allCases.allSatisfy { Defaults.sanitizedMenuBarBatteryStyle($0.rawValue) == $0.rawValue }
+                     && Defaults.sanitizedMenuBarBatteryStyle("icon") == "regular",
+                     "every battery style survives sanitizing and unknown values fall back to regular")
         for style in DiskMenuBarStyle.allCases {
             let restored = SettingsBackupSupport.sanitizedSettings(from: [
                 SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,

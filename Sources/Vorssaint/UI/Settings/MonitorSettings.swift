@@ -394,7 +394,7 @@ private struct MenuBarMetricTile: View {
     @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
     @AppStorage(DefaultsKey.menuBarNetworkUploadFirst) private var uploadFirst = false
     @AppStorage(DiskMenuBarStyle.defaultsKey) private var diskStyle = DiskMenuBarStyle.percent
-    @AppStorage(DefaultsKey.menuBarBatteryStyle) private var batteryStyle = MenuBarBatteryStyle.icon
+    @AppStorage(BatteryMenuBarStyle.defaultsKey) private var batteryStyle = BatteryMenuBarStyle.regular
     @AppStorage(DefaultsKey.menuBarMetricAppearance) private var appearance = MenuBarMetricAppearance.values.rawValue
 
     init(metric: MenuBarMetric) {
@@ -426,7 +426,7 @@ private struct MenuBarMetricTile: View {
             default: return l10n.s.diskMenuBarUsedPercentage
             }
         case .battery where usesBars:
-            return batteryStyle == .bar ? l10n.s.batteryMenuBarBar : l10n.s.batteryMenuBarIcon
+            return batteryStyle == .bar ? l10n.s.batteryStyleBar : l10n.s.batteryStyleRegular
         default: return ""
         }
     }
@@ -452,9 +452,9 @@ private struct MenuBarMetricTile: View {
             }
             .pickerStyle(.menu))
         case .battery where usesBars:
-            return AnyView(Picker(l10n.s.batteryMenuBarStyleLabel, selection: $batteryStyle) {
-                Text(l10n.s.batteryMenuBarIcon).tag(MenuBarBatteryStyle.icon)
-                Text(l10n.s.batteryMenuBarBar).tag(MenuBarBatteryStyle.bar)
+            return AnyView(Picker(l10n.s.monitorBatteryStyleLabel, selection: $batteryStyle) {
+                Text(l10n.s.batteryStyleRegular).tag(BatteryMenuBarStyle.regular)
+                Text(l10n.s.batteryStyleBar).tag(BatteryMenuBarStyle.bar)
             }
             .pickerStyle(.menu))
         default:

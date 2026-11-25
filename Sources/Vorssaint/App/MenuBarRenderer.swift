@@ -1194,7 +1194,7 @@ enum MenuBarRenderer {
                                        style: MenuBarBlockStyle) -> MenuBarSegment {
         let isCharging = power?.isCharging ?? false
         let externalConnected = power?.externalConnected ?? false
-        guard !usesBars || MenuBarBatteryStyle.current != .bar else {
+        guard !usesBars || BatteryMenuBarStyle.current != .bar else {
             // The bar colors itself from its charge like its neighbors, not from
             // the island's opt-in warning.
             return .batteryBarBlock(percent: percent, isCharging: isCharging, externalConnected: externalConnected,

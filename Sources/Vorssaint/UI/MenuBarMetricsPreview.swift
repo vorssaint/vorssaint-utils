@@ -19,7 +19,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DiskMenuBarStyle.defaultsKey) private var diskStyle = DiskMenuBarStyle.percent
     @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
-    @AppStorage(DefaultsKey.menuBarBatteryStyle) private var batteryStyle = MenuBarBatteryStyle.icon
+    @AppStorage(BatteryMenuBarStyle.defaultsKey) private var batteryStyle = BatteryMenuBarStyle.regular
     @AppStorage(DefaultsKey.menuBarBatteryTime) private var batteryTime = false
     @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var peripheralBattery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false

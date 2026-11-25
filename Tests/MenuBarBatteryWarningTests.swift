@@ -22,7 +22,7 @@ enum MenuBarBatteryWarningTests {
         typealias ReviewDefaults = MenuBarBatteryWarningTests.ReviewDefaults
         typealias MenuBarMetricSpacing = MenuBarBatteryWarningTests.MenuBarMetricSpacing
         typealias MenuBarMetricAppearance = MenuBarBatteryWarningTests.MenuBarMetricAppearance
-        typealias MenuBarBatteryStyle = MenuBarBatteryWarningTests.MenuBarBatteryStyle
+        typealias BatteryMenuBarStyle = MenuBarBatteryWarningTests.BatteryMenuBarStyle
         static let blockImageCache = NSCache<NSString, NSImage>()
         static let legacyBlockAttachmentNudge: CGFloat = 0
         static var style = MenuBarBlockStyle.dense

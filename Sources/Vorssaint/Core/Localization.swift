@@ -977,9 +977,9 @@ struct Strings {
     let diskMenuBarUsedPercentage: String
     let diskMenuBarAvailableSpace: String
     let diskMenuBarUsedSpace: String
-    let batteryMenuBarStyleLabel: String
-    let batteryMenuBarIcon: String
-    let batteryMenuBarBar: String
+    let monitorBatteryStyleLabel: String
+    let batteryStyleRegular: String
+    let batteryStyleBar: String
     let diskAvailable: String
     let diskPurgeable: String
     let diskInternal: String
@@ -2128,9 +2128,9 @@ extension Strings {
         diskMenuBarUsedPercentage: "Porcentagem usada",
         diskMenuBarAvailableSpace: "Espaço disponível",
         diskMenuBarUsedSpace: "Espaço usado",
-        batteryMenuBarStyleLabel: "Exibição da bateria",
-        batteryMenuBarIcon: "Ícone",
-        batteryMenuBarBar: "Barra",
+        monitorBatteryStyleLabel: "Mostrar bateria como",
+        batteryStyleRegular: "Normal",
+        batteryStyleBar: "Barra",
         diskAvailable: "disponível",
         diskPurgeable: "purgável",
         diskInternal: "Interno",
@@ -3267,9 +3267,9 @@ extension Strings {
         diskMenuBarUsedPercentage: "Used percentage",
         diskMenuBarAvailableSpace: "Available space",
         diskMenuBarUsedSpace: "Used space",
-        batteryMenuBarStyleLabel: "Battery display",
-        batteryMenuBarIcon: "Icon",
-        batteryMenuBarBar: "Bar",
+        monitorBatteryStyleLabel: "Show battery as",
+        batteryStyleRegular: "Regular",
+        batteryStyleBar: "Bar",
         diskAvailable: "available",
         diskPurgeable: "purgeable",
         diskInternal: "Internal",
