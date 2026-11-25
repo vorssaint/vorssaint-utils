@@ -1919,6 +1919,7 @@ enum NotchTests {
         NotchMascotTests.run(suite)
         NotchMascotHidingContract.run(suite)
         NotchMusicExtrasTests.run(suite)
+        NotchLyricsDirectionTests.run(suite)
         NotchLockScreenTests.run(suite)
         NowPlayingOpenContract.run(suite)
         NotchClipboardPageTests.run(suite)
