@@ -27,6 +27,8 @@ enum SwitcherQuickCommitTests {
         var readAXFocus: (pid_t) -> CGWindowID? = { _ in nil }
         var windows: [CGWindowID] { windowHistory }
         var apps: [pid_t] { appHistory }
+
+        func performOnWatcher(_ work: () -> Void) { work() }
     }
 
     private static let frame = CGRect(x: 0, y: 0, width: 900, height: 600)
@@ -194,13 +196,38 @@ enum SwitcherQuickCommitTests {
         let source = WindowFocusHistory.Request(pid: 10)
         handoff.recordSwitch(to: 4, pid: 11, from: 2, sourceRequest: source)
         _ = handoff.focusHistory.activate(10)
+        handoff.readAXFocus = { _ in 1 }
         handoff.recordObservedFocus(windowID: 1, pid: 10)
         handoff.confirmSwitchSource(3, replacing: 2, for: source)
         suite.expect(handoff.windows == [1, 4, 2] && handoff.focusHistory.frontAppFocus(for: 10).observedWindows == [1, 4, 2],
                      "reactivating the source app before its inventory reply protects the newer focus in both histories")
 
+        dockActivationKeepsSiblingRecency(suite)
         newEmbeddedOwner(suite)
         frontAppSources(suite, snapshot: snapshot)
+    }
+
+    private static func dockActivationKeepsSiblingRecency(_ suite: TestSuite) {
+        let history = HistoryFixture()
+        let entries: [WindowUseOrder.Entry] = [
+            .init(windowID: 11115, pid: 1), .init(windowID: 11117, pid: 1), .init(windowID: 11116, pid: 1),
+            .init(windowID: 20, pid: 2), .init(windowID: 30, pid: 3), .init(windowID: 40, pid: 4)
+        ]
+        for entry in entries {
+            history.recordSwitch(to: entry.windowID, pid: entry.pid, from: nil)
+        }
+        let activation = history.focusHistory.activate(1)!
+        history.readAXFocus = { _ in 11116 }
+        _ = history.readFocusedWindow(for: activation)
+        history.recordObservedFocus(windowID: 11115, pid: 1)
+        history.recordObservedFocus(windowID: 11117, pid: 1)
+        history.recordObservedFocus(windowID: 11116, pid: 1)
+
+        let baseline = WindowUseOrder.order(entries, windowHistory: history.windows,
+                                            appHistory: [1, 4, 3, 2], frontToBack: [11116, 11117, 11115])
+        let ordered = history.focusHistory.order(entries, baseline: baseline).map { entries[$0].windowID }
+        suite.expect(ordered == [11116, 40, 30, 20, 11117, 11115],
+                     "a Dock raise preserves the older rank of the other windows in the activated app")
     }
 
     private static func frontAppSources(_ suite: TestSuite, snapshot: Enumerator.Snapshot) {

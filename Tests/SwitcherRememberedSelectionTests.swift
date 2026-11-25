@@ -124,6 +124,9 @@ enum SwitcherRememberedSelectionTests {
             }
             func recordObservedFocus(windowID: CGWindowID, pid: pid_t) {
                 Self.history.windowHistory = windows
+                let previousRead = Self.history.readAXFocus
+                Self.history.readAXFocus = { _ in windowID }
+                defer { Self.history.readAXFocus = previousRead }
                 Self.history.recordObservedFocus(windowID: windowID, pid: pid)
                 Tracker.shared.history = Self.history.windowHistory
             }
