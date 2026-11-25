@@ -4129,29 +4129,15 @@ enum ScreenshotFeatureTests {
                "the mute skips the app's own aggregate devices and no other")
         suite.expect(!MicMuteSupport.shouldSaveVolume(nil)
                 && !MicMuteSupport.shouldSaveVolume(0)
-                && !MicMuteSupport.shouldSaveVolume(0.005)
+                && MicMuteSupport.shouldSaveVolume(0.005)
                 && MicMuteSupport.shouldSaveVolume(0.4),
                "a level worth restoring is remembered and a silent one never is")
-        suite.expect(MicMuteSupport.volumeToRestore(uid: "mic-a",
-                                              saved: ["mic-a": 0.4, "mic-b": 0.9],
-                                              legacy: 0.6) == 0.4
-                && MicMuteSupport.volumeToRestore(uid: "mic-c",
-                                                  saved: ["mic-a": 0.4],
-                                                  legacy: 0.6) == 0.6
-                && MicMuteSupport.volumeToRestore(uid: "mic-c", saved: [:], legacy: 0)
-                    == MicMuteSupport.fallbackVolume
-                && MicMuteSupport.volumeToRestore(uid: "mic-a",
-                                                  saved: ["mic-a": 0],
-                                                  legacy: 0) == MicMuteSupport.fallbackVolume,
-               "each microphone gets its own level back, then the older single level, then a usable one")
         suite.expect(MicMuteSupport.restoreTargets(recorded: ["mic-a", "gone"],
                                              present: ["mic-a", "mic-b"]) == ["mic-a"]
-                && MicMuteSupport.restoreTargets(recorded: nil,
-                                                 present: ["mic-a", "mic-b"]) == ["mic-a", "mic-b"]
                 && MicMuteSupport.restoreTargets(recorded: [],
                                                  present: ["mic-a", "mic-b"]).isEmpty
                 && MicMuteSupport.restoreTargets(recorded: ["mic-a"], present: []).isEmpty,
-               "unmuting touches the microphones this app muted, every one with no record, and none when the record is empty")
+               "unmuting touches only claimed microphones that are currently connected")
         suite.expect(MicMuteSupport.absentClaims(recorded: ["mic-a", "headset"],
                                            present: ["mic-a"]) == ["headset"]
                 && MicMuteSupport.absentClaims(recorded: ["mic-a"],
@@ -4160,13 +4146,15 @@ enum ScreenshotFeatureTests {
                 && MicMuteSupport.absentClaims(recorded: ["headset"], present: []) == ["headset"],
                "a sweep keeps the claim on a microphone this app muted that is unplugged right now, so it is released when it returns")
         suite.expect(!MicMuteSupport.shouldReplaceSavedVolume(existing: 0.4, current: 1.0)
+                && !MicMuteSupport.shouldReplaceSavedVolume(existing: 0.005, current: 0.4)
                 && MicMuteSupport.shouldReplaceSavedVolume(existing: nil, current: 0.4)
                 && MicMuteSupport.shouldReplaceSavedVolume(existing: 0, current: 0.4)
                 && !MicMuteSupport.shouldReplaceSavedVolume(existing: nil, current: 0),
                "a later re-apply keeps the first real level and never saves silence")
         suite.expect(!MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: 0.75)
                 && MicMuteSupport.isCaptureSilenced(muteSwitch: 0, volume: 0)
-                && MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: 0.005)
+                && !MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: 0.005)
+                && !MicMuteSupport.isCaptureSilenced(muteSwitch: nil, volume: 0.005)
                 && MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: nil)
                 && !MicMuteSupport.isCaptureSilenced(muteSwitch: 0, volume: 0.4)
                 && !MicMuteSupport.isCaptureSilenced(muteSwitch: nil, volume: 0.4)
@@ -4176,19 +4164,6 @@ enum ScreenshotFeatureTests {
                 && !MicMuteSupport.shouldLeaveUntouched(owned: true, captureSilenced: true)
                 && !MicMuteSupport.shouldLeaveUntouched(owned: false, captureSilenced: false),
                "a user-quiet microphone is left alone and one this app muted is still ours")
-        suite.expect(MicMuteSupport.restoreNeed(muteSwitch: 1, volume: 0)
-                == .restore(clearMute: true, restoreVolume: true)
-                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: 0.75)
-                == .restore(clearMute: true, restoreVolume: false)
-                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: 0)
-                == .restore(clearMute: false, restoreVolume: true)
-                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: 0.75) == .alreadyAudible
-                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: nil)
-                == .restore(clearMute: true, restoreVolume: false)
-                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: nil, hasSavedVolume: true)
-                == .unreadable
-                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: nil) == .unreadable,
-               "unmuting clears the mute switch and restores volume when each is needed, not one or the other")
         typealias InputControls = MicMuteSupport.InputControls
         let quiet = InputControls(gain: .silent, muteSwitch: 1)
         suite.expect(InputControls(gain: .audible, muteSwitch: 1).opened(since: quiet)

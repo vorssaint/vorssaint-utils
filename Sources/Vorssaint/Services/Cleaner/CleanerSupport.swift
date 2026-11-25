@@ -277,10 +277,11 @@ enum CleanerSupport {
     /// an executable is undecidable, so both stay untouched.
     static func launchPlistIsRemovableOrphan(label: String?,
                                              executables: [String],
-                                             executableExists: (String) -> Bool) -> Bool {
+                                             executableIsConfirmedAbsent: (String) -> Bool) -> Bool {
         if let label, isProtectedBundleID(label) { return false }
         guard !executables.isEmpty else { return false }
-        return !executables.contains(where: executableExists)
+        // An external volume may be unmounted, so absence there is inconclusive.
+        return executables.allSatisfy { !$0.hasPrefix("/Volumes/") && executableIsConfirmedAbsent($0) }
     }
 
     // MARK: - Forgotten screenshots

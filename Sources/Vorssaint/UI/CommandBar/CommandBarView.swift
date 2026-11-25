@@ -650,6 +650,7 @@ struct CommandBarView: View {
         switch entry.trouble {
         case .needsSetup(let feature, _): parts.append(String(format: text.needsSetupFormat, feature))
         case .needsPermission: parts.append(text.needsPermissionHint)
+        case .warning(let message): parts.append(message)
         case nil: break
         }
         return parts.filter { !$0.isEmpty }.joined(separator: ", ")
@@ -714,6 +715,11 @@ struct CommandBarView: View {
                 .font(.system(size: 10.5))
                 .foregroundStyle(.orange)
                 .lineLimit(1)
+        case .warning(let message):
+            Text(message)
+                .font(.system(size: 10.5))
+                .foregroundStyle(.orange)
+                .lineLimit(2)
         case nil:
             // A row under a heading that already names its area carries no
             // caption at all, which makes the browse list read as one column
@@ -742,8 +748,9 @@ struct CommandBarView: View {
                     .frame(width: 30, height: 30)
             }
             if entry.isActive {
+                let statusColor: Color = if case .warning = entry.trouble { .orange } else { .green }
                 Circle()
-                    .fill(.green)
+                    .fill(statusColor)
                     .frame(width: 7, height: 7)
                     // A ring keeps the dot legible on top of a colorful icon.
                     .overlay(Circle().strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 1.2))

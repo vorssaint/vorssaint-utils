@@ -222,10 +222,11 @@ enum CursorTranscriptReadTests {
         let model = "gpt-5.2", otherModel = "gpt-6-astra"
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        func reply(_ id: String, metered: Bool, model: String, dated: Bool = true) -> String {
+        func reply(_ id: String, metered: Bool, model: String? = nil, dated: Bool = true) -> String {
             let usage = metered ? #","usage":{"message_id":"\#(id)","output_tokens":1000}"# : ""
             let timestamp = dated ? #""timestamp":"2026-11-18T12:00:00Z","# : ""
-            return #"{"role":"assistant",\#(timestamp)"message":{"id":"\#(id)","model":"\#(model)"\#(usage)}}"#
+            let modelField = model.map { #","model":"\#($0)""# } ?? ""
+            return #"{"role":"assistant",\#(timestamp)"message":{"id":"\#(id)"\#(modelField)\#(usage)}}"#
         }
         func today(_ logs: [Log]) -> AgentPeriodUsage {
             let store = original.store
@@ -233,13 +234,27 @@ enum CursorTranscriptReadTests {
                                   cursorActivity: logs.map { $0.cursor.transcriptActivity(in: store) }).usage(.today)
         }
 
-        try original.write([reply("first", metered: false, model: model), reply("second", metered: true, model: model),
+        try original.write([reply("first", metered: false, model: model), reply("second", metered: true),
                             reply("anchor", metered: true, model: otherModel), reply("third", metered: false, model: otherModel)], at: 1)
         original.read(at: 2)
         suite.expect(today([original]).total.hasPartialCost, "an unresolved stream begins with partial coverage")
-        try original.write([reply("first", metered: true, model: model),
+        let unrelated = Log(directory, "different-session")
+        unrelated.store = original.store
+        try unrelated.write([reply("second", metered: false, model: otherModel), finished], at: 2)
+        unrelated.read(at: 2)
+        suite.expect(original.store.records.first?.model == "" && original.store.records.first?.cost == nil,
+                     "a model fragment from another session cannot price an identically named response")
+        try original.write([reply("first", metered: true),
                             reply("second", metered: false, model: model, dated: false)], at: 3, append: true)
         original.read(at: 4)
+        let priced = original.store.records.filter { $0.model == model }
+        let cost = AgentPricing.cost(AgentBillable(tokens: AgentTokens(output: 1000)), model: model).cost
+        suite.expect(cost != nil && priced.count == 2 && priced.allSatisfy { $0.cost == cost && $0.tokens.output == 1000 },
+                     "a model before or after its separate counters prices exactly one request in both stream orders")
+        let replay = Log(directory, name)
+        replay.read(at: 4)
+        suite.expect(replay.store.records == original.store.records,
+                     "replaying the same transcript preserves both split models, costs and token counts")
         let mixed = today([original])
         suite.expect(mixed.total.requests == 3 && mixed.total.hasPartialCost
                      && mixed.models.first { $0.name == AgentPricing.displayName(model) }?.totals.hasPartialCost == false

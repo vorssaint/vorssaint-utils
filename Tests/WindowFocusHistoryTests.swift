@@ -27,8 +27,13 @@ enum WindowFocusHistoryTests {
                "rapid A then B activation selects A next even when both AX reads are missing")
         expect(history.focus(11, for: a) && windows(history) == [20, 11, 30, 10],
                "a late AX response resolves A in place without displacing B")
+        expect(history.frontAppFocus(for: 1).windowID == nil && history.frontAppFocus(for: 2).windowID == nil,
+               "a late result for a previous app supplies no focus hint for the front app")
         expect(history.focus(20, for: b) && windows(history) == [20, 11, 30, 10],
                "B resolving its window retains the unresolved activation of A")
+        let focus = history.frontAppFocus(for: 2)
+        expect(focus.windowID == 20 && focus.observedWindows == [20, 11],
+               "the request sees only observed windows as focus evidence, excluding the window-server seed")
         let againA = history.activate(1)!
         expect(!history.focus(10, for: a), "returning to the same PID does not accept its old request")
         expect(history.focus(11, for: againA) && windows(history) == [11, 20, 30, 10],
@@ -36,12 +41,73 @@ enum WindowFocusHistoryTests {
         expect(history.focus(10, for: againA) && windows(history) == [10, 11, 20, 30],
                "focus changes within one app retain global window recency")
 
-        history.switched(to: 11, pid: 1, previous: 10)
+        history.switched(to: 11, pid: 1, previous: 10, now: 1)
         expect(!history.focus(10, for: againA) && windows(history) == [11, 10, 20, 30],
                "explicit switch rejects a source AX read already in flight")
+        let handoff = history.frontAppFocus(for: 1, now: 1.01)
         let afterSwitch = history.current!
+        _ = history.focus(11, for: afterSwitch)
+        let confirmed = history.frontAppFocus(for: 1, now: 1.02)
+        let expired = history.frontAppFocus(for: 1, now: 1 + WindowFocusHistory.switchConfirmationInterval)
+        expect(handoff.recentSwitch?.windowID == 11 && handoff.recentSwitch?.previousWindowID == 10
+                && confirmed.recentSwitch?.windowID == 11 && confirmed.recentSwitch?.previousWindowID == 10
+                && confirmed.latest?.confirmation != handoff.latest?.confirmation
+                && expired.recentSwitch == nil,
+               "AX reconfirming the switch target preserves the pair until its original deadline")
         expect(history.focus(10, for: afterSwitch) && windows(history) == [10, 11, 20, 30],
                "same-app focus observation continues after an explicit switch")
+        expect(history.frontAppFocus(for: 1, now: 1.03).recentSwitch == nil,
+               "AX observing a different window supersedes the pending switch")
+
+        var omitting = history
+        let beforeOmission = omitting.frontAppFocus(for: 1).latest
+        omitting.reconcile(windows: [11, 20, 30], revision: omitting.revision)
+        let omitted = omitting.frontAppFocus(for: 1)
+        expect(omitted.windowID == nil && !omitted.observedWindows.contains(10)
+                && omitted.latest?.windowID == 10 && omitted.latest?.confirmation == beforeOmission?.confirmation,
+               "a missing focus leaves its observation available for checking an in-flight read")
+        _ = omitting.focus(11, for: afterSwitch)
+        _ = omitting.focus(11, for: afterSwitch)
+        let returned = omitting.frontAppFocus(for: 1).latest
+        expect(returned?.windowID == 11 && returned?.previousWindowID == 10
+                && returned?.confirmation != omitted.latest?.confirmation,
+               "returning to a source remembers its omitted predecessor even after repeated AX confirmation")
+        var closing = history
+        closing.beginFocusRead(for: afterSwitch)
+        closing.reconcile(windows: [10], revision: closing.revision)
+        closing.destroyed(10)
+        var siblingRead = closing
+        expect(siblingRead.finishFocusRead(11, for: afterSwitch)
+                && siblingRead.frontAppFocus(for: 1).windowID == 11,
+               "AX can confirm the surviving sibling even when the previous scan omitted it")
+        _ = closing.focus(11, for: afterSwitch)
+        expect(!closing.finishFocusRead(10, for: afterSwitch)
+                && closing.frontAppFocus(for: 1).windowID == 11,
+               "a late AX reply for the closed window leaves the newly focused sibling in front")
+
+        var reading = history
+        let newWindow: UInt32 = 12
+        let previousFocus = reading.frontAppFocus(for: 1).latest?.confirmation
+        reading.beginFocusRead(for: afterSwitch)
+        reading.destroyed(newWindow)
+        reading.destroyed(20)
+        expect(!reading.finishFocusRead(newWindow, for: afterSwitch)
+                && reading.frontAppFocus(for: 1).latest?.confirmation == previousFocus
+                && !reading.frontAppFocus(for: 1).observedWindows.contains(newWindow),
+               "AX cannot introduce an unknown window destroyed during the read, even after another removal")
+
+        reading.beginFocusRead(for: afterSwitch)
+        reading.destroyed(11)
+        expect(reading.finishFocusRead(newWindow, for: afterSwitch)
+                && reading.frontAppFocus(for: 1).latest?.previousWindowID == 10,
+               "a new read can accept a reused ID when only a different window closed during that read")
+
+        reading.beginFocusRead(for: afterSwitch)
+        reading.reconcile(windows: [10], revision: reading.revision)
+        expect(reading.frontAppFocus(for: 1).windowID == nil
+                && reading.finishFocusRead(newWindow, for: afterSwitch)
+                && reading.frontAppFocus(for: 1).windowID == newWindow,
+               "AX can reconfirm a window omitted from a scan during the read")
         _ = history.activate(99, recording: false)
         expect(!history.focus(11, for: afterSwitch) && windows(history) == [10, 11, 20, 30],
                "the app's own activation handoff invalidates callbacks without changing history")
