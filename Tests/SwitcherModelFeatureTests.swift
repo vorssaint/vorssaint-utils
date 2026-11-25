@@ -2491,7 +2491,7 @@ enum SwitcherModelFeatureTests {
                "update showcase media override is empty by default")
         suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.5"
                && SupportUpdateIntroInfo.seenVersion == "3.4.5-support",
-               "the support invitation has its own marker for the upcoming 3.4.5 stable release")
+               "the support invitation has its own marker for the 3.4.5 stable release")
         suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.5", lastSeenVersion: "3.3.2")
                && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.5", lastSeenVersion: nil),
                "support prompt shows once after updating to its pinned release")
@@ -2519,10 +2519,10 @@ enum SwitcherModelFeatureTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        suite.expect(plistVersion == "3.4.4",
+        suite.expect(plistVersion == "3.4.5",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        suite.expect(plistBuild == "106",
+        suite.expect(plistBuild == "107",
                "every app version needs its own incremented bundle build")
         suite.expect(UpdateHighlightsInfo.releaseVersion == "3.4.0",
                "the stable release has its own tour marker without changing the installed version")
