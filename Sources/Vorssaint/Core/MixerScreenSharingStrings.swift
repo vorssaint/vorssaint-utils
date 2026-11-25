@@ -32,6 +32,10 @@ struct MixerScreenSharingStrings {
             allowVolumeControl: "Povoliť ovládanie hlasitosti",
             protectedCaption: "Ovládanie hlasitosti je vypnuté, aby pri zdieľaní zvuku nevznikala ozvena.",
             sharingWarning: "Pred zdieľaním zvuku vypnite ovládanie hlasitosti, aby nevznikala ozvena.")
+        case .cs: return .init(
+            allowVolumeControl: "Povolit ovládání hlasitosti",
+            protectedCaption: "Ovládání hlasitosti je vypnuté, aby při sdílení zvuku nevznikala ozvěna.",
+            sharingWarning: "Před sdílením zvuku vypněte ovládání hlasitosti, aby nevznikala ozvěna.")
         case .de: return .init(
             allowVolumeControl: "Lautstärkeregelung erlauben",
             protectedCaption: "Die Lautstärkeregelung ist aus, um Echo beim Teilen von Audio zu vermeiden.",

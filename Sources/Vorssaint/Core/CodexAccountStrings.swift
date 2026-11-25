@@ -144,6 +144,25 @@ extension FeatureStrings {
             signIn: "Prihláste sa cez ChatGPT v tomto priečinku Codexu.",
             update: "Aktualizujte Codex, aby bolo možné skontrolovať limity.",
             failed: "Limity sa nepodarilo skontrolovať. Skúste to znova.")
+        case .cs: return CodexAccountStrings(
+            title: "Účty Codex",
+            explanation: "Každá přidaná složka CODEX_HOME má vlastní kartu limitů. Dokud je otevřená stránka AI agenti, Codex kontroluje každou z nich přibližně jednou za pět minut s přihlášením dané složky. Neposílá se žádný prompt.",
+            accountName: "Název účtu",
+            remove: "Odstranit kartu tohoto účtu",
+            find: "Najít místní účty",
+            add: "Přidat složku…",
+            check: "Zkontrolovat limity",
+            fallback: "Bez přidaných účtů pocházejí limity Codexu z jeho místních relací.",
+            resetsNote: "Karta Obnovení stále patří výchozímu účtu Codex.",
+            chooseFolder: "Vyberte složku Codexu",
+            invalidFolder: "Vyberte samostatnou složku CODEX_HOME se souborem config.toml nebo auth.json. Složka musí patřit vám a ostatní do ní nesmí zapisovat. Soubor auth.json musí být soukromý a nesmí být odkazem. Codex v ní může obnovovat své přihlášení a mezipaměti.",
+            folderProblem: "Vyberte složku tohoto účtu znovu v Nastavení.",
+            defaultName: "Výchozí",
+            defaultAccount: "Výchozí účet",
+            refreshHint: "Obnovte a zkontrolujte limity tohoto účtu.",
+            signIn: "Přihlaste se přes ChatGPT v této složce Codexu.",
+            update: "Aktualizujte Codex, aby bylo možné zkontrolovat limity.",
+            failed: "Limity se nepodařilo zkontrolovat. Zkuste to znovu.")
         case .de: return CodexAccountStrings(
             title: "Codex-Konten",
             explanation: "Jeder hinzugefügte CODEX_HOME-Ordner erhält eine eigene Limitkarte. Solange die Seite KI-Agenten geöffnet ist, prüft Codex jeden etwa alle fünf Minuten mit der Anmeldung dieses Ordners. Es wird kein Prompt gesendet.",

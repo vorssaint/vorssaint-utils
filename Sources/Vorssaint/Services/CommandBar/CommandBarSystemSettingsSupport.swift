@@ -102,6 +102,7 @@ enum CommandBarSystemSettingsSupport {
         case .ru: return "ru"
         case .es: return "es"
         case .sk: return "sk"
+        case .cs: return "cs"
         case .de: return "de"
         case .fr: return "fr"
         case .it: return "it"

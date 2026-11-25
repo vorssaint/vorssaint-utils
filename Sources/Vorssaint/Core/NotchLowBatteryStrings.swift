@@ -42,6 +42,11 @@ struct NotchLowBatteryStrings {
                          threshold: "Červená úroveň", early: "Najprv jantárová",
                          earlyCaption: "Ako včasné upozornenie zobrazí nabitie jantárovou na vyššej úrovni alebo pod ňou.",
                          earlyThreshold: "Jantárová úroveň", menuBar: "Aj na lište ponúk")
+        case .cs:
+            return .init(title: "Zčervenat při slabé baterii", caption: "Při napájení z baterie zobrazí nabití červeně na této úrovni nebo pod ní.",
+                         threshold: "Červená úroveň", early: "Nejprve jantarová",
+                         earlyCaption: "Jako včasné upozornění zobrazí nabití jantarově na vyšší úrovni nebo pod ní.",
+                         earlyThreshold: "Jantarová úroveň", menuBar: "I na řádku nabídek")
         case .de:
             return .init(title: "Bei niedrigem Akku rot färben", caption: "Zeigt die Ladung im Akkubetrieb ab dieser Stufe und darunter in Rot.",
                          threshold: "Rote Stufe", early: "Zuerst bernsteinfarben",

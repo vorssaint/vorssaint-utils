@@ -834,11 +834,12 @@ enum ShelfFeatureTests {
             suite.expect(slovakStrings.form(for: count) == wanted,
                    "a language that reads the whole number asks for the right form at \(count)")
         }
-        suite.expect(AppLanguage.allCases.filter { $0.countAgreement != .oneAndMany } == [.ru, .sk, .uk]
+        suite.expect(AppLanguage.allCases.filter { $0.countAgreement != .oneAndMany } == [.ru, .sk, .cs, .uk]
                && AppLanguage.ru.countAgreement == .byLastDigits
                && AppLanguage.uk.countAgreement == .byLastDigits
-               && AppLanguage.sk.countAgreement == .byWholeNumber,
-               "Russian, Slovak and Ukrainian are the three languages of the fifteen that ask for the middle form, each by its own rule")
+               && AppLanguage.sk.countAgreement == .byWholeNumber
+               && AppLanguage.cs.countAgreement == .byWholeNumber,
+               "Russian, Slovak, Czech and Ukrainian are the four languages of the sixteen that ask for the middle form, each by its own rule")
 
         expectEqual(ShelfTooltipSupport.text(forFileNamed: "risaPOGCHAMP.gif", resolvedKind: "GIF Image"),
                     "risaPOGCHAMP.gif\nGIF Image",

@@ -20,6 +20,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -80,6 +81,14 @@ extension MouseClickDebounceStrings {
         moreOptions: "Ďalšie možnosti",
         windowLabel: "Interval filtra",
         windowCaption: "Opakované kliknutie v tomto intervale sa považuje za náhodné zduplikovanie."
+    )
+
+    static let cs = MouseClickDebounceStrings(
+        title: "Filtr dvojitých kliknutí",
+        caption: "Ignoruje rychlá nadbytečná kliknutí z opotřebovaných tlačítek myši bez zpomalení běžných kliknutí.",
+        moreOptions: "Další možnosti",
+        windowLabel: "Interval filtru",
+        windowCaption: "Opakované kliknutí v tomto intervalu se považuje za náhodné zdvojení."
     )
 
     static let de = MouseClickDebounceStrings(

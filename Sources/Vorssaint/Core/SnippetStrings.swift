@@ -83,6 +83,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -640,6 +641,74 @@ extension SnippetFeatureStrings {
         soundCaption: "Krátky systémový zvuk zaznie vždy, keď sa napísaný spúšťač rozbalí.",
         soundPickerLabel: "Zvuk",
         soundUnavailable: "Zvuk nie je k dispozícii"
+    )
+
+    static let cs = SnippetFeatureStrings(
+        pageTitle: "Textové fragmenty",
+        hubDescription: "Krátké spouštěče se rozbalí na celý text",
+        enable: "Rozbalovat fragmenty během psaní",
+        enableCaption: "Napište spouštěč kdekoli a změní se na svůj text. Vše zůstává na tomto Macu.",
+        addButton: "Přidat fragment",
+        newTitle: "Nový fragment",
+        editTitle: "Upravit fragment",
+        nameLabel: "Název",
+        namePlaceholder: "Osobní e-mail",
+        triggerLabel: "Spouštěč",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Text",
+        replacementPlaceholder: "mujemail@priklad.cz",
+        expansionLabel: "Rozbalit",
+        expansionImmediate: "Ihned",
+        expansionDelimiter: "Po mezeře, Tab nebo Return",
+        variablesHint: "Proměnné: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "V okamžiku rozbalení se změní na datum, čas a zkopírovaný text.",
+        emptyList: "Zatím žádné fragmenty. Přidejte první.",
+        duplicateTrigger: "Tento spouštěč už používá jiný fragment.",
+        triggerTooShort: "Spouštěč potřebuje alespoň 2 znaky.",
+        deleteButton: "Smazat",
+        saveButton: "Uložit",
+        manageButton: "Spravovat fragmenty",
+        ignoreCaseLabel: "Nerozlišovat velká a malá písmena",
+        libraryTitle: "Rychlá nabídka fragmentů",
+        libraryToggle: "Otevírat fragmenty z nabídky",
+        libraryCaption: "Zkratka otevře nabídku s vyhledáváním. Výběrem fragmentu ho vložíte přesně tam, kde je kurzor.",
+        librarySearchPlaceholder: "Hledat fragmenty",
+        libraryNoResults: "Vyhledávání neodpovídá žádný fragment.",
+        libraryEmpty: "Zatím není co zobrazit. Přidejte fragmenty nebo u těch, které používáte nejčastěji, zapněte „Zobrazit v rychlé nabídce“.",
+        libraryFooterHint: "↩ vloží · esc zavře",
+        folderLabel: "Složka",
+        folderPlaceholder: "Práce",
+        showInLibraryLabel: "Zobrazit v rychlé nabídce",
+        variablesFormatCaption: "Formát za dvojtečkou určí, jak budou vypadat, například {{date:yyyy-MM-dd}}. Časové pásmo nastavíte částí -tz(...), například {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Formát za dvojtečkou určí, jak budou vypadat, například {{date:yyyy-MM-dd}}, nebo použijte tlačítko data a času výše. Časové pásmo nastavíte částí -tz(...), například {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Vložit datum/čas",
+        dateTimeEditButton: "Upravit datum/čas",
+        dateTimeTypeLabel: "Typ",
+        dateTimeKindDate: "Datum",
+        dateTimeKindTime: "Čas",
+        dateTimeKindDateTime: "Datum a čas",
+        dateTimeStyleLabel: "Styl",
+        dateTimeStyleShort: "Krátký",
+        dateTimeStyleMedium: "Střední",
+        dateTimeStyleLong: "Dlouhý",
+        dateTimeStyleFull: "Úplný",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Vlastní",
+        dateTimeStyleLocaleNote: "Pojmenovaný styl uloží formát, který region vašeho Macu používá právě teď.",
+        dateTimeTimezoneLabel: "Časové pásmo",
+        dateTimeTimezoneDeviceDefault: "Výchozí zařízení",
+        dateTimeTimezoneValid: "Platné časové pásmo",
+        dateTimeTimezoneInvalid: "Nerozpoznané časové pásmo",
+        dateTimeTimezoneClear: "Vymazat časové pásmo",
+        dateTimeTimezoneSearchPlaceholder: "Hledat časová pásma",
+        dateTimePatternLabel: "Vzor",
+        dateTimePreviewLabel: "Ukázka",
+        dateTimeConfirmInsert: "Vložit",
+        dateTimeConfirmUpdate: "Aktualizovat",
+        soundToggle: "Přehrát zvuk při rozbalení napsaného spouštěče",
+        soundCaption: "Krátký systémový zvuk zazní pokaždé, když se napsaný spouštěč rozbalí.",
+        soundPickerLabel: "Zvuk",
+        soundUnavailable: "Zvuk není k dispozici"
     )
 
     static let de = SnippetFeatureStrings(
