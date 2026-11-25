@@ -36,11 +36,26 @@ struct MouseAccelerationStoredValue: Codable, Equatable {
     let isBoolean: Bool
 }
 
+/// The two settings this feature owns on a mouse. Each keeps its own saved
+/// original, so either can be turned back while the other stays applied.
+enum MouseAccelerationSlot: Int, Comparable {
+    case acceleration, speed
+
+    static func < (lhs: MouseAccelerationSlot, rhs: MouseAccelerationSlot) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
 struct MouseAccelerationRecoveryEntry: Codable, Equatable {
     let registryID: UInt64
     let identity: MouseAccelerationDeviceIdentity
     let key: String
     let original: MouseAccelerationStoredValue
+    /// Absent in journals written before pointer speed existed, which only
+    /// ever held acceleration originals.
+    var isSpeed: Bool? = nil
+
+    var slot: MouseAccelerationSlot { isSpeed == true ? .speed : .acceleration }
 }
 
 struct MouseAccelerationRecoveryJournal: Codable, Equatable {
@@ -48,8 +63,9 @@ struct MouseAccelerationRecoveryJournal: Codable, Equatable {
     var entries: [MouseAccelerationRecoveryEntry]
 
     func entry(registryID: UInt64,
-               identity: MouseAccelerationDeviceIdentity) -> MouseAccelerationRecoveryEntry? {
-        entries.first { $0.registryID == registryID && $0.identity.matches(identity) }
+               identity: MouseAccelerationDeviceIdentity,
+               slot: MouseAccelerationSlot = .acceleration) -> MouseAccelerationRecoveryEntry? {
+        entries.first { $0.registryID == registryID && $0.slot == slot && $0.identity.matches(identity) }
     }
 
     func entriesToRestore(preserving connectedDevices: [UInt64: MouseAccelerationDeviceIdentity])
@@ -61,13 +77,19 @@ struct MouseAccelerationRecoveryJournal: Codable, Equatable {
     }
 
     mutating func upsert(_ entry: MouseAccelerationRecoveryEntry) {
-        entries.removeAll { $0.registryID == entry.registryID }
+        entries.removeAll { $0.registryID == entry.registryID && $0.slot == entry.slot }
         entries.append(entry)
-        entries.sort { $0.registryID < $1.registryID }
+        entries.sort { ($0.registryID, $0.slot) < ($1.registryID, $1.slot) }
     }
 
-    mutating func remove(registryID: UInt64) {
-        entries.removeAll { $0.registryID == registryID }
+    mutating func remove(registryID: UInt64, slot: MouseAccelerationSlot) {
+        entries.removeAll { $0.registryID == registryID && $0.slot == slot }
+    }
+
+    /// True when no mouse holds two saved originals for the same setting.
+    var hasUniqueSlots: Bool {
+        let pairs = entries.map { "\($0.registryID):\($0.slot.rawValue)" }
+        return Set(pairs).count == pairs.count
     }
 }
 
@@ -108,6 +130,8 @@ enum MouseAccelerationSupport {
     static let pointerAccelerationKey = "HIDPointerAcceleration"
     static let mouseAccelerationKey = "HIDMouseAcceleration"
     static let trackpadAccelerationType = "HIDTrackpadAcceleration"
+    static let speedRange = 25...200
+    static let defaultSpeed = 100
 
     static func validatedRegistryID(_ value: UInt64?) -> UInt64? {
         guard let value, value != 0 else { return nil }
@@ -116,6 +140,20 @@ enum MouseAccelerationSupport {
 
     static func isRestorableKey(_ key: String) -> Bool {
         key == linearScalingKey || key == pointerAccelerationKey || key == mouseAccelerationKey
+    }
+
+    /// Clamps the stored percentage (0 or garbage falls back to unchanged).
+    static func sanitizedSpeed(_ value: Int) -> Int {
+        guard value != 0 else { return defaultSpeed }
+        return min(max(value, speedRange.lowerBound), speedRange.upperBound)
+    }
+
+    /// The mouse's tracking value scaled to `speed` percent of its own. This
+    /// is the per-device form of the Tracking speed slider in System Settings.
+    static func speedTarget(original: MouseAccelerationStoredValue,
+                            speed: Int) -> MouseAccelerationStoredValue {
+        MouseAccelerationStoredValue(rawValue: original.rawValue * Int64(sanitizedSpeed(speed)) / 100,
+                                     isBoolean: false)
     }
 
     static func targetValue(for key: String,

@@ -251,7 +251,7 @@ extension AppFeature {
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
         case .linearScroll: return [DefaultsKey.linearScrollEnabled]
         case .scrollSpeed: return [DefaultsKey.scrollSpeedEnabled]
-        case .mouseAcceleration: return [DefaultsKey.mouseAccelerationDisabled]
+        case .mouseAcceleration: return [DefaultsKey.mouseAccelerationDisabled, DefaultsKey.mousePointerSpeed]
         case .mouseNavigation: return [DefaultsKey.mouseNavigationEnabled]
         case .mouseButtonShortcuts: return [DefaultsKey.mouseButtonShortcutsEnabled,
                                             DefaultsKey.mouseSpacesGestureEnabled]

@@ -517,6 +517,48 @@ enum FeatureCatalogTests {
                 originalIsBoolean: false
             ) == MouseAccelerationStoredValue(rawValue: -1, isBoolean: false),
                "mouse acceleration uses linear mode when supported and the legacy fallback otherwise")
+
+        // Pointer speed (issue #403) keeps its own saved original beside acceleration's,
+        // even when both live on the same tracking property.
+        let tracking = MouseAccelerationStoredValue(rawValue: 96_527, isBoolean: false)
+        let mouseSpeedRecovery = MouseAccelerationRecoveryEntry(
+            registryID: 42,
+            identity: mouseIdentity,
+            key: MouseAccelerationSupport.mouseAccelerationKey,
+            original: tracking,
+            isSpeed: true
+        )
+        let sameKeyAcceleration = MouseAccelerationRecoveryEntry(
+            registryID: 42,
+            identity: mouseIdentity,
+            key: MouseAccelerationSupport.mouseAccelerationKey,
+            original: tracking
+        )
+        var bothSettings = MouseAccelerationRecoveryJournal(bootTime: 7, entries: [])
+        bothSettings.upsert(sameKeyAcceleration)
+        bothSettings.upsert(mouseSpeedRecovery)
+        suite.expect(bothSettings.entries.count == 2
+                && bothSettings.entry(registryID: 42, identity: mouseIdentity) == sameKeyAcceleration
+                && bothSettings.entry(registryID: 42, identity: mouseIdentity, slot: .speed) == mouseSpeedRecovery
+                && bothSettings.hasUniqueSlots,
+               "one mouse keeps a saved acceleration and a saved speed side by side, even on one property")
+        bothSettings.remove(registryID: 42, slot: .speed)
+        suite.expect(bothSettings.entries == [sameKeyAcceleration],
+               "turning speed back leaves the saved acceleration in place")
+        let doubled = MouseAccelerationRecoveryJournal(bootTime: 7, entries: [mouseSpeedRecovery, mouseSpeedRecovery])
+        suite.expect(!doubled.hasUniqueSlots,
+               "a journal holding two originals for one setting on one mouse is not trusted")
+        let olderJournal = Data(#"{"registryID":42,"identity":{"vendorID":1133,"productID":45087},"key":"HIDMouseAcceleration","original":{"rawValue":96527,"isBoolean":false}}"#.utf8)
+        suite.expect((try? JSONDecoder().decode(MouseAccelerationRecoveryEntry.self, from: olderJournal))?.slot == .acceleration,
+               "a journal entry written before pointer speed existed still reads as acceleration")
+        suite.expect(MouseAccelerationSupport.speedTarget(original: tracking, speed: 50).rawValue == 48_263
+                && MouseAccelerationSupport.speedTarget(original: tracking, speed: 200).rawValue == 193_054
+                && MouseAccelerationSupport.speedTarget(original: tracking, speed: 100) == tracking,
+               "speed scales the mouse's own tracking value, and 100% writes it back unchanged")
+        suite.expect(MouseAccelerationSupport.sanitizedSpeed(0) == MouseAccelerationSupport.defaultSpeed
+                && MouseAccelerationSupport.sanitizedSpeed(5) == MouseAccelerationSupport.speedRange.lowerBound
+                && MouseAccelerationSupport.sanitizedSpeed(1000) == MouseAccelerationSupport.speedRange.upperBound,
+               "a stored speed of zero leaves the mouse alone and out-of-range values are clamped")
         suite.expect(AppFeature.switcher.availabilityKey == "featureAvailable.switcher",
                "availability key derives from the raw value")
 

@@ -34,7 +34,7 @@ enum MouseAccelerationRecovery {
                                         servicesByID: servicesByID,
                                         reservedRegistryIDs: reservedRegistryIDs) else { continue }
             if setAndVerify(entry.original, key: entry.key, on: service) {
-                journal.remove(registryID: entry.registryID)
+                journal.remove(registryID: entry.registryID, slot: entry.slot)
             }
         }
         return writeJournal(journal) && journal.entries.isEmpty
@@ -54,9 +54,10 @@ enum MouseAccelerationRecovery {
     }
 
     static func remove(registryID: UInt64,
+                       slot: MouseAccelerationSlot,
                        from journal: inout MouseAccelerationRecoveryJournal) -> Bool {
         var updated = journal
-        updated.remove(registryID: registryID)
+        updated.remove(registryID: registryID, slot: slot)
         guard writeJournal(updated) else { return false }
         journal = updated
         return true
@@ -118,6 +119,25 @@ enum MouseAccelerationRecovery {
                                               original: value)
     }
 
+    /// Saves the mouse's tracking value: the same per-device property the
+    /// Tracking speed slider writes. A mouse whose acceleration is already off
+    /// (a negative value) has no pace to scale and is left alone.
+    static func captureSpeedEntry(for service: IOHIDServiceClient,
+                                  registryID: UInt64,
+                                  identity: MouseAccelerationDeviceIdentity) -> MouseAccelerationRecoveryEntry? {
+        let key = accelerationKey(for: service)
+        guard let original = storedValue(for: key, on: service),
+              !original.isBoolean, original.rawValue > 0 else { return nil }
+        return MouseAccelerationRecoveryEntry(registryID: registryID, identity: identity,
+                                              key: key, original: original, isSpeed: true)
+    }
+
+    /// Mice without macOS's linear mode turn acceleration off through the same
+    /// tracking value that speed scales, so on those the two cannot both apply.
+    static func supportsLinearMode(_ service: IOHIDServiceClient) -> Bool {
+        storedValue(for: MouseAccelerationSupport.linearScalingKey, on: service) != nil
+    }
+
     static func applyTarget(for entry: MouseAccelerationRecoveryEntry,
                             to service: IOHIDServiceClient) -> Bool {
         setAndVerify(MouseAccelerationSupport.targetValue(
@@ -126,6 +146,12 @@ enum MouseAccelerationRecovery {
                      ),
                      key: entry.key,
                      on: service)
+    }
+
+    static func apply(_ value: MouseAccelerationStoredValue,
+                      for entry: MouseAccelerationRecoveryEntry,
+                      to service: IOHIDServiceClient) -> Bool {
+        setAndVerify(value, key: entry.key, on: service)
     }
 
     static func restore(_ entry: MouseAccelerationRecoveryEntry,
@@ -149,8 +175,7 @@ enum MouseAccelerationRecovery {
             try? FileManager.default.removeItem(at: url)
             return MouseAccelerationRecoveryJournal(bootTime: bootTime, entries: [])
         }
-        let registryIDs = journal.entries.map(\.registryID)
-        guard Set(registryIDs).count == registryIDs.count,
+        guard journal.hasUniqueSlots,
               journal.entries.allSatisfy({
                   MouseAccelerationSupport.validatedRegistryID($0.registryID) != nil
                       && MouseAccelerationSupport.isRestorableKey($0.key)
