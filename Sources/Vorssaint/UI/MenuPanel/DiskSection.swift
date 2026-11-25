@@ -449,16 +449,33 @@ struct DiskSection: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
-                Button {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.Storage-Settings.extension") {
-                        NSWorkspace.shared.open(url)
+                HStack(spacing: 8) {
+                    Button {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.Storage-Settings.extension") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    } label: {
+                        Label(l10n.s.diskStorageSettings, systemImage: "gearshape")
+                            .font(.system(size: 10.5, weight: .medium))
                     }
-                } label: {
-                    Label(l10n.s.diskStorageSettings, systemImage: "gearshape")
-                        .font(.system(size: 10.5, weight: .medium))
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    if AppFeature.diskAnalyzer.isAvailable {
+                        Button {
+                            let path = disk.mountPath
+                            appDelegate()?.closePopover()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                DiskAnalyzerWindowController.shared.show(scanning: path)
+                            }
+                        } label: {
+                            Label(FeatureStrings.diskAnalyzer(l10n.language).analyze,
+                                  systemImage: AppFeature.diskAnalyzer.symbolName)
+                                .font(.system(size: 10.5, weight: .medium))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
             }
         }
     }
