@@ -22,6 +22,11 @@ MUTATIONS = [
      "        if !allowCallAppVolume, needsScreenSharingProtection(bundleIdentifier: bundleIdentifier) {\n"
      "            return true\n        }\n", "",
      "com.hnc.Discord cannot be tapped by saved gain or routing while protected"),
+    ("a playing app loses its tap at 100%", "mixer",
+     "Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift",
+     "        isUnity(volume) && isPlaying && engineMatchesRoute\n",
+     "        false\n",
+     "a playing app keeps its tap when the slider passes through 100%, so the sound does not drop"),
     ("call audio protection accepts an old engine build", "mixer",
      "Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift",
      "        builds.invalidate(app.id)\n", "",

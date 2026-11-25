@@ -365,6 +365,14 @@ enum MixerFeatureTests {
         suite.expect([pid_t(-1), 0].allSatisfy {
             resolvedOwningApp(responsible: $0, pid: $0, regularApps: [-1, 0]) == nil
         }, "a non-positive pid is never a row key")
+        suite.expect(MixerRoutingSupport.keepsTapAtUnity(volume: 1, isPlaying: true, engineMatchesRoute: true),
+                     "a playing app keeps its tap when the slider passes through 100%, so the sound does not drop")
+        suite.expect(!MixerRoutingSupport.keepsTapAtUnity(volume: 1, isPlaying: false, engineMatchesRoute: true),
+                     "a quiet app at 100% gives its tap back, where the switch cannot be heard")
+        suite.expect(!MixerRoutingSupport.keepsTapAtUnity(volume: 1, isPlaying: true, engineMatchesRoute: false),
+                     "a tap on another output or other objects is not kept at 100%")
+        suite.expect(!MixerRoutingSupport.keepsTapAtUnity(volume: 0.99, isPlaying: true, engineMatchesRoute: true),
+                     "below 100% the tap is needed anyway, not merely kept")
         suite.expect(!MixerRoutingSupport.requiresEngine(volume: 1,
                                                    selectedOutputDeviceUID: nil,
                                                    targetOutputDeviceUID: "BuiltInSpeakerDevice",
@@ -818,6 +826,9 @@ enum MixerFeatureTests {
         } ?? ""
         suite.expect(teardownQueueSetup.contains("maxConcurrentOperationCount"),
                "engine teardown runs on a queue with a concurrency bound, not one thread and not one per engine")
+        suite.expect(mixerCode.contains("if let engine = engines[app.id], keepsTapAtUnity(app, engine: engine) {")
+                     && mixerCode.contains("guard appNeedsEngine(app) || (keepsAtUnity && !clockIsGone) else {"),
+                     "both routing and reconcile keep a playing app's tap at 100%")
         suite.expect(mixerCode.contains("let gain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)")
                      && mixerCode.contains("let currentGain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)")
                      && mixerCode.components(separatedBy: "let ramp = TapLevelRamp()").count == 3,

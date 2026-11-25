@@ -1398,6 +1398,12 @@ final class AppVolumeMixer: ObservableObject {
         }
         guard let targetOutputDeviceUID = app.effectiveOutputDeviceUID,
               appNeedsEngine(app) else {
+            if let engine = engines[app.id], keepsTapAtUnity(app, engine: engine) {
+                // Exactly what the app plays without a tap, so leaving the
+                // tap later changes nothing either.
+                engine.gain = 1
+                return
+            }
             // No volume or routing adjustment remains.
             discardEngine(for: app.id)
             clearPermissionIfNoActiveAdjustments()
@@ -1604,6 +1610,19 @@ final class AppVolumeMixer: ObservableObject {
             savedRouteUID: storedRoute(for: app.identity, saved: savedOutputDeviceUIDs()),
             defaultOutputDeviceUID: app.effectiveOutputDeviceUID,
             universalOutputRouteUID: app.universalOutputRouteUID)
+    }
+
+    /// A playing app's tap survives its slider passing through 100%; see
+    /// `MixerRoutingSupport.keepsTapAtUnity`.
+    private func keepsTapAtUnity(_ app: MixerApp, engine: any GainEngine) -> Bool {
+        guard !app.isBypassed, !app.audioObjects.isEmpty,
+              let target = app.effectiveOutputDeviceUID else { return false }
+        return MixerRoutingSupport.keepsTapAtUnity(
+            volume: app.volume,
+            isPlaying: app.isPlaying,
+            engineMatchesRoute: engine.tappedObjects == app.audioObjects
+                && engine.outputDeviceUID == target
+                && !engine.requiresRebuild)
     }
 
     private func appNeedsEngine(_ app: MixerApp) -> Bool {
@@ -2276,13 +2295,14 @@ final class AppVolumeMixer: ObservableObject {
             // and objects, so that clock is checked on its own. Only that:
             // an engine on a default the list hides is otherwise left alone.
             let clockIsGone = engine.clockDeviceUID.map { !listedUIDs.contains($0) } == true
+            let keepsAtUnity = keepsTapAtUnity(app, engine: engine)
             guard engine.tappedObjects != app.audioObjects
                 || engine.outputDeviceUID != app.effectiveOutputDeviceUID
-                || !appNeedsEngine(app)
+                || !(appNeedsEngine(app) || keepsAtUnity)
                 || clockIsGone else { continue }
 
             engineChangeAt[id] = now
-            guard appNeedsEngine(app) else {
+            guard appNeedsEngine(app) || (keepsAtUnity && !clockIsGone) else {
                 // No remaining volume or output adjustment needs a tap.
                 discardEngine(for: id)
                 continue

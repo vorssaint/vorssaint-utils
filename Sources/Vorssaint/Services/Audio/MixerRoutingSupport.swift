@@ -550,6 +550,19 @@ enum MixerRoutingSupport {
             && targetOutputDeviceUID == defaultOutputDeviceUID
     }
 
+    /// Whether a tap already playing an app stays up when its slider lands on
+    /// 100% and nothing else needs it.
+    ///
+    /// The tapped copy runs about 28 ms behind the app's own output, and the
+    /// system switches between the two without a ramp, so dropping the tap
+    /// while the app plays cuts the sound for a moment every time a slider
+    /// passes through 100% (issue #3536). At unity the tap plays the app
+    /// untouched, so keeping it changes nothing audible; once the app goes
+    /// quiet the next pass removes it, where the switch cannot be heard.
+    static func keepsTapAtUnity(volume: Double, isPlaying: Bool, engineMatchesRoute: Bool) -> Bool {
+        isUnity(volume) && isPlaying && engineMatchesRoute
+    }
+
     /// The last gate before a tap is built: a row is tapped only when the user
     /// adjusted its volume, chose its output, or asked to move all audio to an
     /// output that this process did not follow. Merely listing an app never
