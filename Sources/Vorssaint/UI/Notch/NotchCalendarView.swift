@@ -334,12 +334,13 @@ struct NotchCalendarView: View {
         .padding(.horizontal, 12)
     }
 
-    /// Calendar itself gets the link: another app claiming the `ical` scheme
-    /// would not know EventKit's identifiers.
+    /// The chosen app itself gets the link: another app claiming the `ical`
+    /// scheme would not know EventKit's identifiers.
     private func openCalendar(showing event: NotchCalendarEvent? = nil) {
-        guard let application = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") else { return }
+        let app = NotchCalendarSupport.app { InstalledApps.url(for: $0) != nil }
+        guard let application = InstalledApps.url(for: app) else { return }
         let configuration = NSWorkspace.OpenConfiguration()
-        if let url = event.flatMap({ NotchCalendarSupport.eventURL($0) }) {
+        if let url = event.flatMap({ NotchCalendarSupport.eventURL($0, app: app) }) {
             NSWorkspace.shared.open([url], withApplicationAt: application, configuration: configuration)
         } else {
             NSWorkspace.shared.openApplication(at: application, configuration: configuration)
