@@ -373,6 +373,13 @@ enum SettingsFeatureTests {
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: marginBackup)?[
             DefaultsKey.windowLayoutMarginPercent] as? Double == 12,
             "custom maximize margin survives a settings backup round trip")
+        let resizeStepBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+            key == DefaultsKey.windowLayoutResizeStepPercent ? 8.0 : nil
+        }
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: resizeStepBackup)?[
+            DefaultsKey.windowLayoutResizeStepPercent] as? Double == 8
+                && backupKeys.contains(DefaultsKey.windowLayoutResizeStepPercent),
+            "the custom window resize step survives a settings backup round trip")
         suite.expect(backupKeys.contains(DefaultsKey.switcherEnabled)
                 && backupKeys.contains(DefaultsKey.menuBarCPU)
                 && backupKeys.contains(DefaultsKey.language)
