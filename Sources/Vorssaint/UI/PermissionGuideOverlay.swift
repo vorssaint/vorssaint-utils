@@ -31,7 +31,7 @@ final class PermissionGuideOverlay {
 
     private init() {}
 
-    func show(for kind: PermissionKind) {
+    func show(for kind: PermissionKind, reason: String? = nil) {
         guard !Self.suppressed else { return }
         Permissions.shared.setActivePermissionSurface(pollingDemandID, visible: false)
         dismissWork?.cancel()
@@ -49,7 +49,7 @@ final class PermissionGuideOverlay {
             : L10n.shared.s.permissionScreenRecording
         let model = PermissionGuideModel()
         let view = PermissionGuideCard(guide: guide, permissionName: permissionName,
-                                       kind: kind, model: model,
+                                       reason: reason, kind: kind, model: model,
                                        onStartOver: { Permissions.shared.startOver(kind) },
                                        onRelaunch: { appDelegate()?.relaunchApp() }) { [weak self] in
             self?.dismiss()
@@ -136,6 +136,7 @@ private final class PermissionGuideModel: ObservableObject {
 private struct PermissionGuideCard: View {
     let guide: PermissionGuideStrings
     let permissionName: String
+    let reason: String?
     let kind: PermissionKind
     @ObservedObject var model: PermissionGuideModel
     let onStartOver: () -> Void
@@ -162,6 +163,13 @@ private struct PermissionGuideCard: View {
                 }
                 .buttonStyle(.plain)
                 .help(guide.closeHelp)
+            }
+
+            if let reason {
+                Text(reason)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             VStack(alignment: .leading, spacing: 6) {
