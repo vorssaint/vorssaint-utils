@@ -98,7 +98,10 @@ enum NotchKeyMonitorTests {
         func openSettings() { NotchKeyMonitorTests.actions.append("settings") }
         func stepBack() { NotchKeyMonitorTests.actions.append("stepBack") }
         func toggleSections() { NotchKeyMonitorTests.actions.append("sections") }
-        func select(_ module: NotchModule) { selected = module }
+        func select(_ module: NotchModule, stepping: Bool = false) {
+            selected = module
+            NotchKeyMonitorTests.actions.append(stepping ? "step" : "pick")
+        }
         func handleSectionKey(_ event: NSEvent) -> Bool { false }
         func handleScratchpadKey(_ event: NSEvent) -> Bool { false }
         func handleClipboardPasteKey(_ event: NSEvent) -> Bool { false }
@@ -188,6 +191,16 @@ enum NotchKeyMonitorTests {
                                    charactersIgnoringModifiers: ",")
         suite.expect(NSEvent.handler?(commandComma) == nil && actions == ["settings"],
                      "Command-Comma opens the island's settings from inside it")
+        actions = []
+        service.selected = .controls
+        let commandOptionP = NSEvent(window: service.panel, keyCode: 35, modifierFlags: [.command, .option],
+                                     charactersIgnoringModifiers: "p")
+        suite.expect(NSEvent.handler?(commandOptionP) == nil && service.selected == .scratchpad && actions == ["pick"],
+                     "a section's own key picks it, so Always can open its window")
+        actions = []
+        let controlTab = NSEvent(window: service.panel, keyCode: 48, modifierFlags: .control)
+        suite.expect(NSEvent.handler?(controlTab) == nil && actions == ["step"],
+                     "Control-Tab only steps through the island and never opens a window")
         // Keep open, Settings and Collapse have no button in the row; besides
         // the secondary-click menu, VoiceOver reaches them as named actions.
         let islandSource = ((try? String(contentsOfFile: "Sources/Vorssaint/UI/Notch/NotchView.swift",

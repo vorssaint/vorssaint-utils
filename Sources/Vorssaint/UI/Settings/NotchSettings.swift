@@ -101,6 +101,10 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchHidesMenuBarIcon) private var hidesMenuBarIcon = false
     @AppStorage(DefaultsKey.notchKeepAwakeActivity) private var keepAwakeActivity = false
     @AppStorage(DefaultsKey.notchScratchpad) private var scratchpad = true
+    @AppStorage(DefaultsKey.notchQuickPanelAlways) private var quickPanelAlways = false
+    @AppStorage(DefaultsKey.notchClipboardWindowAlways) private var clipboardWindowAlways = false
+    @AppStorage(DefaultsKey.notchShelfAlways) private var shelfAlways = false
+    @AppStorage(DefaultsKey.notchScratchpadAlways) private var scratchpadAlways = false
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessControlEnabled = false
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardHistoryEnabled = false
     @AppStorage(DefaultsKey.notchHoverExpands) private var hoverExpand = true
@@ -504,14 +508,16 @@ struct NotchSettings: View {
                 Button(l10n.s.permissionOpenSettings, action: permissions.openCameraSettings)
             }
         case .files:
-            destination(text.files, symbol: "tray.full", value: $shelfWindow, available: AppFeature.shelf.isAvailable)
+            destination(text.files, symbol: "tray.full", value: $shelfWindow, always: $shelfAlways,
+                        available: AppFeature.shelf.isAvailable)
             if shelfWindow { switchRow("hand.draw", text.dragReveal, isOn: $dragReveal) }
             if AppFeature.mediaTools.isAvailable {
                 Text(FeatureStrings.notchFiles(l10n.language).optimizeDropHint)
                     .font(.caption).foregroundStyle(.secondary)
             }
         case .clipboard:
-            destination(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboardWindow, available: AppFeature.clipboardHistory.isAvailable)
+            destination(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboardWindow,
+                        always: $clipboardWindowAlways, available: AppFeature.clipboardHistory.isAvailable)
             switchRow("doc.on.clipboard", text.clipboardActivity, caption: text.privacy, isOn: $clipboard)
             if clipboardWindow, AppFeature.clipboardHistory.isAvailable {
                 let size = FeatureStrings.notchClipboardSize(l10n.language)
@@ -537,7 +543,8 @@ struct NotchSettings: View {
                     .padding(.leading, settingsRowTextInset)
             }
         case .scratchpad:
-            destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad)
+            destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad,
+                        always: $scratchpadAlways)
         case .agents:
             NotchAgentsSettingsControls()
         case .watch:
@@ -731,11 +738,15 @@ struct NotchSettings: View {
                 Text(editor.appPanelHint).font(.caption).foregroundStyle(.secondary)
                 switchRow("menubar.rectangle", editor.hideMenuBarIcon, caption: editor.hideMenuBarIconHint,
                           isOn: $hidesMenuBarIcon)
-                destination(text.tools, symbol: NotchModule.tools.symbol, value: $quickPanel, available: AppFeature.quickLauncher.isAvailable)
-                destination(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboardWindow, available: AppFeature.clipboardHistory.isAvailable)
-                destination(text.files, symbol: "tray.full", value: $shelfWindow, available: AppFeature.shelf.isAvailable)
+                destination(text.tools, symbol: NotchModule.tools.symbol, value: $quickPanel,
+                            always: $quickPanelAlways, available: AppFeature.quickLauncher.isAvailable)
+                destination(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboardWindow,
+                            always: $clipboardWindowAlways, available: AppFeature.clipboardHistory.isAvailable)
+                destination(text.files, symbol: "tray.full", value: $shelfWindow, always: $shelfAlways,
+                            available: AppFeature.shelf.isAvailable)
                 destination(text.captures, symbol: "camera.viewfinder", value: $captureControls)
-                destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad, available: AppFeature.scratchpad.isAvailable)
+                destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad,
+                            always: $scratchpadAlways, available: AppFeature.scratchpad.isAvailable)
             }
             SettingsCard(title: editor.privacy) {
                 switchRow("camera.viewfinder", text.showInCaptures, isOn: $showInCaptures)
@@ -991,10 +1002,32 @@ struct NotchSettings: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func destination(_ title: String, symbol: String, value: Binding<Bool>, available: Bool = true) -> some View {
-        SettingsChoiceRow(symbol: symbol, title: title, selection: value) {
+    /// The row's choice and, once it says Separate window, Always: the item
+    /// then opens in its own window when it is picked in the island too.
+    /// Always sits beside the choice while the row has room, under it otherwise.
+    private func destination(_ title: String, symbol: String, value: Binding<Bool>,
+                             always: Binding<Bool>? = nil, available: Bool = true) -> some View {
+        let alwaysToggle = always.flatMap { binding in
+            value.wrappedValue ? nil : Toggle(editor.always, isOn: binding).toggleStyle(.checkbox)
+        }
+        let picker = Picker(title, selection: value) {
             Text(text.title).tag(true)
             Text(editor.separate).tag(false)
+        }.labelsHidden().pickerStyle(.segmented).fixedSize()
+        return ViewThatFits(in: .horizontal) {
+            SettingsRow(symbol: symbol, title: title) {
+                HStack(spacing: 12) {
+                    alwaysToggle
+                    picker
+                }
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                SettingsChoiceRow(symbol: symbol, title: title, selection: value) {
+                    Text(text.title).tag(true)
+                    Text(editor.separate).tag(false)
+                }
+                alwaysToggle.padding(.leading, settingsRowTextInset)
+            }
         }.disabled(!available)
     }
 

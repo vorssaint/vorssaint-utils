@@ -1939,9 +1939,18 @@ final class NotchService: ObservableObject {
         }
     }
 
-    func select(_ module: NotchModule) {
+    /// Stepping through the sections only browses the island. A section picked
+    /// on purpose opens its feature's own window when Always asks for it.
+    func select(_ module: NotchModule, stepping: Bool = false) {
         guard modules.contains(module) else { return }
-        open(module)
+        guard !stepping, NotchSupport.opensSeparately(module) else { open(module); return }
+        switch module {
+        case .tools: perform { QuickLauncherService.shared.show() }
+        case .clipboard: perform { ClipboardHistoryService.shared.showHistoryWindow(preferNotch: false) }
+        case .files: perform { ShelfService.shared.summon() }
+        case .scratchpad: perform { ScratchpadService.shared.show(allowsIsland: false) }
+        default: open(module)
+        }
     }
 
     /// The pad lives in the island when its page is on; otherwise the
@@ -3989,7 +3998,7 @@ final class NotchService: ObservableObject {
                 if event.keyCode == 48, modifiers == .control || modifiers == [.control, .shift],
                    let module = NotchSupport.adjacentModule(to: self.selected, modules: self.modules,
                                                            backwards: modifiers.contains(.shift)) {
-                    self.select(module)
+                    self.select(module, stepping: true)
                     return nil
                 }
                 if event.keyCode == 53, self.showingSections {

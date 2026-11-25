@@ -2095,6 +2095,25 @@ enum NotchSupport {
             && modules(in: defaults).contains(.scratchpad)
     }
 
+    /// The Where things open row for a section's feature, and the Always
+    /// option beside it. Sections whose feature has no window of its own have none.
+    static func separateWindowKeys(for module: NotchModule) -> (island: String, always: String)? {
+        switch module {
+        case .tools: return (DefaultsKey.notchQuickPanel, DefaultsKey.notchQuickPanelAlways)
+        case .clipboard: return (DefaultsKey.notchClipboardWindow, DefaultsKey.notchClipboardWindowAlways)
+        case .files: return (DefaultsKey.notchShelf, DefaultsKey.notchShelfAlways)
+        case .scratchpad: return (DefaultsKey.notchScratchpad, DefaultsKey.notchScratchpadAlways)
+        default: return nil
+        }
+    }
+
+    /// Whether picking the section in the island opens its feature's own
+    /// window instead: its row says Separate window and Always is on.
+    static func opensSeparately(_ module: NotchModule, in defaults: UserDefaults = .standard) -> Bool {
+        guard let keys = separateWindowKeys(for: module) else { return false }
+        return defaults.bool(forKey: keys.always) && !(defaults.object(forKey: keys.island) as? Bool ?? true)
+    }
+
     /// A notice the pointer holds open is being read. Only the same kind of
     /// message or something the user just did may take its place.
     static func shouldReplace(_ current: NotchEvent?, with incoming: NotchEvent, held: Bool = false) -> Bool {

@@ -895,6 +895,12 @@ enum DefaultsKey {
     static let notchHidesMenuBarIcon = "notchHidesMenuBarIcon" // the island takes the glyph's place while it is on
     static let notchKeepAwakeActivity = "notchKeepAwakeActivity" // a running Keep Awake session in the closed island
     static let notchScratchpad = "notchScratchpad"
+    // Each opens its feature's own window from the island too, when the row
+    // above it says Separate window. Off keeps the island's own page.
+    static let notchQuickPanelAlways = "notchQuickPanelAlways"
+    static let notchClipboardWindowAlways = "notchClipboardWindowAlways"
+    static let notchShelfAlways = "notchShelfAlways"
+    static let notchScratchpadAlways = "notchScratchpadAlways"
     static let notchHoverExpands = "notchHoverExpands"
     static let notchGesturesEnabled = "notchGesturesEnabled"
     static let notchKeyboardLight = "notchKeyboardLight"
@@ -1521,6 +1527,10 @@ enum Defaults {
         DefaultsKey.notchHidesMenuBarIcon: false,
         DefaultsKey.notchKeepAwakeActivity: false,
         DefaultsKey.notchScratchpad: true,
+        DefaultsKey.notchQuickPanelAlways: false,
+        DefaultsKey.notchClipboardWindowAlways: false,
+        DefaultsKey.notchShelfAlways: false,
+        DefaultsKey.notchScratchpadAlways: false,
         DefaultsKey.notchHoverExpands: true,
         DefaultsKey.notchGesturesEnabled: true,
         DefaultsKey.notchKeyboardLight: true,
