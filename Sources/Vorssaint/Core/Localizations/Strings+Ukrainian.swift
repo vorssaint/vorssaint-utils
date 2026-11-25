@@ -1093,6 +1093,8 @@ extension Strings {
         linearScrollName: "Лінійна прокрутка",
         linearScrollCaption: "Кожен клац колеса миші прокручує однакову відстань, хоч як швидко воно обертається. Трекпед не змінюється.",
         linearScrollLinesLabel: "Рядків на клац",
+        linearScrollHorizontalSeparate: "Окрема швидкість по горизонталі",
+        linearScrollHorizontalLinesLabel: "Рядків на клац по горизонталі",
         scrollSpeedName: "Швидше прокручувати із затиснутою клавішею",
         scrollSpeedCaption: "Утримуйте лише вибраний модифікатор під час прокручування коліщатком миші, щоб збільшити відстань. Трекпад не змінюється.",
         scrollSpeedMultiplierLabel: "Швидкість",

@@ -1124,6 +1124,8 @@ extension Strings {
         linearScrollName: "선형 스크롤",
         linearScrollCaption: "마우스 휠을 얼마나 빨리 돌리든 한 칸마다 항상 같은 거리만큼 스크롤합니다. 트랙패드는 변경되지 않습니다.",
         linearScrollLinesLabel: "한 칸당 줄 수",
+        linearScrollHorizontalSeparate: "가로 속도 따로 설정",
+        linearScrollHorizontalLinesLabel: "가로 한 칸당 줄 수",
         scrollSpeedName: "키를 누른 채 더 빠르게 스크롤",
         scrollSpeedCaption: "선택한 수정 키만 누른 채 마우스 휠을 돌리면 스크롤 거리가 배가됩니다. 트랙패드는 영향을 받지 않습니다.",
         scrollSpeedMultiplierLabel: "속도",

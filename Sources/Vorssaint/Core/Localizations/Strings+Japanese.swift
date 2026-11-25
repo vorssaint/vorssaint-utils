@@ -1123,6 +1123,8 @@ extension Strings {
         linearScrollName: "リニアスクロール",
         linearScrollCaption: "マウスホイールの1目盛りで、回す速さに関係なく常に同じ距離をスクロールします。トラックパッドは変わりません。",
         linearScrollLinesLabel: "1目盛りあたりの行数",
+        linearScrollHorizontalSeparate: "横スクロールの速度を個別に設定",
+        linearScrollHorizontalLinesLabel: "横方向の1目盛りあたりの行数",
         scrollSpeedName: "キーを押しながらスクロールを速くする",
         scrollSpeedCaption: "選んだ修飾キーだけを押しながらマウスホイールを回すと、スクロール距離が倍になります。トラックパッドは変わりません。",
         scrollSpeedMultiplierLabel: "速度",

@@ -69,6 +69,8 @@ enum DefaultsKey {
     static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
     static let linearScrollEnabled = "linearScrollEnabled" // every mouse wheel notch scrolls the same lines (issue #403)
     static let linearScrollLines = "linearScrollLines"     // lines per wheel notch while linear scrolling is on
+    static let linearScrollHorizontalSeparate = "linearScrollHorizontalSeparate" // a sideways wheel gets its own lines per notch (issue #403)
+    static let linearScrollHorizontalLines = "linearScrollHorizontalLines" // lines per sideways notch while that is on
     static let scrollSpeedEnabled = "scrollSpeedEnabled"   // hold a modifier to multiply mouse wheel distance (issue #521)
     static let scrollSpeedModifier = "scrollSpeedModifier"
     static let scrollSpeedMultiplier = "scrollSpeedMultiplier"
@@ -1299,6 +1301,8 @@ enum Defaults {
         DefaultsKey.smoothScrollStep: 40,
         DefaultsKey.linearScrollEnabled: false,
         DefaultsKey.linearScrollLines: ScrollWheelSupport.defaultLinesPerNotch,
+        DefaultsKey.linearScrollHorizontalSeparate: false,
+        DefaultsKey.linearScrollHorizontalLines: ScrollWheelSupport.defaultLinesPerNotch,
         DefaultsKey.scrollSpeedEnabled: false,
         DefaultsKey.scrollSpeedModifier: ScrollHorizontalModifier.option.rawValue,
         DefaultsKey.scrollSpeedMultiplier: ScrollWheelSupport.defaultSpeedMultiplier,

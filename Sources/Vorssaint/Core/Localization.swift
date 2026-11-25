@@ -1329,6 +1329,8 @@ struct Strings {
     let linearScrollName: String
     let linearScrollCaption: String
     let linearScrollLinesLabel: String
+    let linearScrollHorizontalSeparate: String
+    let linearScrollHorizontalLinesLabel: String
     let scrollSpeedName: String
     let scrollSpeedCaption: String
     let scrollSpeedMultiplierLabel: String
@@ -2464,6 +2466,8 @@ extension Strings {
         linearScrollName: "Rolagem linear",
         linearScrollCaption: "Cada passo da rodinha do mouse rola a mesma distância, não importa a velocidade do giro. O trackpad não muda.",
         linearScrollLinesLabel: "Linhas por passo",
+        linearScrollHorizontalSeparate: "Velocidade horizontal separada",
+        linearScrollHorizontalLinesLabel: "Linhas horizontais por passo",
         scrollSpeedName: "Rolar mais rápido segurando uma tecla",
         scrollSpeedCaption: "Mantenha apenas a tecla escolhida pressionada ao rolar a roda do mouse para multiplicar a distância. O trackpad não muda.",
         scrollSpeedMultiplierLabel: "Velocidade",
@@ -3600,6 +3604,8 @@ extension Strings {
         linearScrollName: "Linear scrolling",
         linearScrollCaption: "Every notch of the mouse wheel scrolls the same distance, no matter how fast it spins. The trackpad is not affected.",
         linearScrollLinesLabel: "Lines per step",
+        linearScrollHorizontalSeparate: "Separate horizontal speed",
+        linearScrollHorizontalLinesLabel: "Horizontal lines per step",
         scrollSpeedName: "Scroll faster while holding a key",
         scrollSpeedCaption: "Hold only the selected modifier while scrolling the mouse wheel to multiply scroll distance. The trackpad is not affected.",
         scrollSpeedMultiplierLabel: "Speed",

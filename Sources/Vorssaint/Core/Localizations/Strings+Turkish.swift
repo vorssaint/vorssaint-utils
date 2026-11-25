@@ -1123,6 +1123,8 @@ extension Strings {
         linearScrollName: "Doğrusal kaydırma",
         linearScrollCaption: "Fare tekerleğinin her adımı, ne kadar hızlı çevrilirse çevrilsin aynı mesafeyi kaydırır. İzleme dörtgeni değişmez.",
         linearScrollLinesLabel: "Adım başına satır",
+        linearScrollHorizontalSeparate: "Ayrı yatay hız",
+        linearScrollHorizontalLinesLabel: "Yatay adım başına satır",
         scrollSpeedName: "Bir tuşa basılı tutarak daha hızlı kaydır",
         scrollSpeedCaption: "Fare tekerleğini çevirirken yalnızca seçilen değiştiriciyi basılı tutarak kaydırma mesafesini katlayın. İzleme dörtgeni etkilenmez.",
         scrollSpeedMultiplierLabel: "Hız",

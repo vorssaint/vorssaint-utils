@@ -328,7 +328,9 @@ final class ScrollInverter: ObservableObject {
                 linesPerNotch: linesPerNotch, speedMultiplier: speedMultiplier, carry: linearCarryVertical)
             let linearHorizontal = ScrollWheelSupport.linearDelta(
                 rawHorizontal, isContinuous: traits.isContinuous,
-                linesPerNotch: linesPerNotch, speedMultiplier: speedMultiplier, carry: linearCarryHorizontal)
+                linesPerNotch: ScrollWheelSupport.linearHorizontalLinesPerNotch(
+                    defaults: defaults, vertical: linesPerNotch),
+                speedMultiplier: speedMultiplier, carry: linearCarryHorizontal)
             linearCarryVertical = linearVertical.carry
             linearCarryHorizontal = linearHorizontal.carry
             // A fraction of a notch is carried into the next event rather
