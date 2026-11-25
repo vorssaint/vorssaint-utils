@@ -147,6 +147,9 @@ enum DefaultsKey {
     static let dockClickCycleWindows = "dockClickCycleWindows" // click the active app's Dock icon to cycle through its windows
     static let spacesOrderEnabled = "spacesOrderEnabled" // keeps macOS from rearranging Spaces by recent use (Dock mru-spaces)
     static let spacesOrderRestore = "spacesOrderRestore" // local recovery; never backed up: "absent" or "on", the mru-spaces state to put back, or "off" when there was nothing to put back
+    static let dockDisplayLockEnabled = "dockDisplayLockEnabled" // pointer presses on other displays' Dock edges are held back (issues #806, #876)
+    static let dockDisplayLockTarget = "dockDisplayLockTarget" // DockDisplayLockTarget storage: "main", "builtIn" or a display UUID
+    static let dockDisplayLockReturns = "dockDisplayLockReturns" // call the Dock back to its display after sleep, unlock or a display change
     static let spacesOrderRestartPending = "spacesOrderRestartPending" // local recovery; never backed up: "<Dock pid> <fixed|rearranging> <absent|on|off>…", the Dock process that owes the restart reading a written mru-spaces, what it runs and the values written under it
     static let middleClickEnabled = "middleClickEnabled"  // three-finger PHYSICAL click on the trackpad acts as a middle click
     static let middleClickTapFingers = "middleClickTapFingers"  // 0 = off (default); 3 or 4 = a light tap with that many fingers also middle-clicks (issue #161)
@@ -386,6 +389,7 @@ enum DefaultsKey {
     static let panelControlSmoothScroll = "panelControlSmoothScroll"
     static let panelControlMouseClickDebounce = "panelControlMouseClickDebounce"
     static let panelControlSpacesOrder = "panelControlSpacesOrder"
+    static let panelControlDockDisplayLock = "panelControlDockDisplayLock"
     // Quick-control categories start collapsed and remember being opened.
     static let panelControlWindowsExpanded = "panelControlWindowsExpanded"
     static let panelControlInputExpanded = "panelControlInputExpanded"
@@ -1362,6 +1366,9 @@ enum Defaults {
         DefaultsKey.dockClickHide: false,
         DefaultsKey.dockClickCycleWindows: false,
         DefaultsKey.spacesOrderEnabled: false,
+        DefaultsKey.dockDisplayLockEnabled: false,
+        DefaultsKey.dockDisplayLockTarget: DockDisplayLockTarget.mainStorage,
+        DefaultsKey.dockDisplayLockReturns: false,
         DefaultsKey.middleClickEnabled: false,
         DefaultsKey.middleClickTapFingers: 0,
         DefaultsKey.previewSize: "normal",
@@ -1689,6 +1696,7 @@ enum Defaults {
         DefaultsKey.panelControlSmoothScroll: true,
         DefaultsKey.panelControlMouseClickDebounce: true,
         DefaultsKey.panelControlSpacesOrder: true,
+        DefaultsKey.panelControlDockDisplayLock: true,
         DefaultsKey.panelControlWindowsExpanded: false,
         DefaultsKey.panelControlInputExpanded: false,
         DefaultsKey.panelControlFilesExpanded: false,
