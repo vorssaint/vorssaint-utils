@@ -123,6 +123,7 @@ private struct NotchDownloadsSetupView: View {
 struct NotchDownloadsView: View {
     let size: CGSize
     @ObservedObject private var downloads = NotchDownloadService.shared
+    @ObservedObject private var mediaDownloader = MediaDownloaderService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchDownloadsEnabled) private var enabled = true
     @Environment(\.notchSettingsPreview) private var preview
@@ -132,12 +133,15 @@ struct NotchDownloadsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if mediaDownloader.isDownloading {
+                mediaDownloadCard
+            }
             if needsSetup {
                 NotchDownloadsSetupView()
-            } else if downloads.items.isEmpty {
+            } else if downloads.items.isEmpty && !mediaDownloader.isDownloading {
                 NotchEmptyView(symbol: "arrow.down.circle", message: text.waiting)
                     .frame(maxHeight: .infinity)
-            } else {
+            } else if !downloads.items.isEmpty {
                 ScrollView {
                     LazyVStack(spacing: 8) {
                         ForEach(downloads.items) { item in
@@ -154,6 +158,31 @@ struct NotchDownloadsView: View {
         // Another section or a collapse takes the page away; its chooser
         // could no longer return the folder here. Settings keeps its own.
         .onDisappear { if !preview { downloads.cancelNotchFolderChoice() } }
+    }
+
+    private var mediaDownloadCard: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.down.circle.fill").foregroundStyle(.blue)
+                Text(mediaDownloader.activeDownloadTitle ?? "Online media")
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1).truncationMode(.middle)
+                Spacer(minLength: 0)
+                Button("Cancel", action: mediaDownloader.cancel)
+                    .font(.system(size: 10, weight: .medium))
+                    .buttonStyle(NotchButtonStyle(cornerRadius: 8))
+            }
+            if let fraction = mediaDownloader.activeDownloadFraction {
+                NotchMeter(value: fraction)
+                Text(fraction, format: .percent.precision(.fractionLength(0)))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            } else {
+                ProgressView().controlSize(.small)
+            }
+        }
+        .padding(12)
+        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     /// The watched folder by name, with the choice of another one or none.
@@ -237,6 +266,7 @@ struct NotchDownloadStrip: View {
     /// another display's when the island shows on every display.
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var downloads = NotchDownloadService.shared
+    @ObservedObject private var mediaDownloader = MediaDownloaderService.shared
     @ObservedObject private var l10n = L10n.shared
 
     private var geometry: NotchGeometry { displayGeometry ?? service.compactActivityGeometry }
@@ -250,13 +280,17 @@ struct NotchDownloadStrip: View {
 
     var body: some View {
         let item = downloads.items.first { $0.active && !$0.completed }
+        let mediaTitle = mediaDownloader.activeDownloadTitle
+        let mediaFraction = mediaDownloader.activeDownloadFraction
+        let title = item?.name ?? mediaTitle ?? FeatureStrings.notchFiles(l10n.language).downloadsTitle
+        let fraction = item?.fraction ?? mediaFraction
         Button { service.openActivity(.downloads) } label: {
             HStack(spacing: 0) {
                 HStack(spacing: 6) {
                     if geometry.compactActivityWingWidth >= 40 {
                         Image(systemName: "arrow.down.circle.fill").font(.system(size: iconSize))
                         if NotchDownloadSupport.showsCompactName(in: geometry) {
-                            Text(item?.name ?? FeatureStrings.notchFiles(l10n.language).downloadsTitle)
+                            Text(title)
                                 .font(.system(size: 11, weight: .medium)).lineLimit(1).truncationMode(.middle)
                         }
                     }
@@ -270,13 +304,13 @@ struct NotchDownloadStrip: View {
                 HStack(spacing: 6) {
                     // The name widens both wings; the bar fills the side the
                     // percentage alone would leave as a band of black.
-                    if NotchDownloadSupport.showsCompactName(in: geometry), let fraction = item?.fraction {
+                    if NotchDownloadSupport.showsCompactName(in: geometry), let fraction {
                         NotchMeter(value: fraction, height: 4).padding(.leading, 4)
                     } else {
                         Spacer(minLength: 0)
                     }
                     if geometry.compactActivityWingWidth >= 36 {
-                        if let fraction = item?.fraction {
+                        if let fraction {
                             Text(fraction, format: NotchDownloadSupport.percentFormat(l10n.language))
                                 .font(.system(size: NotchDownloadSupport.percentSize, weight: .medium))
                                 .monospacedDigit()
@@ -297,7 +331,7 @@ struct NotchDownloadStrip: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(item?.name ?? FeatureStrings.notchFiles(l10n.language).downloadsTitle)
+        .accessibilityLabel(title)
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
     }
 }
