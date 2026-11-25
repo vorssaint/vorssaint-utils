@@ -631,14 +631,18 @@ final class JunkCleaner: ObservableObject {
     private static func scanDeveloperJunk() -> [Item] {
         let fm = FileManager.default
         var found: [Item] = []
-        for path in CleanerPolicy.developerJunkPaths {
+        // The checked paths are rebuildable caches; the unchecked ones hold
+        // the user's downloaded modules or gems and only get offered, never
+        // pre selected, so a rebuild only spends bandwidth when they agree.
+        let paths = CleanerPolicy.developerJunkPaths + CleanerPolicy.developerJunkPathsUnchecked
+        for path in paths {
             let url = URL(fileURLWithPath: NSHomeDirectory() + path)
             guard fm.fileExists(atPath: url.path) else { continue }
             let size = directorySize(of: url, fm: fm)
             guard size > 0 else { continue }
             found.append(Item(url: url, category: .developer, size: size,
                               detail: url.lastPathComponent,
-                              recommended: CleanerPolicy.precheckDeveloper))
+                              recommended: CleanerPolicy.isDeveloperJunkPathPrechecked(path)))
         }
         return sorted(found)
     }

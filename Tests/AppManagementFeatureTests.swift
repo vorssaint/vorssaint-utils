@@ -1236,6 +1236,22 @@ enum AppManagementFeatureTests {
         suite.expect(CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/iOS DeviceSupport")
                && CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/watchOS DeviceSupport"),
                "stale DeviceSupport symbol caches count as developer junk")
+        suite.expect(CleanerPolicy.developerJunkPaths.contains("/Library/Caches/go-build")
+               && CleanerPolicy.developerJunkPaths.contains("/Library/Caches/pip")
+               && CleanerPolicy.developerJunkPaths.contains("/Library/Caches/Homebrew")
+               && CleanerPolicy.developerJunkPaths.contains("/.cache/uv"),
+               "Go, pip, Homebrew and uv toolchain caches count as developer junk")
+        suite.expect(CleanerPolicy.developerJunkPathsUnchecked.contains("/go/pkg/mod")
+               && CleanerPolicy.developerJunkPathsUnchecked.contains("/.bundle/cache"),
+               "the Go module cache and downloaded Ruby gems are offered but not pre checked")
+        suite.expect(CleanerPolicy.isDeveloperJunkPathPrechecked("/Library/Caches/go-build")
+               && CleanerPolicy.isDeveloperJunkPathPrechecked("/Library/Caches/pip")
+               && CleanerPolicy.isDeveloperJunkPathPrechecked("/Library/Caches/Homebrew")
+               && CleanerPolicy.isDeveloperJunkPathPrechecked("/.cache/uv")
+               && !CleanerPolicy.isDeveloperJunkPathPrechecked("/go/pkg/mod")
+               && !CleanerPolicy.isDeveloperJunkPathPrechecked("/.bundle/cache")
+               && !CleanerPolicy.isDeveloperJunkPathPrechecked("/Library/Developer/Xcode/DerivedData"),
+               "rebuildable toolchain caches start checked; caches that force a re download wait unchecked")
         suite.expect(CleanerSupport.looksLikeBundleID("com.vendor.editor")
                && CleanerSupport.looksLikeBundleID("com.foo.Bar-Helper_2")
                && CleanerSupport.looksLikeBundleID("test.editor")

@@ -28,6 +28,13 @@ enum CleanerPolicy {
     /// DeviceSupport folders are debug symbol caches Xcode rebuilds on the
     /// next device connection; they quietly grow to tens of gigabytes and
     /// are a classic slice of the storage macOS files under "Other".
+    ///
+    /// The developer group also carries the toolchain caches that grow to
+    /// tens of gigabytes on a developer Mac and rebuild themselves: Go,
+    /// pip, uv, Ruby gems, Homebrew and Cargo. A rebuildable cache (no
+    /// network needed to regenerate) starts checked; anything that forces a
+    /// re-download of the user's modules or gems starts unchecked so the
+    /// user decides when to spend the bandwidth.
     static let developerJunkPaths: [String] = [
         "/Library/Developer/Xcode/DerivedData",
         "/Library/Developer/Xcode/DocumentationCache",
@@ -35,7 +42,32 @@ enum CleanerPolicy {
         "/Library/Developer/Xcode/iOS DeviceSupport",
         "/Library/Developer/Xcode/watchOS DeviceSupport",
         "/Library/Developer/Xcode/tvOS DeviceSupport",
+        "/Library/Caches/go-build",
+        "/Library/Caches/pip",
+        "/Library/Caches/Homebrew",
+        "/.cache/uv",
     ]
+
+    /// Developer caches whose content rebuilds without network access, so
+    /// they start checked alongside the Xcode and simulator caches above.
+    static let developerJunkPathsCheckedByDefault: Set<String> = [
+        "/Library/Caches/go-build",
+        "/Library/Caches/pip",
+        "/Library/Caches/Homebrew",
+        "/.cache/uv",
+    ]
+
+    /// Developer caches that force a re-download of the user's modules or
+    /// gems when removed, so they start unchecked and wait for the user's
+    /// eye: the Go module cache and the downloaded Ruby gem packages.
+    static let developerJunkPathsUnchecked: [String] = [
+        "/go/pkg/mod",
+        "/.bundle/cache",
+    ]
+
+    static func isDeveloperJunkPathPrechecked(_ path: String) -> Bool {
+        developerJunkPathsCheckedByDefault.contains(path)
+    }
 
     /// Device backups are the user's safety net: enormous, ancient, and the
     /// other classic tenant of "Other" storage, but never a machine's call
