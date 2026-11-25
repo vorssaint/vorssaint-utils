@@ -574,7 +574,8 @@ enum SettingsDirectory {
                                        featureKeywords: [
                                         (.quickLauncher, [s.launcherName]),
                                         (.micMute, [s.micMuteName, s.micMuteFollowCallAppsToggle, s.micMuteMenuBarToggle]),
-                                        (.quickToggles, [FeatureStrings.quickToggles(language).pageTitle,
+                                        (.quickToggles, [FeatureStrings.passwordLength(language).title,
+                                                         FeatureStrings.quickToggles(language).pageTitle,
                                                          FeatureStrings.quickToggles(language)
                                                             .darkModeToDark,
                                                          FeatureStrings.quickToggles(language)
