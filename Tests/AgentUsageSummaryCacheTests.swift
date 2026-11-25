@@ -91,6 +91,49 @@ enum AgentUsageSummaryCacheTests {
         cache.invalidate()
         check("repricing rebuilds cost, savings and unpriced totals")
         storeIntegration(suite, now: now, calendar: calendar)
+        daylightSavingHours(suite)
+    }
+
+    /// A local day holds 23, 24 or 25 hours; each bar must cover exactly one
+    /// hour of the clock.
+    private static func daylightSavingHours(_ suite: TestSuite) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        func hours(_ text: String) -> (day: Date, starts: [Date]) {
+            let today = calendar.startOfDay(for: AgentTimestamp.parse(text)!)
+            return (today, AgentUsageSummary.hourStarts(of: today, calendar: calendar))
+        }
+        func checkLength(_ text: String, _ count: Int, _ label: String) {
+            let (today, starts) = hours(text)
+            suite.expect(starts.count == count, "\(label): \(starts.count) hour bars in the local day")
+            suite.expect(starts.first == today, "\(label): the first bar starts at the start of the day")
+            let next = calendar.date(byAdding: .day, value: 1, to: today)!
+            suite.expect(starts.last?.addingTimeInterval(3_600) == next,
+                         "\(label): the last bar ends at the next start of the day")
+            suite.expect(zip(starts, starts.dropFirst()).allSatisfy { $1.timeIntervalSince($0) == 3_600 },
+                         "\(label): every bar starts one hour after the one before it")
+        }
+        checkLength("2026-03-08T18:00:00Z", 23, "the spring-forward day")
+        checkLength("2026-11-01T18:00:00Z", 25, "the fall-back day")
+        checkLength("2026-06-15T18:00:00Z", 24, "an ordinary day")
+
+        // 1:30 happens twice on the fall-back day; the two responses belong to
+        // different bars, and both bars read 1 AM.
+        let now = AgentTimestamp.parse("2026-11-01T20:00:00Z")!
+        let first = AgentTimestamp.parse("2026-11-01T08:30:00Z")!
+        let second = AgentTimestamp.parse("2026-11-01T09:30:00Z")!
+        let records = [first, second].map {
+            AgentUsageRecord(provider: .codex, date: $0, model: "gpt-6-sol", project: "p", session: "s",
+                             tokens: AgentTokens(input: 10, output: 10), cost: 0.125, savings: 0.125)
+        }
+        let snapshot = AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:],
+                                                  providers: [.codex], now: now, calendar: calendar)
+        let used = snapshot.hours.filter { $0.total.requests > 0 }
+        suite.expect(snapshot.hours.count == 25, "the fall-back snapshot keeps all 25 hour bars")
+        suite.expect(used.count == 2, "responses in the repeated hour fill two bars")
+        suite.expect(used.allSatisfy { calendar.component(.hour, from: $0.start) == 1 },
+                     "both bars of the repeated hour read 1 AM")
+        suite.expect(used.allSatisfy { $0.total.requests == 1 }, "each bar of the repeated hour holds one response")
     }
 
     private static func storeIntegration(_ suite: TestSuite, now: Date, calendar: Calendar) {
