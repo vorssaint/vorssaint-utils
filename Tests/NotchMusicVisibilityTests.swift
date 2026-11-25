@@ -86,6 +86,7 @@ enum NotchMusicVisibilityTests {
         var captureClose: (() -> Void)?
         var captureClosesOnCollapse = false
         var notice: NotchNotice?
+        var modifierIndicator: NotchModifierIndicator? = nil
         var noticeExpanded = false
         var noticeWork: DispatchWorkItem?
         var dragPlaceholder = false

@@ -76,6 +76,96 @@ struct NotchMeter: View {
     }
 }
 
+/// Dynamic Island wing strip indicating Caps Lock ON and/or Shift held on notched displays.
+struct NotchModifierStrip: View {
+    let indicator: NotchModifierIndicator
+    let geometry: NotchGeometry
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let wings = indicator.wings
+        let tint = indicator.tint
+        let label = indicator.label(NotchInputFeedbackStrings.localized(l10n.language))
+        HStack(spacing: 0) {
+            Group {
+                switch indicator {
+                case .capsLock:
+                    Image(systemName: "capslock.fill")
+                case .shift:
+                    Image(systemName: "shift.fill")
+                case .both:
+                    HStack(spacing: 4) {
+                        Image(systemName: "capslock.fill")
+                        Image(systemName: "shift.fill")
+                    }
+                }
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(tint)
+            .shadow(color: tint.opacity(0.65), radius: 4)
+            .padding(.leading, 13)
+            .frame(width: wings.leading, height: geometry.stripHeight, alignment: .leading)
+            .clipped()
+
+            Color.clear.frame(width: geometry.noticeCameraGap)
+
+            Text(label)
+                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .tracking(0.35)
+                .foregroundStyle(tint.opacity(0.95))
+                .lineLimit(1)
+                .padding(.trailing, 13)
+                .frame(width: wings.trailing, height: geometry.stripHeight, alignment: .trailing)
+                .clipped()
+        }
+        .frame(height: geometry.stripHeight)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+    }
+}
+
+/// Floating capsule strip indicating Caps Lock ON and/or Shift held on non-notched displays.
+struct NotchCapsuleModifierStrip: View {
+    let indicator: NotchModifierIndicator
+    let geometry: NotchGeometry
+    let size: CGSize
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let side = NotchCapsuleLayout.side(geometry)
+        let tint = indicator.tint
+        let label = indicator.label(NotchInputFeedbackStrings.localized(l10n.language))
+        HStack(spacing: NotchCapsuleLayout.spacing) {
+            Group {
+                switch indicator {
+                case .capsLock:
+                    Image(systemName: "capslock.fill")
+                case .shift:
+                    Image(systemName: "shift.fill")
+                case .both:
+                    HStack(spacing: 3) {
+                        Image(systemName: "capslock.fill")
+                        Image(systemName: "shift.fill")
+                    }
+                }
+            }
+            .font(.system(size: NotchCapsuleLayout.symbolSize, weight: .semibold))
+            .foregroundStyle(tint)
+            .shadow(color: tint.opacity(0.6), radius: 3)
+
+            Text(label)
+                .font(Font(NotchCapsuleLayout.titleFont as CTFont))
+                .foregroundStyle(tint.opacity(0.95))
+                .lineLimit(1)
+        }
+        .padding(.leading, side + NotchCapsuleLayout.endPadding)
+        .padding(.trailing, side + NotchCapsuleLayout.endPadding)
+        .frame(width: size.width, height: geometry.stripHeight)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+    }
+}
+
 /// A clock's digits roll into the next reading, downward while it counts
 /// down and upward while it counts up; Reduce Motion changes them in place.
 struct NotchRollingDigits: ViewModifier {
