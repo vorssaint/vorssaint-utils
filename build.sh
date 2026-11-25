@@ -299,6 +299,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift
         Sources/Vorssaint/Core/NotchLockScreenStrings.swift
         Sources/Vorssaint/Services/Notch/NotchLockScreenSupport.swift
+        Sources/Vorssaint/Services/AgentUsage/AntigravityQuota.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageModels.swift
         Sources/Vorssaint/Services/AgentUsage/AgentPricing.swift
         Sources/Vorssaint/Services/AgentUsage/AgentLogObject.swift

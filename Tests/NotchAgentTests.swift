@@ -5,6 +5,33 @@ import Foundation
 import SQLite3
 
 enum NotchAgentTests {
+    private static func antigravityQuota(_ suite: TestSuite) {
+        let json = #"""
+        {"status":"SUCCESS","command":{"name":"usage","data":{"groups":[
+          {"name":"Gemini Models","buckets":[
+            {"id":"week","window":"weekly","remaining_fraction":0.25,"reset_time":"2026-11-29T19:54:20Z"},
+            {"id":"5h","window":"5h","remaining_fraction":0},
+            {"id":"bad","window":"5h","remaining_fraction":-1}]},
+          {"name":"Gemini Argon","buckets":[{"id":"argon","window":"weekly","remaining_fraction":1}]}
+        ]}}}
+        """#
+        let reading = AntigravityQuota.parse(Data(json.utf8))
+        suite.expect(reading?.windows.map(\.usedPercent) == [75, 100, 0]
+                     && reading?.windows.first?.resetsAt != nil
+                     && reading?.windows.map(\.kind) == [.weekly, .session, .weekly],
+                     "Antigravity quotas preserve reset dates and convert valid remaining shares")
+        var snapshot = AgentUsageSnapshot()
+        snapshot.limits[.antigravity] = reading
+        let cards = NotchAgentSupport.tiles(cards: [.limits], providers: [.antigravity], snapshot: snapshot)
+        suite.expect(cards.map(\.quotaGroup) == ["Gemini Models", "Gemini Argon"]
+                     && Set(cards.map(\.id)).count == cards.count,
+                     "each Antigravity quota group gets a distinct card")
+        suite.expect(NotchAgentSupport.tiles(cards: NotchAgentCard.allCases, providers: [.antigravity])
+                        .map(\.card) == [.limits], "a quota-only provider waits for limits without reporting activity")
+        suite.expect(AntigravityQuota.parse(Data("{}".utf8)) == nil,
+                     "an unavailable quota produces no reading")
+    }
+
     static func run(_ suite: TestSuite) {
         // Prices come from the list the app ships, the same file the project publishes.
         let previous = AgentPricing.list
@@ -21,6 +48,7 @@ enum NotchAgentTests {
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
         CursorAgentTests.run(suite)
+        antigravityQuota(suite)
         HarnessReaderContractTests.run(suite)
         timestamps(suite)
         summary(suite)
@@ -3347,7 +3375,7 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.tiles(cards: NotchAgentCard.allCases, providers: [.cursor], snapshot: cursorHistory)
                         .map(\.card) == [.spend, .live, .trend, .models, .projects, .activity],
                      "recorded Cursor tokens enable history without offering plan limits or resets")
-        let allProviders = AgentProvider.allCases
+        let allProviders = AgentProvider.allCases.filter { $0 != .antigravity }
         let active = AgentLiveSession(id: "active", provider: .cursor, started: .now, lastActivity: .now,
                                       model: "", project: "demo", tokens: AgentTokens(), cost: 0)
         for count in 4...5 {

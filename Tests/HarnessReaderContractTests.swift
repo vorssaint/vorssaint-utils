@@ -19,7 +19,10 @@ enum HarnessReaderContractTests {
 
     private static func readersCoverProviders(_ suite: TestSuite) {
         for provider in AgentProvider.allCases {
-            let reader = provider.reader
+            guard let reader = provider.reader else {
+                suite.expect(provider == .antigravity, "only quota-only providers omit a log reader")
+                continue
+            }
             suite.expect(reader.provider == provider,
                          "\(provider.rawValue) resolves to its own harness reader")
             suite.expect(reader.readsFullHistoryFirst == (provider == .copilot),
@@ -30,7 +33,7 @@ enum HarnessReaderContractTests {
     private static func claudeGolden(_ suite: TestSuite) {
         let now = Date(timeIntervalSince1970: 0)
         var state = AgentLogState()
-        let reader = AgentProvider.claude.reader
+        let reader = AgentProvider.claude.reader!
         let began = Date(timeIntervalSince1970: 1_790_088_000)
         let prompt = line(#"{"type":"user","timestamp":1790088000,"sessionId":"s","cwd":"/Users/me/code/app","message":{"content":"work"}}"#)
         suite.expect(reader.parse(prompt, state: &state, now: now) == [.turnBegan(began)],
@@ -86,7 +89,7 @@ enum HarnessReaderContractTests {
     private static func codexGolden(_ suite: TestSuite) {
         let now = Date(timeIntervalSince1970: 0)
         var state = AgentLogState()
-        let reader = AgentProvider.codex.reader
+        let reader = AgentProvider.codex.reader!
         let meta = line(#"{"type":"session_meta","timestamp":1790088000,"payload":{"id":"s","cwd":"/tmp/example"}}"#)
         suite.expect(reader.parse(meta, state: &state, now: now).isEmpty
                         && state.session == "s" && state.project == "example",
@@ -103,7 +106,7 @@ enum HarnessReaderContractTests {
     private static func openCodeGolden(_ suite: TestSuite) {
         let now = Date(timeIntervalSince1970: 0)
         var state = AgentLogState()
-        let reader = AgentProvider.opencode.reader
+        let reader = AgentProvider.opencode.reader!
         let user = line(#"{"session_id":"s_oc_1","time_created":1790088000,"directory":"/Users/me/code/backend","role":"user","parts":[{"type":"text","text":"go"}]}"#)
         suite.expect(reader.parse(user, state: &state, now: now)
                         == [.turnBegan(Date(timeIntervalSince1970: 1_790_088_000))],
@@ -121,7 +124,7 @@ enum HarnessReaderContractTests {
     private static func copilotGolden(_ suite: TestSuite) {
         let now = Date(timeIntervalSince1970: 0)
         var state = AgentLogState()
-        let reader = AgentProvider.copilot.reader
+        let reader = AgentProvider.copilot.reader!
         let start = line(#"{"id":"start","timestamp":1790088000,"type":"session.start","data":{"sessionId":"s","selectedModel":"gpt-6-sol","context":{"cwd":"/tmp/example"}}}"#)
         suite.expect(reader.parse(start, state: &state, now: now).isEmpty
                         && state.session == "s" && state.model == "gpt-6-sol" && state.project == "example",
@@ -150,7 +153,7 @@ enum HarnessReaderContractTests {
         CursorReader.adopt(
             path: "/Users/me/.cursor/projects/Users-me-code-app/agent-transcripts/s/s.jsonl",
             into: &state)
-        let reader = AgentProvider.cursor.reader
+        let reader = AgentProvider.cursor.reader!
         suite.expect(state.session == "s" && !state.project.isEmpty,
                      "a Cursor transcript path names the session and project")
         let prompt = line(#"{"role":"user","message":{"content":[{"type":"text","text":"<timestamp>Wednesday, Nov 18, 2026, 6:00 PM (UTC+0)</timestamp>\n<user_query>hi</user_query>"}]}}"#)
