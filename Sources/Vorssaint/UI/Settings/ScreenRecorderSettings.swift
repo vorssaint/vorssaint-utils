@@ -44,8 +44,19 @@ struct ScreenRecordingCaptureSettings: View {
                 Button {
                     ScreenRecorderService.shared.toggle()
                 } label: {
-                    Label(service.isRecording ? strings.stopButton : strings.startButton,
-                          systemImage: service.isRecording ? "stop.circle" : "record.circle")
+                    Label(service.hasActiveCapture ? strings.stopButton : strings.startButton,
+                          systemImage: service.hasActiveCapture ? "stop.circle" : "record.circle")
+                }
+                Button {
+                    service.recordAudio(systemAudio: systemAudio, microphone: microphone)
+                } label: {
+                    Label(strings.audioRecordButton, systemImage: "waveform")
+                }
+                .disabled(service.hasActiveCapture || (!systemAudio && !microphone))
+                if service.isRecording {
+                    Button(service.isPaused ? strings.resumeButton : strings.pauseButton) {
+                        service.togglePause()
+                    }
                 }
                 Text(service.isRecording
                      ? RecorderSupport.elapsedLabel(seconds: service.elapsedSeconds)

@@ -260,7 +260,7 @@ final class RecentCaptureService: ObservableObject {
         }
     }
 
-    func recordRecording(at url: URL) {
+    func recordRecording(at url: URL, audioOnly: Bool = false) {
         guard RecentCaptureStore.isRegularFile(url) else { return }
         let id = UUID()
         let thumbnailName = "\(id.uuidString)-thumbnail.png"
@@ -268,10 +268,10 @@ final class RecentCaptureService: ObservableObject {
         let generation = currentClearGeneration()
 
         Task { @MainActor [weak self] in
-            let thumbnail = await Self.recordingThumbnail(at: url)
+            let thumbnail = audioOnly ? nil : await Self.recordingThumbnail(at: url)
             self?.storeRecording(at: url, id: id, createdAt: createdAt,
                                  thumbnailName: thumbnailName, thumbnail: thumbnail,
-                                 generation: generation)
+                                 generation: generation, audioOnly: audioOnly)
         }
     }
 
@@ -280,7 +280,7 @@ final class RecentCaptureService: ObservableObject {
                                 createdAt: Date,
                                 thumbnailName: String,
                                 thumbnail: CGImage?,
-                                generation: Int) {
+                                generation: Int, audioOnly: Bool) {
         queue.async { [weak self] in
             guard let self, self.currentClearGeneration() == generation,
                   let root = self.root, RecentCaptureStore.isRegularFile(url) else { return }
@@ -309,7 +309,8 @@ final class RecentCaptureService: ObservableObject {
                 anchorX: nil,
                 anchorY: nil,
                 anchorWidth: nil,
-                anchorHeight: nil)
+                anchorHeight: nil,
+                audioOnly: audioOnly)
             self.prepend(entry)
         }
     }
