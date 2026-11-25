@@ -157,9 +157,10 @@ enum NotchHoverTests {
         }
         var openings = 0, closures = 0, feedbacks = 0
         var requestedModule: NotchModule?
-        func open(_ module: NotchModule? = nil, takeFocus: Bool) {
+        func open(_ module: NotchModule? = nil, takeFocus: Bool, feedback: Bool = true) {
             requestedModule = module
             openings += 1; expanded = true; openedByHover = !takeFocus
+            if feedback { provideHapticFeedback() }
             hoverState.open(); hoverWork?.cancel(); hoverWork = nil
             updateBounds()
         }
@@ -971,8 +972,8 @@ enum NotchHoverTests {
         active.compactActivity = .music
         active.hover(true)
         DispatchQueue.main.advance(0.26)
-        expect(active.openings == 1 && active.requestedModule == nil,
-               "hover opens without naming a page, so the island's own reopening rule decides")
+        expect(active.openings == 1 && active.requestedModule == nil && active.feedbacks == 0,
+               "hover opens without naming a page or tapping the trackpad")
 
         let returning = fixture()
         returning.hover(true)
@@ -990,7 +991,7 @@ enum NotchHoverTests {
         UserDefaults.standard.closeDelay = 2.0
         preview.hover(true)
         DispatchQueue.main.advance(0.26)
-        suite.expect(preview.peeking && preview.openings == 0 && preview.feedbacks == 1 && preview.hoverWork == nil,
+        suite.expect(preview.peeking && preview.openings == 0 && preview.feedbacks == 0 && preview.hoverWork == nil,
                "preview-only mode responds promptly without expanding the panel")
         leave(preview)
         DispatchQueue.main.advance(0.13)
@@ -1666,7 +1667,7 @@ enum NotchHoverTests {
             DispatchQueue.main.advance(0.20)
             expect(!service.noticeExpanded && service.openings == 0, "the preview honors the activation delay")
             DispatchQueue.main.advance(0.06)
-            expect(service.noticeExpanded && service.openings == 0 && service.feedbacks == 1 && service.hoverWork == nil,
+            expect(service.noticeExpanded && service.openings == 0 && service.feedbacks == 0 && service.hoverWork == nil,
                    "a deliberate hover opens the whole message in place rather than the island's page")
             expect(service.surfaceSize.width == service.geometry.notificationPreviewWidth
                    && service.surfaceSize.height > service.geometry.notice.height,

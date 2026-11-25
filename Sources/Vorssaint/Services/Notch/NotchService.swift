@@ -1656,10 +1656,9 @@ final class NotchService: ObservableObject {
                 // Following the closed island ends as it opens or peeks.
                 self.removeHoverExitMonitors()
                 if UserDefaults.standard.bool(forKey: DefaultsKey.notchHoverExpands) {
-                    self.open(takeFocus: false)
+                    self.open(takeFocus: false, feedback: false)
                 } else {
                     self.mutatePresentation(transitionContent: .reveal) { self.peeking = true }
-                    self.provideHapticFeedback()
                 }
             }
             hoverWork = work
@@ -1748,7 +1747,6 @@ final class NotchService: ObservableObject {
                   UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover),
                   self.geometry.contains(NSEvent.mouseLocation, in: self.surfaceSize) else { return }
             self.mutatePresentation(transitionContent: .reveal) { self.peeking = false; self.noticeExpanded = true }
-            self.provideHapticFeedback()
         }
         hoverWork = work
         let delay = NotchSupport.sanitizedHoverDelay(UserDefaults.standard.double(forKey: DefaultsKey.notchHoverDelay))
