@@ -141,7 +141,7 @@ enum SettingsSearchSupport {
             destination: ScreenCaptureTool.scrolling.settingsDestination,
             title: strings.scrollingCaptureTitle,
             icon: ScreenCaptureTool.scrolling.systemImageName,
-            keywords: [strings.scrollingAutoScrollToggle],
+            keywords: [strings.scrollingAutoScrollToggle, strings.autoPinToggle],
             feature: .screenshot)
     }
 
@@ -385,7 +385,8 @@ enum SettingsSearchSupport {
                            screenshot.previewFocusToggle, screenshot.confirmationPreviewToggle,
                            screenshot.confirmationPreviewDurationLabel,
                            screenshot.copyImageOnlyToggle,
-                           screenshot.pinButton, screenshot.toolPixelate, screenshot.toolBlur,
+                           screenshot.pinButton, screenshot.autoPinToggle,
+                           screenshot.toolPixelate, screenshot.toolBlur,
                            screenshot.toolArrow, screenshot.addToShelfToggle]),
             (.screenRecorder, [recorder.pageTitle, recorder.startButton,
                                recorder.systemAudioToggle, recorder.microphoneToggle,

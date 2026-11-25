@@ -7,9 +7,9 @@ import UniformTypeIdentifiers
 
 /// Floating pinned screenshots keep a capture visible while working.
 /// Drag anywhere to move, resize from the edges keeping proportions, arrows
-/// nudge, double click or Esc closes, right click offers copy, save, opacity
-/// and click-through. A monitor exists only while a click-through pin needs
-/// its Option-click escape hatch.
+/// nudge, pinch zooms and scrolling pans, double click or Esc closes. Right
+/// click offers copy, save, opacity and click-through. A monitor exists only
+/// while a click-through pin needs its Option-click escape hatch.
 final class ScreenshotPinController {
     static let shared = ScreenshotPinController()
 
@@ -105,12 +105,13 @@ private final class ScreenshotPinWindow: OverlayPanel {
         hasShadow = true
         isMovableByWindowBackground = true
         hidesOnDeactivate = false
-        contentAspectRatio = CGSize(width: CGFloat(max(1, image.width)),
-                                    height: CGFloat(max(1, image.height)))
+        // Preserve the fitted viewport's proportions. A very tall image's
+        // own ratio could force a minimum-width resize far beyond the screen.
+        contentAspectRatio = size
         minSize = CGSize(width: 90, height: 60)
 
-        let view = PinContentView(image: image, window: self)
-        contentView = view
+        contentView = PinScrollView(image: image, scale: scale, frame: CGRect(origin: .zero, size: size),
+                                    window: self)
     }
 
     override var canBecomeKey: Bool { true }
@@ -186,6 +187,48 @@ private final class ScreenshotPinWindow: OverlayPanel {
 
     // MARK: Content
 
+    /// Keep the full image in the document so a tall capture can be read by
+    /// zooming and panning without growing its floating window off screen.
+    private final class PinScrollView: NSScrollView {
+        private let imageSize: CGSize
+        private var lastViewportSize: CGSize = .zero
+
+        init(image: CGImage, scale: CGFloat, frame: CGRect, window: ScreenshotPinWindow) {
+            imageSize = CGSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale)
+            super.init(frame: frame)
+            drawsBackground = false
+            borderType = .noBorder
+            hasHorizontalScroller = true
+            hasVerticalScroller = true
+            autohidesScrollers = true
+            scrollerStyle = .overlay
+            allowsMagnification = true
+            maxMagnification = 4
+            let view = PinContentView(image: image, window: window)
+            view.frame = CGRect(origin: .zero, size: imageSize)
+            documentView = view
+            fitIfNeeded()
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { nil }
+
+        override func layout() {
+            super.layout()
+            fitIfNeeded()
+        }
+
+        private func fitIfNeeded() {
+            let viewport = contentSize
+            guard viewport.width > 0, viewport.height > 0, viewport != lastViewportSize else { return }
+            let wasFitted = lastViewportSize == .zero || abs(magnification - minMagnification) < 0.0001
+            lastViewportSize = viewport
+            let fit = min(1, min(viewport.width / imageSize.width, viewport.height / imageSize.height))
+            minMagnification = fit
+            if wasFitted { magnification = fit }
+        }
+    }
+
     private final class PinContentView: NSView {
         /// Weak for the same reason the capture surface is: closing a pin
         /// releases its window from inside this view's own event handling,
@@ -218,7 +261,7 @@ private final class ScreenshotPinWindow: OverlayPanel {
                 return
             }
             pinWindow.makeKey()
-            super.mouseDown(with: event)
+            pinWindow.performDrag(with: event)
         }
 
         override func menu(for event: NSEvent) -> NSMenu? {
