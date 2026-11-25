@@ -395,13 +395,14 @@ final class ScreenshotService: ObservableObject {
             openEditor(with: capture)
             return
         }
+        let pasteboardChangeCount = NSPasteboard.general.changeCount
         let result = runDefaultAction(defaultAction, capture: capture)
         if ScreenshotSupport.shouldRunBackgroundAutoCopy(
             autoCopyEnabled: autoCopyEnabled,
             defaultAction: defaultAction,
             saved: result.saved != nil,
             copied: result.performed.contains(.copy)) {
-            autoCopy(capture)
+            autoCopy(capture, expectedPasteboardChangeCount: pasteboardChangeCount)
         }
         autoShelve(capture, saved: result.saved?.url)
         guard case .shown(let dismissInterval) = ScreenshotSupport.quickPreviewPresentation(
@@ -774,7 +775,13 @@ final class ScreenshotService: ObservableObject {
     /// already appearing and says the capture happened, so a HUD on top of it
     /// would only repeat that. A failure still beeps, since nothing else
     /// would reveal an empty clipboard before the paste.
-    private func autoCopy(_ capture: ScreenshotSelectionController.Capture) {
+    private func autoCopy(_ capture: ScreenshotSelectionController.Capture,
+                          expectedPasteboardChangeCount: Int = NSPasteboard.general.changeCount) {
+        let pasteboardChangeCount = expectedPasteboardChangeCount
+        autoCopyTask?.cancel()
+        autoCopyTask = nil
+        autoCopyGeneration += 1
+        guard pasteboardChangeCount == NSPasteboard.general.changeCount else { return }
         let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
         let imageOnly = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotCopyImageOnly)
         let folder = imageOnly ? nil : ScreenshotSupport.copiedFilesDirectory()
@@ -783,10 +790,7 @@ final class ScreenshotService: ObservableObject {
             return
         }
         let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
-        autoCopyTask?.cancel()
-        autoCopyGeneration += 1
         let generation = autoCopyGeneration
-        let pasteboardChangeCount = NSPasteboard.general.changeCount
         autoCopyTask = Task { @MainActor [weak self] in
             let output = await Task.detached(priority: .userInitiated) {
                 guard let export = Self.flatten(capture, downscaleTo1x: downscale) else {

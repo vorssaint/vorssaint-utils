@@ -1074,12 +1074,16 @@ enum ScreenshotFeatureTests {
                 && !ScreenshotSupport.shouldRunBackgroundAutoCopy(
                     autoCopyEnabled: true, defaultAction: .saveAndCopy, saved: true, copied: false),
                "save-and-copy keeps background automatic copy only when saving failed before copying")
+        let routeSnapshotRange = screenshotRouteBody.range(of: "let pasteboardChangeCount = NSPasteboard.general.changeCount")
         let routeRunDefaultRange = screenshotRouteBody.range(of: "let result = runDefaultAction(defaultAction, capture: capture)")
         let routePostActionAutoCopyRange = screenshotRouteBody.range(of: "saved: result.saved != nil,\n            copied: result.performed.contains(.copy))")
         suite.expect(screenshotRouteBody.components(separatedBy: "ScreenshotSupport.shouldRunBackgroundAutoCopy(").count == 3
+                && routeSnapshotRange != nil
                 && routeRunDefaultRange != nil && routePostActionAutoCopyRange != nil
-                && routeRunDefaultRange!.upperBound < routePostActionAutoCopyRange!.lowerBound,
-               "route delegates background automatic copy gating to the shared helper for edit and after running the default action")
+                && routeSnapshotRange!.upperBound < routeRunDefaultRange!.lowerBound
+                && routeRunDefaultRange!.upperBound < routePostActionAutoCopyRange!.lowerBound
+                && screenshotRouteBody.contains("autoCopy(capture, expectedPasteboardChangeCount: pasteboardChangeCount)"),
+               "route snapshots the pasteboard before running the default action and delegates background automatic copy gating to the shared helper")
 
         // A gesture that ends with more than one release, like a drag made
         // with three fingers, delivers events after the capture is over.
