@@ -317,9 +317,11 @@ struct PowerSection: View {
     }
 
     private func chargeTint(_ charge: Int) -> Color {
-        if charge < 20 { return PanelMetricColor.red(for: colorScheme) }
-        if charge < 40 { return PanelMetricColor.yellow(for: colorScheme) }
-        return PanelMetricColor.green(for: colorScheme)
+        switch MenuBarUsageBarSupport.batteryLevel(forPercent: charge) {
+        case .critical: return PanelMetricColor.red(for: colorScheme)
+        case .elevated: return PanelMetricColor.yellow(for: colorScheme)
+        case .normal: return PanelMetricColor.green(for: colorScheme)
+        }
     }
 
     private func resetPanelDefaults() {
