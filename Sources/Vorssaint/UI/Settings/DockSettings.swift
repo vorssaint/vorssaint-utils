@@ -3,8 +3,8 @@
 
 import SwiftUI
 
-/// The Dock page: Dock Preview, Dock clicks and the window previews Dock
-/// Preview shares with the switcher.
+/// The Dock page: Dock Preview, Dock clicks, the window previews Dock
+/// Preview shares with the switcher, and the Dock tweaks.
 struct DockSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
@@ -24,6 +24,7 @@ struct DockSettings: View {
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
     @AppStorage(DefaultsKey.spacesOrderEnabled) private var spacesOrderEnabled = false
+    @State private var dockSizeLocked = DockSizeLock.isLocked
 
     private var pages: SettingsPageStrings { FeatureStrings.settingsPages(l10n.language) }
     private var dockPreviewEngaged: Bool { dockPreviewEnabled && AppFeature.dockPreview.isAvailable }
@@ -52,6 +53,10 @@ struct DockSettings: View {
                     spacesOrderCard
                         .settingsSectionAnchor(.spacesOrder, cornerRadius: 16)
                 }
+                if AppFeature.dockTweaks.isAvailable {
+                    dockTweaksCard
+                        .settingsSectionAnchor(.dockTweaks, cornerRadius: 16)
+                }
                 if AppFeature.dockPreview.isAvailable {
                     WindowPreviewsCard(sizeKey: DefaultsKey.previewSize,
                                        excludedAppsKey: DefaultsKey.windowPreviewExcludedApps)
@@ -72,6 +77,11 @@ struct DockSettings: View {
             .padding(22)
         }
         .toggleStyle(.switch)
+        // The lock lives in the Dock's own preferences, which Terminal can
+        // change while this page is away.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            dockSizeLocked = DockSizeLock.isLocked
+        }
     }
 
     private var dockPreviewCard: some View {
@@ -193,6 +203,16 @@ struct DockSettings: View {
         }
     }
 
+    private var dockTweaksCard: some View {
+        SettingsCard(title: pages.dockTweaks) {
+            SettingsRow(symbol: "lock.rectangle", title: pages.dockSizeLock, caption: pages.dockSizeLockCaption) {
+                Toggle(pages.dockSizeLock, isOn: dockSizeLockBinding)
+                    .labelsHidden()
+                    .disabled(DockSizeLock.isManaged)
+            }
+        }
+    }
+
     // MARK: - State
 
     /// Dock Preview and every Dock click action work through Accessibility;
@@ -217,6 +237,22 @@ struct DockSettings: View {
     /// transparency from System Settings, so the slider has nothing to change.
     private var dockPreviewBackgroundIsGlass: Bool {
         HUDBackdrop.drawsLiquidGlass(enabled: liquidGlassEnabled, reduceTransparency: reduceTransparency)
+    }
+
+    /// Applied off the main thread, since the Dock restart blocks. A failed
+    /// write puts the toggle back to what the Dock preference says.
+    private var dockSizeLockBinding: Binding<Bool> {
+        Binding(
+            get: { dockSizeLocked },
+            set: { locked in
+                dockSizeLocked = locked
+                DispatchQueue.global(qos: .userInitiated).async {
+                    guard !DockSizeLock.setLocked(locked) else { return }
+                    let current = DockSizeLock.isLocked
+                    DispatchQueue.main.async { dockSizeLocked = current }
+                }
+            }
+        )
     }
 
     private var dockPreviewBackgroundOpacityBinding: Binding<Double> {
