@@ -634,7 +634,7 @@ struct AgentLogRoot: Equatable {
         } : []
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
          (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
-         (.cursor, ".cursor/projects")].compactMap { provider, path in
+         (.cursor, ".cursor/projects"), (.vibe, ".vibe/logs/session")].compactMap { provider, path in
             guard providers.contains(provider) else { return nil }
             return AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
@@ -659,6 +659,16 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        if provider == .vibe {
+            // Only each session folder's metadata, or a unified session's
+            // pointer to its current totals, never a transcript.
+            let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+            if parts.count == 3 {
+                return parts[0] == "unified" && !parts[1].isEmpty && !parts[1].hasPrefix(".")
+                    && parts[2] == VibeReader.current
+            }
+            return parts.count == 2 && parts[0].hasPrefix("session_") && parts[1] == VibeReader.metadata
+        }
         guard path.hasSuffix(".jsonl") else { return false }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
         if provider == .copilot {
@@ -971,7 +981,7 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
-        return path.hasSuffix(".jsonl")
+        return path.hasSuffix(".jsonl") || name == VibeReader.metadata || name == VibeReader.current
     }
 
     /// Cursor can replace a transcript at the end of a turn. During a replay,
@@ -1152,6 +1162,20 @@ enum AgentLogReader {
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
                 continue
             }
+            // Vibe keeps one metadata file in each older session folder, and
+            // a pointer to the current totals in each unified one, beside
+            // transcripts that are never read.
+            if root.provider == .vibe {
+                func folders(_ url: URL) -> [URL] {
+                    (try? FileManager.default.contentsOfDirectory(
+                        at: url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                }
+                for session in folders(root.url) { include(session.appending(path: VibeReader.metadata), from: root) }
+                for session in folders(root.url.appending(path: "unified")) {
+                    include(session.appending(path: VibeReader.current), from: root)
+                }
+                continue
+            }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
                                                                   options: [.skipsPackageDescendants]) else { continue }
             for case let url as URL in enumerator where url.path.hasSuffix(".jsonl") {
@@ -1209,6 +1233,24 @@ enum AgentLogReader {
         }
         cursor.modified = modified
         defer { cursor.fingerprintRead(descriptor: secured?.handle.fileDescriptor) }
+        // Vibe replaces its metadata whole, written over several lines, so
+        // each version is read whole as one object.
+        if cursor.provider == .vibe {
+            guard size > cursor.offset, size <= UInt64(maximumLine), shouldContinue(),
+                  let data = FileManager.default.contents(atPath: cursor.path) else { return }
+            // A unified session's pointer stands for the totals it names;
+            // one that cannot be followed yet is read again on the next pass.
+            if (cursor.path as NSString).lastPathComponent == VibeReader.current {
+                guard let session = VibeReader.unifiedSession(
+                    current: data, folder: URL(fileURLWithPath: cursor.path).deletingLastPathComponent()) else { return }
+                cursor.offset = UInt64(data.count)
+                line(session)
+                return
+            }
+            cursor.offset = UInt64(data.count)
+            line(data)
+            return
+        }
         guard size > cursor.offset, let handle = secured?.handle ?? FileHandle(forReadingAtPath: cursor.path) else { return }
         defer { if secured == nil { try? handle.close() } }
         do { try handle.seek(toOffset: cursor.offset) } catch { return }

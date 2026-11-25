@@ -108,6 +108,7 @@ enum NotchAgentSupport {
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
         case .cursor: return DefaultsKey.notchAgentsCursor
+        case .vibe: return DefaultsKey.notchAgentsVibe
         }
     }
 
