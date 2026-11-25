@@ -171,9 +171,13 @@ enum MixerRoutingSupport {
 
     static let systemDefaultSelectionID = "__system_default__"
     static let finderBundleIdentifier = "com.apple.finder"
-    static let otherAudioName = "Other / System audio"
-    static let otherAudioRowIdentity = MixerRowIdentity(rowID: otherAudioName,
-                                                        persistenceID: otherAudioName)
+    /// Row for audio whose process has no regular-app owner, such as an iOS
+    /// Simulator running under launchd_sim (issue #4024). The id is fixed so a
+    /// saved volume, route or hidden state survives a language change; the
+    /// label shown comes from `mixerOtherAudioName`.
+    static let otherAudioPersistenceID = "__other_audio__"
+    static let otherAudioRowIdentity = MixerRowIdentity(rowID: otherAudioPersistenceID,
+                                                        persistenceID: otherAudioPersistenceID)
 
     private static let forbiddenScalars = CharacterSet.controlCharacters.union(.newlines)
 

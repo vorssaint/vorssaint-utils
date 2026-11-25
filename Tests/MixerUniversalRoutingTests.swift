@@ -217,10 +217,34 @@ enum MixerUniversalRoutingContract {
         Preferences.standard.arrays = [:]
     }
 
+    // A simulated iOS app plays through processes under launchd_sim, so no
+    // regular Mac app owns them (issue #4024). Their audio gets one row of its
+    // own instead of being dropped, under an id that does not depend on the
+    // label's language, and hiding that row still removes it.
+    private static func unownedAudioRow(_ suite: TestSuite) {
+        let request = Mixer.RefreshRequest(savedVolumes: [:], otherAudioName: "Autres / Audio système")
+        let rows = Mixer.processRows(for: [101, 105], request: request, availableUIDs: [], defaultUID: nil)
+        let other = rows.first { $0.id == MixerRoutingSupport.otherAudioPersistenceID }
+        suite.expect(rows.count == 2 && other?.audioObjects == [105]
+                     && other?.persistenceID == MixerRoutingSupport.otherAudioPersistenceID,
+                     "audio no regular app owns gets its own row next to the owned app's")
+        suite.expect(other?.name == "Autres / Audio système" && other?.id != other?.name,
+                     "the row shows the localized label while its id stays language-independent")
+        let ownedOnly = Mixer.processRows(for: [101], request: request, availableUIDs: [], defaultUID: nil)
+        suite.expect(ownedOnly.count == 1 && ownedOnly[0].ownerPid == 14271,
+                     "no extra row appears when every process has an app owner")
+        let hidden = Mixer.RefreshRequest(savedVolumes: [:],
+                                          hiddenRowIDs: [MixerRoutingSupport.otherAudioPersistenceID])
+        suite.expect(!Mixer.processRows(for: [101, 105], request: hidden, availableUIDs: [], defaultUID: nil)
+                        .contains { $0.id == MixerRoutingSupport.otherAudioPersistenceID },
+                     "hiding the row removes it like any other app's")
+    }
+
     static func run(_ suite: TestSuite) {
         Preferences.standard.values = [:]
         Preferences.standard.arrays = [:]
         distinctProcessVolumes(suite)
+        unownedAudioRow(suite)
         callAudioCompatibility(suite)
         Mixer.deviceLists = [100: [10], 200: [20]]
         Mixer.reads = []; Mixer.writes = []; Mixer.writeStatus = noErr
@@ -396,7 +420,8 @@ extension MixerUniversalRoutingContract.Mixer {
         let savedVolumes: [String: Double]
         let ownPid: pid_t = 1
         let callAppVolumeEnabled = Set<String>()
-        let hiddenRowIDs = Set<String>()
+        var hiddenRowIDs = Set<String>()
+        var otherAudioName = "Other / System audio"
         let savedOutputs: [String: String] = [:]
         let sessionRoutes: [String: String] = [:]
         let sessionVolumes: [String: Double] = [:]
@@ -418,7 +443,7 @@ extension MixerUniversalRoutingContract.Mixer {
 
     enum ResponsibleProcess {
         static func regularAppOwnerPid(of pid: pid_t) -> pid_t? {
-            MixerRoutingSupport.regularAppOwnerPid(of: pid, responsiblePid: pid == 2836 ? 2836 : 14271,
+            MixerRoutingSupport.regularAppOwnerPid(of: pid, responsiblePid: pid == 2836 || pid == 30000 ? pid : 14271,
                 isRegularApp: { NSRunningApplication(processIdentifier: $0) != nil }, parentPid: { _ in 0 })
         }
         static func displayName(pid: pid_t, fallback: String) -> String {
@@ -427,7 +452,7 @@ extension MixerUniversalRoutingContract.Mixer {
     }
 
     static func read(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ pid: inout pid_t) -> Bool {
-        let owners: [AudioObjectID: pid_t] = [101: 14271, 102: 2836, 103: 44794, 104: 20000]
+        let owners: [AudioObjectID: pid_t] = [101: 14271, 102: 2836, 103: 44794, 104: 20000, 105: 30000]
         guard selector == kAudioProcessPropertyPID, let value = owners[object] else { return false }
         pid = value
         return true

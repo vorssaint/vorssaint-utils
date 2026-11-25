@@ -1656,6 +1656,9 @@ final class AppVolumeMixer: ObservableObject {
         /// Persistence ids the list must leave out: the apps the user hid,
         /// plus the Finder while its toggle is off (issue #300).
         let hiddenRowIDs: Set<String>
+        /// Localized label for the row of audio no regular app owns, read on
+        /// the main thread because the row is built on `halQueue`.
+        let otherAudioName: String
         let ownPid: pid_t
     }
 
@@ -1716,6 +1719,7 @@ final class AppVolumeMixer: ObservableObject {
             hiddenRowIDs: MixerRoutingSupport.hiddenRowIDs(
                 hiddenApps: savedHiddenApps(),
                 showFinder: UserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder)),
+            otherAudioName: L10n.shared.s.mixerOtherAudioName,
             ownPid: ProcessInfo.processInfo.processIdentifier)
 
         halQueue.async { [weak self] in
@@ -2013,7 +2017,6 @@ final class AppVolumeMixer: ObservableObject {
                                                                        session: request.sessionVolumes) ?? 1)))
         }
         if !unownedAudioObjects.isEmpty {
-            let fallbackName = MixerRoutingSupport.otherAudioName
             let identity = MixerRoutingSupport.otherAudioRowIdentity
             if !MixerRoutingSupport.isHiddenFromMixer(persistenceID: identity.persistenceID,
                                                       hiddenIDs: request.hiddenRowIDs) {
@@ -2023,7 +2026,7 @@ final class AppVolumeMixer: ObservableObject {
                 next.append(MixerApp(id: identity.rowID,
                                      persistenceID: identity.persistenceID,
                                      ownerPid: 0,
-                                     name: fallbackName,
+                                     name: request.otherAudioName,
                                      audioObjects: Array(Set(unownedAudioObjects)).sorted(),
                                      isPlaying: true,
                                      isBypassed: false,

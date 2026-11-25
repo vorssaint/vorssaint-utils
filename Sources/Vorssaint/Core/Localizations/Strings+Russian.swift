@@ -623,6 +623,7 @@ extension Strings {
         mixerOutputUnavailable: "Выход недоступен",
         mixerOutputFallback: "Используется выход по умолчанию, пока это устройство не вернётся.",
         mixerBypassedCaption: "Это приложение само управляет своим звуком.",
+        mixerOtherAudioName: "Другое / Системный звук",
         mixerOutputTooltip: "Выбрать выход",
         mixerAirPlayChooseSpeaker: "Выбрать динамик AirPlay…",
         mixerSystemOutputTitle: "Выход",

@@ -622,6 +622,7 @@ extension Strings {
         mixerOutputUnavailable: "Çıkış kullanılamıyor",
         mixerOutputFallback: "Bu aygıt geri dönene kadar varsayılan kullanılıyor.",
         mixerBypassedCaption: "Bu uygulama sesini kendisi yönetir.",
+        mixerOtherAudioName: "Diğer / Sistem sesi",
         mixerOutputTooltip: "Çıkış seç",
         mixerAirPlayChooseSpeaker: "AirPlay hoparlörü seç…",
         mixerSystemOutputTitle: "Çıkış",
