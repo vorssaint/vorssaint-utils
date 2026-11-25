@@ -17,6 +17,7 @@ struct GeneralSettings: View {
     @State private var loginPending = false
     @State private var loginRefreshID = UUID()
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
+    @AppStorage(DefaultsKey.sleepNowShortcutEnabled) private var sleepNowShortcutEnabled = false
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
@@ -142,6 +143,18 @@ struct GeneralSettings: View {
                     .foregroundStyle(.orange)
                     .padding(.leading, settingsRowTextInset)
             }
+            SettingsRow(symbol: "moon.zzz", title: l10n.s.sleepNowTitle, caption: l10n.s.sleepNowCaption) {
+                Toggle(l10n.s.sleepNowTitle, isOn: $sleepNowShortcutEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .onChange(of: sleepNowShortcutEnabled) { _, _ in
+                        HotkeyManager.shared.syncWithPreferences()
+                    }
+            }
+            ShortcutPreferenceRow(role: .sleepNow, isEnabled: sleepNowShortcutEnabled) {
+                HotkeyManager.shared.syncWithPreferences()
+            }
+            .padding(.leading, settingsRowTextInset)
         }
     }
 

@@ -2824,6 +2824,20 @@ struct KeepAwakeCard: View {
                           isOn: $awake.clamshellPreferred,
                           disabled: awake.clamshellSetupInProgress,
                           captionIsError: awake.clamshellSetupFailed)
+                if awake.clamshellPreferred {
+                    HStack {
+                        Spacer(minLength: 0)
+                        Button {
+                            awake.sleepNow()
+                        } label: {
+                            Label(l10n.s.sleepNowTitle, systemImage: "moon.zzz")
+                                .font(.system(size: 9.5, weight: .semibold))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .help(l10n.s.sleepNowCaption)
+                    }
+                }
             }
             .panelCard()
         }

@@ -163,6 +163,8 @@ extension Strings {
         clamshellExplanation: "「闔上螢幕後繼續運作」會在「保持喚醒」開啟期間完全停用睡眠，並在工作階段結束或 App 結束時自動恢復。建議在連接電源時使用。",
         dimScreenOnLidCloseTitle: "將螢幕完全調暗",
         dimScreenOnLidCloseCaption: "闔上螢幕時調暗畫面，開啟時恢復亮度。",
+        sleepNowTitle: "立即睡眠",
+        sleepNowCaption: "立即讓 Mac 進入睡眠，並在喚醒後繼續目前的工作階段。",
 
         scrollSection: "捲動",
         invertMouseScroll: "反轉滑鼠捲動",

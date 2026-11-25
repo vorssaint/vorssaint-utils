@@ -163,6 +163,8 @@ extension Strings {
         clamshellExplanation: "„Pokračovať so zatvoreným vekom“ úplne vypne spánok, kým je aktívny „Bdelý režim“, a po skončení relácie alebo ukončení aplikácie sa automaticky vráti späť. Používajte ho radšej pri napájaní zo siete.",
         dimScreenOnLidCloseTitle: "Úplne stmaviť obrazovku",
         dimScreenOnLidCloseCaption: "Pri zatvorení veka stmaví obrazovku a po otvorení vráti jas.",
+        sleepNowTitle: "Uspať teraz",
+        sleepNowCaption: "Mac hneď uspí a po prebudení obnoví aktuálnu reláciu.",
 
         scrollSection: "Rolovanie",
         invertMouseScroll: "Obrátiť rolovanie myšou",
