@@ -38,6 +38,13 @@ extension FeatureStrings {
             sounds: "Sonidos al bloquear y desbloquear",
             soundsHint: "Reproduce el sonido de candado de macOS cuando el Mac se bloquea y se desbloquea.",
             working: "Trabajando")
+        case .ca: return NotchLockScreenStrings(
+            title: "Pantalla bloquejada",
+            show: "Mostra a la pantalla bloquejada",
+            showHint: "La música i les activitats de la Dynamic Island, com ara un temporitzador, els agents d’IA, les descàrregues i el pròxim esdeveniment, apareixen a sobre del camp de la contrasenya. Qualsevol persona que vegi la pantalla les pot llegir.",
+            sounds: "Sons de bloqueig i desbloqueig",
+            soundsHint: "Reprodueix el so de cadenat del macOS quan el Mac es bloqueja i es desbloqueja.",
+            working: "En curs")
         case .sk: return NotchLockScreenStrings(
             title: "Zamknutá obrazovka",
             show: "Zobraziť na zamknutej obrazovke",

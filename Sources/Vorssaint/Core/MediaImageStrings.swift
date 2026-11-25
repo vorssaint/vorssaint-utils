@@ -69,6 +69,7 @@ struct MediaImageConverterStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -381,6 +382,66 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "%d imágenes guardadas",
         batchPartialFormat: "%d guardadas, %d fallidas",
         batchSummaryHeaderFormat: "%d guardadas, %d fallidas",
+        batchSummaryItemFormat: "%@ -> %@"
+    )
+
+    static let ca = MediaImageConverterStrings(
+        filesSelectedFormat: "%d arxius seleccionats",
+        profile: "Perfil",
+        noProfile: "Sense perfil",
+        profileName: "Nom del perfil",
+        saveAsNew: "Desa’n un de nou",
+        updateProfile: "Actualitza",
+        deleteProfile: "Elimina el perfil",
+        profileModified: "Modificat",
+        profileDefaultNameFormat: "Perfil %d",
+        presetWeb: "Web",
+        presetSocial: "Xarxes socials",
+        presetDocs: "Documents",
+        resize: "Redimensiona",
+        resizeNone: "Cap canvi",
+        resizeMax: "Costat màxim",
+        resizeWidth: "Amplada",
+        resizeHeight: "Alçada",
+        resizeExact: "Personalitzada",
+        exactStretch: "Estira",
+        exactFit: "Ajusta",
+        exactFill: "Emplena",
+        height: "Alçada",
+        watermark: "Marca d’aigua",
+        watermarkOff: "Desactivada",
+        watermarkText: "Text",
+        watermarkLogo: "Logotip",
+        watermarkBoth: "Text + logotip",
+        watermarkTextPlaceholder: "Text de la marca d’aigua",
+        noLogo: "Sense logotip",
+        chooseLogo: "Tria un logotip",
+        position: "Posició",
+        topLeft: "A dalt a l’esquerra",
+        topRight: "A dalt a la dreta",
+        center: "Al centre",
+        bottomLeft: "A baix a l’esquerra",
+        bottomRight: "A baix a la dreta",
+        opacity: "Opacitat",
+        margin: "Marge",
+        scale: "Escala",
+        rename: "Canvia el nom",
+        preview: "Previsualització",
+        outputName: "Sortida",
+        background: "Fons",
+        backgroundTransparent: "Transparent",
+        backgroundWhite: "Blanc",
+        backgroundBlack: "Negre",
+        preserveDate: "Conserva la data de modificació original",
+        saveInSubfolder: "Desa a la subcarpeta “Converted”",
+        moreOptions: "Més opcions",
+        tooLarge: "Aquestes dimensions són massa grans per processar-les amb seguretat. Tria una mida més petita.",
+        copySummary: "Copia el resum",
+        savedBytesFormat: "Estalvi: %@",
+        grewBytesFormat: "%@ més gran",
+        batchSavedFormat: "%d imatges desades",
+        batchPartialFormat: "Desades: %d; amb errors: %d",
+        batchSummaryHeaderFormat: "Desades: %d; amb errors: %d",
         batchSummaryItemFormat: "%@ -> %@"
     )
 

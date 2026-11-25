@@ -49,6 +49,12 @@ extension FeatureStrings {
             invalidFolder: "Elija una carpeta de perfil de Claude Code que le pertenezca y contenga su propio archivo .claude.json. Otros usuarios no deben poder escribir en la carpeta y el archivo no debe ser un enlace.",
             unknownAccount: "No se ha identificado ninguna cuenta en este perfil.", noLimits: "Claude Code aún no ha devuelto los límites de esta cuenta.",
             signInHelp: "Cómo iniciar sesión en otra cuenta de Claude")
+        case .ca: return ClaudeAccountStrings(
+            title: "Compte del Claude", defaultAccount: "Compte per omissió", chooseFolder: "Tria la carpeta del compte…",
+            explanation: "Tria un perfil que ja tingui la sessió iniciada al Claude Code. L’ús prové de les sessions d’aquest perfil i el Claude Code comprova els límits del seu compte. Canviar aquesta selecció no canvia el compte de les altres apps.",
+            invalidFolder: "Tria una carpeta de perfil del Claude Code que ja existeixi, que sigui teva i que contingui el seu propi arxiu .claude.json. Ningú més no hi ha de poder escriure i l’arxiu no ha de ser un enllaç.",
+            unknownAccount: "No s’ha identificat cap compte en aquest perfil.", noLimits: "El Claude Code encara no ha retornat els límits d’aquest compte.",
+            signInHelp: "Com iniciar la sessió en un altre compte del Claude")
         case .sk: return ClaudeAccountStrings(
             title: "Účet Claude", defaultAccount: "Predvolený účet", chooseFolder: "Vybrať priečinok účtu…",
             explanation: "Vyberte profil, ktorý je už prihlásený do Claude Code. Používanie pochádza z relácií tohto profilu a Claude Code kontroluje limity jeho účtu. Tento výber nezmení účet v ostatných aplikáciách.",
