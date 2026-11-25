@@ -289,12 +289,14 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     @discardableResult
     private func seekPreview(to source: Double, exact: Bool) -> Bool {
         let playerTrim = installedEdit.trim(duration: duration)
-        guard let time = RecorderTimeline.outputTime(forSource: source, trim: playerTrim,
+        guard let last = RecorderTimeline.keptRanges(trim: playerTrim, cuts: installedEdit.cuts).last else { return false }
+        // Keep the final seek within the last segment, even for a sub-frame tail.
+        let target = last.contains(source)
+            ? min(source, RecorderTimeline.lastPreviewTime(in: last, frameDuration: 1 / Double(sourceFrameRate)))
+            : source
+        guard let time = RecorderTimeline.outputTime(forSource: target, trim: playerTrim,
                                                       cuts: installedEdit.cuts) else { return false }
-        let end = RecorderTimeline.outputDuration(trim: playerTrim, cuts: installedEdit.cuts)
-        // An item has no picture to present at its end. Keep its last frame.
-        let lastFrame = max(0, end - 1 / Double(sourceFrameRate))
-        previewSeeks.enqueue(.init(time: min(time, lastFrame), exact: exact))
+        previewSeeks.enqueue(.init(time: time, exact: exact))
         performNextPreviewSeek()
         return true
     }
@@ -357,25 +359,22 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
 
     // MARK: - Editing
 
-    enum TrimEdge { case start, end }
+    typealias TrimEdge = RecorderTimeline.Edge
 
     func dragTrim(_ edge: TrimEdge, offset: Double) {
         guard duration > 0, offset.isFinite else { return }
         let original = document.trim(duration: duration)
         let minimum = min(RecorderSupport.minimumTrimSeconds, duration)
         var next = original
-        let target: Double
         switch edge {
         case .start:
             next.start = min(max(0, original.start + offset), max(0, original.end - minimum))
-            target = next.start
         case .end:
             next.end = min(duration, max(original.start + minimum, original.end + offset))
-            target = max(next.start, next.end - 1 / Double(sourceFrameRate))
         }
         guard next != trim,
-              let time = RecorderTimeline.nearestKeptTime(
-                to: target, in: RecorderTimeline.keptRanges(trim: next, cuts: document.cuts))
+              let time = RecorderTimeline.trimPreviewTime(for: edge, trim: next, cuts: document.cuts,
+                                                          frameDuration: 1 / Double(sourceFrameRate))
         else { return }
         if draftTrim == nil {
             pause()
@@ -384,7 +383,16 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         }
         draftTrim = next
         if sourceTime != time { sourceTime = time }
-        if !seekPreview(to: time, exact: false) { prepareSourcePreview() }
+        if !seekTrimPreview(to: time) { prepareSourcePreview() }
+    }
+
+    @discardableResult
+    private func seekTrimPreview(to time: Double) -> Bool {
+        // A one-frame seek tolerance can reach across the join even when
+        // the requested frame is on the kept side.
+        let frame = 1 / Double(sourceFrameRate)
+        let nearCut = document.cuts.contains { time >= $0.start - frame && time <= $0.end + frame }
+        return seekPreview(to: time, exact: nearCut)
     }
 
     func finishTrimming() {
@@ -422,7 +430,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
             if !self.isPickingBlurArea, !self.isAimingZoom { item.videoComposition = videoComposition }
             self.audioTrackIDs = [:]
             self.installPreview(item, edit: edit)
-            self.seekPreview(to: self.sourceTime, exact: false)
+            self.seekTrimPreview(to: self.sourceTime)
         }
     }
 

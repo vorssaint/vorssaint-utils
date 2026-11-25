@@ -16,6 +16,7 @@ enum RecorderFeatureTests {
         RecorderSystemAudioTapLifecycleTests.run(suite)
         RecorderSystemAudioTrustTests.run(suite)
         previewSeekCoalescing(suite)
+        trimPreviewBoundaries(suite)
         func pageVisible(_ page: SettingsPage, available: Set<AppFeature>) -> Bool {
             FeatureVisibilitySupport.isPageVisible(page) { available.contains($0) }
         }
@@ -1585,5 +1586,36 @@ enum RecorderFeatureTests {
                     && RecorderTimeline.nearestKeptTime(to: 3.2, in: kept) == 3
                     && RecorderTimeline.nearestKeptTime(to: 4.8, in: kept) == 5,
                      "scrubbing snaps to the nearest kept boundary, including the right trim edge")
+    }
+
+    private static func trimPreviewBoundaries(_ suite: TestSuite) {
+        let frame = 1.0 / 30
+        let original = RecorderSupport.Trim(start: 0, end: 12)
+        let cuts = [RecorderTimeline.Cut(start: 2, end: 4), RecorderTimeline.Cut(start: 7, end: 9)]
+        // The installed item joins source 0–2, 4–7 and 9–12 at output times 2 and 5.
+        let cases: [(edge: RecorderTimeline.Edge, handle: Double, source: Double, output: Double)] = [
+            (.end, 8, 7 - frame, 5 - frame), // inside the second cut
+            (.end, 7, 7 - frame, 5 - frame), // exactly at the join
+            (.start, 8, 9, 5),                // the opposite handle keeps the following segment
+            (.end, 6, 6 - frame, 4 - frame), // in continuous footage
+            (.end, 9.01, 9, 5),              // less than a frame of the final segment survives
+        ]
+        for test in cases {
+            var draft = original
+            switch test.edge {
+            case .start: draft.start = test.handle
+            case .end: draft.end = test.handle
+            }
+            let label = "\(test.edge) trim at \(test.handle)s"
+            guard let source = RecorderTimeline.trimPreviewTime(for: test.edge, trim: draft, cuts: cuts,
+                                                                frameDuration: frame),
+                  let output = RecorderTimeline.outputTime(forSource: source, trim: original, cuts: cuts)
+            else {
+                suite.expect(false, "\(label) has a preview in the installed composition")
+                continue
+            }
+            suite.expectClose(source, test.source, "\(label) previews the retained source frame")
+            suite.expectClose(output, test.output, "\(label) seeks to its position in the installed composition")
+        }
     }
 }
