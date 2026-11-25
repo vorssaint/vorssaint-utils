@@ -48,6 +48,14 @@ struct NotchCalendarStrip: View {
                             .contentShape(Rectangle())
                         }
                         .modifier(countdownAccessibility(countdown, title: displayTitle, now: context.date))
+                        .overlayPreferenceValue(NotchJoinSlot.self) { slot in
+                            if let slot, let meeting = countdown.event.meetingURL {
+                                GeometryReader { proxy in
+                                    let frame = proxy[slot]
+                                    joinButton(meeting).position(x: frame.midX, y: frame.midY)
+                                }
+                            }
+                        }
                     }
                 }
                 .buttonStyle(.plain)
@@ -76,6 +84,7 @@ struct NotchCalendarStrip: View {
                 .lineLimit(1).truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Self.clock(remaining, ongoing: countdown.ongoing)
+            joinSlot(countdown)
         }
         .padding(.horizontal, rowInset)
     }
@@ -97,6 +106,7 @@ struct NotchCalendarStrip: View {
             Color.clear.frame(width: geometry.compactActivityCameraGap)
             // The start or end time fills the side the clock alone left
             // mostly empty; a wing narrowed by the menus keeps just the clock.
+            // The Join button outlasts the time, then gives way to the clock.
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: NotchCalendarSupport.stripClockSpacing) {
                     Self.clock(remaining, ongoing: countdown.ongoing)
@@ -104,6 +114,11 @@ struct NotchCalendarStrip: View {
                         .font(.system(size: 11, weight: .medium)).monospacedDigit()
                         .foregroundStyle(.white.opacity(0.55))
                         .fixedSize()
+                    joinSlot(countdown)
+                }
+                HStack(spacing: NotchCalendarSupport.stripClockSpacing) {
+                    Self.clock(remaining, ongoing: countdown.ongoing)
+                    joinSlot(countdown)
                 }
                 Self.clock(remaining, ongoing: countdown.ongoing)
             }
@@ -142,6 +157,34 @@ struct NotchCalendarStrip: View {
             }
             .modifier(countdownAccessibility(countdown, title: title, now: now))
         }
+    }
+
+    private static let joinSize: CGFloat = 18
+
+    /// Where the Join button sits. It is drawn over the countdown's button
+    /// rather than inside it, so a click joins instead of opening the page.
+    @ViewBuilder private func joinSlot(_ countdown: NotchCalendarCountdown) -> some View {
+        if countdown.event.meetingURL != nil {
+            Color.clear.frame(width: Self.joinSize, height: Self.joinSize)
+                .anchorPreference(key: NotchJoinSlot.self, value: .bounds) { $0 }
+        }
+    }
+
+    private func joinButton(_ url: URL) -> some View {
+        Button {
+            let zoomInstalled = InstalledApps.url(for: NotchCalendarSupport.zoom) != nil
+            NSWorkspace.shared.open(NotchCalendarSupport.joinURL(url, zoomInstalled: zoomInstalled))
+        } label: {
+            Image(systemName: "video.fill")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: Self.joinSize, height: Self.joinSize)
+                .background(Color.green.opacity(0.55), in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(text.join)
+        .help(url.host ?? text.join)
     }
 
     static func displayTitle(_ event: NotchCalendarEvent, untitled: String) -> String {
@@ -189,5 +232,13 @@ private struct NotchCountdownAccessibility: ViewModifier {
             .accessibilityValue(value)
             .accessibilityHint(hint)
             .help(help)
+    }
+}
+
+private struct NotchJoinSlot: PreferenceKey {
+    static var defaultValue: Anchor<CGRect>? { nil }
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = value ?? nextValue()
     }
 }

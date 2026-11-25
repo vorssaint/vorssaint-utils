@@ -388,6 +388,32 @@ private struct NotchCalendarEventRow: View {
             .help(text.openCalendar)
             .accessibilityHint(text.openCalendar)
             .modifier(NotchCountdownChoice(chosen: countdown, text: text, choose: choose))
+            .overlay(alignment: .topTrailing) {
+                if let meeting { joinButton(meeting) }
+            }
+    }
+
+    /// A call that has not ended can be joined straight from the island.
+    private var meeting: URL? { ended ? nil : event.meetingURL }
+
+    private func joinButton(_ url: URL) -> some View {
+        Button {
+            let zoomInstalled = InstalledApps.url(for: NotchCalendarSupport.zoom) != nil
+            NSWorkspace.shared.open(NotchCalendarSupport.joinURL(url, zoomInstalled: zoomInstalled))
+        } label: {
+            Label(text.join, systemImage: "video.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .padding(.horizontal, 9)
+                .frame(height: 22)
+                .background((ongoing || isNext ? Color.green : .white).opacity(ongoing || isNext ? 0.45 : 0.14),
+                            in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 11))
+        .help(url.host ?? text.join)
+        .padding(8)
     }
 
     private var card: some View {
@@ -402,6 +428,8 @@ private struct NotchCalendarEventRow: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white.opacity(ended ? 0.65 : 1))
                 .fixedSize(horizontal: false, vertical: true)
+                // Leaves room for the Join button.
+                .padding(.trailing, meeting == nil ? 0 : 64)
             HStack(alignment: .firstTextBaseline, spacing: 5) {
                 Group {
                     if event.allDay {
