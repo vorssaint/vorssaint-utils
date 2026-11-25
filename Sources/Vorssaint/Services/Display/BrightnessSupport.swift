@@ -407,6 +407,30 @@ enum BrightnessSupport {
         onlineDisplayIDs.intersection(activeDisplayIDs).subtracting(virtualDisplayIDs)
     }
 
+    enum RouteSearch: Equatable {
+        case unlisted
+        case systemThenDDC
+        case systemThenSoftware
+    }
+
+    /// Where a display's brightness route is looked for. A virtual display
+    /// (a DisplayLink monitor, a dummy screen) has no I2C channel, and scoring
+    /// it against the IORegistry could hand it a real monitor's DDC service,
+    /// so it falls back to its gamma curve. It is listed only while active:
+    /// an inactive row offers a power button, which virtual displays never get.
+    static func routeSearch(isVirtual: Bool, isAirPlay: Bool, isActive: Bool) -> RouteSearch {
+        if isAirPlay { return .unlisted }
+        if isVirtual { return isActive ? .systemThenSoftware : .unlisted }
+        return .systemThenDDC
+    }
+
+    /// An active display without a brightness route keeps its row only for a
+    /// control it still offers: a monitor speaker or a power button. A virtual
+    /// display never gets either.
+    static func keepsRowWithoutBrightness(isVirtual: Bool, hasSpeaker: Bool, canSwitchPower: Bool) -> Bool {
+        !isVirtual && (hasSpeaker || canSwitchPower)
+    }
+
     /// If a cable removal leaves the Mac with no drawable display, bring back
     /// one display this app switched off. Prefer the built-in panel so the
     /// portable Mac recovers without changing any other disabled display.
@@ -1259,6 +1283,26 @@ enum BrightnessSupport {
                       && $0.score >= best.score
               }) else { return nil }
         return best.serviceOrdinal
+    }
+
+    /// Each display's speaker service, by display index. A virtual display
+    /// (a DisplayLink monitor, a dummy screen) has no I2C channel, and its
+    /// copy of a real monitor's EDID would tie with that monitor and block
+    /// its speaker, so it takes no part.
+    static func speakerServices(displays: [(index: Int, identity: DisplayIdentity, isVirtual: Bool)],
+                                services: [ServiceIdentity]) -> [Int: Int] {
+        let displays = displays.filter { !$0.isVirtual }
+        let scores = displays.flatMap { display in
+            services.map { service in
+                (displayIndex: display.index, serviceOrdinal: service.ordinal,
+                 score: matchScore(service: service, display: display.identity, requireIdentity: true))
+            }
+        }
+        var assignment: [Int: Int] = [:]
+        for display in displays {
+            assignment[display.index] = speakerService(for: display.index, scores: scores)
+        }
+        return assignment
     }
 }
 

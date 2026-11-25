@@ -41,6 +41,8 @@ struct BrightnessDisplay: Identifiable, Equatable {
     let readable: Bool
     /// Manual dimming choices need a stable display-and-connection key.
     var canChooseDimming = false
+    /// A DisplayLink monitor or dummy screen. It cannot be switched off here.
+    var isVirtual = false
     /// Captured before this display is disabled, while its identity is still
     /// available. A reused display number must not transfer recovery ownership.
     var restorationFingerprint: String? = nil
@@ -2237,34 +2239,38 @@ final class BrightnessService: ObservableObject {
         var newRoutes: [CGDirectDisplayID: Route] = [:]
         var ddcCandidates: [(index: Int, identity: BrightnessSupport.DisplayIdentity)] = []
         let probesAudio = wantsMonitorVolume
-        var externalDisplays: [(index: Int, identity: BrightnessSupport.DisplayIdentity)] = []
+        var externalDisplays: [(index: Int, identity: BrightnessSupport.DisplayIdentity, isVirtual: Bool)] = []
         var newAudioRoutes: [CGDirectDisplayID: AudioRoute] = [:]
         var externalNames: [(id: UInt32, name: String)] = []
+        var virtualIndices = Set<Int>()
         var virtualIDs = Set<CGDirectDisplayID>()
 
         for id in onlineIDs {
             let info = Self.displayInfoDictionary(id)
+            let isVirtual = info?["kCGDisplayIsVirtualDevice"] as? Bool ?? false
             // Read before the guard below, so the snapshot the panel decides
             // from covers every online display, exactly like the live reading
             // it replaces.
-            if (info?["kCGDisplayIsVirtualDevice"] as? Bool ?? false) { virtualIDs.insert(id) }
-            // A display mirroring another keeps its own row, unlike virtual
-            // and AirPlay ones: the picture is shared, the backlight is not.
-            // Skipping mirrors took a MacBook panel mirroring a monitor off
-            // every Displays surface.
-            if let info,
-               (info["kCGDisplayIsVirtualDevice"] as? Bool ?? false)
-                || (info["kCGDisplayIsAirPlay"] as? Bool ?? false) {
-                continue
-            }
+            if isVirtual { virtualIDs.insert(id) }
+            let isActive = activeTopology.contains(id)
+            // A display mirroring another keeps its own row, unlike AirPlay
+            // ones: the picture is shared, the backlight is not. Skipping
+            // mirrors took a MacBook panel mirroring a monitor off every
+            // Displays surface.
+            let routeSearch = BrightnessSupport.routeSearch(
+                isVirtual: isVirtual,
+                isAirPlay: info?["kCGDisplayIsAirPlay"] as? Bool ?? false,
+                isActive: isActive)
+            if routeSearch == .unlisted { continue }
             let isBuiltIn = CGDisplayIsBuiltin(id) != 0
             let name = Self.displayName(id, info: info, screenNames: screenNames)
             let externalIdentity = isBuiltIn ? nil : Self.displayIdentity(id, info: info)
             if let externalIdentity {
-                externalDisplays.append((built.count, externalIdentity))
-                if probesAudio { externalNames.append((id, name)) }
+                externalDisplays.append((built.count, externalIdentity, isVirtual))
+                // A virtual display has no monitor speaker for its name to
+                // route volume keys to.
+                if probesAudio, !isVirtual { externalNames.append((id, name)) }
             }
-            let isActive = activeTopology.contains(id)
 
             if !isActive {
                 stateLock.lock()
@@ -2304,6 +2310,15 @@ final class BrightnessService: ObservableObject {
                     levelKnownAt[id] = Date()
                     stateLock.unlock()
                 }
+                continue
+            }
+            if routeSearch == .systemThenSoftware {
+                virtualIndices.insert(built.count)
+                // Placeholder; the software pass below fills brightness.
+                built.append(BrightnessDisplay(id: id, name: name, isBuiltIn: false,
+                                               method: .software, isActive: true,
+                                               brightness: 1, readable: false,
+                                               isVirtual: true))
                 continue
             }
             guard let externalIdentity else { continue }
@@ -2360,7 +2375,8 @@ final class BrightnessService: ObservableObject {
                                          method: previous.method, isActive: true,
                                          brightness: previous.brightness,
                                          readable: previous.readable,
-                                         canChooseDimming: previous.canChooseDimming)
+                                         canChooseDimming: previous.canChooseDimming,
+                                         isVirtual: display.isVirtual)
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.running, generation == self.rebuildGeneration else { return }
@@ -2374,9 +2390,10 @@ final class BrightnessService: ObservableObject {
         // Whatever ends up without a live DDC channel falls back to gamma
         // dimming, so every real display keeps a working slider.
         let speakerCandidates = probesAudio ? externalDisplays : []
-        let services = BrightnessBridge.ddcAvailable && (!ddcCandidates.isEmpty || !speakerCandidates.isEmpty)
+        let services = BrightnessBridge.ddcAvailable
+            && (!ddcCandidates.isEmpty || speakerCandidates.contains { !$0.isVirtual })
             ? Self.externalServices() : []
-        var softwareIndices = Set(ddcCandidates.map(\.index))
+        var softwareIndices = Set(ddcCandidates.map(\.index)).union(virtualIndices)
         var forcedSoftwareIDs = Set<CGDirectDisplayID>()
         var extendedDimmingIDs = Set<CGDirectDisplayID>()
         var softwarePathKeys: [CGDirectDisplayID: String] = [:]
@@ -2387,7 +2404,8 @@ final class BrightnessService: ObservableObject {
         var unserved = services.isEmpty ? ddcCandidates : []
         if !ddcCandidates.isEmpty, !services.isEmpty {
             let assignment = BrightnessSupport.brightnessServices(
-                displays: externalDisplays, candidates: Set(ddcCandidates.map(\.index)),
+                displays: externalDisplays.filter { !$0.isVirtual }.map { ($0.index, $0.identity) },
+                candidates: Set(ddcCandidates.map(\.index)),
                 services: services.map(\.identity))
             for candidate in ddcCandidates {
                 guard let ordinal = assignment[candidate.index],
@@ -2576,7 +2594,7 @@ final class BrightnessService: ObservableObject {
             built[index] = BrightnessDisplay(
                 id: id, name: built[index].name, isBuiltIn: false,
                 method: .software, isActive: true, brightness: value, readable: true,
-                canChooseDimming: softwarePathKeys[id] != nil)
+                canChooseDimming: softwarePathKeys[id] != nil, isVirtual: built[index].isVirtual)
             newRoutes[id] = Route(method: .software, service: nil, maximum: 100,
                                   ddcPathKey: softwarePathKeys[id],
                                   chipAddress: BrightnessSupport.chipAddress)
@@ -2586,17 +2604,12 @@ final class BrightnessService: ObservableObject {
         }
         // Speaker and luminance controls are independent VCP codes. Use the
         // same registry snapshot and paced queue for every brightness route.
-        let speakerScores = speakerCandidates.flatMap { candidate in
-            services.map { service in
-                (displayIndex: candidate.index, serviceOrdinal: service.identity.ordinal,
-                 score: BrightnessSupport.matchScore(service: service.identity, display: candidate.identity,
-                                                     requireIdentity: true))
-            }
-        }
+        let speakerAssignment = BrightnessSupport.speakerServices(displays: speakerCandidates,
+                                                                  services: services.map(\.identity))
         for candidate in speakerCandidates {
             let id = built[candidate.index].id
             guard built[candidate.index].isActive, CGDisplayIsAsleep(id) == 0,
-                  let ordinal = BrightnessSupport.speakerService(for: candidate.index, scores: speakerScores),
+                  let ordinal = speakerAssignment[candidate.index],
                   let matched = services.first(where: { $0.identity.ordinal == ordinal }),
                   let fingerprint = fingerprints[id],
                   let path = BrightnessSupport.ddcPathKey(displayFingerprint: fingerprint,
@@ -2638,7 +2651,9 @@ final class BrightnessService: ObservableObject {
                 // Even without a brightness route, an active physical display is
                 // useful in the generalized Displays surface when it can be
                 // switched on or off.
-                guard display.audio != nil || DisplayConfigurationBridge.configureEnabled != nil else { return nil }
+                guard BrightnessSupport.keepsRowWithoutBrightness(
+                    isVirtual: display.isVirtual, hasSpeaker: display.audio != nil,
+                    canSwitchPower: DisplayConfigurationBridge.configureEnabled != nil) else { return nil }
                 var display = display
                 display.method = nil
                 return display
