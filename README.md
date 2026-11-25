@@ -160,6 +160,12 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Scratchpad.** Keep autosaved notes in tabs, with Markdown preview and export, in a floating window or Dynamic Island.
 - **Cleaning Mode.** Lock keyboard input while cleaning, with a black screen or a small visible indicator.
 
+#### DeepSeek Harness (local builds)
+
+DeepSeek Harness v4 session logs are read from `~/.dsh/sessions`, including uncompressed `session.v4.jsonl` and incrementally written `session.v4.jsonl.zstd`. Compressed logs require Homebrew's `zstd` library (`brew install zstd`); local builds look for it under `/opt/homebrew/lib` or `/usr/local/lib`. This optional library is not bundled, and hardened-runtime release distribution is not supported by this local integration. No DeepSeek credentials or configuration are changed. Unsupported log versions are ignored, and inherited fork history is not counted twice. Token counters and completion events come from committed logs, not process existence; streamed work before the next persisted event may not be visible. DeepSeek plan limits are not available, and costs remain unknown for models absent from the price list.
+
+The compressed reader bounds both compressed and decoded frames to 32 MiB. An incomplete, invalid or oversized frame is not consumed, so subsequent frames wait rather than producing partial counters.
+
 ### Capture and create
 
 - **Screen capture.** Switch between screenshots, recording, text recognition and color picking in one selector with a pixel magnifier.

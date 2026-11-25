@@ -641,7 +641,7 @@ struct AgentLogRoot: Equatable {
         } : []
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
          (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
-         (.cursor, ".cursor/projects")].compactMap { provider, path in
+         (.cursor, ".cursor/projects"), (.deepseek, ".dsh/sessions")].compactMap { provider, path in
             guard providers.contains(provider) else { return nil }
             return AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
@@ -666,6 +666,10 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        if provider == .deepseek {
+            let name = (path as NSString).lastPathComponent
+            return name == "session.v4.jsonl" || name == "session.v4.jsonl.zstd"
+        }
         guard path.hasSuffix(".jsonl") else { return false }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
         if provider == .copilot {
@@ -978,7 +982,7 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
-        return path.hasSuffix(".jsonl")
+        return path.hasSuffix(".jsonl") || path.hasSuffix(".jsonl.zstd")
     }
 
     /// Cursor can replace a transcript at the end of a turn. During a replay,
@@ -1162,7 +1166,7 @@ enum AgentLogReader {
             }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
                                                                   options: [.skipsPackageDescendants]) else { continue }
-            for case let url as URL in enumerator where url.path.hasSuffix(".jsonl") {
+            for case let url as URL in enumerator where isLog(url.path) {
                 include(url, from: root)
             }
         }
@@ -1178,6 +1182,10 @@ enum AgentLogReader {
                              shouldContinue: () -> Bool = { true },
                              including: ((Data, Range<Int>) -> Bool)? = nil, line: (Data) -> Void) {
         guard shouldContinue() else { return }
+        if cursor.provider == .deepseek, cursor.path.hasSuffix(".zstd") {
+            AgentDeepSeekLogReader.readAppended(cursor, shouldContinue: shouldContinue, line: line)
+            return
+        }
         if cursor.provider == .opencode {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
             return

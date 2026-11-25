@@ -310,6 +310,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/Harness/CopilotReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/CursorReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/CursorTranscriptAccess.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/DeepSeekReader.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/AgentDeepSeekLogReader.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageArchive.swift

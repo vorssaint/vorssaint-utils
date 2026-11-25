@@ -22,6 +22,8 @@ enum NotchAgentTests {
         CopilotAgentTests.run(suite)
         CursorAgentTests.run(suite)
         HarnessReaderContractTests.run(suite)
+        DeepSeekAgentTests.run(suite)
+        DeepSeekLogReaderTests.run(suite)
         timestamps(suite)
         summary(suite)
         AgentUsageSummaryCacheTests.run(suite)
@@ -3275,11 +3277,11 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor, .deepseek], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .cursor], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .cursor, .deepseek], "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor], "Copilot keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor, .deepseek], "Copilot keeps its own preference")
         var installed = AgentUsageSnapshot(loaded: true)
         installed.cursorProjectsFound = true
         suite.expect(NotchAgentSupport.pageProviders(snapshot: installed, hasCodexAccounts: false, hasClaudeAccount: false,
@@ -3290,6 +3292,7 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.pageProviders(snapshot: installed, hasCodexAccounts: false, hasClaudeAccount: true,
                                                      in: defaults) == [.claude],
                      "an existing directory or prior activity cannot bring a disabled Cursor back onto the page")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsDeepSeek)
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
