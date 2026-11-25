@@ -520,6 +520,48 @@ enum RepositoryFeatureTests {
         expectEqual(URLCleaning.clean("https://www.reddit.com/r/swift/comments/abc/?%24deep_link=true&%243p=x&share_id=y&sort=new")?.url ?? "",
                     "https://www.reddit.com/r/swift/comments/abc/?sort=new",
                     "URL cleaner strips Reddit's deep-link tracking in either spelling")
+        let amazonSearchResult = "https://www.amazon.co.uk/Badgy-100-Card-Badge-Printer/dp/B0B93PC43P/ref=sr_1_6"
+            + "?crid=19NDFC6TQQ74X&dib=eyJ2IjoiMSJ9.Jj61fhAJw51WLQ&dib_tag=se&keywords=card+printer"
+            + "&qid=1792678951&sprefix=card+printer%2Caps%2C129&sr=8-6"
+        let amazonClean = URLCleaning.clean(amazonSearchResult)
+        expectEqual(amazonClean?.url ?? "", "https://www.amazon.co.uk/dp/B0B93PC43P",
+                    "URL cleaner reduces an Amazon search result on a regional storefront to the product")
+        suite.expect(amazonClean?.removed == ["ref", "crid", "dib", "dib_tag", "keywords", "qid", "sprefix", "sr"],
+               "the path's ref segment is reported as ref, before the query names: \(amazonClean?.removed ?? [])")
+        expectEqual(URLCleaning.clean("https://www.amazon.com/dp/B0B93PC43P/ref=sspa_dk?th=1&psc=1&pd_rd_w=x&ref_=y")?.url ?? "",
+                    "https://www.amazon.com/dp/B0B93PC43P?th=1&psc=1",
+                    "URL cleaner keeps the Amazon variant selection")
+        expectEqual(URLCleaning.clean("https://www.amazon.de/gp/product/B0B93PC43P/ref=ppx_yo_dt_b?ie=UTF8")?.url ?? "",
+                    "https://www.amazon.de/gp/product/B0B93PC43P?ie=UTF8",
+                    "an Amazon product path is only ever shortened, never respelled")
+        expectEqual(URLCleaning.clean("https://www.amazon.co.uk/s/ref=nb_sb_noss?k=card+printer&crid=x#top")?.url ?? "",
+                    "https://www.amazon.co.uk/s?k=card+printer#top",
+                    "an Amazon search keeps its search term and fragment")
+        expectEqual(URLCleaning.clean("https://www.amazon.co.uk/ref=nav_logo")?.url ?? "",
+                    "https://www.amazon.co.uk/",
+                    "a path of only the ref segment keeps its slash")
+        let amazonTitleOnly = "https://www.amazon.co.uk/Badgy-100-Card-Badge-Printer/dp/B0B93PC43P"
+        suite.expect(URLCleaning.clean(amazonTitleOnly) == URLCleaning.Result(
+                        url: "https://www.amazon.co.uk/dp/B0B93PC43P", removed: [])
+                && URLCleaning.outcome(for: URLCleaning.clean(amazonTitleOnly), input: amazonTitleOnly) == .rewritten,
+               "a product title alone is shortened by hand but names no tracker, so the clipboard is left alone")
+        let keptAmazonRef = URLCleaning.rules(globalNames: nil, siteNames: nil, disabledNames: "amazon.com|ref")
+        expectEqual(URLCleaning.clean("https://www.amazon.co.uk/Badgy/dp/B0B93PC43P/ref=sr_1_6?qid=1",
+                                      rules: keptAmazonRef)?.url ?? "",
+                    "https://www.amazon.co.uk/Badgy/dp/B0B93PC43P/ref=sr_1_6",
+                    "switching ref off on the Amazon row keeps the path segment on every storefront")
+        for untouched in [
+            "https://example.com/Some-Title/dp/B0B93PC43P/ref=sr_1_6?qid=1",
+            "https://notamazon.co.uk/Some-Title/dp/B0B93PC43P/ref=sr_1_6?qid=1",
+            "https://www.amazon.co.uk/dp/B0B93PC43P",
+            "https://www.amazon.co.uk/Some-Title/dp/b0b93pc43p",
+        ] {
+            suite.expect(URLCleaning.clean(untouched)?.url == untouched,
+                   "Amazon rules reach only Amazon product paths: \(untouched)")
+        }
+        suite.expect(URLCleaning.ruleGroups(rules: .none).filter { $0.site.hasPrefix("amazon.") }.map(\.site)
+                == ["amazon.com"],
+               "every Amazon storefront shares one row of rules")
 
         // MARK: URL cleaning is a pure deletion
 
