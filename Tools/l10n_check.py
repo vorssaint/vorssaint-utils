@@ -596,10 +596,12 @@ def run(git, head, base, lang, blame=True, history=(), exclude=()):
             if ln.startswith('## '): cur = ln[3:].strip(); continue
             if ln.strip().startswith(('-', '*')) and cur: out.setdefault(ln.strip(), cur)
         return out
-    hb, bb = sections(git.show(head, 'CHANGELOG.md')), sections(git.show(base, 'CHANGELOG.md'))
-    back = [l for l, sec in hb.items() if 'unreleased' in sec.casefold() and l in bb and 'unreleased' not in bb[l].casefold()]
+    # compare with the merge-base: a branch that is only behind a release has not brought anything back
+    hb = sections(git.show(head, 'CHANGELOG.md'))
+    mb = sections(git.show(git.run('merge-base', base, head).strip(), 'CHANGELOG.md'))
+    back = [l for l, sec in hb.items() if 'unreleased' in sec.casefold() and l in mb and 'unreleased' not in mb[l].casefold()]
     if back:
-        add('M7', 'CHANGELOG.md', 1, f'CHANGELOG.md: {len(back)} entries under Unreleased already shipped in {bb[back[0]]} on main')
+        add('M7', 'CHANGELOG.md', 1, f'CHANGELOG.md: {len(back)} entries under Unreleased already shipped in {mb[back[0]]} on main')
     return F, dict(lang=lang, code=code, head=head, base=base, structs=len(B.decl), switches=len(B.sw))
 
 CAT_UI = {
