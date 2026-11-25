@@ -158,6 +158,39 @@ enum NetworkFeatureTests {
         suite.expectClose(nettopRows.last?.bytesIn ?? -1, 16_245, "nettop parser reads numeric bytes in")
         suite.expectClose(nettopRows.last?.bytesOut ?? -1, 20_641, "nettop parser reads numeric bytes out")
 
+        for (line, name) in [
+            ("21:06:58.771946,Comma,App.24913,0,240,", "Comma,App"),
+            ("21:06:58.771946,Comma,App.24913,0,240", "Comma,App"),
+            ("21:06:58.771946,Foo, Bar,Baz.24913,0,240,", "Foo, Bar,Baz"),
+            ("21:06:58.771946,App, Version 1.2.24913,0,240,", "App, Version 1.2"),
+            ("21:06:58.771946,OrdinaryApp.24913,0,240,", "OrdinaryApp"),
+        ] {
+            let sample = NetworkProcessSupport.sample(fromCSVLine: line)
+            suite.expect(sample == NetworkProcessSample(pid: 24913, name: name, bytesIn: 0, bytesOut: 240),
+                         "nettop preserves \(name) and reads its counters from the end of the row")
+        }
+        suite.expect(NetworkProcessSupport.sample(fromCSVLine: "time,,bytes_in,bytes_out,") == nil,
+                     "normalizing nettop columns does not turn a header into a process")
+        suite.expect(NetworkProcessSupport.sample(fromCSVLine: "21:06:58.771946,Comma,App.24913,0,0,") == nil,
+                     "comma-named processes with no traffic remain filtered")
+        suite.expect(NetworkProcessSupport.sample(fromCSVLine: "21:06:58.771946,OrdinaryApp.24913,240,")?.bytesIn == 240,
+                     "a missing outgoing counter still defaults to zero without losing the incoming count")
+
+        let commaCSV = """
+        time,,bytes_in,bytes_out,
+        21:06:58.771946,Comma,App.24913,1000,2000,
+        time,,bytes_in,bytes_out,
+        21:06:59.771946,Comma,App.24913,10,20,
+        time,,bytes_in,bytes_out,
+        """
+        let commaSections = NetworkProcessSupport.parseNettopCSV(commaCSV + "\n21:07:00.771946,Comma,App.24913,30,40,\n")
+        suite.expect(commaSections == [NetworkProcessSample(pid: 24913, name: "Comma,App", bytesIn: 30, bytesOut: 40)],
+                     "one-shot sampling retains a comma-named process in the final section")
+        var commaStream = NetworkProcessDeltaStreamParser()
+        let commaDeltas = commaCSV.split(separator: "\n").compactMap { commaStream.consumeCSVLine(String($0)) }
+        suite.expect(commaDeltas == [[NetworkProcessSample(pid: 24913, name: "Comma,App", bytesIn: 10, bytesOut: 20)]],
+                     "stream sampling retains comma-named delta rows and skips cumulative counters")
+
         var nettopStream = NetworkProcessDeltaStreamParser()
         let streamLines = [
             "time,,bytes_in,bytes_out,",
