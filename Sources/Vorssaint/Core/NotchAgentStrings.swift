@@ -193,8 +193,8 @@ extension FeatureStrings {
 extension NotchAgentStrings {
     static let enUS = NotchAgentStrings(
         title: "AI Agents",
-        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode, GitHub Copilot and Cursor in the Dynamic Island.",
-        settingsDescription: "Reads the usage Claude Code, Codex, OpenCode, GitHub Copilot and Cursor record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
+        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode, GitHub Copilot, Cursor and DeepSeek Harness in the Dynamic Island.",
+        settingsDescription: "Reads the usage Claude Code, Codex, OpenCode, GitHub Copilot, Cursor and DeepSeek Harness record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
         restingTitle: "AI limits",
         limitsCard: "Limits",
         spendCard: "Spending",
@@ -220,7 +220,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ the price of %2$@",
         idle: "Idle",
         noActivity: "Nothing in this period",
-        empty: "No usage from Claude Code, Codex, OpenCode, GitHub Copilot or Cursor yet. It appears here as soon as any of them works on this Mac.",
+        empty: "No usage from Claude Code, Codex, OpenCode, GitHub Copilot, Cursor or DeepSeek Harness yet. It appears here as soon as any of them works on this Mac.",
         loading: "Reading usage…",
         noCards: "Choose what this page shows in Dynamic Island settings.",
         partialCostNote: "Missing token counts or model prices can leave costs incomplete. Any amount shown is a lower bound. A dash means the cost is unknown.",

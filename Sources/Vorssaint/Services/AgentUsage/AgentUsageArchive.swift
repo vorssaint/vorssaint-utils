@@ -351,6 +351,9 @@ enum AgentUsageArchive {
         }
 
         mutating func state(_ value: AgentLogState, provider: AgentProvider) {
+            bool(value.deepseekReady)
+            bool(value.deepseekSeeded)
+            bool(value.deepseekSubagent)
             string(value.session)
             string(value.project)
             string(value.model)
@@ -536,7 +539,8 @@ enum AgentUsageArchive {
         }
 
         mutating func state(provider: AgentProvider, offset: UInt64) throws -> AgentLogState {
-            var value = AgentLogState(session: try string(), project: try string(), model: try string(), turnOpen: try bool(),
+            var value = AgentLogState(deepseekReady: try bool(), deepseekSeeded: try bool(), deepseekSubagent: try bool(),
+                                      session: try string(), project: try string(), model: try string(), turnOpen: try bool(),
                                       sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, serviceTier: try optional { try $0.serviceTier() })
             value.codexSubagent = try bool()
             value.codexHeaderRead = try bool()

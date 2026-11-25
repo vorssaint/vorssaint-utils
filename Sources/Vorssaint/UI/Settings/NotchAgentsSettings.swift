@@ -14,6 +14,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
     @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
+    @AppStorage(DefaultsKey.notchAgentsDeepSeek) private var deepseek = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
@@ -52,6 +53,7 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
             providerRow(.cursor, isOn: $cursor)
+            providerRow(.deepseek, isOn: $deepseek)
             if claude { ClaudeAccountSettings() }
             if codex { CodexAccountsSettings() }
 
