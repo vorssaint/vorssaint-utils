@@ -109,7 +109,9 @@ struct NotchNoticeView: View {
                     .truncationMode(notice.event == .track ? .tail : .middle)
                     .contentTransition(.numericText())
             }
-            .frame(maxWidth: .infinity, alignment: notice.readsFromEnds ? .leading : .trailing)
+            // A level's mark keeps its place while a shorter reading leaves
+            // room it holds for the widest.
+            .frame(maxWidth: .infinity, alignment: notice.readsFromEnds || notice.level != nil ? .leading : .trailing)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: notice.detail)
             .transaction { $0.disablesAnimations = false }
         }

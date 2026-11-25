@@ -15,6 +15,29 @@ enum KeepAwakeAutomationAction: Equatable {
     case deactivate
 }
 
+struct KeepAwakePowerDisconnectGrace {
+    private var disconnectedAt: ContinuousClock.Instant?
+
+    mutating func deadline(powerEnabled: Bool,
+                           wasOnPower: Bool,
+                           onPower: Bool,
+                           delaySeconds: Int,
+                           now: ContinuousClock.Instant = .now) -> ContinuousClock.Instant? {
+        guard powerEnabled, !onPower, delaySeconds > 0 else {
+            disconnectedAt = nil
+            return nil
+        }
+        if wasOnPower { disconnectedAt = now }
+        guard let disconnectedAt else { return nil }
+        let deadline = disconnectedAt + .seconds(delaySeconds)
+        guard now < deadline else {
+            self.disconnectedAt = nil
+            return nil
+        }
+        return deadline
+    }
+}
+
 enum KeepAwakeAutomationSupport {
     private static let screenLockedKey = "CGSSessionScreenIsLocked"
 
@@ -24,9 +47,13 @@ enum KeepAwakeAutomationSupport {
 
     /// The published lid policy can lag behind a temporary assertion, so both
     /// must permit sleep. Ordinary idle-sleep assertions (including media)
-    /// must not defeat a closed-lid session's battery cutoff.
-    static func lidSleepIsAllowed(systemAllowsSleep: Bool?, assertions: [[String: Any]]?) -> Bool {
-        guard systemAllowsSleep == true, let assertions else { return false }
+    /// must not defeat a closed-lid session's battery cutoff. A Mac with an
+    /// external display on AC power can report `AppleClamshellCausesSleep = Yes`
+    /// while docked. On confirmed battery power the cutoff needs no display list.
+    static func lidSleepIsAllowed(systemAllowsSleep: Bool?, externalDisplayConnected: Bool?,
+                                  connectedToPower: Bool?, assertions: [[String: Any]]?) -> Bool {
+        guard systemAllowsSleep == true, let assertions,
+              connectedToPower == false || externalDisplayConnected == false else { return false }
         return !assertions.contains { assertion in
             switch assertion["AssertType"] as? String {
             case "UserIsActive", "DisplayWake", "PreventSystemSleep", nil: break

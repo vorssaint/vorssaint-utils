@@ -64,7 +64,7 @@ Choose individual features or start with a preset. Uninstalled features stop loa
   <img src="docs/assets/readme/features-hub.png" width="720" alt="The Features hub in Settings, installing and uninstalling whole features">
 </p>
 
-Reorder or hide panel sections, choose a compact layout, and export settings to another Mac. The app supports more than a dozen languages.
+Reorder or hide panel sections, choose a compact layout, and export settings to another Mac or [keep them in your dotfiles](docs/TROUBLESHOOTING.md#keeping-settings-in-your-dotfiles). The app supports more than a dozen languages.
 
 ## Everything it does
 
@@ -73,7 +73,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Volume mixer.** Set volume per app, boost quiet audio past 100%, and pin or reorder favorites. No audio driver required.
 - **Per app output.** Play music through speakers while a call uses your headset.
 - **Output switcher.** Switch audio outputs with a shortcut and lower the volume when headphones disconnect.
-- **Microphone tools.** Choose a preferred input, adjust its level on supported devices, and mute all microphones with one shortcut.
+- **Microphone tools.** Choose a preferred input and adjust its level on supported devices. One shortcut turns on Mic Mute, which tries to engage every available mute switch and set each adjustable input volume to zero. The menu bar indicator shows when Mic Mute is on. A warning appears if a microphone’s controls cannot confirm mute. Siri and some apps may still hear you even when those controls report mute.
 - **Music app blocker.** Prevent unwanted Music launches after detected playback-button presses. Requires Accessibility.
 
 ### Know what your Mac is doing
@@ -129,15 +129,16 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Shelf.** Park files, text and links near your cursor while dragging, then drop or share them later.
 - **Finder shortcuts.** Move files with ⌘X and ⌘V, rename with F2, or paste copied images as PNG files.
 - **Clean URL.** Remove tracking parameters from links, manually or automatically.
-- **Disk image installer.** Install an app from a mounted disk image and eject it, with optional download cleanup.
+- **Disk image installer.** Install an app from a mounted disk image and eject it, with optional download cleanup. Place an empty `.vorssaint-no-install` file in a build folder to skip prompts for images in that folder and its subfolders. Removing the file restores prompts. Hidden mounts and images in system temporary folders are always skipped. Other visible mounts can prompt, including scripted mounts in unmarked folders. For an untagged image outside Downloads, moving it to Trash requires selecting that option for the current install.
 
 ### Everyday tools
 
 - **Dynamic Island.** Keep music, notifications, calendars, timers, downloads and everyday controls around the camera cutout, or a simulated one on other Macs. Customize sections and shortcuts, with optional lyrics, a live equalizer, camera preview and file tools.
-- **AI agents.** Follow Claude, Codex, OpenCode and GitHub Copilot in the Dynamic Island: plan limits and when they reset where available, tokens, API value, models, projects and live work, with a notice when a long task finishes. Codex's banked resets can be used from there too, and each extra Codex account (`CODEX_HOME`) can have a limits card of its own. Copilot uses local CLI/app session logs; its token totals update when shutdown metrics arrive, and aggregate API-value estimates use base rates.
+- **AI agents.** Follow Claude, Codex, OpenCode, GitHub Copilot and Cursor in the Dynamic Island: plan limits and when they reset where available, tokens, API value, models, projects and live work, with a notice when a long task finishes. Codex's banked resets can be used from there too, and each extra Codex account (`CODEX_HOME`) can have a limits card of its own. Copilot uses local CLI/app session logs; its token totals update when shutdown metrics arrive, and aggregate API-value estimates use base rates. Cursor follows local agent transcripts under `~/.cursor/projects/*/agent-transcripts/` for live work and finish notices. Replies that include token counts, a message ID and a timestamp also contribute to usage history. Cursor plan credits are not read from the network.
 - **Command Bar.** Search apps, windows, files, clipboard history, snippets and app menu commands from one field. Calculate, convert units, find emoji or run saved scripts.
 - **Quick panel.** Open a floating palette of favorite tools with ⌃⌘V.
 - **Quick toggles.** Switch appearance, hide desktop icons, eject disks, empty the Trash, lock the screen and more.
+- **Quit apps.** See every open app in one list and quit them one by one, all at once or all but the one in front.
 - **Radial menu.** Open a customizable wheel of apps, files, shortcuts and tools around the pointer, with profiles and submenus.
 - **Scratchpad.** Keep autosaved notes in tabs, with Markdown preview and export, in a floating window or Dynamic Island.
 - **Cleaning Mode.** Lock keyboard input while cleaning, with a black screen or a small visible indicator.
@@ -164,7 +165,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 ### Energy and display
 
 - **Keep awake.** Keep your Mac working on a timer, with the lid closed, or while selected apps, power or external displays are present.
-- **Displays.** Control individual displays and brightness, with hardware control where supported, half or quarter steps for the brightness keys, optional extra dimming below a monitor's minimum, and software dimming as a fallback.
+- **Displays.** Control individual displays and brightness, with hardware control where supported, half or quarter steps for the brightness keys, optional extra dimming below a monitor's minimum, software dimming as a fallback, and the volume and mute of a monitor's built-in speakers.
 - **Extra brightness.** Use a MacBook Pro XDR display's HDR headroom to go beyond its normal maximum brightness.
 - **Bluetooth on sleep.** Disconnect Bluetooth during sleep and restore it on wake only if Vorssaint turned it off.
 
@@ -239,7 +240,7 @@ See [troubleshooting](docs/TROUBLESHOOTING.md) for launch problems, permissions 
 
 Vorssaint went from first commit to the front of GitHub trending in three days, top of the Swift charts, and issues and pull requests have shaped every release since. Bug reports, feature ideas and translations are all welcome, starting from the [contributing guide](CONTRIBUTING.md).
 
-Vorssaint is free and will stay that way. If it earned its place in your menu bar, a star helps other people find it, and a [coffee](https://buymeacoffee.com/vorssaint) keeps the maintainer awake, with or without the Keep awake feature.
+Vorssaint is free and open source. If the app has been useful to you and you’d like to support my work, you can [buy me a coffee](https://buymeacoffee.com/vorssaint). Contributions are entirely optional. Everyone gets the same features and updates, and contributing doesn’t come with perks or priority support.
 
 ## Acknowledgements
 

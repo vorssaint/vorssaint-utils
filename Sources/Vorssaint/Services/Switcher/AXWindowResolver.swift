@@ -67,6 +67,49 @@ enum AXWindowResolver {
         return resolveRemoteElement(windowID: windowID, pid: pid)
     }
 
+    /// A pointer callback cannot pay an ordinary timeout for every published
+    /// window. Share one deadline across the list, references and candidates,
+    /// and stop at the first unanswered message. Never probe remote tokens.
+    static func publishedElement(for windowID: CGWindowID, in axApp: AXUIElement,
+                                 deadline: TimeInterval) -> AXUIElement? {
+        var pid: pid_t = 0
+        guard windowID != 0, deadline.isFinite,
+              AXUIElementGetPid(axApp, &pid) == .success,
+              pid > 0, pid != ProcessInfo.processInfo.processIdentifier else { return nil }
+        for attribute in [kAXWindowsAttribute, kAXMainWindowAttribute, kAXFocusedWindowAttribute] {
+            guard prepareForRequest(axApp, deadline: deadline) else { return nil }
+            var value: CFTypeRef?
+            let result = AXUIElementCopyAttributeValue(axApp, attribute as CFString, &value)
+            if result == .cannotComplete { return nil }
+            guard result == .success, let value else { continue }
+            let candidates: [AXUIElement]
+            if attribute as String == kAXWindowsAttribute as String {
+                candidates = value as? [AXUIElement] ?? []
+            } else if CFGetTypeID(value) == AXUIElementGetTypeID() {
+                candidates = [value as! AXUIElement]
+            } else {
+                continue
+            }
+            for candidate in candidates {
+                guard ProcessInfo.processInfo.systemUptime < deadline else { return nil }
+                guard prepareForRequest(candidate, deadline: deadline) else { continue }
+                var id: CGWindowID = 0
+                let idResult = _AXUIElementGetWindow(candidate, &id)
+                if idResult == .cannotComplete { return nil }
+                guard idResult == .success, id == windowID,
+                      prepareForRequest(candidate, deadline: deadline) else { continue }
+                var role: CFTypeRef?
+                let roleResult = AXUIElementCopyAttributeValue(candidate, kAXRoleAttribute as CFString, &role)
+                if roleResult == .cannotComplete { return nil }
+                guard ProcessInfo.processInfo.systemUptime < deadline else { return nil }
+                if roleResult == .success, role as? String == kAXWindowRole as String {
+                    return candidate
+                }
+            }
+        }
+        return nil
+    }
+
     /// A matching child reports its containing window's id too. Verify the role
     /// before returning an action target. Each exact object gets its own timeout;
     /// the matching published reference adds at most one role request.

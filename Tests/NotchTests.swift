@@ -1053,14 +1053,18 @@ enum NotchTests {
             }
         }
         for event in [NotchEvent.volume, .brightness, .keyboardLight] {
+            let widest = NotchNotice(event: event, title: "Level", detail: "100%",
+                                     symbol: "speaker.wave.2", level: 1).preferredWingWidth
             for percent in 0...100 {
                 let notice = NotchNotice(event: event, title: "Level", detail: "\(percent)%",
                                          symbol: "speaker.wave.2", level: Double(percent) / 100)
                 let wing = notice.preferredWingWidth
-                let content = width(notice.detail) + 18 + 8
+                let content = width("100%") + 18 + 8
                 suite.expect(content + NotchNotice.levelInset <= wing && wing < content + NotchNotice.levelInset + 1
                              && notice.inset(wing: wing) == NotchNotice.levelInset,
-                             "a level's wings fit its mark and reading, with no empty black at the end")
+                             "a level's wings fit its mark and widest reading, with no empty black at the end")
+                suite.expect(wing == widest,
+                             "a level's wings hold still as its reading gains or loses a digit")
                 suite.expect(wing - NotchNotice.levelInset >= 40,
                              "the opposite meter remains readable beside the shortest reading")
             }
@@ -1260,6 +1264,111 @@ enum NotchTests {
             suite.expect(resized.hasSameMenuBar(as: previous),
                    "changing the expanded size preserves valid menu clearance without flicker")
         }
+    }
+
+    private static func statusItemDiscoveryContracts(_ suite: TestSuite) {
+        let fastPID: pid_t = 10, slowPID: pid_t = 20, hostPID: pid_t = 30
+        var discovery = NotchStatusItemOwners.Discovery()
+        discovery.record(pid: fastPID, isHost: false, result: .success, hasBar: true, previous: [])
+        discovery.record(pid: slowPID, isHost: false, result: .cannotComplete, hasBar: false, previous: [])
+        discovery.record(pid: hostPID, isHost: true, result: .noValue, hasBar: false, previous: [])
+        suite.expect(discovery.owners == [fastPID, hostPID] && discovery.hosts == [hostPID],
+                     "a timeout on first discovery leaves the owner unknown and out of the per-measurement probes")
+
+        let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        let bar = CGRect(x: 0, y: 924, width: 1470, height: 32)
+        let menu = CGRect(x: 0, y: 924, width: 300, height: 32)
+        let fastSlot = CGRect(x: 1060, y: 924, width: 25, height: 32)
+        let centerSlot = CGRect(x: 810, y: 924, width: 40, height: 32)
+        let movedSlot = CGRect(x: 860, y: 924, width: 40, height: 32)
+        let fastApp = AXUIElementCreateApplication(fastPID), slowApp = AXUIElementCreateApplication(slowPID)
+        let fastBar = AXUIElementCreateApplication(101), slowBar = AXUIElementCreateApplication(102)
+        let fastItem = AXUIElementCreateApplication(103), centerItem = AXUIElementCreateApplication(104)
+        let slowItem = AXUIElementCreateApplication(105), window = AXUIElementCreateApplication(106)
+        let hostItem = AXUIElementCreateApplication(107), hostSlot = AXUIElementCreateApplication(108)
+        var attributes: [AXUIElement: [String: CFTypeRef]] = [
+            fastApp: [kAXExtrasMenuBarAttribute: fastBar], slowApp: [kAXExtrasMenuBarAttribute: slowBar],
+            fastBar: [kAXChildrenAttribute: [fastItem] as CFArray], slowBar: [kAXChildrenAttribute: [slowItem] as CFArray],
+            window: [kAXChildrenAttribute: [hostItem, hostSlot] as CFArray],
+            hostItem: [kAXRoleAttribute: kAXMenuBarItemRole as CFString]
+        ]
+        func setFrame(_ rect: CGRect, for element: AXUIElement) {
+            var position = CGPoint(x: rect.minX, y: screen.maxY - rect.maxY), size = rect.size
+            attributes[element, default: [:]][kAXPositionAttribute] = AXValueCreate(.cgPoint, &position)
+            attributes[element, default: [:]][kAXSizeAttribute] = AXValueCreate(.cgSize, &size)
+        }
+        setFrame(bar, for: window)
+        setFrame(fastSlot, for: hostItem)
+        setFrame(fastSlot, for: fastItem)
+        setFrame(centerSlot, for: centerItem)
+        setFrame(movedSlot, for: slowItem)
+        var probed: Set<pid_t> = []
+        var fastBarTimesOut = false
+        var windowReads: [String: Int] = [:]
+        let reader = NotchMenuBarAXReader(primaryTop: screen.maxY, deadline: .infinity) { element, attribute, value in
+            let name = attribute as String
+            if element == window { windowReads[name, default: 0] += 1 }
+            if element == fastApp, name == kAXExtrasMenuBarAttribute, fastBarTimesOut { return .cannotComplete }
+            value.pointee = attributes[element]?[name]
+            return value.pointee == nil ? .noValue : .success
+        }
+        func status(_ windows: [AXUIElement], modern: Bool = true) -> [CGRect]? {
+            NotchMenuBarLayout.statusFrames(screen: screen, barHeight: 32, windows: [], requiresExtras: modern) { target in
+                discovery.frames(windows: windows, modernBar: modern ? target : nil,
+                    extras: { pid in probed.insert(pid); return reader.extras(AXUIElementCreateApplication(pid)) },
+                    children: { reader.children($0) }, frame: reader.frame, role: { reader.value($0, kAXRoleAttribute) as? String })
+            }
+        }
+        func room() -> CGFloat? {
+            status([window]).flatMap { NotchMenuBarLayout.measuredSideRoom(
+                screen: screen, cameraWidth: 180, barHeight: 32, menuItems: [menu], statusItems: $0) }
+        }
+        suite.expect(status([]) == nil && status([window]) == nil,
+                     "a readable owner alone cannot prove clearance with an absent host window or an unreadable slot")
+        setFrame(centerSlot, for: hostSlot)
+        suite.expect(status([window]) != nil && room() == nil,
+                     "a host slot without an AX role still occupies the island's center")
+        setFrame(bar.offsetBy(dx: screen.width, dy: 0), for: window)
+        let readsBeforeOtherDisplay = windowReads[kAXChildrenAttribute]
+        suite.expect(status([window]) == nil && windowReads[kAXChildrenAttribute] == readsBeforeOtherDisplay,
+                     "another display's host bar cannot certify this bar or spend its budget reading slots")
+        setFrame(bar, for: window)
+        setFrame(movedSlot, for: hostSlot)
+        suite.expect(room() == 27 && probed == [fastPID, hostPID],
+                     "the next host measurement recovers the available room without probing the unresponsive app")
+        attributes[fastBar]?[kAXChildrenAttribute] = [centerItem, fastItem] as CFArray
+        attributes[fastItem]?[kAXSizeAttribute] = nil
+        suite.expect(status([window]) == nil,
+                     "a missing AXSize on the second item cannot erase the first item's occupied center")
+        setFrame(fastSlot, for: fastItem)
+        suite.expect(status([window]) != nil && room() == nil, "the recovered owner geometry still occupies the center")
+        attributes[fastBar]?[kAXChildrenAttribute] = [fastItem] as CFArray
+        suite.expect(status([], modern: false) == [fastSlot], "legacy AX fallback still works without the modern host")
+
+        var next = NotchStatusItemOwners.Discovery()
+        let previous = Set(discovery.owners)
+        next.record(pid: fastPID, isHost: false, result: .cannotComplete, hasBar: false, previous: previous)
+        next.record(pid: slowPID, isHost: false, result: .success, hasBar: true, previous: previous)
+        next.record(pid: hostPID, isHost: true, result: .noValue, hasBar: false, previous: previous)
+        attributes[window]?[kAXSizeAttribute] = nil
+        attributes[hostSlot]?[kAXRoleAttribute] = kAXGroupRole as CFString
+        setFrame(centerSlot, for: hostSlot)
+        setFrame(movedSlot.offsetBy(dx: -10, dy: 0), for: hostItem)
+        suite.expect(status([window]) == nil, "incomplete discovery requires the host window's missing AXSize")
+        discovery = next
+        suite.expect(next.owners == [fastPID, slowPID, hostPID] && status([]) == [fastSlot, movedSlot],
+                     "a refresh keeps a confirmed owner through a timeout and resolves the newly responding owner")
+        let positionReads = windowReads[kAXPositionAttribute], sizeReads = windowReads[kAXSizeAttribute]
+        suite.expect(room() == 17 && windowReads[kAXPositionAttribute] == positionReads
+                     && windowReads[kAXSizeAttribute] == sizeReads,
+                     "complete owners measure the host's menu item, ignore its group and need no window geometry")
+        fastBarTimesOut = true
+        suite.expect(status([]) == nil && status([window]) == nil && status([], modern: false) == nil,
+                     "an unavailable extras bar needs host geometry and cannot use a window missing AXSize")
+        setFrame(bar, for: window)
+        setFrame(fastSlot, for: hostItem)
+        setFrame(movedSlot, for: hostSlot)
+        suite.expect(room() == 27, "the host's recovered window geometry restores clearance while the owner still times out")
     }
 
     private static func menuBarHeightContracts(_ suite: TestSuite) {
@@ -1772,6 +1881,7 @@ enum NotchTests {
         simulatedMenuBoundsContracts(suite)
         simulatedDisplayContracts(suite)
         menuSpaceReuseContracts(suite)
+        statusItemDiscoveryContracts(suite)
         menuBarHeightContracts(suite)
         physicalStripContracts(suite)
         cameraFitContracts(suite)
@@ -1780,6 +1890,7 @@ enum NotchTests {
         NotchPanelTests.run { suite.expect($0, $1) }
         NotchHoverTests.run(suite)
         NotchScreenEdgeClickTests.run(suite)
+        NotchClickElsewhereTests.run(suite)
         NotchPresentationRefreshContract.run(suite)
         NotchScreenRefreshContract.run(suite)
         NotchMirrorContract.run(suite)
@@ -2373,7 +2484,19 @@ enum NotchTests {
         suite.expect(key(126) == .move(backwards: true) && key(125) == .move(backwards: false)
                 && key(36) == .paste && key(76) == .paste,
                "the arrow keys and Return drive the list while the search field has the focus")
+        suite.expect(key(45, "n", .control) == key(125) && key(35, "p", .control) == key(126)
+                && key(0, "N", [.control, .capsLock]) == key(125) && key(2, "P", .control) == key(126),
+               "Control-N/P follow the layout's letter and move like the arrows, including with Caps Lock")
+        suite.expect(key(45, "n", .control, composing: true) == nil
+                && key(35, "p", .control, composing: true) == nil,
+               "Control-N/P stay with an input method while it composes")
+        for modifiers: NSEvent.ModifierFlags in [.command, .option, [.control, .shift],
+                                                 [.control, .command], [.control, .option]] {
+            suite.expect(key(45, "n", modifiers) == nil && key(35, "p", modifiers) == nil,
+                   "other shortcuts with N/P do not move the clipboard highlight")
+        }
         suite.expect(key(0, "a") == .reveal && key(0, "Ab") == .reveal && key(0, "ñ") == .reveal && key(40, "ㅎ") == .reveal
+                && key(45, "n") == .reveal && key(35, "p") == .reveal
                 && key(49, " ") == nil && key(48, "\t") == nil && key(51, "\u{7f}") == nil
                 && key(125, "\u{F701}") == .move(backwards: false),
                "a typed letter shows the search field and goes on to it, while a space and control keys stay as they are")
@@ -2745,16 +2868,26 @@ enum NotchTests {
                                                      flow: .rows(columns: columns), direction: .down) == columns,
                    "gallery Down follows the next visible row rather than the old sideways rail")
         }
-        for size in [CGSize(width: 304, height: 534), CGSize(width: 424, height: 180),
-                     CGSize(width: 504, height: 264), CGSize(width: 304, height: 144),
-                     CGSize(width: 424, height: 300)] {
-            let preview = NotchLayout.cameraPreviewSize(in: size)
-            let ratio = preview.width / preview.height
-            suite.expect(preview.width <= size.width && preview.height <= size.height
-                   && (preview.width == size.width || preview.height == size.height)
-                   && ratio > 4.0 / 3.0 - 0.001 && ratio < 16.0 / 9.0 + 0.001,
-                   "camera preview fills the page's width or height and crops no further than 16:9 or 4:3")
+        let outline = RoundedRectangle(cornerRadius: CameraPreviewLayout.cornerRadius, style: .continuous)
+        for size in [CGSize(width: 320, height: 240), CGSize(width: 320, height: 180),
+                     CGSize(width: 304, height: 534), CGSize(width: 424, height: 180),
+                     CGSize(width: 304, height: 140.5)] {
+            let bounds = CGRect(origin: .zero, size: size)
+            let innerPath = outline.inset(by: CameraPreviewLayout.borderWidth).path(in: bounds)
+            let video = CameraPreviewLayout.videoSize(in: size)
+            let left = (size.width - video.width) / 2
+            let top = (size.height - video.height) / 2
+            for x in [left, left + video.width] {
+                for y in [top, top + video.height] {
+                    suite.expect(innerPath.contains(CGPoint(x: x, y: y)),
+                                 "every corner of the video stays inside the rounded border at \(size)")
+                }
+            }
+            suite.expect(left < CameraPreviewLayout.cornerRadius && top < CameraPreviewLayout.cornerRadius,
+                         "the video uses the available width and height up to the corner clearance at \(size)")
         }
+        suite.expect(CameraPreviewLayout.videoSize(in: .zero) == .zero,
+                     "an empty preview during layout has no negative video dimensions")
         suite.expect(compact.contentSize(for: compact.sectionPickerSize(count: 0)).height == NotchLayout.emptyHeight
                && compact.contentSize(for: compact.sectionPickerSize(count: 1)).height == NotchLayout.sectionTileHeight,
                "an unmatched search keeps the recovery guidance's row and a match takes just its tiles, the search living in the header")
@@ -2962,6 +3095,48 @@ enum NotchTests {
         suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
             menuItems: [CGRect(x: 690, y: 924, width: 80, height: 32)], statusItems: []) == nil,
                "a menu occupying the island's center still hides it")
+        let shortMenu = CGRect(x: 0, y: 924, width: 300, height: 32)
+        let crowdedStatus = CGRect(x: 860, y: 924, width: 610, height: 32)
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [shortMenu], statusItems: [crowdedStatus]) == 27,
+               "short app menus do not let the island cover status items beside the camera")
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [CGRect(x: 0, y: 924, width: 610, height: 32)],
+            statusItems: [primaryStatus, CGRect(x: 700, y: 924, width: 30, height: 32)],
+            physicalCamera: CGRect(x: 645, y: 924, width: 180, height: 32)) == 27,
+               "a status item parked wholly behind the camera leaves the gaps unchanged")
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [shortMenu], statusItems: [CGRect(x: 810, y: 924, width: 40, height: 32)]) == nil,
+               "a status item partly beside the camera still hides the island")
+        let indicator = CGRect(x: 900, y: 892, width: 100, height: 32)
+        var reads = 0
+        let fromAX = NotchMenuBarLayout.statusFrames(screen: menuScreen, barHeight: 32,
+            windows: [indicator, secondaryMenu], requiresExtras: false) { _ in reads += 1; return [primaryStatus] }
+        suite.expect(reads == 1 && fromAX == [primaryStatus],
+                     "a recording indicator below this bar and another monitor's icons cannot suppress the AX lookup")
+        let missing = NotchMenuBarLayout.statusFrames(screen: menuScreen, barHeight: 32,
+            windows: [primaryStatus], requiresExtras: true) { _ in nil }
+        let wrongScreen = NotchMenuBarLayout.statusFrames(screen: menuScreen, barHeight: 32,
+            windows: [], requiresExtras: true) { _ in [secondaryMenu] }
+        suite.expect(missing == nil && wrongScreen == nil, "a modern bar requires complete extras on the chosen display")
+        let interiorIcon = CGRect(x: 700, y: 924, width: 20, height: 32)
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [shortMenu], statusItems: [interiorIcon]) == nil,
+                     "a simulated island cannot hide a status item in its center")
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [shortMenu], statusItems: [interiorIcon],
+            physicalCamera: CGRect(x: 722, y: 924, width: 26, height: 32)) == nil,
+                     "manual width and outline padding never count as physical camera coverage")
+        let partial = NotchMenuBarLayout.completeFrames([0, 1], limit: 64) { $0 == 0 ? nil : primaryStatus }
+        let overflow = NotchMenuBarLayout.completeFrames([0, 1], limit: 1) { _ in primaryStatus }
+        suite.expect(partial == nil && overflow == nil, "an unreadable or over-limit item cannot silently free its space")
+        let probeGeometry = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180, menuBarHeight: 32)
+        suite.expect(NotchMenuBarSpace.measure(pid: getpid(), geometry: probeGeometry, primaryTop: 956,
+                                               ownWindow: -1, hasAccessibility: { false }) == nil,
+                     "an unavailable AX grant leaves the island without menu clearance")
+        let expired = NotchMenuBarAXReader(primaryTop: 956, deadline: ProcessInfo.processInfo.systemUptime - 1)
+        suite.expect(expired.extras(AXUIElementCreateApplication(getpid())) == nil,
+                     "an expired AX read cannot report an empty extras bar as free space")
         let constrained = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
                                         menuBarHeight: 24, compactSideRoom: freeRoom)
         suite.expect(constrained.collapsed.height == 32 && constrained.musicStrip.height == 32,
@@ -3613,6 +3788,7 @@ enum NotchTests {
         suite.expect(!NotchCalendarSupport.isEnabled(in: defaults), "the master switch also stops calendar reads")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchCalendarEnabled,
                                                                  DefaultsKey.notchCalendarCountdown,
+                                                                 DefaultsKey.notchCalendarCountdownLead,
                                                                  DefaultsKey.notchCalendarTimeLeft,
                                                                  DefaultsKey.notchCalendarWeekNumbers,
                                                                  AppFeature.notchCalendar.availabilityKey]),
@@ -3661,13 +3837,17 @@ enum NotchTests {
                "an all-day-only calendar has no timed appointment")
         suite.expect(NotchCalendarSupport.nextRefresh(entries, now: now) == now.addingTimeInterval(300),
                "the next refresh chooses the nearest future event boundary")
-        let hour = NotchCalendarSupport.countdownLeadTime
+        let hour = NotchCalendarSupport.countdownLeadTime(in: defaults)
+        suite.expect(hour == 3600 && NotchCalendarSupport.timeLeftLeadTime == 3600,
+                     "a start keeps its hour lead until another is chosen, and an end always has its hour")
         func countdownFor(_ events: [NotchCalendarEvent], at offset: Double = 0, starts: Bool = true,
-                          ends: Bool = false) -> NotchCalendarCountdown? {
-            NotchCalendarSupport.countdown(events, now: now.addingTimeInterval(offset), starts: starts, ends: ends)
+                          ends: Bool = false, lead: TimeInterval = hour) -> NotchCalendarCountdown? {
+            NotchCalendarSupport.countdown(events, now: now.addingTimeInterval(offset), starts: starts, ends: ends,
+                                           leadTime: lead)
         }
-        func transition(_ events: [NotchCalendarEvent], starts: Bool = true, ends: Bool = false) -> Date? {
-            NotchCalendarSupport.countdownTransition(events, now: now, starts: starts, ends: ends)
+        func transition(_ events: [NotchCalendarEvent], starts: Bool = true, ends: Bool = false,
+                        lead: TimeInterval = hour) -> Date? {
+            NotchCalendarSupport.countdownTransition(events, now: now, starts: starts, ends: ends, leadTime: lead)
         }
         suite.expect(countdownFor(entries) == NotchCalendarCountdown(event: later, ongoing: false)
                      && countdownFor([allDay, current]) == nil,
@@ -3688,6 +3868,24 @@ enum NotchTests {
         suite.expect(transition([event("future", hour + 600, hour + 900)]) == now.addingTimeInterval(600)
                      && transition([later]) == later.start,
                      "a refresh is scheduled when the hour window opens and when an event starts")
+        let in45 = event("in 45", 45 * 60, 75 * 60)
+        let in90 = event("in 90", 90 * 60, 120 * 60)
+        suite.expect(countdownFor([in45], lead: 1800) == nil && countdownFor([in45])?.event == in45
+                     && countdownFor([in45], lead: 7200)?.event == in45,
+                     "an event 45 minutes away waits for a 30 minute lead and shows with one or two hours")
+        suite.expect(countdownFor([in90], lead: 1800) == nil && countdownFor([in90]) == nil
+                     && countdownFor([in90], lead: 7200)?.event == in90,
+                     "an event 90 minutes away shows only with a two hour lead")
+        suite.expect(transition([in45], lead: 1800) == now.addingTimeInterval(15 * 60)
+                     && countdownFor([in45], at: 15 * 60, lead: 1800)?.event == in45
+                     && transition([in90], lead: 7200) == in90.start,
+                     "a refresh is scheduled when the chosen lead opens, not the hour")
+        defaults.set(0, forKey: DefaultsKey.notchCalendarCountdownLead)
+        let shortest = NotchCalendarSupport.countdownLeadTime(in: defaults)
+        defaults.set(10_000, forKey: DefaultsKey.notchCalendarCountdownLead)
+        suite.expect(shortest == 5 * 60 && NotchCalendarSupport.countdownLeadTime(in: defaults) == 240 * 60,
+                     "a restored or hand-edited lead stays between five minutes and four hours")
+        defaults.removeObject(forKey: DefaultsKey.notchCalendarCountdownLead)
         // A meeting that ends in 30 minutes, 15 minutes before the next one starts.
         let meeting = event("meeting", -1800, 1800)
         let afterGap = event("after gap", 2700, 4500)
@@ -3712,8 +3910,12 @@ enum NotchTests {
                      && countdownFor([long], at: 600, ends: true) == NotchCalendarCountdown(event: long, ongoing: true)
                      && countdownFor([allDay], ends: true) == nil,
                      "time left appears only in the hour before a timed end")
-        suite.expect(!NotchCalendarCountdown(event: later, ongoing: true).isShown(at: now)
-                     && !NotchCalendarCountdown(event: meeting, ongoing: true).isShown(at: meeting.end),
+        suite.expect(countdownFor([meeting], starts: false, ends: true, lead: 900)?.target == meeting.end
+                     && countdownFor([long], starts: false, ends: true, lead: 7200) == nil
+                     && transition([long], starts: false, ends: true, lead: 7200) == now.addingTimeInterval(600),
+                     "the lead before a start leaves time left on its hour")
+        suite.expect(!NotchCalendarCountdown(event: later, ongoing: true).isShown(at: now, leadTime: hour)
+                     && !NotchCalendarCountdown(event: meeting, ongoing: true).isShown(at: meeting.end, leadTime: hour),
                      "an end is never shown before its event begins or once it has passed")
         suite.expect(transition([long], ends: true) == now.addingTimeInterval(600)
                      && transition([afterGap], starts: false, ends: true) == afterGap.start,
@@ -3786,7 +3988,7 @@ enum NotchTests {
     /// Events chosen from their menu in the island, with the countdown for
     /// every event off.
     private static func chosenCountdownContracts(_ suite: TestSuite, defaults: UserDefaults, now: Date) {
-        let hour = NotchCalendarSupport.countdownLeadTime
+        let hour = NotchCalendarSupport.timeLeftLeadTime
         func event(_ key: String, _ start: Double, _ end: Double) -> NotchCalendarEvent {
             NotchCalendarEvent(id: key + ":" + String(start), title: key, calendar: "Personal",
                                start: now.addingTimeInterval(start), end: now.addingTimeInterval(end),
@@ -3805,9 +4007,10 @@ enum NotchTests {
         let other = event("other", 600, 900)
         let unkeyed = event("", 300, 600)
         func countdown(_ events: [NotchCalendarEvent], at offset: Double = 0, starts: Bool = false,
-                       ends: Bool = false, choices: Set<String> = ["chosen"]) -> NotchCalendarCountdown? {
+                       ends: Bool = false, choices: Set<String> = ["chosen"],
+                       lead: TimeInterval = hour) -> NotchCalendarCountdown? {
             NotchCalendarSupport.countdown(events, now: now.addingTimeInterval(offset), starts: starts, ends: ends,
-                                           chosen: choices)
+                                           chosen: choices, leadTime: lead)
         }
         suite.expect(countdown([other, chosen]) == NotchCalendarCountdown(event: chosen, ongoing: false)
                      && countdown([other, chosen], choices: []) == nil,
@@ -3821,10 +4024,17 @@ enum NotchTests {
                      "a chosen event counts down to its start; time left in it follows its own option")
         let ahead = event("ahead", hour + 1800, hour + 3600)
         suite.expect(NotchCalendarSupport.countdownTransition([ahead], now: now, starts: false, ends: false,
-                                                              chosen: ["ahead"]) == now.addingTimeInterval(1800)
+                                                              chosen: ["ahead"], leadTime: hour)
+                        == now.addingTimeInterval(1800)
                      && NotchCalendarSupport.countdownTransition([ahead], now: now, starts: false, ends: false,
-                                                                 chosen: []) == nil,
-                     "a refresh is scheduled when a chosen event's hour opens, and none for an event not chosen")
+                                                                 chosen: [], leadTime: hour) == nil,
+                     "a refresh is scheduled when a chosen event's lead opens, and none for an event not chosen")
+        suite.expect(countdown([chosen], lead: 900) == nil
+                     && NotchCalendarSupport.countdownTransition([chosen], now: now, starts: false, ends: false,
+                                                                 chosen: ["chosen"], leadTime: 900)
+                        == now.addingTimeInterval(300)
+                     && countdown([ahead], choices: ["ahead"], lead: 7200)?.event == ahead,
+                     "a chosen event follows the lead with the countdown for every event off")
         suite.expect(NotchCalendarSupport.chosenCountdowns(in: defaults).isEmpty, "no event starts chosen")
         NotchCalendarSupport.setCountdown(true, for: chosen, in: defaults)
         NotchCalendarSupport.setCountdown(true, for: unkeyed, in: defaults)

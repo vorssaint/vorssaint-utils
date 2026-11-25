@@ -12,7 +12,6 @@ struct ScreenshotEditorView: View {
     @ObservedObject private var l10n = L10n.shared
     @StateObject private var keyboard = ScreenshotShortcutContext()
 
-    @State private var editingText = ""
     @FocusState private var textFieldFocused: Bool
     @State private var expansionDragZoom: CGFloat?
     @State private var dragInFlight = false
@@ -452,7 +451,6 @@ struct ScreenshotEditorView: View {
                 }
                 model.endDrag(at: point, isTap: isTap)
                 if model.editingTextID != nil {
-                    editingText = ""
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                         textFieldFocused = true
                     }
@@ -641,7 +639,7 @@ struct ScreenshotEditorView: View {
             let fontSize = max(11, ScreenshotRenderer.fontSize(for: annotation.textSize,
                                                                scale: model.scale) * zoom)
             let pad = model.backdropPaddingPixels
-            TextField(strings.textPlaceholder, text: $editingText)
+            TextField(strings.textPlaceholder, text: $model.editingText)
                 .textFieldStyle(.plain)
                 .font(.system(size: fontSize, weight: .semibold))
                 .foregroundStyle(Color(nsColor: ScreenshotRenderer.nsColor(annotation.color)))
@@ -658,21 +656,20 @@ struct ScreenshotEditorView: View {
                 .offset(x: (annotation.rect.minX + pad) * zoom - 6,
                         y: (annotation.rect.minY + pad) * zoom - 3)
                 .onAppear {
-                    editingText = annotation.text
                     DispatchQueue.main.async { textFieldFocused = true }
                 }
                 .onSubmit {
-                    model.commitText(editingID, text: editingText)
+                    model.commitText(editingID)
                 }
                 .onExitCommand {
-                    model.commitText(editingID, text: editingText)
+                    model.commitText(editingID)
                 }
         }
     }
 
     private func commitEditingTextIfNeeded() {
         if let editingID = model.editingTextID {
-            model.commitText(editingID, text: editingText)
+            model.commitText(editingID)
         }
     }
 
@@ -1715,7 +1712,7 @@ struct ScreenshotEditorView: View {
         return "\(width) × \(height) px\(retina)"
     }
 
-    /// A draggable control that exports the flattened PNG. Lives in infoChip
+    /// A draggable control that exports the flattened image. Lives in infoChip
     /// (bottom row), not the top toolbar — that region overlaps the
     /// window's real system title bar, where no subview-level override
     /// can reliably stop AppKit from treating a click as "move the
@@ -1732,7 +1729,8 @@ struct ScreenshotEditorView: View {
                       let provider = ScreenshotService.dragItemProvider(
                           image: export.image,
                           scale: export.scale,
-                          strings: strings
+                          strings: strings,
+                          preferredFormat: controller.sourceFormat
                       )
                 else { return NSItemProvider() }
                 model.markExported()

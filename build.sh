@@ -207,6 +207,10 @@ fi
 SDK_COMPAT_FLAGS=()
 VM_STATISTICS_COMPAT_FLAGS=(-I Sources/VMStatisticsCompat)
 HID_EVENT_SYSTEM_FLAGS=(-I Sources/HIDEventSystem)
+CORE_AUDIO_TAP_FLAGS=(-I Sources/CoreAudioTapCompat)
+GIF_CODEC_FLAGS=(-I Sources/RecorderGIFCodec)
+GIF_CODEC_OBJECTS=(build/objects/recorder-gif-codec/RecorderGIFCodec.o
+                   build/objects/recorder-gif-codec/cgif_raw.o)
 if [[ "$SDK" == "$PINNED_SDK" ]]; then
     # Swift 6.4 can read the SDK 26 interfaces when given their compiler version.
     SDK_COMPAT_FLAGS=(-Xfrontend -interface-compiler-version -Xfrontend 6.3.2)
@@ -245,6 +249,12 @@ discard_test_preferences() {
 
 # Standalone automated tests: pure contracts plus isolated disk, subprocess,
 # keyboard-data and media fixtures. No application windows or device capture.
+mkdir -p build/objects/recorder-gif-codec
+xcrun clang -O3 -std=c99 -target "$TARGET" -isysroot "$SDK" \
+    -c Sources/RecorderGIFCodec/RecorderGIFCodec.c -o "$GIF_CODEC_OBJECTS[1]"
+xcrun clang -O3 -std=c99 -target "$TARGET" -isysroot "$SDK" \
+    -c Sources/RecorderGIFCodec/vendor/cgif/cgif_raw.c -o "$GIF_CODEC_OBJECTS[2]"
+
 if (( TEST )); then
     python3 Tests/generate_sources.py
     TEST_OBJECT_DIR="build/objects/tests"
@@ -285,6 +295,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/NotchGestureStrings.swift
         Sources/Vorssaint/Core/NotchAgentStrings.swift
         Sources/Vorssaint/Core/CodexAccountStrings.swift
+        Sources/Vorssaint/Core/ClaudeAccountStrings.swift
         Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift
         Sources/Vorssaint/Core/NotchLockScreenStrings.swift
         Sources/Vorssaint/Services/Notch/NotchLockScreenSupport.swift
@@ -297,12 +308,15 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/Harness/CodexReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/OpenCodeReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/CopilotReader.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/CursorReader.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/CursorTranscriptAccess.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageArchive.swift
         Sources/Vorssaint/Services/AgentUsage/AgentClaudeAppUsage.swift
         Sources/Vorssaint/Services/AgentUsage/AgentCLIConversation.swift
         Sources/Vorssaint/Services/AgentUsage/AgentClaudeServer.swift
+        Sources/Vorssaint/Services/AgentUsage/ClaudeAccountProfile.swift
         Sources/Vorssaint/Services/AgentUsage/AgentCodexServer.swift
         Sources/Vorssaint/Services/AgentUsage/CodexAccountLimits.swift
         Sources/Vorssaint/Services/AgentUsage/CodexProfileLimitsService.swift
@@ -315,6 +329,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchCalendarSupport.swift
         Sources/Vorssaint/Services/Notch/NotchKeepAwakeSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchMenuBarSpace.swift
         Sources/Vorssaint/Services/Notch/NotchAudioLevelSupport.swift
         Sources/Vorssaint/Services/Notch/NotchVolumeKeyGate.swift
         Sources/Vorssaint/Services/Notch/NotchMusicSupport.swift
@@ -322,6 +337,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchBrowserArtworkSupport.swift
         Sources/Vorssaint/UI/Notch/NotchEqualizerBars.swift
         Sources/Vorssaint/UI/Notch/NotchScrollEdgeFade.swift
+        Sources/Vorssaint/UI/Notch/NotchAgentComponents.swift
         Sources/Vorssaint/UI/Notch/NotchAgentAnimationView.swift
         Sources/Vorssaint/UI/WindowVisibilityReader.swift
         Sources/Vorssaint/Services/Notch/NotchMusicAutomationSupport.swift
@@ -334,6 +350,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/FeatureHubStrings.swift
         Sources/Vorssaint/Core/MixerScreenSharingStrings.swift
         Sources/Vorssaint/Core/ShortcutSettingsStrings.swift
+        Sources/Vorssaint/Core/SwitcherShortcutStrings.swift
         Sources/Vorssaint/Core/SettingsBackupSupport.swift
         Sources/Vorssaint/Core/BackupStrings.swift
         Sources/Vorssaint/Core/SnippetStrings.swift
@@ -348,6 +365,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/CameraPreviewStrings.swift
         Sources/Vorssaint/Core/WallpaperStrings.swift
         Sources/Vorssaint/Services/Wallpaper/WallpaperSupport.swift
+        Sources/Vorssaint/UI/MenuPanel/WallpaperThumbnailView.swift
         Sources/Vorssaint/Core/ScratchpadStrings.swift
         Sources/Vorssaint/Core/FinderRenameStrings.swift
         Sources/Vorssaint/Core/CommandBarStrings.swift
@@ -378,6 +396,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Recorder/RecorderWriter.swift
         Sources/Vorssaint/Services/Recorder/RecorderCaptureEngine.swift
         Sources/Vorssaint/Core/RecorderExportStrings.swift
+        Sources/Vorssaint/Core/RecorderExportFormatStrings.swift
         Sources/Vorssaint/Services/Recorder/RecorderComposer.swift
         Sources/Vorssaint/Services/Recorder/RecorderComposerPlan.swift
         Sources/Vorssaint/Services/Recorder/RecorderCursorSprite.swift
@@ -386,6 +405,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Recorder/RecorderExporter.swift
         Sources/Vorssaint/Services/Recorder/RecorderGIFClipboard.swift
         Sources/Vorssaint/Services/Recorder/RecorderGIFWriter.swift
+        Sources/Vorssaint/Services/Recorder/RecorderFastGIFWriter.swift
         Sources/Vorssaint/Services/Recorder/RecorderGIFWorkspace.swift
         Sources/Vorssaint/Services/Recorder/RecorderComposition.swift
         Sources/Vorssaint/Services/Recorder/RecordingSharingSupport.swift
@@ -416,6 +436,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/ReleaseChangeAliases.swift
         Sources/Vorssaint/Core/WhatsNewStrings.swift
         Sources/Vorssaint/Core/URLCleaning.swift
+        Sources/Vorssaint/Services/URLCleanerLinkMetadata.swift
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift
         Sources/Vorssaint/Services/Clipboard/ClipboardHistoryWrite.swift
         Sources/Vorssaint/Services/Audio/AirPlayRouteManager.swift
@@ -432,6 +453,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/SpacesOrder/SpacesOrderHold.swift
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift
         Sources/Vorssaint/Services/Homebrew/HomebrewEnvironment.swift
+        Sources/Vorssaint/Services/Homebrew/HomebrewManager.swift
+        Sources/Vorssaint/UI/MenuPanel/PanelHomebrewFilterPicker.swift
+        Sources/Vorssaint/UI/HomebrewOperationStatusView.swift
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift
         Sources/Vorssaint/Services/AppUpdates/AppUpdateFeedSupport.swift
         Sources/Vorssaint/Core/AppUpdateStrings.swift
@@ -489,8 +513,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/QuickToolsSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarPreferences.swift
-        Sources/Vorssaint/Services/CommandBar/CommandBarMath.swift
-        Sources/Vorssaint/Services/CommandBar/CommandBarUnits.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarUnitCatalog.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarExpressions.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarCalculator.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarColors.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarEmoji.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarLinks.swift
@@ -505,6 +530,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotCanvasSupport.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotImageImport.swift
+        Sources/Vorssaint/Services/Media/MediaImageProcessing.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotImageFile.swift
         Sources/Vorssaint/UI/Settings/ScreenCaptureToolPicker.swift
         Sources/Vorssaint/UI/Settings/MonitorToken.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotRenderer.swift
@@ -530,8 +558,10 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Switcher/SwitcherModels.swift
         Sources/Vorssaint/Services/Switcher/WindowServerCaptureQueue.swift
         Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift
+        Sources/Vorssaint/Services/Switcher/SwitcherExclusiveFullscreenWatch.swift
         Sources/Vorssaint/Services/Switcher/SpaceHopSupport.swift
         Sources/Vorssaint/Services/Switcher/WindowUseOrder.swift
+        Sources/Vorssaint/Services/Switcher/WindowEnumeratorAccessibilityPrefetch.swift
         Sources/Vorssaint/Services/Metrics/MetricFormat.swift
         Sources/Vorssaint/Services/Metrics/VMStatisticsDecoder.swift
         Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift
@@ -558,6 +588,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/WindowLayout/WindowLayoutSupport.swift
         Sources/Vorssaint/Services/WindowLayout/WindowStageManagerSupport.swift
         Sources/Vorssaint/Core/WindowStageManagerStrings.swift
+        Sources/Vorssaint/Core/WindowEdgeSnapRestoreStrings.swift
         Sources/Vorssaint/Services/WindowLayout/WindowGestureSupport.swift
         Sources/Vorssaint/Core/WindowDirectionalStrings.swift
         Sources/Vorssaint/Core/PointerDisplayStrings.swift
@@ -567,6 +598,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/CleaningMode/CleaningMouseReleaseGate.swift
         Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift
         Sources/Vorssaint/Services/Display/BrightnessSupport.swift
+        Sources/Vorssaint/Services/Display/MonitorVolumeKeySettings.swift
         Sources/Vorssaint/Services/Display/LidDimmingSupport.swift
         Sources/Vorssaint/Services/Cleaner/CleanerSupport.swift
         Sources/Vorssaint/Services/Cleaner/CleanerPolicy.swift
@@ -583,7 +615,8 @@ if (( TEST )); then
     swiftc -Onone -incremental -enable-batch-mode -j "$(sysctl -n hw.logicalcpu)" \
         -module-name VorssaintTests -output-file-map "$TEST_OUTPUT_FILE_MAP" \
         -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
-        "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${TEST_SOURCES[@]}" -o build/metrics-tests
+        "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${CORE_AUDIO_TAP_FLAGS[@]}" "${GIF_CODEC_FLAGS[@]}" \
+        "${TEST_SOURCES[@]}" "${GIF_CODEC_OBJECTS[@]}" -o build/metrics-tests
     test_status=0
     ./build/metrics-tests "${TEST_ARGS[@]}" || test_status=$?
     if (( ${#TEST_ARGS} == 0 )); then
@@ -615,8 +648,10 @@ write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOUR
 swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -enable-batch-mode -j "$(sysctl -n hw.logicalcpu)" \
     -output-file-map "$APP_OUTPUT_FILE_MAP" \
     -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
+    "${CORE_AUDIO_TAP_FLAGS[@]}" "${GIF_CODEC_FLAGS[@]}" \
     "${BUILD_VARIANT_FLAGS[@]}" \
-    "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
+    "${APP_SOURCES[@]}" "${GIF_CODEC_OBJECTS[@]}" -o "build/$EXECUTABLE"
+xcrun dyld_info -imports "build/$EXECUTABLE" | awk -f Tests/AudioTapImports.awk
 
 echo "▸ Compiling protected fan helper…"
 swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
@@ -640,7 +675,9 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
     -o "build/$NOW_PLAYING_ADAPTER"
 
 echo "▸ Generating app icon…"
-swift Tools/MakeIcon.swift build/AppIcon.iconset
+# Use the same pinned SDK as the app build: the default MacOSX.sdk may be 27,
+# whose Command Line Tools copy is missing Foundation headers MakeIcon needs.
+swift -sdk "$SDK" Tools/MakeIcon.swift build/AppIcon.iconset
 xattr -c -r build/AppIcon.iconset build/AppIcon.icns build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png 2>/dev/null || true
 ACTOOL_BIN="$(xcrun --find actool 2>/dev/null || true)"
 ICON_TMP="$(mktemp -d)"
@@ -721,6 +758,7 @@ FAN_HELPER_VERSION="$(
     "$STAGE/Contents/Info.plist"
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"
 cp build/AppIcon.icns "$STAGE/Contents/Resources/AppIcon.icns"
+cp Sources/RecorderGIFCodec/vendor/cgif/LICENSE "$STAGE/Contents/Resources/cgif-LICENSE.txt"
 cp build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png "$STAGE/Contents/Resources/"
 if [[ -f build/Assets.car ]]; then
     cp build/Assets.car "$STAGE/Contents/Resources/Assets.car"

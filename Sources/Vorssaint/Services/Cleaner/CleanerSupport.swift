@@ -237,6 +237,17 @@ enum CleanerSupport {
         return false
     }
 
+    /// Vendors sometimes use their domain as the support directory name.
+    /// An installed net.battle.app keeps Battle.net on a dot boundary.
+    static func isOwnedSupportDomain(_ name: String, byInstalled installed: Set<String>) -> Bool {
+        let parts = name.lowercased().split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty,
+              !hostingNamespaces.contains(String(parts[0])) else { return false }
+        let namespace = "\(parts[1]).\(parts[0])"
+        let prefix = namespace + "."
+        return installed.contains(namespace) || installed.contains { $0.hasPrefix(prefix) }
+    }
+
     /// The executables a launchd property list points at, in the order they
     /// should be checked. A plist whose every referenced executable is gone
     /// is an orphan: the app that installed it no longer exists.
@@ -266,10 +277,11 @@ enum CleanerSupport {
     /// an executable is undecidable, so both stay untouched.
     static func launchPlistIsRemovableOrphan(label: String?,
                                              executables: [String],
-                                             executableExists: (String) -> Bool) -> Bool {
+                                             executableIsConfirmedAbsent: (String) -> Bool) -> Bool {
         if let label, isProtectedBundleID(label) { return false }
         guard !executables.isEmpty else { return false }
-        return !executables.contains(where: executableExists)
+        // An external volume may be unmounted, so absence there is inconclusive.
+        return executables.allSatisfy { !$0.hasPrefix("/Volumes/") && executableIsConfirmedAbsent($0) }
     }
 
     // MARK: - Forgotten screenshots

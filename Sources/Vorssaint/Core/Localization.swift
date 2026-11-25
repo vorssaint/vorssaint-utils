@@ -364,10 +364,15 @@ struct Strings {
     let micMuteName: String
     let micUnmuteName: String
     let micMuteCaption: String
+    let micMuteFollowCallAppsToggle: String
+    let micMuteFollowCallAppsCaption: String
     let micMutedHUD: String
     let micUnmutedHUD: String
     let micMutePartialHUD: String
     let micUnmutePartialHUD: String
+    let micRestoreExhaustedHUD: String
+    let micManualRestore: String
+    let micManualRestoreChecked: String
     let micMuteMenuBarToggle: String
     let micMuteMenuBarCaption: String
     let pastePlainName: String
@@ -401,6 +406,8 @@ struct Strings {
     let switcherMaxColumnsAuto: String
     let switcherInstantSelection: String
     let switcherInstantSelectionCaption: String
+    let switcherIgnoreHoverSelection: String
+    let switcherIgnoreHoverSelectionCaption: String
     let switcherMergeTabs: String
     let switcherMergeTabsCaption: String
     let switcherWindowlessApps: String
@@ -505,6 +512,7 @@ struct Strings {
     let uninstallerRemoving: String
     let uninstallerFoundTitle: String
     let uninstallerSelectedFormat: String   // + selected, total
+    let uninstallerSelectAll: String
     let uninstallerRemove: String
     let uninstallerCancel: String
     let uninstallerConfirmationExpired: String
@@ -525,6 +533,10 @@ struct Strings {
     let uninstallerCommandBarBrowseTitle: String
     let uninstallerCommandBarToggle: String
     let uninstallerCommandBarCaption: String
+    let uninstallerWatchTrashToggle: String
+    let uninstallerWatchTrashCaption: String
+    let uninstallerConfirmTrashCleanup: String
+    let uninstallerTrashUnavailable: String
     let uninstallerCommandBarFinderTitle: String
     let uninstallerSelectionUnavailable: String
     let uninstallerRefusedNotApp: String
@@ -595,6 +607,8 @@ struct Strings {
     let homebrewOpenTerminal: String
     let homebrewCancelOperation: String
     let homebrewClearLog: String
+    let homebrewLastLogView: String
+    let homebrewLastLogHide: String
     let homebrewLogTitle: String
     let homebrewVersion: String
     let homebrewDescription: String
@@ -827,6 +841,7 @@ struct Strings {
     let audioPriorityMoveUp: String
     let audioPriorityMoveDown: String
     let audioPriorityUnavailable: String
+    let audioPriorityRemove: String
     let audioPriorityCurrent: String
     let audioPriorityCaption: String
 
@@ -1279,12 +1294,16 @@ struct Strings {
     let invertVerticalScroll: String
     let invertHorizontalScroll: String
     let scrollHorizontalName: String
+    let zoomSection: String
+    let zoomControlNote: String
+    let pinchZoom: String
     let scrollHorizontalModifierLabel: String
     let scrollHorizontalCommandKey: String
     let scrollHorizontalCaption: String
     let switcherShowShortcutHints: String
     let switcherShowShortcutHintsCaption: String
     let uninstallerHomebrewPackageFormat: String
+    let uninstallerHomebrewCheckFailed: String
     let shelfEdgeToggle: String
     let shelfEdgeCaption: String
     let focusFollowsMouseName: String
@@ -1312,12 +1331,17 @@ struct Strings {
     let linearScrollName: String
     let linearScrollCaption: String
     let linearScrollLinesLabel: String
+    let scrollSpeedName: String
+    let scrollSpeedCaption: String
+    let scrollSpeedMultiplierLabel: String
     let shelfClearOnClose: String
     let shelfClearOnCloseCaption: String
     let shelfShortcutFinderSelection: String
     let shelfShortcutFinderSelectionCaption: String
     let spacesOrderName: String
     let spacesOrderCaption: String
+    let quitAppsName: String
+    let quitAppsCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1517,13 +1541,18 @@ extension Strings {
         colorPickerPickNow: "Capturar cor",
         micMuteName: "Silenciar microfone",
         micUnmuteName: "Reativar microfone",
-        micMuteCaption: "Corta o microfone do Mac com um clique ou atalho, valendo para qualquer app.",
-        micMutedHUD: "Microfone silenciado",
+        micMuteCaption: "Tenta acionar as chaves de silenciamento disponíveis e zerar o volume das entradas que permitem ajuste. Um aviso indica que algum microfone pode continuar captando. A Siri e alguns apps ainda podem ouvir você.",
+        micMuteFollowCallAppsToggle: "Permitir que apps de chamada reativem o microfone",
+        micMuteFollowCallAppsCaption: "Quando um app está gravando e o microfone em uso é reativado, o Vorssaint restaura todos os microfones que silenciou. Um ajuste automático de ganho também pode causar isso.",
+        micMutedHUD: "Silenciamento ativado",
         micUnmutedHUD: "Silenciamento desativado",
-        micMutePartialHUD: "Alguns microfones não puderam ser silenciados",
-        micUnmutePartialHUD: "Alguns microfones continuam silenciados",
-        micMuteMenuBarToggle: "Mostrar na barra de menus enquanto silenciado",
-        micMuteMenuBarCaption: "Um microfone cortado em vermelho aparece ao lado do ícone do app na barra de menus enquanto este recurso o silencia.",
+        micMutePartialHUD: "Não foi possível confirmar o silenciamento em todos os microfones",
+        micUnmutePartialHUD: "Não foi possível confirmar a restauração de todos os microfones",
+        micRestoreExhaustedHUD: "Não foi possível confirmar a restauração automática. Confira se o microfone está mudo e ajuste o volume de entrada no mixer.",
+        micManualRestore: "Não foi possível confirmar todos os ajustes do microfone. Confira o botão de mudo e o nível de entrada de cada canal. Se precisar, use o mixer ou os ajustes de Som.",
+        micManualRestoreChecked: "Já conferi o microfone",
+        micMuteMenuBarToggle: "Mostrar na barra de menus enquanto ativo",
+        micMuteMenuBarCaption: "O microfone vermelho na barra de menus indica que o recurso está ativo. Isso não garante que todos os apps deixem de captar áudio.",
         pastePlainName: "Colar como texto puro",
         pastePlainCaption: "Cola o que foi copiado sem cores, fontes ou formatação. O conteúdo original continua no clipboard.",
         launcherName: "Painel rápido",
@@ -1554,6 +1583,8 @@ extension Strings {
         switcherMaxColumnsAuto: "Automático",
         switcherInstantSelection: "Seleção instantânea",
         switcherInstantSelectionCaption: "Move o destaque e a rolagem imediatamente ao navegar por apps e janelas.",
+        switcherIgnoreHoverSelection: "Ignorar seleção ao passar o cursor",
+        switcherIgnoreHoverSelectionCaption: "Mover o ponteiro sobre apps e janelas deixa o destaque onde está. Clicar ainda abre um.",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
         switcherWindowlessApps: "Apps sem janela aberta",
@@ -1655,6 +1686,7 @@ extension Strings {
         uninstallerRemoving: "Movendo para a Lixeira…",
         uninstallerFoundTitle: "encontrado",
         uninstallerSelectedFormat: "%d de %d selecionados",
+        uninstallerSelectAll: "Selecionar tudo",
         uninstallerRemove: "Mover para a Lixeira",
         uninstallerCancel: "Cancelar",
         uninstallerConfirmationExpired: "Esta confirmação não é mais válida. Revise os itens atuais e confirme de novo.",
@@ -1675,6 +1707,10 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "Desinstalar aplicativo",
         uninstallerCommandBarToggle: "Mostrar na Barra de Comandos",
         uninstallerCommandBarCaption: "Permite escolher e desinstalar aplicativos pela Barra de Comandos.",
+        uninstallerWatchTrashToggle: "Oferecer limpeza ao mover um app para o Lixo",
+        uninstallerWatchTrashCaption: "Abre o Desinstalador quando você apaga um app no Finder. Requer Acesso Total ao Disco.",
+        uninstallerConfirmTrashCleanup: "Se você moveu este app para o Lixo para desinstalá-lo, confirme para mover também os dados selecionados. Se o app estiver sendo atualizado, cancele para manter seus dados.",
+        uninstallerTrashUnavailable: "Só é possível limpar dados do Lixo após mover a última cópia do app da pasta Aplicativos. Se ele ainda estiver instalado ou em atualização, seus dados serão mantidos.",
         uninstallerCommandBarFinderTitle: "Desinstalar aplicativo selecionado no Finder",
         uninstallerSelectionUnavailable: "Selecione um aplicativo que possa ser removido no Finder ou escolha outro na lista.",
         uninstallerRefusedNotApp: "Só é possível desinstalar apps.",
@@ -1705,14 +1741,14 @@ extension Strings {
         homebrewName: "Homebrew",
         homebrewEnableCaption: "Pesquise, instale e remova fórmulas e casks.",
         homebrewMissingTitle: "Homebrew não encontrado",
-        homebrewMissingBody: "O Vorssaint pode abrir o Terminal com o instalador oficial do Homebrew. O Terminal mostra os passos e pede sua senha se precisar.",
+        homebrewMissingBody: "O Vorssaint pode abrir o instalador oficial do Homebrew no seu terminal. Ele mostra os passos e pede sua senha se precisar.",
         homebrewInstallHomebrew: "Instalar Homebrew",
-        homebrewInstallHomebrewCaption: "Depois que terminar no Terminal, volte aqui e clique em Atualizar.",
-        homebrewInstallHomebrewOpened: "Instalador aberto no Terminal.",
-        homebrewShellSetupTitle: "Finalizar configuração do Terminal",
-        homebrewShellSetupBody: "O Homebrew está instalado, mas o Terminal ainda pode não encontrar o comando brew. O Vorssaint pode abrir o Terminal com o comando de configuração.",
-        homebrewShellSetupButton: "Configurar Terminal",
-        homebrewShellSetupOpened: "Comando aberto no Terminal. Depois volte aqui e clique em Atualizar.",
+        homebrewInstallHomebrewCaption: "Depois que o instalador terminar, volte aqui e clique em Atualizar.",
+        homebrewInstallHomebrewOpened: "Instalador aberto no seu terminal.",
+        homebrewShellSetupTitle: "Finalizar configuração do terminal",
+        homebrewShellSetupBody: "O Homebrew está instalado, mas o seu terminal ainda pode não encontrar o comando brew. O Vorssaint pode abrir o comando de configuração no seu terminal.",
+        homebrewShellSetupButton: "Configurar terminal",
+        homebrewShellSetupOpened: "Comando aberto no seu terminal. Depois volte aqui e clique em Atualizar.",
         homebrewRefresh: "Atualizar",
         homebrewCheckPackages: "Verificar pacotes",
         homebrewTrustTitle: "Tap ainda não confiável",
@@ -1740,9 +1776,11 @@ extension Strings {
         homebrewUpgradeAll: "Atualizar tudo",
         homebrewUpdateHomebrew: "Atualizar Homebrew",
         homebrewAllPackages: "pacotes",
-        homebrewOpenTerminal: "Abrir Terminal",
+        homebrewOpenTerminal: "Abrir terminal",
         homebrewCancelOperation: "Cancelar",
         homebrewClearLog: "Limpar log",
+        homebrewLastLogView: "Ver o último log",
+        homebrewLastLogHide: "Ocultar o último log",
         homebrewLogTitle: "Log",
         homebrewVersion: "Versão",
         homebrewDescription: "Tipo",
@@ -1764,7 +1802,7 @@ extension Strings {
         homebrewConfirmUpgradeAllBody: "O Homebrew vai baixar e aplicar as versões mais recentes dos pacotes com atualização disponível. Dependências também podem ser atualizadas.",
         homebrewConfirmUpdateHomebrewTitle: "Atualizar Homebrew?",
         homebrewConfirmUpdateHomebrewBody: "O Homebrew vai buscar as informações mais recentes e depois recarregar seus pacotes.",
-        homebrewTerminalFallback: "Esta operação precisa do Terminal para pedir a senha de administrador. O Vorssaint não captura senhas.",
+        homebrewTerminalFallback: "Esta operação precisa do seu terminal para pedir a senha de administrador. O Vorssaint não captura senhas.",
         homebrewLoading: "Carregando…",
         homebrewSearchEmpty: "Nenhum resultado",
         homebrewOperationInstallFormat: "Instalando %@",
@@ -1786,7 +1824,7 @@ extension Strings {
         homebrewOperationUpgrading: "Atualizando arquivos…",
         homebrewOperationFinalizing: "Finalizando…",
         homebrewOperationRefreshing: "Atualizando lista…",
-        homebrewOperationTerminal: "Continue no Terminal.",
+        homebrewOperationTerminal: "Continue no seu terminal.",
         homebrewOperationElapsedFormat: "%@ decorridos",
         homebrewOperationShowDetails: "Mostrar detalhes",
         homebrewOperationHideDetails: "Ocultar detalhes",
@@ -1964,6 +2002,7 @@ extension Strings {
         audioPriorityMoveUp: "Mover para cima",
         audioPriorityMoveDown: "Mover para baixo",
         audioPriorityUnavailable: "Indisponível",
+        audioPriorityRemove: "Remover",
         audioPriorityCurrent: "Em uso",
         audioPriorityCaption: "Os dispositivos são selecionados por ordem de prioridade. Quando um dispositivo de maior prioridade é conectado, ele passa a ser usado. Quando o dispositivo ativo é desconectado, o próximo disponível é selecionado.",
 
@@ -2297,7 +2336,7 @@ extension Strings {
         cleanerCatDeveloper: "Lixo de desenvolvimento",
         cleanerCatTrash: "Lixeira",
         cleanerLeftoversNote: "Encontrados por análise e começam desmarcados. Confira o caminho antes de marcar.",
-        cleanerLoginItemsNote: "A entrada em Itens de Início some depois de reiniciar o Mac.",
+        cleanerLoginItemsNote: "Itens que exigem autorização de administrador ficam no lugar. Depois de remover um item, pode ser preciso reiniciar o Mac para atualizar a lista.",
         cleanerTrashNote: "Esvaziar a Lixeira é permanente.",
         cleanerCatDeviceBackups: "Backups de iPhone",
         cleanerDeviceBackupsCaption: "Backups antigos de iPhone e iPad ocupam boa parte do que o macOS chama de Outros. Remova só os que você não precisa mais; um novo backup é feito quando o aparelho for conectado de novo.",
@@ -2392,12 +2431,16 @@ extension Strings {
         invertVerticalScroll: "Inverter rolagem vertical",
         invertHorizontalScroll: "Inverter rolagem horizontal",
         scrollHorizontalName: "Rolar na horizontal segurando uma tecla",
+        zoomSection: "Zoom",
+        zoomControlNote: "Control + rolagem amplia o conteúdo do app em vez da tela do macOS.",
+        pinchZoom: "Zoom por pinça",
         scrollHorizontalModifierLabel: "Tecla modificadora",
         scrollHorizontalCommandKey: "Command",
         scrollHorizontalCaption: "Mantenha apenas a tecla escolhida pressionada para rolar a roda vertical do mouse na horizontal. Outras combinações de teclas não são alteradas.",
         switcherShowShortcutHints: "Mostrar dicas de atalhos",
         switcherShowShortcutHintsCaption: "Exibe os atalhos de apps e janelas abaixo dos ícones.",
         uninstallerHomebrewPackageFormat: "%@ também será removido do Homebrew.",
+        uninstallerHomebrewCheckFailed: "Não foi possível verificar se o Homebrew gerencia este aplicativo. Atualize para tentar novamente ou desinstale pelo Homebrew.",
         shelfEdgeToggle: "Abrir perto de uma borda da tela",
         shelfEdgeCaption: "Ao arrastar um arquivo para perto da borda da tela, a área espia para dentro. Solte ali, ou puxe de volta e ela recua.",
         focusFollowsMouseName: "Foco ao passar o mouse",
@@ -2425,12 +2468,17 @@ extension Strings {
         linearScrollName: "Rolagem linear",
         linearScrollCaption: "Cada passo da rodinha do mouse rola a mesma distância, não importa a velocidade do giro. O trackpad não muda.",
         linearScrollLinesLabel: "Linhas por passo",
+        scrollSpeedName: "Rolar mais rápido segurando uma tecla",
+        scrollSpeedCaption: "Mantenha apenas a tecla escolhida pressionada ao rolar a roda do mouse para multiplicar a distância. O trackpad não muda.",
+        scrollSpeedMultiplierLabel: "Velocidade",
         shelfClearOnClose: "Limpar ao fechar",
         shelfClearOnCloseCaption: "Esvazia a área somente quando você clica no botão de fechar. Ocultar automaticamente e encolher preservam os itens.",
         shelfShortcutFinderSelection: "Adicionar a seleção do Finder com o atalho",
         shelfShortcutFinderSelectionCaption: "Com o Finder em primeiro plano, o atalho abre a área temporária já com os arquivos selecionados. Sem seleção, ela abre como sempre.",
         spacesOrderName: "Manter os Espaços em ordem fixa",
-        spacesOrderCaption: "Impede que o macOS reorganize os Espaços pelo uso mais recente, para que fiquem na ordem que você definiu. A configuração anterior volta ao desligar esta opção. O Dock pode reiniciar uma vez para aplicar a mudança."
+        spacesOrderCaption: "Impede que o macOS reorganize os Espaços pelo uso mais recente, para que fiquem na ordem que você definiu. A configuração anterior volta ao desligar esta opção. O Dock pode reiniciar uma vez para aplicar a mudança.",
+        quitAppsName: "Encerrar apps",
+        quitAppsCaption: "Lista seus apps abertos para encerrar um por um, todos de uma vez ou todos exceto o da frente. Sempre mostra a lista antes de encerrar qualquer um."
     )
 }
 
@@ -2631,13 +2679,18 @@ extension Strings {
         colorPickerPickNow: "Pick color",
         micMuteName: "Mute microphone",
         micUnmuteName: "Unmute microphone",
-        micMuteCaption: "Cuts the Mac’s microphone with a click or shortcut, across every app.",
-        micMutedHUD: "Microphone muted",
-        micUnmutedHUD: "Mute off",
-        micMutePartialHUD: "Some microphones could not be muted",
-        micUnmutePartialHUD: "Some microphones are still muted",
-        micMuteMenuBarToggle: "Show in the menu bar while muted",
-        micMuteMenuBarCaption: "A red crossed-out mic appears beside the app’s icon in the menu bar while this feature mutes it.",
+        micMuteCaption: "Tries to engage each available mute switch and set each adjustable input volume to zero. A warning means an input may still be live. Siri and some apps may still hear you.",
+        micMuteFollowCallAppsToggle: "Allow call apps to unmute the microphone",
+        micMuteFollowCallAppsCaption: "If a microphone reopens while an app is recording from it, Vorssaint restores all microphones it muted. An automatic gain change can also trigger this.",
+        micMutedHUD: "Mic Mute on",
+        micUnmutedHUD: "Mic Mute off",
+        micMutePartialHUD: "Couldn’t confirm mute on every microphone",
+        micUnmutePartialHUD: "Couldn’t confirm every microphone was restored",
+        micRestoreExhaustedHUD: "Automatic restore could not be confirmed. Check the microphone’s mute switch and adjust its input volume in the mixer.",
+        micManualRestore: "Some microphone settings could not be verified. Check the mute switch and each channel’s input level. Use the mixer or Sound settings as needed.",
+        micManualRestoreChecked: "I’ve checked the microphone",
+        micMuteMenuBarToggle: "Show in the menu bar while Mic Mute is on",
+        micMuteMenuBarCaption: "The red mic in the menu bar indicates that Mic Mute is on. It does not guarantee that all apps stop capturing audio.",
         pastePlainName: "Paste as plain text",
         pastePlainCaption: "Pastes what you copied without colors, fonts or formatting. The original stays on the clipboard.",
         launcherName: "Quick panel",
@@ -2668,6 +2721,8 @@ extension Strings {
         switcherMaxColumnsAuto: "Auto",
         switcherInstantSelection: "Instant selection",
         switcherInstantSelectionCaption: "Moves the highlight and scroll position immediately as you browse apps and windows.",
+        switcherIgnoreHoverSelection: "Ignore hover selection",
+        switcherIgnoreHoverSelectionCaption: "Moving the pointer over apps and windows leaves the highlight where it is. Clicking still opens one.",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app’s windows into one entry in the switcher, instead of one entry per window.",
         switcherWindowlessApps: "Apps with no open window",
@@ -2769,6 +2824,7 @@ extension Strings {
         uninstallerRemoving: "Moving to the Trash…",
         uninstallerFoundTitle: "found",
         uninstallerSelectedFormat: "%d of %d selected",
+        uninstallerSelectAll: "Select all",
         uninstallerRemove: "Move to Trash",
         uninstallerCancel: "Cancel",
         uninstallerConfirmationExpired: "This confirmation is no longer valid. Review the current items and confirm again.",
@@ -2789,6 +2845,10 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "Uninstall Application",
         uninstallerCommandBarToggle: "Show in Command Bar",
         uninstallerCommandBarCaption: "Choose and uninstall apps in the Command Bar.",
+        uninstallerWatchTrashToggle: "Offer cleanup when an app is moved to the Trash",
+        uninstallerWatchTrashCaption: "Opens the Uninstaller when you delete an app in Finder. Needs Full Disk Access.",
+        uninstallerConfirmTrashCleanup: "If you moved this app to the Trash to uninstall it, confirm to move its selected data to the Trash too. If the app is updating, cancel to keep its data.",
+        uninstallerTrashUnavailable: "Cleanup requires moving the last installed copy from an Applications folder to the Trash. Data is kept while the app is installed or updating.",
         uninstallerCommandBarFinderTitle: "Uninstall app selected in Finder",
         uninstallerSelectionUnavailable: "Select an app that can be removed in Finder, or choose another from the list.",
         uninstallerRefusedNotApp: "Only apps can be uninstalled.",
@@ -2819,14 +2879,14 @@ extension Strings {
         homebrewName: "Homebrew",
         homebrewEnableCaption: "Search, install and remove formulae and casks.",
         homebrewMissingTitle: "Homebrew not found",
-        homebrewMissingBody: "Vorssaint can open Terminal with the official Homebrew installer. Terminal shows the steps and asks for your password if needed.",
+        homebrewMissingBody: "Vorssaint can open the official Homebrew installer in your terminal. It shows the steps and asks for your password if needed.",
         homebrewInstallHomebrew: "Install Homebrew",
-        homebrewInstallHomebrewCaption: "When Terminal finishes, come back here and click Refresh.",
-        homebrewInstallHomebrewOpened: "Installer opened in Terminal.",
-        homebrewShellSetupTitle: "Finish Terminal setup",
-        homebrewShellSetupBody: "Homebrew is installed, but Terminal may not find the brew command yet. Vorssaint can open Terminal with the setup command.",
-        homebrewShellSetupButton: "Set up Terminal",
-        homebrewShellSetupOpened: "Command opened in Terminal. Then come back here and click Refresh.",
+        homebrewInstallHomebrewCaption: "When the installer finishes, come back here and click Refresh.",
+        homebrewInstallHomebrewOpened: "Installer opened in your terminal.",
+        homebrewShellSetupTitle: "Finish terminal setup",
+        homebrewShellSetupBody: "Homebrew is installed, but your terminal may not find the brew command yet. Vorssaint can open the setup command in your terminal.",
+        homebrewShellSetupButton: "Set up terminal",
+        homebrewShellSetupOpened: "Command opened in your terminal. Then come back here and click Refresh.",
         homebrewRefresh: "Refresh",
         homebrewCheckPackages: "Check packages",
         homebrewTrustTitle: "Tap not trusted yet",
@@ -2854,9 +2914,11 @@ extension Strings {
         homebrewUpgradeAll: "Update all",
         homebrewUpdateHomebrew: "Update Homebrew",
         homebrewAllPackages: "packages",
-        homebrewOpenTerminal: "Open Terminal",
+        homebrewOpenTerminal: "Open terminal",
         homebrewCancelOperation: "Cancel",
         homebrewClearLog: "Clear log",
+        homebrewLastLogView: "View last log",
+        homebrewLastLogHide: "Hide last log",
         homebrewLogTitle: "Log",
         homebrewVersion: "Version",
         homebrewDescription: "Type",
@@ -2878,7 +2940,7 @@ extension Strings {
         homebrewConfirmUpgradeAllBody: "Homebrew will download and apply the latest versions for packages with updates available. Dependencies may also be updated.",
         homebrewConfirmUpdateHomebrewTitle: "Update Homebrew?",
         homebrewConfirmUpdateHomebrewBody: "Homebrew will fetch the latest information and then reload your packages.",
-        homebrewTerminalFallback: "This operation needs Terminal to ask for the administrator password. Vorssaint does not capture passwords.",
+        homebrewTerminalFallback: "This operation needs your terminal to ask for the administrator password. Vorssaint does not capture passwords.",
         homebrewLoading: "Loading…",
         homebrewSearchEmpty: "No results",
         homebrewOperationInstallFormat: "Installing %@",
@@ -2900,7 +2962,7 @@ extension Strings {
         homebrewOperationUpgrading: "Updating files…",
         homebrewOperationFinalizing: "Finishing…",
         homebrewOperationRefreshing: "Refreshing list…",
-        homebrewOperationTerminal: "Continue in Terminal.",
+        homebrewOperationTerminal: "Continue in your terminal.",
         homebrewOperationElapsedFormat: "%@ elapsed",
         homebrewOperationShowDetails: "Show details",
         homebrewOperationHideDetails: "Hide details",
@@ -3078,6 +3140,7 @@ extension Strings {
         audioPriorityMoveUp: "Move up",
         audioPriorityMoveDown: "Move down",
         audioPriorityUnavailable: "Unavailable",
+        audioPriorityRemove: "Remove",
         audioPriorityCurrent: "Current",
         audioPriorityCaption: "Devices are selected in priority order. When a higher-priority device connects, it becomes active. When the active one disconnects, the next available takes over.",
 
@@ -3411,7 +3474,7 @@ extension Strings {
         cleanerCatDeveloper: "Developer junk",
         cleanerCatTrash: "Trash",
         cleanerLeftoversNote: "Found by analysis and left unchecked. Check the path before ticking.",
-        cleanerLoginItemsNote: "The entry under Login Items disappears after restarting the Mac.",
+        cleanerLoginItemsNote: "Items that need administrator approval stay in place. After an item is removed, you may need to restart your Mac to refresh the list.",
         cleanerTrashNote: "Emptying the Trash is permanent.",
         cleanerCatDeviceBackups: "iPhone backups",
         cleanerDeviceBackupsCaption: "Old iPhone and iPad backups take a big slice of the storage macOS calls Other. Remove only the ones you no longer need; a new backup is made when you plug the device in again.",
@@ -3506,12 +3569,16 @@ extension Strings {
         invertVerticalScroll: "Invert vertical scrolling",
         invertHorizontalScroll: "Invert horizontal scrolling",
         scrollHorizontalName: "Scroll sideways while holding a key",
+        zoomSection: "Zoom",
+        zoomControlNote: "Control + scroll performs app zoom instead of macOS screen zoom.",
+        pinchZoom: "Pinch Zoom",
         scrollHorizontalModifierLabel: "Modifier key",
         scrollHorizontalCommandKey: "Command",
         scrollHorizontalCaption: "Hold only the selected modifier to scroll the vertical mouse wheel horizontally. Other key combinations are unchanged.",
         switcherShowShortcutHints: "Show shortcut hints",
         switcherShowShortcutHintsCaption: "Shows the app and window shortcuts below the icons.",
         uninstallerHomebrewPackageFormat: "%@ will also be removed from Homebrew.",
+        uninstallerHomebrewCheckFailed: "Could not verify whether Homebrew manages this app. Refresh to try again, or uninstall it from Homebrew.",
         shelfEdgeToggle: "Open near a screen edge",
         shelfEdgeCaption: "Drag a file toward the screen edge to peek the shelf in. Drop it there, or pull back and it retreats.",
         focusFollowsMouseName: "Focus follows mouse",
@@ -3539,11 +3606,16 @@ extension Strings {
         linearScrollName: "Linear scrolling",
         linearScrollCaption: "Every notch of the mouse wheel scrolls the same distance, no matter how fast it spins. The trackpad is not affected.",
         linearScrollLinesLabel: "Lines per step",
+        scrollSpeedName: "Scroll faster while holding a key",
+        scrollSpeedCaption: "Hold only the selected modifier while scrolling the mouse wheel to multiply scroll distance. The trackpad is not affected.",
+        scrollSpeedMultiplierLabel: "Speed",
         shelfClearOnClose: "Clear when closed",
         shelfClearOnCloseCaption: "Empties the shelf only when you click its close button. Automatic hiding and collapsing keep the items.",
         shelfShortcutFinderSelection: "Add the Finder selection with the shortcut",
         shelfShortcutFinderSelectionCaption: "With Finder in front, the shortcut opens the shelf with the selected files already in it. With nothing selected, it opens as usual.",
         spacesOrderName: "Keep Spaces in a fixed order",
-        spacesOrderCaption: "Stops macOS from rearranging Spaces by most recent use, so they stay in the order you set. Your previous setting returns when this is turned off. The Dock may restart once to apply the change."
+        spacesOrderCaption: "Stops macOS from rearranging Spaces by most recent use, so they stay in the order you set. Your previous setting returns when this is turned off. The Dock may restart once to apply the change.",
+        quitAppsName: "Quit apps",
+        quitAppsCaption: "Lists your open apps to quit one by one, all at once, or all but the one in front. Always shows the list before anything quits."
     )
 }

@@ -21,6 +21,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchAccessoriesEnabled) private var accessoriesEnabled = true
     @AppStorage(DefaultsKey.notchCalendarEnabled) private var calendarEnabled = true
     @AppStorage(DefaultsKey.notchCalendarCountdown) private var calendarCountdown = false
+    @AppStorage(DefaultsKey.notchCalendarCountdownLead) private var calendarCountdownLead = NotchCalendarSupport.defaultCountdownLeadMinutes
     @AppStorage(DefaultsKey.notchCalendarTimeLeft) private var calendarTimeLeft = false
     @AppStorage(DefaultsKey.notchCalendarWeekNumbers) private var calendarWeekNumbers = false
     @AppStorage(DefaultsKey.notchAgentsEnabled) private var agentsEnabled = false
@@ -115,7 +116,8 @@ struct NotchSettings: View {
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
 
     private var configuration: [String] {
-        [String(enabled), String(calendarEnabled), String(calendarCountdown), String(calendarTimeLeft),
+        [String(enabled), String(calendarEnabled), String(calendarCountdown), String(calendarCountdownLead),
+         String(calendarTimeLeft),
          String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled),
          String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer),
          String(showPlayingMusic), String(includeOtherPlayers), String(musicShowVolume), idle, hiddenControls, controlOrder, size,
@@ -178,8 +180,8 @@ struct NotchSettings: View {
         .onChange(of: accessData) { _, _ in NotchService.shared.syncWithPreferences() }
         .onChange(of: browserCovers) { _, _ in NotchMusicService.shared.syncBrowserCovers() }
         .onChange(of: tab) { _, _ in draggingModule = nil; draggingControl = nil }
-        .onAppear(perform: consumeModuleHint)
-        .onChange(of: router.notchModule) { _, _ in consumeModuleHint() }
+        .onAppear(perform: revealDestination)
+        .onChange(of: router.requestID) { _, _ in revealDestination() }
         .onAppear(perform: consumeCompanionHint)
         .onChange(of: router.notchCompanion) { _, _ in consumeCompanionHint() }
         // Uninstalled while its tab shows, the companion leaves the page to the layout.
@@ -209,12 +211,10 @@ struct NotchSettings: View {
         }.id(tab)
     }
 
-    /// A section of the island can ask for its own options; the hint is one-shot.
-    private func consumeModuleHint() {
-        guard let module = router.notchModule else { return }
-        router.notchModule = nil
-        selectedModule = module
-        tab = .content
+    private func revealDestination() {
+        guard let location = router.destination.notchLocation else { return }
+        if case .module(let module) = location { selectedModule = module }
+        tab = location.tab
     }
 
     private func sync() {
@@ -475,6 +475,16 @@ struct NotchSettings: View {
             Divider()
             switchRow("calendar.badge.clock", calendar.countdown, caption: calendar.countdownHint,
                       isOn: $calendarCountdown)
+            // Shown with the countdown off too: events chosen from their menu use the same lead.
+            // A value outside the presets, from a backup or an older build, stays selectable.
+            let lead = NotchCalendarSupport.countdownLeadMinutes(calendarCountdownLead)
+            SettingsMenuRow(symbol: "timer", title: calendar.countdownLead, selection: Binding(
+                get: { lead }, set: { calendarCountdownLead = $0 })) {
+                ForEach(Set(NotchCalendarSupport.countdownLeadPresets + [lead]).sorted(), id: \.self) { minutes in
+                    Text(AgentFormat.duration(TimeInterval(minutes * 60), locale: l10n.language.formattingLocale(),
+                                              style: .short)).tag(minutes)
+                }
+            }
             switchRow("hourglass", calendar.timeLeft, caption: calendar.timeLeftHint, isOn: $calendarTimeLeft)
             switchRow("number", calendar.weekNumbers, isOn: $calendarWeekNumbers)
             if permissions.calendarAccess == .fullAccess { NotchCalendarSelection() }

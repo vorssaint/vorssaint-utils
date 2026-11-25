@@ -356,12 +356,6 @@ enum NotchLayout {
         min(30, max(16, ((height - calendarMonthWeekdayHeight) / 6).rounded(.down)))
     }
 
-    /// The preview fills the page. A wide strip crops the camera to 16:9 and a
-    /// narrow, tall island to 4:3, so a face stays in frame on either.
-    static func cameraPreviewSize(in size: CGSize) -> CGSize {
-        let width = max(0, size.width), height = max(0, size.height)
-        return CGSize(width: min(width, height * 16 / 9), height: min(height, width * 3 / 4))
-    }
     /// The mixer's faders at their shortest, the whole page below the top
     /// row: each track still long enough to drag between its icon and level.
     static let mixerMinimumHeight: CGFloat = 104
@@ -1108,19 +1102,22 @@ enum NotchCapsuleLayout {
     /// or an event: a download's arrow and percentage, the working agents,
     /// the cover or the event's dot and countdown.
     static func timerMarkWidth(companion: NotchCompactActivity?, workingAgents: Int, downloadPercent: Bool,
-                               geometry: NotchGeometry, language: AppLanguage) -> CGFloat {
+                               geometry: NotchGeometry, language: AppLanguage,
+                               calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGFloat {
         switch companion {
         case .downloads:
             return symbolWidth + (downloadPercent ? markSpacing + downloadPercentWidth(language) : 0)
         case .agents: return agentMarksWidth(working: workingAgents)
         case .music: return artworkSide(geometry)
-        case .calendar: return calendarClockWidth
+        case .calendar: return calendarClockWidth(leadTime: calendarLeadTime)
         default: return symbolWidth
         }
     }
 
     /// An event's dot and its countdown at its widest, as a pair shows it.
-    static var calendarClockWidth: CGFloat { calendarDotSide + markSpacing + width("00:00", font: readingFont) }
+    static func calendarClockWidth(leadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGFloat {
+        calendarDotSide + markSpacing + width(NotchCalendarSupport.countdownShape(leadTime: leadTime), font: readingFont)
+    }
 
     /// Between a mark and the reading beside it; an event's countdown is a
     /// group of its own, so a pair with one keeps two clocks apart.
@@ -1129,9 +1126,10 @@ enum NotchCapsuleLayout {
     /// A timer's reading beside its mark, measured by its shape, so the
     /// capsule only moves when a character comes or goes.
     static func timerSurface(reading: String, companion: NotchCompactActivity?, workingAgents: Int,
-                             downloadPercent: Bool, geometry: NotchGeometry, language: AppLanguage) -> CGSize {
+                             downloadPercent: Bool, geometry: NotchGeometry, language: AppLanguage,
+                             calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGSize {
         let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
-                                  geometry: geometry, language: language)
+                                  geometry: geometry, language: language, calendarLeadTime: calendarLeadTime)
         let content = mark + markGap(companion) + width(NotchAgentSupport.readingShape(reading), font: readingFont)
         return surface(content: content, leading: companion == .music ? artworkInset(geometry) : endPadding,
                        maximum: Maximum.activity, geometry: geometry)
@@ -1141,10 +1139,11 @@ enum NotchCapsuleLayout {
     /// mark, then the event's dot and countdown. Its title moves to the
     /// tooltip and VoiceOver.
     static func calendarPairSurface(companion: NotchCompactActivity, workingAgents: Int, downloadPercent: Bool,
-                                    geometry: NotchGeometry, language: AppLanguage) -> CGSize {
+                                    geometry: NotchGeometry, language: AppLanguage,
+                                    calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGSize {
         let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
                                   geometry: geometry, language: language)
-        return surface(content: mark + markGap(.calendar) + calendarClockWidth,
+        return surface(content: mark + markGap(.calendar) + calendarClockWidth(leadTime: calendarLeadTime),
                        leading: companion == .music ? artworkInset(geometry) : endPadding,
                        maximum: Maximum.activity, geometry: geometry)
     }
@@ -1177,9 +1176,11 @@ enum NotchCapsuleLayout {
 
     /// An event's color and title, then its countdown at its widest and the
     /// time it starts or ends.
-    static func calendarSurface(title: String, time: String, geometry: NotchGeometry) -> CGSize {
+    static func calendarSurface(title: String, time: String, geometry: NotchGeometry,
+                                calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGSize {
         let content = calendarDotSide + spacing + width(title, font: titleFont) + groupSpacing
-            + width("00:00", font: readingFont) + markSpacing + width(time, font: smallFont)
+            + width(NotchCalendarSupport.countdownShape(leadTime: calendarLeadTime), font: readingFont)
+            + markSpacing + width(time, font: smallFont)
         return surface(content: content, maximum: Maximum.calendar, geometry: geometry)
     }
 
@@ -1731,13 +1732,21 @@ enum NotchSupport {
     }
 
     /// What a key does on the clipboard page, whose search field keeps the
-    /// focus while hidden. Up, Down and Return drive the list. A typed letter
-    /// shows the field and goes on to it, so its editor and any input method
+    /// focus while hidden. Up/Down, Control-P/N and Return drive the list.
+    /// A typed letter shows the field and goes on to it, so its editor and any input method
     /// get every key, and so does every key while an input method composes.
-    /// Keys held with Command, Control or Option belong to their own shortcuts,
-    /// and Shift with the arrows or Return to the field, which selects with them.
+    /// Other Command, Control or Option keys belong to their own shortcuts;
+    /// Shift with the arrows or Return stays with the field, which selects with them.
     static func clipboardKey(keyCode: UInt16, characters: String, modifiers: NSEvent.ModifierFlags,
                              composing: Bool) -> NotchClipboardKey? {
+        let shortcutModifiers = modifiers.intersection([.command, .control, .option, .shift])
+        if !composing, shortcutModifiers == .control {
+            switch characters.lowercased() {
+            case "n": return .move(backwards: false)
+            case "p": return .move(backwards: true)
+            default: break
+            }
+        }
         guard modifiers.isDisjoint(with: [.command, .control, .option]) else { return nil }
         guard !composing else { return .reveal }
         switch keyCode {
@@ -2230,6 +2239,7 @@ struct NotchGeometry: Equatable {
     /// notice reaches further toward its wider side. Zero everywhere else.
     var surfaceShift: CGFloat = 0
     let cameraWidth: CGFloat
+    let physicalCamera: CGRect?
     /// The island's camera region, including optional menu-bar coverage,
     /// manual fit and outline clearance, rather than just the hardware inset.
     let cameraHeight: CGFloat
@@ -2268,7 +2278,7 @@ struct NotchGeometry: Equatable {
     /// Narrower wings than this are dropped rather than drawn cramped.
     private var minimumWing: CGFloat = 44
 
-    init(screen: CGRect, safeAreaTop: CGFloat, cameraWidth: CGFloat, layout: NotchSize = .compact,
+    init(screen: CGRect, safeAreaTop: CGFloat, cameraWidth: CGFloat, physicalCameraX: CGFloat? = nil, layout: NotchSize = .compact,
          menuBarHeight: CGFloat = 24, compactSideRoom: CGFloat? = nil,
          customWidth: Double = NotchSize.defaultWidth, customHeight: Double = NotchSize.defaultHeight,
          cameraFit: NotchCameraFit = .zero, silhouette: NotchSilhouette = .notch, capsuleFit: NotchCapsuleFit = .zero,
@@ -2279,6 +2289,8 @@ struct NotchGeometry: Equatable {
         self.customHeight = NotchSize.clamped(customHeight, to: NotchSize.heightRange, fallback: NotchSize.defaultHeight)
         let barHeight = menuBarHeight.isFinite ? min(64, max(16, menuBarHeight)) : 24
         isNotched = safeAreaTop.isFinite && safeAreaTop > 0 && cameraWidth.isFinite && cameraWidth > 0
+        physicalCamera = isNotched ? CGRect(x: physicalCameraX ?? (screen.midX - cameraWidth / 2),
+                                           y: screen.maxY - safeAreaTop, width: cameraWidth, height: safeAreaTop) : nil
         // Only a physical camera has an outline to match; a simulated one follows the bar.
         let fit = isNotched ? cameraFit : .zero
         // A capsule replaces only a simulated cutout. It is as wide as the
@@ -2323,7 +2335,7 @@ struct NotchGeometry: Equatable {
     var floats: Bool { floatingGap != nil }
 
     func hasSameMenuBar(as other: NotchGeometry) -> Bool {
-        screen == other.screen && cameraWidth == other.cameraWidth
+        screen == other.screen && cameraWidth == other.cameraWidth && physicalCamera == other.physicalCamera
             && menuBarHeight == other.menuBarHeight && isNotched == other.isNotched
     }
 
@@ -3147,12 +3159,39 @@ struct NotchGlassFade: Equatable {
 enum NotchMenuBarLayout {
     /// A successful AX read can contain menu items from another display.
     /// Without an item on this display, its menu space remains unknown.
-    static func measuredSideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,
-                                 menuItems: [CGRect], statusItems: [CGRect]) -> CGFloat? {
+    /// Only status windows actually centered inside this display's bar are evidence about its icons.
+    static func statusFrames(screen: CGRect, barHeight: CGFloat, windows: [CGRect],
+                             requiresExtras: Bool, extras: (CGRect) -> [CGRect]?) -> [CGRect]? {
         let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)
-        guard menuItems.contains(where: { $0.intersects(bar) }) else { return nil }
+        func onBar(_ rect: CGRect) -> Bool {
+            !rect.isEmpty && bar.contains(CGPoint(x: rect.midX, y: rect.midY))
+        }
+        let legacy = windows.filter(onBar)
+        if !requiresExtras, !legacy.isEmpty { return legacy }
+        guard let reported = extras(bar) else { return nil }
+        let visible = reported.filter(onBar)
+        guard !visible.isEmpty else { return nil }
+        return visible + legacy
+    }
+
+    /// A missing or unreadable item can be the one nearest the island.
+    static func completeFrames<Item>(_ items: [Item], limit: Int, read: (Item) -> CGRect?) -> [CGRect]? {
+        guard items.count <= limit else { return nil }
+        var frames: [CGRect] = []
+        for item in items {
+            guard let frame = read(item) else { return nil }
+            frames.append(frame)
+        }
+        return frames
+    }
+
+    static func measuredSideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,
+                                 menuItems: [CGRect], statusItems: [CGRect], physicalCamera: CGRect? = nil) -> CGFloat? {
+        let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)
+        guard menuItems.contains(where: { !$0.intersection(bar).isEmpty }) else { return nil }
+        let visibleStatus = statusItems.filter { physicalCamera?.contains($0.intersection(bar)) != true }
         return sideRoom(screen: screen, cameraWidth: cameraWidth, barHeight: barHeight,
-                        occupied: menuItems + statusItems)
+                        occupied: menuItems + visibleStatus)
     }
 
     static func sideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,

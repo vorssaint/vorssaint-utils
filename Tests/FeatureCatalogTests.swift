@@ -386,18 +386,18 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 77, "feature catalog has 77 features")
+        suite.expect(AppFeature.allCases.count == 80, "feature catalog has 80 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit", "spacesOrder",
-            "scrollInverter", "scrollHorizontal", "focusFollowsMouse", "smoothScroll", "linearScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
+            "scrollInverter", "scrollHorizontal", "scrollZoom", "focusFollowsMouse", "smoothScroll", "linearScroll", "scrollSpeed", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
-            "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
+            "quickLauncher", "quickToggles", "quitApps", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
@@ -558,6 +558,9 @@ enum FeatureCatalogTests {
         suite.expect(runtimeSource.contains(
             "setAvailable(AppFeature.allCases, available, enablingFirstInstalls: false)"),
                "install all makes features available without switching on their behavior")
+        suite.expect(runtimeSource.contains(
+            ".scrollZoom: { ScrollInverter.shared.syncWithPreferences() }"),
+               "installing, relaunching, or removing Zoom re-syncs the shared scroll tap")
 
         // Most updating installs never saved an availability, so this list is
         // what they have: a feature leaving it would vanish for all of them.
@@ -586,9 +589,11 @@ enum FeatureCatalogTests {
                 },
                "every feature an update already had stays installed and every other one ships uninstalled")
         suite.expect((AppFeature.availabilityDefaults[AppFeature.linearScroll.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.scrollSpeed.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
-                && (AppFeature.availabilityDefaults[AppFeature.notchMascot.availabilityKey] as? Bool) == false,
+                && (AppFeature.availabilityDefaults[AppFeature.notchMascot.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.quitApps.availabilityKey] as? Bool) == false,
                "features added after the list was frozen wait on the Features page instead of installing themselves")
         let linearScrollSuiteName = "com.vorssaint.tests.linear-scroll-availability.\(UUID().uuidString)"
         if let linearDefaults = UserDefaults(suiteName: linearScrollSuiteName) {
@@ -707,12 +712,15 @@ enum FeatureCatalogTests {
                      "the companion leaves with the island but only comes when picked, with a page of its own")
         suite.expect(AppPermission.allCases.map(\.rawValue) == [
             "accessibility", "screenRecording", "fullDiskAccess", "filesAndFolders", "notifications",
-            "automationFinder", "automationTerminal", "automationPlayback", "audioCapture", "microphone", "camera",
+            "automationFinder", "automationPlayback", "audioCapture", "microphone", "camera",
             "appManagement", "calendar",
         ], "permission portal contains every supported permission")
         let onboardingViewSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Onboarding/OnboardingView.swift",
             encoding: .utf8)) ?? ""
+        suite.expect(onboardingViewSource.contains("let features = Set(AppFeature.allCases.filter(\\.isAvailable))")
+                && onboardingViewSource.contains("_selectedFeatures = State(initialValue: features)"),
+               "the first setup screen starts with the prepared features, including the settings file's selections")
         let additionalPermissionsAlignment =
             #"DisclosureGroup\(isExpanded: \$showingOtherPermissions\) \{\s+"#
             + #"VStack\(alignment: \.leading, spacing: 14\)"#
@@ -780,6 +788,15 @@ enum FeatureCatalogTests {
         suite.expect(compactHubContent.contains("ScrollView{VStack(")
                 && !compactHubContent.contains("LazyVStack("),
                "the Features page measures its cards eagerly instead of estimating their height during scrolling")
+        // The first-run feature picker had the same loop: its lazy stack sat in
+        // the step's plain stack under the onboarding scroll view and froze the
+        // app while scrolling the catalog. Same kind of source check.
+        let purposeStepSource = onboardingFeatureSource
+            .components(separatedBy: "private struct PurposeStep: View {").dropFirst().first ?? ""
+        let compactPurposeBody = compactMember("var body: some View {", in: purposeStepSource)
+        suite.expect(compactPurposeBody.contains("ForEach(FeatureGroup.allCases")
+                && !compactPurposeBody.contains("LazyVStack("),
+               "the onboarding feature picker measures its cards eagerly instead of estimating their height during scrolling")
         // A lazy stack on the Monitor page re-measures and re-anchors its rows
         // without settling once the Bars options make the menu bar card taller,
         // which hangs Settings on the first scroll. The same kind of source
@@ -918,6 +935,31 @@ enum FeatureCatalogTests {
             "missing application-domain resolutions fail closed")
         let installerFixture = FileManager.default.temporaryDirectory
             .appendingPathComponent("vorss-installer-\(UUID().uuidString)", isDirectory: true)
+        do {
+            let fm = FileManager.default
+            defer { try? fm.removeItem(at: installerFixture) }
+            let excluded = installerFixture.appendingPathComponent("build", isDirectory: true)
+            let scratch = installerFixture.appendingPathComponent("scratch", isDirectory: true)
+            try fm.createDirectory(at: excluded, withIntermediateDirectories: true)
+            let alias = installerFixture.appendingPathComponent("linked-build")
+            try fm.createSymbolicLink(at: alias, withDestinationURL: excluded)
+            let marker = excluded.appendingPathComponent(".vorssaint-no-install")
+            try Data().write(to: marker)
+            func offers(_ relative: String, browsable: Bool? = true) -> Bool {
+                DiskImageInstallerSupport.offersInstall(volumeIsBrowsable: browsable,
+                    imageURL: installerFixture.appendingPathComponent(relative), temporaryDirectories: [scratch])
+            }
+            suite.expect(!offers("build/nested/App.dmg") && !offers("linked-build/App.dmg")
+                         && !offers("scratch/App.dmg"), "excluded and temporary directories include their descendants and aliases")
+            suite.expect(offers("build-backup/App.dmg") && offers("scratchpad/App.dmg") && offers("Desktop/App.dmg"),
+                         "similarly named siblings and manual images remain available")
+            suite.expect(!offers("Desktop/App.dmg", browsable: false) && !offers("Desktop/App.dmg", browsable: nil),
+                         "hidden mounts and mounts with unknown visibility are not offered")
+            try fm.removeItem(at: marker)
+            suite.expect(offers("build/nested/App.dmg"), "removing a folder exclusion restores its manual installs")
+        } catch {
+            suite.expect(false, "could not create the disk image exclusion fixture: \(error)")
+        }
         let installerFM = InstallerFileManager(root: installerFixture)
         let installerApp = URL(fileURLWithPath: "/Volumes/Installer/Example.app")
         let missingUserDestination = installerFM.userApplications!
@@ -1043,6 +1085,55 @@ enum FeatureCatalogTests {
                 && FanControlPolicy.curveCoolingLevel(curves: [defaultCurve, cpuCurve],
                                                       temperatures: [curveTemperatures[0]]) == nil,
                "several temperature rules use their highest demand and require every selected sensor")
+        // An idle M1 Pro GPU answered 0 and 9.2 °C from Tg04/Tg05/Tg0C/Tg0D
+        // while its cores sat in the forties, which ended five-sensor curves.
+        let m1Pro = "MacBookPro18,3"
+        let sleepingGPU: [(key: String, value: Double?)] = [
+            ("Tg04", 0), ("Tg05", 9.2), ("Tg0C", 0), ("Tg0D", 9.2),
+        ]
+        suite.expect(FanControlPolicy.gpuIsPoweredDown(modelIdentifier: m1Pro, readings: sleepingGPU)
+                && !FanControlPolicy.gpuIsPoweredDown(modelIdentifier: "MacBookPro17,1", readings: sleepingGPU)
+                && !FanControlPolicy.gpuIsPoweredDown(modelIdentifier: nil, readings: sleepingGPU)
+                && !FanControlPolicy.gpuIsPoweredDown(modelIdentifier: m1Pro, readings: [])
+                && !FanControlPolicy.gpuIsPoweredDown(modelIdentifier: m1Pro,
+                                                      readings: sleepingGPU + [("Tg1b", nil)]),
+               "only the verified M1 Pro and its four measured GPU keys qualify for sleep detection")
+        let invalidGPUAnswers: [Double?] = [nil, .nan, .infinity, -1, 0, 5, 9.3, 45, 125]
+        for invalid in invalidGPUAnswers {
+            var readings = sleepingGPU
+            readings[3].value = invalid
+            suite.expect(!FanControlPolicy.gpuIsPoweredDown(modelIdentifier: m1Pro, readings: readings),
+                         "missing or unexpected answers do not establish GPU sleep")
+        }
+        let m1Cores = [("Tp01", 45.0), ("Tp05", 47.3), ("Tp09", 46.6)].map { (key: $0.0, value: $0.1) }
+        let sleepingTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: m1Cores, gpuReadings: sleepingGPU.compactMap(\.value),
+            platform: .appleM1Family
+        )
+        suite.expect(!sleepingTemperatures.contains { $0.source == .hottestGPU }
+                && sleepingTemperatures.first { $0.source == .hottestSoC }?.celsius == 47.3,
+               "a sleeping GPU contributes no measured GPU or SoC temperature")
+        let fiveSensorCurves = FanControlTemperatureSource.allCases.map {
+            FanControlCurve(sensor: $0,
+                            points: [FanControlCurvePoint(temperature: 20, coolingLevel: 50),
+                                     FanControlCurvePoint(temperature: 60, coolingLevel: 100)])
+        }
+        let gpuCurve = FanControlCurve(sensor: .hottestGPU,
+                                       points: [.init(temperature: 25, coolingLevel: 35),
+                                                .init(temperature: 60, coolingLevel: 100)])
+        suite.expect(FanControlPolicy.curveCoolingLevel(curves: [gpuCurve], temperatures: [],
+                                                      gpuPoweredDown: true, previousLevel: 95) == 35
+                && FanControlPolicy.curveCoolingLevel(curves: [gpuCurve, cpuCurve], temperatures: [],
+                                                      gpuPoweredDown: true) == nil,
+               "a sleeping GPU requests its own first curve level and cannot substitute for a missing CPU")
+        suite.expect(FanControlPolicy.curveCoolingLevel(curves: fiveSensorCurves,
+                                                       temperatures: sleepingTemperatures,
+                                                       gpuPoweredDown: true,
+                                                       previousLevel: 90) == 90
+                && FanControlPolicy.curveCoolingLevel(curves: fiveSensorCurves,
+                                                      temperatures: sleepingTemperatures,
+                                                      previousLevel: 90) == nil,
+               "a sleeping GPU keeps a curve on every sensor running, while a failed GPU sensor still stops it")
         let duplicateCurves = [defaultCurve,
                                FanControlCurve(sensor: .hottestSoC, points: cpuCurve.points)]
         let descendingCurve = FanControlCurve(
@@ -1077,6 +1168,17 @@ enum FeatureCatalogTests {
         FanControlResumeContract.run(suite)
         FanControlRecoveryContract.run(suite)
         FanControlHardwareContract.run(suite)
+        let legacySnapshotData = Data(#"{"fans":[],"isCooling":false,"temperatures":[{"source":"hottestCPU","celsius":45}]}"#.utf8)
+        let legacySnapshot = try? JSONDecoder().decode(FanControlSnapshot.self, from: legacySnapshotData)
+        suite.expect(legacySnapshot?.availableTemperatureSources == [.hottestCPU],
+                     "the panel offers only measured sources when an older helper omits the GPU sleep flag")
+        var idleSnapshot = legacySnapshot ?? .empty
+        idleSnapshot.gpuPoweredDown = true
+        let encodedIdle = try? JSONEncoder().encode(idleSnapshot)
+        let decodedIdle = encodedIdle.flatMap { try? JSONDecoder().decode(FanControlSnapshot.self, from: $0) }
+        suite.expect(decodedIdle?.availableTemperatureSources == [.hottestCPU, .hottestGPU]
+                        && decodedIdle?.temperatures == [.init(source: .hottestCPU, celsius: 45)],
+                     "a sleeping GPU remains selectable after an IPC round trip without a temperature to display")
         let addedPoints = FanControlPolicy.addingCurvePoint(to: defaultCurve.points)
         suite.expect(FanControlPolicy.nextCurvePoint(for: defaultCurve.points) == FanControlCurvePoint(temperature: 60, coolingLevel: 50)
                 && addedPoints == [
@@ -1549,6 +1651,10 @@ enum FeatureCatalogTests {
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterHorizontalEnabled])
                 .contains(.scrollInverter),
                "horizontal-only inversion counts as using accessibility")
+        suite.expect(activeSet(.accessibility, available: [.scrollZoom], on: [DefaultsKey.pinchZoomEnabled])
+                == [.scrollZoom]
+                && activeSet(.accessibility, available: [], on: [DefaultsKey.pinchZoomEnabled]).isEmpty,
+               "Zoom alone owns accessibility only while installed")
         suite.expect(AppFeature.scrollInverter.enabledKeys == [DefaultsKey.scrollInverterEnabled,
                                                            DefaultsKey.scrollInverterHorizontalEnabled],
                "the inversion feature tracks only its own axes")
@@ -1584,6 +1690,10 @@ enum FeatureCatalogTests {
         suite.expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled])
                 .contains(.brightness),
                "brightness sliders alone never use accessibility")
+        let displayKeys: Set<String> = [DefaultsKey.brightnessControlEnabled, DefaultsKey.displayVolumeKeysEnabled]
+        suite.expect(!activeSet(.accessibility, on: displayKeys).contains(.brightness)
+                && activeSet(.accessibility, on: displayKeys.union([DefaultsKey.displayVolumeEnabled])).contains(.brightness),
+               "a remembered volume key setting requires accessibility only while monitor speakers are enabled")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],
                                strings: [DefaultsKey.brightnessKeyStep: "quarter"]).contains(.brightness)
                 && !activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],
@@ -1667,11 +1777,21 @@ enum FeatureCatalogTests {
                "pasting copied images as files engages the shared Finder feature")
         suite.expect(AppFeature.quickToggles.permissions == [.automationFinder],
                "the quick toggles need no permission beyond the Trash's Finder ask")
-        suite.expect(activeSet(.automationTerminal) == [.homebrew], "homebrew drives the Terminal")
+        suite.expect(AppFeature.quitApps.permissions.isEmpty
+                && AppFeature.quitApps.onboardingPermissions.isEmpty
+                && AppFeature.quitApps.enabledKeys.isEmpty
+                && AppFeature.quitApps.energyProfile == .idle
+                && AppFeature.quitApps.group == .tools
+                && AppFeature.quitApps.symbolName == "xmark.app",
+               "Quit apps is an on-demand tool that needs no permission and keeps nothing running")
+        suite.expect(AppFeature.quitApps.settingsDestination
+                == FeatureSettingsDestination(.quickTools, sectionAnchor: .quitApps)
+                && !FeaturePreset.allCases.contains { $0.features.contains(.quitApps) },
+               "Quit apps opens its own Quick tools section and joins no preset")
         suite.expect(activeSet(.appManagement) == [.homebrew, .appUpdates, .diskImageInstaller],
                "package, update and disk-image installs declare App Management access")
-        suite.expect(AppFeature.homebrew.permissions == [.automationTerminal, .appManagement],
-               "the package manager declares both permissions used by its operations")
+        suite.expect(AppFeature.homebrew.permissions == [.appManagement],
+               "the package manager needs no Automation: the person's own terminal runs its commands")
         suite.expect(activeSet(.audioCapture) == [.mixer], "the mixer is the only audio capture user")
         suite.expect(activeSet(.audioCapture, available: Set(AppFeature.allCases).subtracting([.mixer])) == [],
                "audio capture reads as unused once the mixer is off in the hub")
@@ -1709,6 +1829,43 @@ enum FeatureCatalogTests {
                                                   boolFor: { $0 == DefaultsKey.monitorAlertDisk }),
                "an alert with its metric off in the hub stays disarmed")
 
+        let savedAlerts: Set<String> = [DefaultsKey.monitorAlertDisk, DefaultsKey.monitorAlertCPU]
+        suite.expect(!AppFeature.anyMonitorAlertEnabled(includingDisk: false, isAvailable: { $0 != .monitorCPU },
+                                                       boolFor: savedAlerts.contains),
+                     "the repeat picker stays inactive with disk and a saved alert for a removed CPU monitor")
+        suite.expect(AppFeature.anyMonitorAlertEnabled(includingDisk: false, isAvailable: { _ in true },
+                                                      boolFor: savedAlerts.contains),
+                     "restoring the CPU monitor makes the repeat picker available again")
+
+        for role in [GlobalShortcutRole.keepAwake, .snippetLibrary] {
+            let key = role.storageKey
+            let cleared = GlobalShortcutRole.clearedShortcutStorageValue
+            suite.expect(role.supportsClearing, "\(role) supports clearing")
+            suite.expect(role.assignedShortcut(storedValue: { _ in nil }) == role.defaultShortcut,
+                         "\(role) retains its default when absent")
+            suite.expect(role.assignedShortcut(storedValue: { _ in "invalid" }) == role.defaultShortcut,
+                         "\(role) retains its default when corrupt")
+            suite.expect(role.assignedShortcut(storedValue: { _ in cleared }) == nil,
+                         "\(role) stays cleared")
+            suite.expect(role.assignedShortcut(storedValue: { _ in role.defaultShortcut.storageValue })
+                             == role.defaultShortcut, "\(role) can be reset")
+            suite.expect(role.assignedShortcut(storedValue: { _ in GlobalShortcut.shelfDefault.storageValue })
+                             == .shelfDefault, "\(role) accepts a replacement shortcut")
+            suite.expect(!GlobalShortcutRole.activeRoles(isOn: { _ in true },
+                storedValue: { $0 == key ? cleared : nil }).contains(role),
+                "\(role) is inactive when cleared")
+            suite.expect(GlobalShortcutRole.conflict(for: role.defaultShortcut, excluding: nil,
+                isAvailable: { _ in true }, includeInactive: true,
+                storedValue: { $0 == key ? cleared : nil }) != role,
+                "\(role) releases its conflict reservation")
+            let backup = SettingsBackupSupport.payload(appVersion: "test") { $0 == key ? cleared : nil }
+            let restored = SettingsBackupSupport.sanitizedSettings(from: backup)?[key] as? String
+            suite.expect(role.assignedShortcut(storedValue: { _ in restored }) == nil,
+                         "\(role) stays cleared after a settings backup round trip")
+        }
+        suite.expect(!GlobalShortcutRole.switcher.supportsClearing
+                     && GlobalShortcutRole.switcher.assignedShortcut(storedValue: { _ in "none" }) == .switcherDefault,
+                     "roles outside this change retain their existing invalid-value fallback")
         suite.expect(GlobalShortcutRole.activeRoles(isOn: { _ in true }).count
                 == GlobalShortcutRole.allCases.count,
                "the availability-free overload keeps every enabled current role")
@@ -1717,10 +1874,10 @@ enum FeatureCatalogTests {
                "a role leaves the shortcuts page when its feature is off in the hub")
         suite.expect(GlobalShortcutRole.activeRoles(isOn: { _ in true },
                                               isAvailable: { $0 != .switcher })
-                .allSatisfy { $0 != .switcher && $0 != .switcherWindow },
-               "both switcher roles follow the switcher feature")
+                .allSatisfy { $0.feature != .switcher },
+               "all switcher roles follow the switcher feature")
         suite.expect(GlobalShortcutRole.availableRoles(isAvailable: { $0 != .switcher })
-                .allSatisfy { $0 != .switcher && $0 != .switcherWindow },
+                .allSatisfy { $0.feature != .switcher },
                "the shortcut editor lists installed roles even without reading enable keys")
         for role in [GlobalShortcutRole.displayBrightnessDecrease, .displayBrightnessIncrease] {
             suite.expect(role.feature == .brightness && role.group == .energyDisplay,
@@ -1828,6 +1985,8 @@ enum FeatureCatalogTests {
             suite.expect(FeatureStrings.backup(language).description.contains(
                 FeatureStrings.scratchpad(language).pageTitle),
                    "every backup description accounts for the Scratchpad text (\(language.rawValue))")
+            expectFormat(FeatureStrings.backup(language).configFileConfirmFormat, ["@"],
+                         "\(language.rawValue) settings file confirmation names the path")
             suite.expect(FeatureStrings.appUpdates(language).updateSelectedFormat.contains("%d")
                     && FeatureStrings.appUpdates(language).lastCheckFormat.contains("%@")
                     && FeatureStrings.appUpdates(language).nextCheckFormat.contains("%@")
@@ -2032,18 +2191,24 @@ enum FeatureCatalogTests {
                 && AppFeature.scratchpad.energyProfile == .idle,
                "energy badges tell the honest mechanism per feature")
         let brightnessEnergyKeys = [DefaultsKey.brightnessKeysEnabled, DefaultsKey.brightnessOSDEnabled,
-                                    DefaultsKey.brightnessKeyStep]
+                                    DefaultsKey.brightnessKeyStep, DefaultsKey.displayVolumeEnabled,
+                                    DefaultsKey.displayVolumeKeysEnabled]
         let previousBrightnessEnergy = brightnessEnergyKeys.map { UserDefaults.standard.object(forKey: $0) }
         func brightnessEnergy(followsPointer: Bool = false, overlay: Bool = false,
-                              step: BrightnessSupport.KeyStep = .standard) -> FeatureEnergyProfile {
+                              step: BrightnessSupport.KeyStep = .standard, speakers: Bool = false,
+                              speakerKeys: Bool = false) -> FeatureEnergyProfile {
             UserDefaults.standard.set(followsPointer, forKey: DefaultsKey.brightnessKeysEnabled)
             UserDefaults.standard.set(overlay, forKey: DefaultsKey.brightnessOSDEnabled)
             UserDefaults.standard.set(step.rawValue, forKey: DefaultsKey.brightnessKeyStep)
+            UserDefaults.standard.set(speakers, forKey: DefaultsKey.displayVolumeEnabled)
+            UserDefaults.standard.set(speakerKeys, forKey: DefaultsKey.displayVolumeKeysEnabled)
             return AppFeature.brightness.energyProfile
         }
         suite.expect(brightnessEnergy() == .idle
                 && brightnessEnergy(followsPointer: true) == .keyboard
                 && brightnessEnergy(overlay: true) == .keyboard
+                && brightnessEnergy(speakerKeys: true) == .idle
+                && brightnessEnergy(speakers: true, speakerKeys: true) == .keyboard
                 && brightnessEnergy(step: .half) == .keyboard,
                "brightness listens to the keyboard only while an option answers its keys")
         for (key, value) in zip(brightnessEnergyKeys, previousBrightnessEnergy) {
@@ -2188,6 +2353,8 @@ enum FeatureCatalogTests {
                "cleaner settings, including WhatsApp downloads, follow the cleaner module")
         suite.expect(pageVisible(.quickTools, available: [.quickToggles]),
                "the quick toggles alone keep the quick tools page")
+        suite.expect(pageVisible(.quickTools, available: [.quitApps]),
+               "Quit apps alone keeps the quick tools page")
         suite.expect(pageVisible(.clipboard, available: [.finderCutPaste]),
                "the image paste option keeps the Clipboard page available")
         suite.expect(AppFeature.allCases.allSatisfy { feature in
@@ -2199,10 +2366,12 @@ enum FeatureCatalogTests {
                "every feature anchor belongs to its destination page")
         suite.expect(Set(AppFeature.allCases.compactMap(\.settingsDestination.sectionAnchor))
                 == Set(SettingsSectionAnchor.allCases).subtracting([
-                    .panelConfiguration, .keyboardBrightnessShortcuts,
+                    .panelConfiguration, .keyboardBrightnessShortcuts, .monitorAlerts, .screenshotScrolling,
                 ])
                 && SettingsSectionAnchor.panelConfiguration.page == .general
-                && SettingsSectionAnchor.keyboardBrightnessShortcuts.page == .shortcuts,
+                && SettingsSectionAnchor.keyboardBrightnessShortcuts.page == .shortcuts
+                && SettingsSectionAnchor.screenshotScrolling.page == .screenshot
+                && SettingsSectionAnchor.monitorAlerts.page == .monitor,
                "feature anchors and standalone Settings anchors reach their pages")
         suite.expect(AppFeature.dockPreview.settingsDestination
                 == FeatureSettingsDestination(.dock, sectionAnchor: .dock)
@@ -2476,11 +2645,23 @@ enum FeatureCatalogTests {
         suite.expect(ddcWrite == expectedDDCWrite,
                "DDC write packet carries the set opcode, big-endian value and checksum")
         let ddcRead = BrightnessSupport.readRequestPacket(code: 0x10)
-        let expectedDDCRead: [UInt8] = [0x82, 0x01, 0x10, 0xFD]
+        // 0x6E ^ 0x51 ^ 0x82 ^ 0x01 ^ 0x10, the bytes m1ddc sends. A Samsung
+        // Odyssey G5 ignored the request without 0x51 in its checksum.
+        let expectedDDCRead: [UInt8] = [0x82, 0x01, 0x10, 0xAC]
         suite.expect(ddcRead == expectedDDCRead,
-               "DDC read request omits the sub-address from its checksum seed")
+               "DDC read request's checksum covers the source address")
         suite.expect(Array(BrightnessSupport.writePacket(code: 0x10, value: 100)[3...4]) == [0x00, 0x64],
                "DDC values split into high and low bytes")
+        // A Dell P2715Q on the built-in HDMI port of an M1 Max MacBook Pro
+        // took writes at 0x37 without changing, and answered a luminance read
+        // only at 0xB7, with the same packets.
+        suite.expect(BrightnessSupport.ddcChipAddress(epicProviderClass: "AppleDCPMCDP29XX") == 0xB7,
+               "DDC behind the built-in HDMI port's converter goes to the converter's address")
+        suite.expect(BrightnessSupport.ddcChipAddress(epicProviderClass: nil) == 0x37
+                && BrightnessSupport.ddcChipAddress(epicProviderClass: "AppleDCPDPTXProxy") == 0x37,
+               "every other DDC service keeps the standard address")
+        suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.brightnessDDCHDMIConverterRechecked),
+               "the HDMI converter recheck marker stays on the Mac that ran it")
 
         var ddcReply: [UInt8] = [0x6E, 0x88, 0x02, 0x00, 0x10, 0x00, 0x00, 0x64, 0x00, 0x32]
         ddcReply.append(ddcReply.reduce(UInt8(0x50)) { $0 ^ $1 })
@@ -2497,6 +2678,17 @@ enum FeatureCatalogTests {
         staleReply.append(staleReply.reduce(UInt8(0x50)) { $0 ^ $1 })
         suite.expect(BrightnessSupport.parseReply(staleReply, code: 0x10) == nil,
                "a reply for another control reads as no reply instead of that control's value")
+        var staleMute: [UInt8] = [0x6E, 0x88, 0x02, 0x00, 0x8D, 0x00, 0x00, 0x02, 0x00, 0x02]
+        staleMute.append(staleMute.reduce(UInt8(0x50)) { $0 ^ $1 })
+        suite.expect(BrightnessSupport.parseReply(staleMute, code: 0x62) == nil,
+               "a valid reply to an earlier mute request reads as no reply to a volume request")
+        suite.expect(BrightnessSupport.parseReply(staleMute, code: 0x8D)?.current == 2,
+               "the same reply reads normally when mute was the control asked")
+        var wrongOpcode = ddcReply
+        wrongOpcode[2] = 0x03
+        wrongOpcode[10] = wrongOpcode[0..<10].reduce(UInt8(0x50)) { $0 ^ $1 }
+        suite.expect(BrightnessSupport.parseReply(wrongOpcode, code: 0x10) == nil,
+               "a checksummed packet that is not a Get VCP reply reads as no reply")
 
         suite.expect(BrightnessSupport.sanitizedMaximum(0) == 100 && BrightnessSupport.sanitizedMaximum(255) == 255,
                "a display reporting no range falls back to the conventional scale")
@@ -2578,7 +2770,10 @@ enum FeatureCatalogTests {
             (displayIndex: 1, serviceOrdinal: 2, score: 4),
         ])
         suite.expect(assignment == [0: 2, 1: 1],
-               "greedy assignment gives each display its best free service")
+               "each display gets its strongest unambiguous service")
+        suite.expect(BrightnessSupport.assignServices(scores: [(0, 1, 11), (0, 2, 3), (1, 2, 1)])
+                == [0: 1],
+               "a spare service with stronger evidence for the first display cannot go to the second")
         suite.expect(BrightnessSupport.assignServices(scores: [(displayIndex: 0, serviceOrdinal: 1, score: 0)])
                 .isEmpty,
                "zero-score pairs never pair up")
@@ -2614,27 +2809,32 @@ enum FeatureCatalogTests {
         suite.expect(BrightnessSupport.ddcPathKey(displayFingerprint: "1507:9218:245",
                                             ioDisplayLocation: "") == nil,
                "a display without a stable connection path is never cached")
-        let rememberedPaths = BrightnessSupport.updatedWriteOnlyDDCPaths(
-            ["old", "same", "other", "same"], path: "same", isWriteOnly: true, limit: 3)
+        let rememberedPaths = BrightnessSupport.updatedRememberedPaths(
+            ["old", "same", "other", "same"], path: "same", remembered: true, limit: 3)
         suite.expect(rememberedPaths == ["old", "other", "same"],
                "remembering a write-only path deduplicates it and makes it newest")
-        suite.expect(BrightnessSupport.updatedWriteOnlyDDCPaths(
-            rememberedPaths, path: "other", isWriteOnly: false, limit: 3) == ["old", "same"],
+        suite.expect(BrightnessSupport.updatedRememberedPaths(
+            rememberedPaths, path: "other", remembered: false, limit: 3) == ["old", "same"],
                "a changed DDC result invalidates the remembered path")
-        suite.expect(BrightnessSupport.updatedWriteOnlyDDCPaths(
-            ["one", "two", "three"], path: "four", isWriteOnly: true, limit: 3)
+        suite.expect(BrightnessSupport.updatedRememberedPaths(
+            ["one", "two", "three"], path: "four", remembered: true, limit: 3)
             == ["two", "three", "four"],
                "the write-only path cache remains bounded")
-        suite.expect(!BrightnessSupport.shouldProbeDDC(
-            pathKey: ddcPath, writeOnlyPaths: [ddcPath!])
-                && BrightnessSupport.shouldProbeDDC(
-                    pathKey: "another", writeOnlyPaths: [ddcPath!])
-                && BrightnessSupport.shouldProbeDDC(
-                    pathKey: nil, writeOnlyPaths: [ddcPath!]),
+        suite.expect(!BrightnessSupport.shouldProbe(
+            pathKey: ddcPath, rememberedPaths: [ddcPath!])
+                && BrightnessSupport.shouldProbe(
+                    pathKey: "another", rememberedPaths: [ddcPath!])
+                && BrightnessSupport.shouldProbe(
+                    pathKey: nil, rememberedPaths: [ddcPath!]),
                "only the same physical display path skips future DDC probes")
         suite.expect(!SettingsBackupSupport.exportKeys().contains(
             DefaultsKey.brightnessDDCWriteOnlyPaths),
                "per-monitor DDC capability never travels in a settings backup")
+        suite.expect(SettingsBackupSupport.machineStateKeys.contains(
+            DefaultsKey.brightnessDDCReadChecksumRechecked)
+                && !SettingsBackupSupport.exportKeys().contains(
+                    DefaultsKey.brightnessDDCReadChecksumRechecked),
+               "the DDC checksum recheck marker stays on the Mac that ran it")
         suite.expect(SettingsBackupSupport.machineStateKeys.contains(
             DefaultsKey.brightnessForcedSoftwarePaths)
                 && !SettingsBackupSupport.exportKeys().contains(

@@ -59,6 +59,7 @@ enum ShelfDropRoutingContract {
         var modules: [NotchModule] = [.files]
         var heldDrag = true
         var dragPlaceholder = true
+        weak var directMediaDropWorkspace: AnyObject?
         var choosingFileDropDestination = false
         var targetsMediaDrop = false
         var pinned = false
@@ -113,7 +114,7 @@ enum ShelfDropRoutingTests {
                 let notch = Context.Notch()
                 let canvas = Context.Canvas()
                 canvas.dropActions = Context.NotchFileDropActions(
-                    canAccept: { _ in notch.canAcceptFileDrop }, enter: { _ in },
+                    canAccept: notch.canAcceptFileDrop, enter: { _ in },
                     accept: { notch.accept($0) }, exit: {})
                 suite.expect(canvas.beginDrop(board, localSource: true) == [],
                        "the island leaves internal tile drags to their merge destinations")
@@ -161,7 +162,7 @@ enum ShelfDropRoutingTests {
             let notch = Context.Notch()
             let canvas = Context.Canvas()
             canvas.dropActions = Context.NotchFileDropActions(
-                canAccept: { _ in notch.canAcceptFileDrop }, enter: { _ in },
+                canAccept: notch.canAcceptFileDrop, enter: { _ in },
                 accept: { notch.accept($0) }, exit: {})
             _ = canvas.beginDrop(board, localSource: false)
             switch revoked {
@@ -328,7 +329,7 @@ enum ShelfDropRoutingTests {
                 let canvas = Context.Canvas()
                 canvas.visibleRect = CGRect(origin: .zero, size: destination.surfaceSize)
                 canvas.dropActions = Context.NotchFileDropActions(
-                    canAccept: { _ in destination.canAcceptFileDrop },
+                    canAccept: destination.canAcceptFileDrop,
                     enter: { destination.beginFileDrop($0) },
                     accept: { destination.accept($0) },
                     exit: { destination.endFileDrop() },

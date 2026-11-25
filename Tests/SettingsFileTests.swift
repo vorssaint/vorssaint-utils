@@ -1,0 +1,331 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import AppKit
+import Darwin
+
+/// The generator supplies the production reader, writer, launch and restore
+/// methods. Only the bundle, arguments, running-instance query and defaults
+/// domain are supplied by the fixture.
+enum SettingsFileTests {
+    static func run(_ suite: TestSuite) {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let domain = "vorss.tests.settings-file.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: domain) else {
+            suite.expect(false, "can create settings file preferences fixture")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: domain)
+            try? manager.removeItem(at: root)
+        }
+        let link = root.appendingPathComponent("settings.plist")
+        let target = root.appendingPathComponent("repo/settings.plist")
+        func launch(_ arguments: [String] = ["Vorssaint"], bundle: String? = "fixture",
+                    running: Bool = false) -> Set<String> {
+            Backup.applyConfigFileAtLaunch(arguments: arguments, bundleID: bundle, url: link,
+                                          defaults: defaults, running: { _ in running })
+        }
+        func plist(_ values: [String: Any], version: Any = 1) throws -> Data {
+            try PropertyListSerialization.data(fromPropertyList: [
+                SettingsBackupSupport.formatVersionKey: version,
+                SettingsBackupSupport.settingsKey: values,
+            ], format: .xml, options: 0)
+        }
+        let snippets = Data(#"[{"id":"00000000-0000-0000-0000-000000000001","name":"Greeting","trigger":";hi","replacement":"Hello","expansion":"immediate","enabled":true}]"#.utf8)
+        do {
+            defaults.set(snippets, forKey: DefaultsKey.textSnippets)
+            defaults.set("light", forKey: DefaultsKey.appearance)
+            let delayKey = DefaultsKey.keepAwakePowerDisconnectDelay
+            defaults.set(20, forKey: delayKey)
+            suite.expect(Backup.write(to: target, from: defaults),
+                         "an explicit export bootstraps its parent folder and snapshot")
+            let permissions = try manager.attributesOfItem(atPath: target.path)[.posixPermissions] as? NSNumber
+            suite.expect(permissions?.intValue == 0o600, "a new backup containing snippets is owner-only")
+            try exercisePrivateReplacements(in: root, defaults: defaults, suite: suite)
+            try manager.createSymbolicLink(at: link, withDestinationURL: target)
+            defaults.set("dark", forKey: DefaultsKey.appearance)
+            suite.expect(Backup.write(to: link, from: defaults)
+                         && Backup.readSettings(at: target)?[DefaultsKey.appearance] as? String == "dark",
+                         "explicit export through a writable link updates the dotfiles target")
+            let destination = try manager.destinationOfSymbolicLink(atPath: link.path)
+            suite.expect(destination == target.path, "export leaves the user's link in place")
+            if let exported = Backup.readSettings(at: link) {
+                defaults.removeObject(forKey: DefaultsKey.textSnippets)
+                defaults.set(5, forKey: delayKey)
+                Backup.apply(settings: exported, in: defaults)
+                suite.expect(defaults.integer(forKey: delayKey) == 20,
+                             "restoring a backup replaces the local Keep Awake power disconnect delay")
+                let restored = TextSnippetSupport.decode(defaults.data(forKey: DefaultsKey.textSnippets))
+                suite.expect(restored.count == 1 && restored[0].replacement == "Hello"
+                             && restored[0].showsInLibrary && restored[0].folder.isEmpty,
+                             "the existing backup path restores a snippet from before library options existed")
+            } else { suite.expect(false, "explicit export can be read as a backup") }
+            // Saving from the Advanced page writes this snapshot to the file the
+            // next launch reads, so saving and relaunching must change nothing,
+            // including volumes the file holds as gains rather than positions.
+            defaults.set(["com.example.player": 0.4], forKey: DefaultsKey.appVolumes)
+            defaults.set(true, forKey: DefaultsKey.appVolumesArePositions)
+            let savedPresets = ScreenshotSupport.encodedWatermarkPresets([
+                .init(kind: .image, imagePath: "/local/logo.png"), .init(kind: .text, text: "Work"),
+            ])
+            defaults.set(savedPresets, forKey: DefaultsKey.screenshotWatermarkPresets)
+            suite.expect(Backup.writeConfigFile(to: link, from: defaults),
+                         "saving to the settings file replaces the earlier snapshot")
+            let beforeLaunch = defaults.persistentDomain(forName: domain) ?? [:]
+            _ = launch()
+            let afterSave = defaults.persistentDomain(forName: domain) ?? [:]
+            let changed = Set(beforeLaunch.keys).union(afterSave.keys).filter {
+                beforeLaunch[$0] as? NSObject != afterSave[$0] as? NSObject
+            }
+            suite.expect(changed.isEmpty,
+                         "a launch after saving leaves preferences unchanged; changed keys: \(changed.sorted())")
+
+            defaults.set("light", forKey: DefaultsKey.appearance)
+            _ = launch()
+            suite.expect(defaults.string(forKey: DefaultsKey.appearance) == "dark"
+                         && (defaults.dictionary(forKey: DefaultsKey.appVolumes)?["com.example.player"] as? Double) == 0.4,
+                         "restoring a different setting leaves matching mixer positions exactly as saved")
+            suite.expect(defaults.string(forKey: DefaultsKey.screenshotWatermarkPresets) == savedPresets,
+                         "restoring another setting keeps local and portable watermark presets in their original order")
+            let ordered = #"{"name":"Test","style":{"a":0,"b":1}}"#
+            let reordered = #"{"style":{"b":1,"a":0},"name":"Test"}"#
+            let different = #"{"style":{"b":2,"a":0},"name":"Test"}"#
+            suite.expect(SettingsBackupSupport.matchesPortableValue(ordered, local: reordered, key: DefaultsKey.screenshotWatermarkStyle)
+                         && !SettingsBackupSupport.matchesPortableValue(ordered, local: different, key: DefaultsKey.screenshotWatermarkStyle)
+                         && !SettingsBackupSupport.matchesPortableValue(ordered, local: reordered, key: DefaultsKey.appearance),
+                         "only JSON settings compare by content even when nested object keys change order")
+            let featureKey = AppFeature.textSnippets.availabilityKey
+            let partial = try plist([DefaultsKey.appearance: "dark", featureKey: true,
+                                     "futureSetting": ["new": "value"]], version: " 1 ")
+            try partial.write(to: target, options: .atomic)
+            try manager.setAttributes([.posixPermissions: 0o444], ofItemAtPath: target.path)
+            defaults.set("light", forKey: DefaultsKey.appearance)
+            defaults.set("unrelated", forKey: DefaultsKey.screenshotWatermarkStyle)
+            let pathsOnly = ["path:/local/editor"]
+            defaults.set(pathsOnly, forKey: DefaultsKey.windowLayoutIgnoredApps)
+            let features = launch()
+            FeaturePreset.prepareFirstRunAvailability(in: defaults, preserving: features)
+            suite.expect(defaults.string(forKey: DefaultsKey.appearance) == "dark"
+                         && defaults.data(forKey: DefaultsKey.textSnippets) == snippets
+                         && defaults.string(forKey: DefaultsKey.screenshotWatermarkStyle) == "unrelated"
+                         && defaults.stringArray(forKey: DefaultsKey.windowLayoutIgnoredApps) == pathsOnly,
+                         "a partial linked plist changes only declared settings and keeps local snippets")
+            suite.expect(features == [featureKey] && defaults.bool(forKey: featureKey)
+                         && defaults.bool(forKey: AppFeature.mixer.availabilityKey),
+                         "first-run onboarding keeps both the declared choice and unspecified essential features")
+            defaults.set("light", forKey: DefaultsKey.appearance)
+            for flag in ["--export-settings", "--import-settings", "--selftest", "--uninstall",
+                         SuperKeyMappingGuard.cleanupArgument, "--mouse-acceleration-cleanup"] {
+                suite.expect(launch(["Vorssaint", flag]).isEmpty, "\(flag) leaves the declarative file alone")
+            }
+            suite.expect(launch(bundle: nil).isEmpty && launch(running: true).isEmpty
+                         && defaults.string(forKey: DefaultsKey.appearance) == "light",
+                         "a bare binary and a second app instance leave local preferences alone")
+            _ = launch()
+            let afterLaunch = try Data(contentsOf: target)
+            suite.expect(afterLaunch == partial && defaults.object(forKey: "futureSetting") == nil
+                         && defaults.string(forKey: DefaultsKey.appearance) == "dark",
+                         "a read-only source reasserts declared settings and preserves unknown keys on disk")
+            if geteuid() != 0 {
+                suite.expect(!Backup.write(to: link, from: defaults), "explicit export respects a read-only linked target")
+                try manager.setAttributes([.posixPermissions: 0o000], ofItemAtPath: target.path)
+                defaults.set("light", forKey: DefaultsKey.appearance)
+                suite.expect(launch().isEmpty && defaults.string(forKey: DefaultsKey.appearance) == "light",
+                             "a failed read cannot authorize any settings changes")
+                try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+                let afterFailure = try Data(contentsOf: target)
+                suite.expect(afterFailure == partial, "an unreadable original survives the failed load")
+            } else {
+                try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+            }
+            try exerciseProfiles(at: target, defaults: defaults, launch: { _ = launch() }, suite: suite)
+            defaults.set("pointer", forKey: DefaultsKey.notchDisplay)
+            let old = try plist([DefaultsKey.appVolumes: ["fixture.app": 0.25], DefaultsKey.smoothScrollStep: 60])
+            try old.write(to: target, options: .atomic)
+            defaults.set(true, forKey: DefaultsKey.appVolumesArePositions)
+            _ = launch()
+            let position = defaults.dictionary(forKey: DefaultsKey.appVolumes)?["fixture.app"] as? Double
+            suite.expect(position == MixerRoutingSupport.volume(forGain: 0.25)
+                         && defaults.data(forKey: DefaultsKey.textSnippets) == snippets,
+                         "an old gain-based backup migrates on an upgraded Mac without clearing its snippets")
+            defaults.set(true, forKey: DefaultsKey.hasOnboarded)
+            let invalid = try plist([DefaultsKey.appearance: 123, DefaultsKey.textSnippets: Data("broken".utf8),
+                                     DefaultsKey.hasOnboarded: "broken"])
+            try invalid.write(to: target, options: .atomic)
+            defaults.set("light", forKey: DefaultsKey.appearance)
+            _ = launch()
+            suite.expect(defaults.string(forKey: DefaultsKey.appearance) == "light"
+                         && defaults.data(forKey: DefaultsKey.textSnippets) == snippets
+                         && defaults.bool(forKey: DefaultsKey.hasOnboarded),
+                         "wrong types cannot replace local libraries or restart onboarding")
+
+            let localPresets = try JSONEncoder().encode([RecorderEditPreset(name: "Work", document: RecorderEditDocument())])
+            defaults.set(localPresets, forKey: DefaultsKey.recorderEditorPresets)
+            let malformedPresets: [Any] = ["broken", Data("broken".utf8)]
+            for invalidPresets in malformedPresets {
+                try plist([DefaultsKey.recorderEditorPresets: invalidPresets]).write(to: target, options: .atomic)
+                _ = launch()
+                suite.expect(defaults.data(forKey: DefaultsKey.recorderEditorPresets) == localPresets,
+                             "invalid recorder presets in a settings file preserve the saved collection")
+            }
+
+            for oldVertical in [false, true] {
+                defaults.set(oldVertical, forKey: DefaultsKey.scrollInverterEnabled)
+                defaults.removeObject(forKey: DefaultsKey.scrollInverterHorizontalEnabled)
+                Defaults.migrateScrollInverterAxes(in: defaults)
+                try plist([DefaultsKey.scrollInverterEnabled: !oldVertical]).write(to: target, options: .atomic)
+                _ = launch()
+                suite.expect(defaults.bool(forKey: DefaultsKey.scrollInverterEnabled) == !oldVertical
+                             && defaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled) == oldVertical,
+                             "a vertical-only declaration preserves the horizontal direction migrated from this Mac")
+            }
+
+            try plist([DefaultsKey.switcherShowWindowlessFinder: false,
+                       DefaultsKey.screenshotOpenEditorDirectly: true]).write(to: target, options: .atomic)
+            _ = launch()
+            suite.expect(defaults.string(forKey: DefaultsKey.switcherWindowlessApps) ==
+                            SwitcherWindowlessApps.migrated(showsWindowlessFinder: false).rawValue
+                         && defaults.string(forKey: DefaultsKey.screenshotDefaultAction) == ScreenshotDefaultAction.edit.rawValue,
+                         "a settings file using the former Finder and capture options configures the current pickers")
+
+            try exerciseExternalEdits(of: target, defaults: defaults, launch: { _ = launch() }, suite: suite)
+            try partial.write(to: target, options: .atomic)
+            if let imported = Backup.readSettings(at: target) {
+                defaults.set(15, forKey: delayKey)
+                Backup.apply(settings: imported, in: defaults)
+                suite.expect(defaults.integer(forKey: delayKey) == 0,
+                             "restoring a backup from before the Keep Awake delay resets it to zero")
+                suite.expect(defaults.data(forKey: DefaultsKey.textSnippets) == nil,
+                             "an explicit full restore still clears omitted exportable settings")
+                suite.expect(defaults.string(forKey: DefaultsKey.notchDisplay) == "pointer",
+                             "an explicit backup from before Dynamic Island preserves the local island")
+            } else { suite.expect(false, "old string-version backup remains readable") }
+            try manager.removeItem(at: target)
+            suite.expect(launch().isEmpty && !Backup.write(to: link, from: defaults),
+                         "a dangling managed link is neither imported nor replaced on export")
+            let danglingTarget = try manager.destinationOfSymbolicLink(atPath: link.path)
+            suite.expect(danglingTarget == target.path && !manager.fileExists(atPath: target.path),
+                         "an external deletion remains a deletion")
+        } catch { suite.expect(false, "settings file fixture failed: \(error)") }
+    }
+
+    private static func exercisePrivateReplacements(in root: URL, defaults: UserDefaults, suite: TestSuite) throws {
+        let manager = FileManager.default
+        let folder = root.appendingPathComponent("shared-dotfiles", isDirectory: true)
+        try manager.createDirectory(at: folder, withIntermediateDirectories: true)
+        // New files in this directory grant read access to everyone, even with POSIX mode 0600.
+        guard let acl = acl_from_text("!#acl 1\ngroup::everyone::allow,file_inherit:read") else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        defer { acl_free(UnsafeMutableRawPointer(acl)) }
+        guard acl_set_file(folder.path, ACL_TYPE_EXTENDED, acl) == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        let target = folder.appendingPathComponent("preferences.plist")
+        let original = Data("previously shared".utf8)
+        try original.write(to: target)
+        try manager.setAttributes([.posixPermissions: 0o644], ofItemAtPath: target.path)
+        func hasACL() throws -> Bool {
+            guard let current = acl_get_file(target.path, ACL_TYPE_EXTENDED) else {
+                if errno == ENOENT { return false }
+                throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+            }
+            defer { acl_free(UnsafeMutableRawPointer(current)) }
+            var entry: acl_entry_t?
+            return acl_get_entry(current, Int32(ACL_FIRST_ENTRY.rawValue), &entry) == 0
+        }
+        suite.expect(try hasACL(), "the original dotfile inherits the shared folder's read ACL")
+        let reader = try FileHandle(forReadingFrom: target)
+        defer { try? reader.close() }
+        let config = SettingsBackupSupport.configFileURL(environment: ["XDG_CONFIG_HOME": root.path],
+                                                        home: root, isDeveloperBuild: false)
+        try manager.createDirectory(at: config.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try manager.createSymbolicLink(at: config, withDestinationURL: target)
+        suite.expect(Backup.writeConfigFile(to: config, from: defaults), "save replaces a shared dotfile through its XDG link")
+        suite.expect(try manager.destinationOfSymbolicLink(atPath: config.path) == target.path,
+                     "saving keeps the XDG link pointed at the same dotfile")
+        suite.expect(try reader.readToEnd() == original, "an already-open reader sees only the old dotfile")
+        let saved = Backup.readSettings(at: target)
+        suite.expect(saved?[DefaultsKey.textSnippets] as? Data == defaults.data(forKey: DefaultsKey.textSnippets),
+                     "the replacement contains the fixture's snippets")
+        func mode() throws -> Int? {
+            (try manager.attributesOfItem(atPath: target.path)[.posixPermissions] as? NSNumber)?.intValue
+        }
+        suite.expect(try mode() == 0o600 && !hasACL(), "the replacement grants access only to the owner")
+
+        try original.write(to: target)
+        try manager.setAttributes([.posixPermissions: 0o244], ofItemAtPath: target.path)
+        suite.expect(!Backup.writeConfigFile(to: config, from: defaults),
+                     "saving a launch configuration refuses a write-only target")
+        suite.expect(try mode() == 0o244 && manager.destinationOfSymbolicLink(atPath: config.path) == target.path,
+                     "the refusal preserves the target permissions and the XDG link")
+        try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+        suite.expect(try Data(contentsOf: target) == original, "the refused save keeps the original contents")
+        try manager.setAttributes([.posixPermissions: 0o244], ofItemAtPath: target.path)
+        suite.expect(Backup.write(to: target, from: defaults), "export can replace a file write-only for its owner")
+        suite.expect(try mode() == 0o200, "export removes shared access and preserves the stricter owner mode")
+        try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+        suite.expect(Backup.readSettings(at: target)?[DefaultsKey.appearance] as? String == "light",
+                     "the write-only export contains the new preferences")
+        suite.expect(!Backup.write(to: folder, from: defaults), "export refuses a directory destination")
+    }
+
+    private static func exerciseProfiles(at target: URL, defaults: UserDefaults,
+                                         launch: () -> Void, suite: TestSuite) throws {
+        var options = MediaImageOptions(quality: 0.8, maxDimension: 1200, format: .png, stripMetadata: true)
+        options.watermark = MediaImageWatermark(kind: .logo, logoPath: "/local/logo.png")
+        let logo = MediaImageProfile(id: "logo", name: "Logo", options: options)
+        options.watermark = .off
+        var other = MediaImageProfile(id: "other", name: "Other", options: options)
+        let saved = try JSONEncoder().encode([logo, other])
+        defaults.set(String(decoding: saved, as: UTF8.self), forKey: DefaultsKey.mediaImageProfiles)
+        other.name = "Renamed"
+        let reordered = try JSONEncoder().encode([other, logo])
+        let payload = SettingsBackupSupport.payload(appVersion: "3.4.3") {
+            $0 == DefaultsKey.mediaImageProfiles ? String(decoding: reordered, as: UTF8.self) : nil
+        }
+        let data = try PropertyListSerialization.data(fromPropertyList: payload, format: .binary, options: 0)
+        try data.write(to: target, options: .atomic)
+        launch()
+        let raw = defaults.string(forKey: DefaultsKey.mediaImageProfiles) ?? ""
+        let profiles = try JSONDecoder().decode([MediaImageProfile].self, from: Data(raw.utf8))
+        suite.expect(profiles == [other, logo], "a renamed and reordered profile keeps the other profile's local logo by id")
+    }
+
+    private static func exerciseExternalEdits(of target: URL, defaults: UserDefaults,
+                                               launch: () -> Void, suite: TestSuite) throws {
+        func revision(_ step: Int) throws -> Data {
+            try PropertyListSerialization.data(fromPropertyList: [
+                SettingsBackupSupport.formatVersionKey: 1,
+                SettingsBackupSupport.settingsKey: [DefaultsKey.smoothScrollStep: step, "future": step],
+            ], format: .xml, options: 0)
+        }
+        let first = try revision(44), second = try revision(64), last = try revision(84)
+        try first.write(to: target, options: .atomic)
+        launch()
+        suite.expect(defaults.integer(forKey: DefaultsKey.smoothScrollStep) == 44,
+                     "the stable revision is applied before the external editor starts")
+        let editor = DispatchGroup()
+        DispatchQueue.global().async(group: editor) {
+            do {
+                for _ in 0..<8 {
+                    try second.write(to: target, options: .atomic)
+                    try first.write(to: target, options: .atomic)
+                }
+                try last.write(to: target, options: .atomic)
+            } catch { return } // The final byte-for-byte assertion detects a failed edit.
+        }
+        for _ in 0..<4 {
+            launch()
+            suite.expect([44, 64, 84].contains(defaults.integer(forKey: DefaultsKey.smoothScrollStep)),
+                         "a launch racing a plain file writer reads one complete revision")
+        }
+        editor.wait()
+        launch()
+        let final = try Data(contentsOf: target)
+        suite.expect(final == last && defaults.integer(forKey: DefaultsKey.smoothScrollStep) == 84,
+                     "the last external replacement is kept byte-for-byte and applied on the next launch")
+    }
+}

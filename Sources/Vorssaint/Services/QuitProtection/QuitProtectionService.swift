@@ -169,7 +169,8 @@ final class QuitProtectionService: ObservableObject {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            // The key up that ends the swallow may be among the events missed.
+            // The key up that ends the swallow, or the release of Command that
+            // closes the native switcher, may be among the events missed.
             swallowShortcut = nil
             nativeSwitcherSessionActive = false
             cancelPending()
@@ -202,8 +203,7 @@ final class QuitProtectionService: ObservableObject {
             nativeSwitcherSessionActive = false
         } else if type == .keyDown {
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-            if keyCode == 48, !event.flags.contains(.maskControl),
-               !event.flags.contains(.maskAlternate) {
+            if opensNativeSwitcher(keyCode: keyCode, flags: event.flags) {
                 nativeSwitcherSessionActive = true
             } else if keyCode == 53 || (nativeSwitcherSessionActive
                 && GlobalShortcut.layoutKeyLabel(for: keyCode, usesCommand: true) == ".") {
@@ -227,6 +227,15 @@ final class QuitProtectionService: ObservableObject {
         default:
             return Unmanaged.passUnretained(event)
         }
+    }
+
+    /// Read only the two app-switcher rows on Command key downs. Both the
+    /// combination and its enabled state can change while this tap is running;
+    /// ordinary typing, key releases and modifier changes never query the table.
+    private func opensNativeSwitcher(keyCode: Int64, flags: CGEventFlags) -> Bool {
+        QuitProtectionSupport.opensNativeSwitcher(
+            keyCode: keyCode, flags: flags,
+            entries: SymbolicHotKeys.entries(for: QuitProtectionSupport.nativeAppSwitcherIDs))
     }
 
     private func handleKeyDown(_ event: CGEvent) -> Unmanaged<CGEvent>? {

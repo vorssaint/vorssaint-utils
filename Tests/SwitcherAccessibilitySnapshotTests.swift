@@ -14,6 +14,7 @@ enum SwitcherAccessibilitySnapshotTests {
         var batchResult: AXError
         var batchValues: [Any]?
         var reads = 0
+        var windowIDReads = 0
         var singleReads: [String: Int] = [:]
         var minimizeButton: Window?
         var afterBatchRead: (() -> Void)?
@@ -39,6 +40,8 @@ enum SwitcherAccessibilitySnapshotTests {
         typealias AXUIElement = Window
         static let messagingTimeout: Float = 0.35
         static var windows: [Window] = []
+        static var application: Window?
+        static var main: Window?
         static var focused: Window?
         static var listResult: AXError = .success
         static var batchRequests: [[String]] = []
@@ -46,7 +49,10 @@ enum SwitcherAccessibilitySnapshotTests {
         static let elementType = CFGetTypeID(Window(nil))
 
         enum AXWindowResolver {
-            static func windowID(for window: Window) -> CGWindowID? { window.id }
+            static func windowID(for window: Window) -> CGWindowID? {
+                window.windowIDReads += 1
+                return window.id
+            }
         }
 
         enum SpaceWindowBridge {
@@ -56,6 +62,7 @@ enum SwitcherAccessibilitySnapshotTests {
         static func AXUIElementCreateApplication(_ pid: pid_t) -> Window {
             let app = Window(nil, .notUserFacing)
             app.isApplication = true
+            application = app
             return app
         }
         static func AXUIElementGetTypeID() -> CFTypeID { elementType }
@@ -69,8 +76,9 @@ enum SwitcherAccessibilitySnapshotTests {
                     value = windows as NSArray
                     return listResult
                 }
-                value = focused
-                return focused == nil ? .noValue : .success
+                let result = name == kAXMainWindowAttribute as String ? main : focused
+                value = result
+                return result == nil ? .noValue : .success
             }
             if name == kAXMinimizeButtonAttribute as String {
                 value = window.minimizeButton
@@ -113,6 +121,8 @@ enum SwitcherAccessibilitySnapshotTests {
     static func run(_ suite: TestSuite) {
         defer {
             Reader.windows = []
+            Reader.application = nil
+            Reader.main = nil
             Reader.focused = nil
             Reader.listResult = .success
             Reader.batchRequests = []
@@ -146,8 +156,6 @@ enum SwitcherAccessibilitySnapshotTests {
                      "an unresolved timed-out window stays visible beside a described sibling")
         suite.expect(keeps(1, in: partial) && !keeps(3, in: partial, excluded: true),
                      "the partial-answer fallback preserves described windows and rejects cycle-excluded helpers")
-        suite.expect(unanswered.reads == 1,
-                     "main and focused aliases do not repeat a timed-out window read")
 
         Reader.focused = nil
         let resolved = snapshot([Window(1, .userFacing), Window(2, .unanswered), Window(3, .notUserFacing)])
@@ -162,6 +170,18 @@ enum SwitcherAccessibilitySnapshotTests {
         suite.expect(ordinary?.everyWindowUnanswered == false && keeps(1, in: ordinary)
                         && !keeps(2, in: ordinary),
                      "fully answered snapshots still reject unmatched current-space surfaces")
+        let panel = Window(3, attributes: [kAXSubroleAttribute as String: "AXFloatingWindow"])
+        Reader.windows = [Window(1), panel, Window(4, .unanswered)]
+        Reader.main = Reader.windows[0]
+        Reader.focused = panel
+        let classified = Reader.accessibilityWindows(for: 1, normalLevelWindowIDs: [1, 2, 3, 4],
+                                                     screenFrames: [], isCancelled: { false })
+        suite.expect(classified?.rejectedWindowIDs == [3] && classified?.unansweredIDs == [4],
+                     "only the explicitly classified normal-level panel is vetoed beside an omitted CG window and a timed-out sibling")
+        suite.expect(classified?.byID[1] != nil && classified?.focusedWindowID == nil && panel.windowIDReads == 1,
+                     "a rejected focused panel supplies no source and leaves the separate main window unfocused")
+        Reader.main = nil
+        Reader.focused = nil
         let maximized = snapshot([Window(1)],
                                  screenFrames: [CGRect(x: 0, y: 0, width: 600, height: 400)])?.byID[1]
         suite.expect(maximized?.isFullscreen == true && maximized?.isNativeFullscreen == false,
@@ -169,6 +189,33 @@ enum SwitcherAccessibilitySnapshotTests {
         let fullscreen = snapshot([Window(1, attributes: ["AXFullScreen": true])])?.byID[1]
         suite.expect(fullscreen?.isFullscreen == true && fullscreen?.isNativeFullscreen == true,
                      "an AX fullscreen flag survives in both fullscreen metadata fields")
+
+        // The early read answers the application level question for its app, so
+        // the batch consumes that answer instead of asking the app again.
+        let windows = [Window(1, .userFacing), Window(2, .unanswered),
+                       Window(3, .notUserFacing), Window(4, .userFacing)]
+        let direct = snapshot(windows)
+        Reader.listResult = .cannotComplete
+        Reader.windows = []
+        let prefetched = WindowEnumeratorAccessibilityPrefetch<Window>.Query(
+            windows: windows, error: .success)
+        let early = Reader.accessibilityWindows(for: 1, normalLevelWindowIDs: [1, 2, 3],
+                                                 screenFrames: [], isCancelled: { false },
+                                                 prefetchedQuery: prefetched)
+        suite.expect(early?.ordered.map(\.0) == [1, 4]
+                        && Set(early?.byID.keys.map { $0 } ?? []) == Set(direct?.byID.keys.map { $0 } ?? [])
+                        && early?.unansweredIDs == [2],
+                     "a prefetched query preserves classified AX-only windows and unanswered siblings")
+        suite.expect(keeps(2, in: early) && !keeps(3, in: early),
+                     "prefetched window classification retains the same ghost-filtering fallback")
+        Reader.listResult = .success
+        Reader.windows = windows
+        let failed = WindowEnumeratorAccessibilityPrefetch<Window>.Query(
+            windows: nil, error: .cannotComplete)
+        suite.expect(Reader.accessibilityWindows(for: 1, normalLevelWindowIDs: [1, 2, 3],
+                                                 screenFrames: [], isCancelled: { false },
+                                                 prefetchedQuery: failed) == nil,
+                     "an unanswered prefetch is not retried as a second app query or replaced with unrelated windows")
 
         // Normal, fullscreen and minimized windows share the same one-read
         // path, including the metadata that used to be fetched a second time.
@@ -182,8 +229,14 @@ enum SwitcherAccessibilitySnapshotTests {
             ]
             return Window(CGWindowID(index), attributes: attributes)
         }
-        Reader.focused = manyWindows[0]
+        Reader.main = manyWindows[0]
+        Reader.focused = manyWindows[2]
         let many = snapshot(manyWindows)
+        suite.expect(many?.focusedWindowID == manyWindows[2].id && manyWindows.allSatisfy { $0.windowIDReads == 1 }
+                        && Reader.application?.singleReads == [kAXWindowsAttribute as String: 1,
+                                                               kAXMainWindowAttribute as String: 1,
+                                                               kAXFocusedWindowAttribute as String: 1],
+                     "a separate focused window reuses its classified ID and the app's one focus read")
         suite.expect(many?.ordered.count == 48 && manyWindows.allSatisfy { $0.reads == 1 },
                      "48 normal, fullscreen and minimized windows each need only one attribute round trip")
         suite.expect(manyWindows.allSatisfy { $0.singleReads.isEmpty }
@@ -204,10 +257,12 @@ enum SwitcherAccessibilitySnapshotTests {
         }, "batch snapshots retain each window's title, frame, minimized and fullscreen state")
 
         let rejectedAlias = Window(3, .notUserFacing)
+        Reader.main = rejectedAlias
         Reader.focused = rejectedAlias
         let duplicate = snapshot([Window(1), rejectedAlias, rejectedAlias])
         suite.expect(duplicate?.ordered.count == 1 && rejectedAlias.reads == 1,
                      "rejected aliases in the list, main and focused attributes are read only once")
+        Reader.main = nil
         Reader.focused = nil
 
         let unsupportedFullscreen = Window(1, attributes: ["AXFullScreen": errorValue(.attributeUnsupported)])

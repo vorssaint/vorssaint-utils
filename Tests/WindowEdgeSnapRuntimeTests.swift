@@ -10,7 +10,9 @@ private typealias EdgeSnapGeometry = WindowEdgeSnapSupport
 /// The production pointer callback, tracking, lookup, target and release bodies
 /// are extracted on every test build, and so is the move gesture's callback with
 /// its arming and promotion, which hands a modifier move over to the tracking. Scheduling, window server snapshots, AX,
-/// screens, preferences, the preview and the placement itself are replaced, and
+/// screens, preferences, the preview and the final snap placement are replaced.
+/// Drag restoration, its frame matching and its release completion run their
+/// production bodies against controlled AX reads and writes, and
 /// every AX call is counted by where it is asked: on the lookup queue, or on the
 /// main run loop that also serves the event taps. Events are passed directly,
 /// never posted, and timers run on the test's clock.
@@ -25,6 +27,7 @@ enum WindowEdgeSnapRuntimeTests {
     static var mainAXWhileHeld = 0
     static var mainAXAfterRelease = 0
     static var mainLookupsAfterRelease = 0
+    static var serverFrameReads = 0
     /// Seconds since the test began, on which events are stamped and timers
     /// come due. Only a test or a timer moves it.
     static var clock: TimeInterval = 0
@@ -41,6 +44,17 @@ enum WindowEdgeSnapRuntimeTests {
     /// Whether the window's server ID can be read from its Accessibility element.
     static var windowIDReadable = true
     static var reserveStageManager = false
+    static var restoreEnabled = false
+    static var edgeSnappingEnabled = true
+    enum ResizeResponse { case accept, refuse, clamp(CGSize), delayed }
+    static var resizeResponse = ResizeResponse.accept
+    static var pendingSize: CGSize?
+    static var sizeWrites: [CGSize] = []
+    static var positionWrites: [CGPoint] = []
+    static var enhancedInterfaceEnabled = false
+    static var suspensionResumes = 0
+    static var frameReadable = true
+    static var positionAccepted = true
     /// A real timer fires at or after its deadline, here a millisecond after,
     /// so a look set for exactly the rest of a pause finds it complete.
     static let timerLatency: TimeInterval = 0.001
@@ -61,7 +75,13 @@ enum WindowEdgeSnapRuntimeTests {
     }
     enum UserDefaults {
         final class Store {
-            func bool(forKey key: String) -> Bool { key == DefaultsKey.windowEdgeSnapEnabled }
+            func bool(forKey key: String) -> Bool {
+                switch key {
+                case DefaultsKey.windowEdgeSnapEnabled: return edgeSnappingEnabled
+                case DefaultsKey.windowEdgeSnapRestoreOnDrag: return restoreEnabled
+                default: return false
+                }
+            }
             func string(forKey key: String) -> String? {
                 key == DefaultsKey.windowEdgeSnapZoneActions ? zoneActions : nil
             }
@@ -121,7 +141,21 @@ enum WindowEdgeSnapRuntimeTests {
     }
     enum WindowEdgeSnapSupport {
         static var isSystemTilingEnabled = false
+        static var optionTilingEnabled = true
+        static func systemTilingEnabledForDrag(optionHeld: Bool) -> Bool {
+            isSystemTilingEnabled || (optionHeld && optionTilingEnabled)
+        }
         static var isSystemTopWindowOverviewDragEnabled = false
+        static func needsSizeRestore(from snapped: CGSize, to restore: CGSize) -> Bool {
+            EdgeSnapGeometry.needsSizeRestore(from: snapped, to: restore)
+        }
+        static func restoredFrame(snapped: CGRect, restoreSize: CGSize,
+                                  pointerStart: CGPoint, pointerNow: CGPoint,
+                                  screenFrame: CGRect?) -> CGRect {
+            EdgeSnapGeometry.restoredFrame(snapped: snapped, restoreSize: restoreSize,
+                                           pointerStart: pointerStart, pointerNow: pointerNow,
+                                           screenFrame: screenFrame)
+        }
         static func startsAtResizeHandle(_ point: CGPoint, frame: CGRect) -> Bool {
             EdgeSnapGeometry.startsAtResizeHandle(point, frame: frame)
         }
@@ -173,7 +207,8 @@ enum WindowEdgeSnapRuntimeTests {
     }
     enum WindowServerSupport {
         static func frame(ofWindowID id: CGWindowID) -> CGRect? {
-            windowExists && id == windowID ? currentFrame : nil
+            serverFrameReads += 1
+            return windowExists && id == windowID ? currentFrame : nil
         }
     }
     final class NSRunningApplication {
@@ -216,8 +251,19 @@ enum WindowEdgeSnapRuntimeTests {
         }
     }
     struct EnhancedUserInterfaceSuspension {
-        static func suspend(forAppOf window: Window) -> EnhancedUserInterfaceSuspension? { nil }
-        func resume() {}
+        static func suspend(forAppOf window: Window) -> EnhancedUserInterfaceSuspension? {
+            guard enhancedInterfaceEnabled else { return nil }
+            enhancedInterfaceEnabled = false
+            return EnhancedUserInterfaceSuspension()
+        }
+        func resume() {
+            enhancedInterfaceEnabled = true
+            suspensionResumes += 1
+        }
+    }
+    final class SettleTimer {
+        var invalidated = false
+        func invalidate() { invalidated = true }
     }
     static func AXUIElementPerformAction(_ window: Window, _ action: CFString) {}
 
@@ -236,10 +282,13 @@ enum WindowEdgeSnapRuntimeTests {
     class Fixture {
         static let syntheticEventMarker: Int64 = 0x564F5253
         static let ownProcessID: Int64 = 999
-        var edgeSnapTap: CFMachPort?
+        var pointerTap: CFMachPort?
+        var pointerTapDemand: WindowLayoutPointerDemand = .edgeSnap
         var edgeSnapPressOrigin: CGPoint?
         var edgeSnapPressCandidate: WindowServerWindowCandidate?
         var edgeSnapSequenceSuppressed = false
+        var edgeSnapSystemDrag = WindowEdgeSnapSystemDrag.idle
+        var edgeSnapOptionClaims: UInt64 = 0
         var edgeSnapResolveAttempts = 0
         var edgeSnapLastResolveAt: TimeInterval = 0
         var edgeSnapDrag: WindowEdgeSnapDrag?
@@ -253,7 +302,6 @@ enum WindowEdgeSnapRuntimeTests {
         let edgeSnapResolveQueue = DispatchQueue(label: "test lookup", qos: .userInitiated)
         var activeGesture: WindowPointerGesture?
         var pendingGesture: PendingWindowGesture?
-        var gestureTap: CFMachPort?
         var gestureAssistiveMode: EnhancedUserInterfaceSuspension?
         let moveGestureUpdateInterval: TimeInterval = 0
         let resizeGestureUpdateInterval: TimeInterval = 0
@@ -267,9 +315,14 @@ enum WindowEdgeSnapRuntimeTests {
         var placementVisibleFrames: [CGRect] = []
         var placements: [WindowLayoutFrame] = []
         var placedActions: [WindowLayoutAction] = []
+        let frameTolerance = WindowLayoutGeometry.frameTolerance
+        var lastActions: [WindowLayoutWindowKey: WindowLayoutAction] = [:]
+        var restoreFrames: [WindowLayoutWindowKey: WindowLayoutFrame] = [:]
+        var settledFrames: [WindowLayoutWindowKey: WindowLayoutSettledFrame] = [:]
+        var assistiveModeSuspensions: [CGWindowID: EnhancedUserInterfaceSuspension] = [:]
+        var settleTimers: [CGWindowID: SettleTimer] = [:]
 
         func syncWithPreferences() {}
-        func edgeSnapConflictsWithWindowGesture(flags: CGEventFlags) -> Bool { false }
         func edgeSnapQuartzScreenFrames() -> [CGRect] { [CGRect(x: 0, y: 0, width: 1440, height: 900)] }
         var menuBarScreenTopY: CGFloat { NSScreen.primary.frame.maxY }
         static var uptimeSeconds: TimeInterval { clockStart + clock }
@@ -298,7 +351,28 @@ enum WindowEdgeSnapRuntimeTests {
         }
         func frame(of window: Window) -> WindowLayoutFrame? {
             countAX()
+            guard frameReadable, windowExists else { return nil }
             return WindowLayoutFrame(origin: currentFrame.origin, size: currentFrame.size)
+        }
+        func setSize(_ size: CGSize, on window: Window) -> Bool {
+            countAX()
+            sizeWrites.append(size)
+            switch resizeResponse {
+            case .accept: currentFrame.size = size
+            case .refuse: return false
+            case .clamp(let minimum):
+                currentFrame.size = CGSize(width: max(size.width, minimum.width),
+                                           height: max(size.height, minimum.height))
+            case .delayed: pendingSize = size
+            }
+            return true
+        }
+        func setPosition(_ origin: CGPoint, on window: Window) -> Bool {
+            countAX()
+            positionWrites.append(origin)
+            guard positionAccepted else { return false }
+            currentFrame.origin = origin
+            return true
         }
         func canSetFrame(on window: Window) -> Bool {
             countAX()
@@ -343,6 +417,7 @@ enum WindowEdgeSnapRuntimeTests {
     }
 
     private static func reset() {
+        serverFrameReads = 0
         accessibilityGranted = true
         canBePlaced = true
         currentFrame = initialFrame
@@ -360,17 +435,35 @@ enum WindowEdgeSnapRuntimeTests {
         appIgnored = false
         windowIDReadable = true
         reserveStageManager = false
+        restoreEnabled = false
+        edgeSnappingEnabled = true
+        resizeResponse = .accept
+        pendingSize = nil
+        sizeWrites.removeAll()
+        positionWrites.removeAll()
+        enhancedInterfaceEnabled = false
+        suspensionResumes = 0
+        frameReadable = true
+        positionAccepted = true
         NSScreen.screens = [NSScreen.primary]
         WindowEdgeSnapSupport.isSystemTilingEnabled = false
+        WindowEdgeSnapSupport.optionTilingEnabled = true
         WindowEdgeSnapSupport.isSystemTopWindowOverviewDragEnabled = false
         DispatchQueue.main.jobs.removeAll()
         DispatchQueue.main.timers.removeAll()
         DispatchQueue.lookup.jobs.removeAll()
     }
 
-    private static func event(_ type: CGEventType, at point: CGPoint) -> CGEvent {
-        let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point,
-                            mouseButton: .left)!
+    private static func event(_ type: CGEventType, at point: CGPoint, flags: CGEventFlags = []) -> CGEvent {
+        let event: CGEvent
+        if type == .flagsChanged {
+            event = CGEvent(source: nil)!
+            event.type = type
+            event.location = point
+        } else {
+            event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)!
+        }
+        event.flags = flags
         event.setIntegerValueField(.eventSourceUnixProcessID, value: Int64(processID))
         event.setIntegerValueField(.eventSourceUserData, value: 0)
         event.timestamp = stampsEvents ? CGEventTimestamp(((clockStart + clock) * 1e9).rounded()) : 0
@@ -389,17 +482,21 @@ enum WindowEdgeSnapRuntimeTests {
     /// window before the delayed check that follows it runs.
     private static func releaseOnly(_ host: Host, at point: CGPoint) {
         buttonDown = false
-        _ = host.observeEdgeSnapEvent(type: .leftMouseUp, event: event(.leftMouseUp, at: point))
+        _ = host.handlePointerTapEvent(proxy: nil, type: .leftMouseUp, event: event(.leftMouseUp, at: point))
         DispatchQueue.main.jobs.removeFirst()()
     }
 
-    /// One event through the callback and what it leaves, with no time
-    /// passing, so no timer comes due.
-    private static func hand(_ host: Host, _ type: CGEventType, _ point: CGPoint) {
+    /// Deliver one event without advancing the clock. Queued work normally
+    /// runs before the next event, unless the main queue is being held up.
+    @discardableResult
+    private static func hand(_ host: Host, _ type: CGEventType, _ point: CGPoint,
+                             flags: CGEventFlags = [], runQueuedJobs: Bool = true) -> Bool {
         if type == .leftMouseDown { buttonDown = true }
         if type == .leftMouseUp { buttonDown = false }
-        _ = host.observeEdgeSnapEvent(type: type, event: event(type, at: point))
-        DispatchQueue.main.runDue()
+        let input = event(type, at: point, flags: flags)
+        let passed = host.handlePointerTapEvent(proxy: nil, type: type, event: input) != nil
+        if runQueuedJobs { DispatchQueue.main.runDue() }
+        return passed
     }
 
     /// A drag step the window follows, while the pointer is still on its way.
@@ -467,8 +564,280 @@ enum WindowEdgeSnapRuntimeTests {
         DispatchQueue.main.drain()
     }
 
+    private static var restoreKey: WindowLayoutWindowKey {
+        WindowLayoutWindowKey(processID: processID, processLaunchTime: launch.timeIntervalSinceReferenceDate,
+                              windowID: windowID)
+    }
+
+    private static let snappedFrame = CGRect(x: 0, y: 25, width: 720, height: 875)
+    private static let restoreSize = CGSize(width: 800, height: 500)
+
+    private static func prepareRestore(_ host: Host, actual: CGRect = snappedFrame) {
+        restoreEnabled = true
+        currentFrame = actual
+        host.lastActions[restoreKey] = .leftHalf
+        host.restoreFrames[restoreKey] = WindowLayoutFrame(origin: CGPoint(x: 100, y: 100), size: restoreSize)
+        host.settledFrames[restoreKey] = WindowLayoutSettledFrame(
+            requested: WindowLayoutFrame(origin: snappedFrame.origin, size: snappedFrame.size),
+            actual: WindowLayoutFrame(origin: actual.origin, size: actual.size))
+    }
+
+    /// The same press, callback, background resolver and move classification
+    /// as a native drag. Only the external window's responses are controlled.
+    @discardableResult
+    private static func pullRestorable(_ host: Host, resolve: Bool = true,
+                                        windowFollows: Bool = true) -> CGPoint {
+        let startFrame = currentFrame
+        let start = CGPoint(x: startFrame.midX, y: startFrame.minY + 15)
+        let point = CGPoint(x: start.x + 60, y: start.y + 50)
+        hand(host, .leftMouseDown, start)
+        clock += 0.01
+        if windowFollows { currentFrame = startFrame.offsetBy(dx: 60, dy: 50) }
+        hand(host, .leftMouseDragged, point)
+        if resolve {
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.runDue()
+        }
+        return point
+    }
+
+    private static func runRestoreTests(_ suite: TestSuite) {
+        for drift in [0, 3] {
+            reset()
+            let click = Host()
+            prepareRestore(click)
+            let start = CGPoint(x: snappedFrame.midX, y: snappedFrame.minY + 15)
+            let end = CGPoint(x: start.x + CGFloat(drift), y: start.y)
+            hand(click, .leftMouseDown, start)
+            currentFrame = snappedFrame.offsetBy(dx: CGFloat(drift), dy: 0)
+            if drift > 0 { hand(click, .leftMouseDragged, end) }
+            send(click, .leftMouseUp, end)
+            suite.expect(serverFrameReads == 0 && sizeWrites.isEmpty && click.restoreFrames[restoreKey] != nil,
+                         "a click within drag slop neither probes nor restores a snapped window")
+        }
+
+        reset()
+        let ordinary = Host()
+        prepareRestore(ordinary)
+        let ordinaryPoint = pullRestorable(ordinary)
+        let confirmed = WindowLayoutFrame(origin: currentFrame.origin, size: currentFrame.size)
+        suite.expect(currentFrame.size == restoreSize && sizeWrites == [restoreSize]
+                && ordinary.restoreFrames[restoreKey] == nil && ordinary.lastActions[restoreKey] == nil
+                && ordinary.edgeSnapDrag?.initialFrame == CGRect(origin: confirmed.origin, size: confirmed.size),
+                     "a title bar drag restores the saved size once and records the confirmed frame")
+        hand(ordinary, .leftMouseDragged, CGPoint(x: ordinaryPoint.x + 20, y: ordinaryPoint.y))
+        suite.expect(sizeWrites.count == 1, "later events in the same drag never repeat the resize")
+
+        reset()
+        let widened = Host()
+        prepareRestore(widened)
+        currentFrame.size.width = 1000
+        pullRestorable(widened)
+        suite.expect(sizeWrites.isEmpty && currentFrame.width == 1000,
+                     "a half widened by hand no longer qualifies for automatic size restoration")
+
+        reset()
+        let clampedPlacement = Host()
+        prepareRestore(clampedPlacement, actual: CGRect(x: 0, y: 25, width: 900, height: 875))
+        pullRestorable(clampedPlacement)
+        suite.expect(sizeWrites == [restoreSize],
+                     "the actual settled frame still qualifies when the app clamped the earlier snap")
+
+        for disabled in [true, false] {
+            reset()
+            let gated = Host()
+            prepareRestore(gated)
+            restoreEnabled = !disabled
+            appIgnored = !disabled
+            pullRestorable(gated)
+            suite.expect(sizeWrites.isEmpty && positionWrites.isEmpty,
+                         disabled ? "turning restore off preserves the native drag" : "ignored apps never restore on drag")
+        }
+
+        reset()
+        let content = Host()
+        prepareRestore(content)
+        pullRestorable(content, windowFollows: false)
+        suite.expect(sizeWrites.isEmpty && mainAXWhileHeld == 0,
+                     "selecting content in a snapped window does not trigger restoration or main-thread AX")
+
+        reset()
+        let resized = Host()
+        prepareRestore(resized)
+        hand(resized, .leftMouseDown, CGPoint(x: 360, y: 40))
+        currentFrame.size.width = 900
+        hand(resized, .leftMouseDragged, CGPoint(x: 540, y: 40))
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.runDue()
+        suite.expect(sizeWrites.isEmpty && resized.edgeSnapDrag == nil,
+                     "a resize with anchored edges cancels tracking instead of restoring")
+
+        reset()
+        let modifier = Host()
+        prepareRestore(modifier)
+        modifier.handleEdgeSnapInput(.moveGestureBegan(pressOrigin: CGPoint(x: 360, y: 40),
+            initialFrame: snappedFrame, windowID: windowID, processID: processID))
+        currentFrame = snappedFrame.offsetBy(dx: 60, dy: 50)
+        modifier.handleEdgeSnapInput(.dragged(location: CGPoint(x: 420, y: 90), time: clockStart + 0.01))
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.runDue()
+        suite.expect(sizeWrites.isEmpty, "a modifier move keeps ownership of the window frame")
+
+        reset()
+        let suspended = Host()
+        prepareRestore(suspended)
+        enhancedInterfaceEnabled = true
+        suspended.assistiveModeSuspensions[windowID] = EnhancedUserInterfaceSuspension.suspend(
+            forAppOf: Window(pid: processID, id: windowID))
+        let timer = SettleTimer()
+        suspended.settleTimers[windowID] = timer
+        pullRestorable(suspended)
+        suite.expect(timer.invalidated && suspended.settleTimers.isEmpty
+                && suspended.assistiveModeSuspensions.isEmpty
+                && enhancedInterfaceEnabled && suspensionResumes == 1,
+                     "restoration takes ownership of a pending placement's suspension and resumes it exactly once")
+
+        reset()
+        let refused = Host()
+        prepareRestore(refused)
+        resizeResponse = .refuse
+        let refusedPoint = pullRestorable(refused)
+        let moved = currentFrame
+        send(refused, .leftMouseUp, refusedPoint)
+        suite.expect(currentFrame == moved && positionWrites.isEmpty
+                && refused.restoreFrames[restoreKey]?.size == restoreSize
+                && refused.lastActions[restoreKey] == .leftHalf
+                && refused.settledFrames[restoreKey]?.actual == WindowLayoutFrame(origin: moved.origin, size: moved.size),
+                     "a refused resize keeps the original size and confirmed position without a false restore")
+        resizeResponse = .accept
+        pullRestorable(refused)
+        suite.expect(currentFrame.size == restoreSize && refused.restoreFrames[restoreKey] == nil,
+                     "a refused restoration can succeed on the next drag")
+
+        reset()
+        let limited = Host()
+        prepareRestore(limited)
+        let minimum = CGSize(width: 900, height: 550)
+        resizeResponse = .clamp(minimum)
+        let limitedPoint = pullRestorable(limited)
+        let actualFrame = currentFrame
+        let anchor = EdgeSnapGeometry.restoredFrame(snapped: snappedFrame, restoreSize: minimum,
+            pointerStart: CGPoint(x: 360, y: 40), pointerNow: limitedPoint,
+            screenFrame: CGRect(x: 0, y: 0, width: 1440, height: 900))
+        suite.expect(currentFrame == anchor && limited.edgeSnapDrag?.initialFrame == actualFrame,
+                     "a limited restore anchors the pointer and records history using the accepted size")
+        send(limited, .leftMouseUp, edgePoint)
+        suite.expect(limited.placements.last?.size == minimum,
+                     "a new snap in the same drag remembers the confirmed restored size")
+
+        reset()
+        let refusedPosition = Host()
+        prepareRestore(refusedPosition)
+        positionAccepted = false
+        pullRestorable(refusedPosition)
+        let nativePosition = snappedFrame.origin.applying(CGAffineTransform(translationX: 60, y: 50))
+        let positionConfirmed = CGRect(origin: nativePosition, size: restoreSize)
+        suite.expect(currentFrame == positionConfirmed
+                && refusedPosition.edgeSnapDrag?.initialFrame == positionConfirmed
+                && refusedPosition.restoreFrames[restoreKey] == nil,
+                     "a refused position after a successful resize records the confirmed frame, not the requested anchor")
+        send(refusedPosition, .leftMouseUp, edgePoint)
+        suite.expect(refusedPosition.placements.last == WindowLayoutFrame(origin: nativePosition, size: restoreSize),
+                     "snapping after a refused position preserves only the frame that actually existed")
+
+        reset()
+        let delayed = Host()
+        prepareRestore(delayed)
+        resizeResponse = .delayed
+        let delayedPoint = pullRestorable(delayed)
+        suite.expect(delayed.restoreFrames[restoreKey] != nil && positionWrites.isEmpty,
+                     "a delayed resize retains its original size until a read confirms it")
+        releaseOnly(delayed, at: delayedPoint)
+        currentFrame.size = pendingSize!
+        DispatchQueue.main.drain()
+        suite.expect(currentFrame.size == restoreSize && delayed.restoreFrames[restoreKey] == nil
+                && positionWrites.count == 1 && sizeWrites.count == 1,
+                     "release observes a late resize without repeating it and completes restoration away from edges")
+
+        for disableSnapping in [false, true] {
+            reset()
+            let switchedOff = Host()
+            prepareRestore(switchedOff)
+            resizeResponse = .delayed
+            pullRestorable(switchedOff)
+            releaseOnly(switchedOff, at: edgePoint)
+            restoreEnabled = false
+            edgeSnappingEnabled = !disableSnapping
+            currentFrame.size = pendingSize!
+            let confirmedBeforeSnap = WindowLayoutFrame(origin: currentFrame.origin, size: currentFrame.size)
+            DispatchQueue.main.drain()
+            suite.expect(positionWrites.isEmpty && sizeWrites.count == 1
+                    && switchedOff.placements == (disableSnapping ? [] : [confirmedBeforeSnap]),
+                         disableSnapping
+                         ? "disabling edge snapping cancels the whole pending release"
+                         : "disabling only restoration preserves the valid snap and its confirmed history")
+        }
+
+        for chordPress in [false, true] {
+            reset()
+            let interrupted = Host()
+            interrupted.pointerTapDemand = [.gesture, .edgeSnap]
+            prepareRestore(interrupted)
+            resizeResponse = .delayed
+            let interruptedPoint = pullRestorable(interrupted)
+            releaseOnly(interrupted, at: edgePoint)
+            let passed = hand(interrupted, .leftMouseDown, interruptedPoint,
+                              flags: chordPress ? [.maskControl, .maskCommand] : [])
+            currentFrame.size = pendingSize!
+            DispatchQueue.main.drain()
+            suite.expect(passed == !chordPress && positionWrites.isEmpty
+                    && interrupted.restoreFrames[restoreKey] != nil && interrupted.placements.isEmpty,
+                         chordPress
+                         ? "a press held by the move gesture cancels the previous drag's delayed restoration and snap"
+                         : "a late resize confirmation never repositions or snaps a newer gesture")
+        }
+
+        reset()
+        let quick = Host()
+        prepareRestore(quick)
+        let quickPoint = pullRestorable(quick, resolve: false)
+        send(quick, .leftMouseUp, quickPoint)
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        suite.expect(sizeWrites == [restoreSize] && quick.restoreFrames[restoreKey] == nil
+                && quick.placements.isEmpty,
+                     "a quick drag released away from every snap zone restores even if release beats lookup")
+
+        for resolve in [true, false] {
+            reset()
+            let late = Host()
+            prepareRestore(late)
+            let point = pullRestorable(late, resolve: resolve, windowFollows: false)
+            releaseOnly(late, at: point)
+            currentFrame = snappedFrame.offsetBy(dx: 60, dy: 50)
+            DispatchQueue.main.drain()
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.drain()
+            suite.expect(sizeWrites == [restoreSize] && late.restoreFrames[restoreKey] == nil,
+                         "late movement restores away from edges with lookup already resolved = \(resolve)")
+        }
+
+        reset()
+        let cancelled = Host()
+        prepareRestore(cancelled)
+        let cancelledPoint = pullRestorable(cancelled, resolve: false, windowFollows: false)
+        releaseOnly(cancelled, at: cancelledPoint)
+        hand(cancelled, .leftMouseDown, CGPoint(x: 360, y: 40))
+        currentFrame = snappedFrame.offsetBy(dx: 60, dy: 50)
+        DispatchQueue.main.drain()
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        suite.expect(sizeWrites.isEmpty, "a newer press cancels the older drag's delayed movement check")
+    }
+
     static func run(_ suite: TestSuite) {
         defer { reset() }
+        runRestoreTests(suite)
 
         reset()
         reserveStageManager = true
@@ -578,6 +947,30 @@ enum WindowEdgeSnapRuntimeTests {
                         == [WindowLayoutFrame(origin: initialFrame.origin, size: initialFrame.size)],
                      "a window dragged to an edge previews the zone, snaps on release and keeps its starting frame for Restore")
 
+        for optionAtPress in [true, false] {
+            reset()
+            let host = Host()
+            if !optionAtPress { pressAndTrack(host) }
+            hand(host, optionAtPress ? .leftMouseDown : .flagsChanged, pressPoint, flags: .maskAlternate)
+            DispatchQueue.main.drain()
+            currentFrame = movedToEdge
+            send(host, .leftMouseDragged, edgePoint)
+            send(host, .leftMouseUp, edgePoint)
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.drain()
+            suite.expect(!host.previewShown && host.placements.isEmpty,
+                         "an Option gesture belongs to macOS until mouse-up even after Option is released")
+
+            currentFrame = initialFrame
+            send(host, .leftMouseDown, pressPoint)
+            currentFrame = movedToEdge
+            send(host, .leftMouseDragged, edgePoint)
+            send(host, .leftMouseUp, edgePoint)
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.drain()
+            suite.expect(host.placements.count == 1, "the next unmodified drag can snap")
+        }
+
         reset()
         zoneActions = "right=rightThird"
         let chosenEdge = Host()
@@ -656,7 +1049,7 @@ enum WindowEdgeSnapRuntimeTests {
         DispatchQueue.main.drain()
         let previewedOnArrival = resting.previews == 1 && resting.edgeSnapDrag?.isMoving == true
         let topEdge = event(.leftMouseDragged, at: CGPoint(x: 700, y: 0))
-        _ = resting.observeEdgeSnapEvent(type: .leftMouseDragged, event: topEdge)
+        _ = resting.handlePointerTapEvent(proxy: nil, type: .leftMouseDragged, event: topEdge)
         DispatchQueue.main.drain()
         suite.expect(previewedOnArrival && topEdge.location.y > 0,
                      "a lookup landing while the window rests at an edge shows the preview and protects the next top-edge event")
@@ -665,7 +1058,7 @@ enum WindowEdgeSnapRuntimeTests {
         let cancelled = Host()
         send(cancelled, .leftMouseDown, pressPoint)
         send(cancelled, .leftMouseDragged, CGPoint(x: 240, y: 200))
-        _ = cancelled.observeEdgeSnapEvent(type: .tapDisabledByTimeout, event: CGEvent(source: nil)!)
+        _ = cancelled.handlePointerTapEvent(proxy: nil, type: .tapDisabledByTimeout, event: CGEvent(source: nil)!)
         DispatchQueue.main.drain()
         DispatchQueue.drainLookups()
         DispatchQueue.main.drain()
@@ -899,7 +1292,7 @@ enum WindowEdgeSnapRuntimeTests {
         titleBarDuringGesture.pendingGesture = PendingWindowGesture(
             down: event(.leftMouseDown, at: pressPoint), button: .primary, kind: .move,
             window: Window(pid: processID, id: windowID), app: NSRunningApplication(processIdentifier: processID)!,
-            originalFrame: initialFrame, origin: pressPoint)
+            originalFrame: initialFrame, origin: pressPoint, optionClaimsAtPress: nil)
         currentFrame = initialFrame.offsetBy(dx: 40, dy: 0)
         send(titleBarDuringGesture, .leftMouseDragged, CGPoint(x: 240, y: 200))
         DispatchQueue.drainLookups()
@@ -940,36 +1333,24 @@ enum WindowEdgeSnapRuntimeTests {
         suite.expect(mainLookupsAfterRelease == 0 && modifierUnplaceable.placements.isEmpty,
                      "a modifier move whose window every lookup turned down is not looked up again at release")
 
-        // The gesture tap's own callback, with real events carrying the chord.
+        // Send the chord through the same shared callback as a native drag.
         let chord: CGEventFlags = [.maskControl, .maskCommand]
-        let dummyTap = CFMachPortCreate(nil, { _, _, _, _ in }, nil, nil)
-        /// One event through the move gesture's callback and the jobs it
-        /// leaves. Returns whether the event went on to the app.
-        func gestureEvent(_ host: Host, _ type: CGEventType, _ point: CGPoint,
-                          flags: CGEventFlags = chord) -> Bool {
-            if type == .leftMouseDown { buttonDown = true }
-            if type == .leftMouseUp { buttonDown = false }
-            let pointerEvent = event(type, at: point)
-            pointerEvent.flags = flags
-            let passed = host.handleGestureEvent(proxy: nil, type: type, event: pointerEvent) != nil
-            DispatchQueue.main.runDue()
-            return passed
-        }
-        func chordDrag(_ host: Host, flags: CGEventFlags = chord) -> (heldPress: Bool, preview: Bool) {
-            let pressPassed = gestureEvent(host, .leftMouseDown, pressPoint, flags: flags)
-            _ = gestureEvent(host, .leftMouseDragged, CGPoint(x: 240, y: 200), flags: flags)
+        func chordDrag(_ host: Host, from start: CGPoint = pressPoint,
+                       flags: CGEventFlags = chord) -> (heldPress: Bool, preview: Bool) {
+            let pressPassed = hand(host, .leftMouseDown, start, flags: flags)
+            hand(host, .leftMouseDragged, CGPoint(x: start.x + 40, y: start.y), flags: flags)
             DispatchQueue.drainLookups()
             DispatchQueue.main.runDue()
             clock += 0.05
-            _ = gestureEvent(host, .leftMouseDragged, edgePoint, flags: flags)
+            hand(host, .leftMouseDragged, edgePoint, flags: flags)
             return (!pressPassed, host.previewShown)
         }
 
         reset()
         let tapMove = Host()
-        tapMove.edgeSnapTap = dummyTap
+        tapMove.pointerTapDemand = [.gesture, .edgeSnap]
         let tapMoveDrag = chordDrag(tapMove)
-        let releaseSwallowed = !gestureEvent(tapMove, .leftMouseUp, edgePoint)
+        let releaseSwallowed = !hand(tapMove, .leftMouseUp, edgePoint, flags: chord)
         DispatchQueue.main.drain()
         suite.expect(tapMoveDrag.heldPress && tapMoveDrag.preview && releaseSwallowed
                         && tapMove.placedActions == [.rightHalf]
@@ -978,10 +1359,70 @@ enum WindowEdgeSnapRuntimeTests {
                      "a chord drag through the gesture tap previews the zone, snaps on release and keeps its starting frame for Restore")
 
         reset()
+        let optionMove = Host()
+        optionMove.pointerTapDemand = [.gesture, .edgeSnap]
+        let moveBeforeOption = chordDrag(optionMove)
+        hand(optionMove, .flagsChanged, edgePoint, flags: chord.union(.maskAlternate))
+        let previewHidden = !optionMove.previewShown
+        hand(optionMove, .flagsChanged, edgePoint, flags: chord)
+        let dropPoint = CGPoint(x: edgePoint.x, y: edgePoint.y + 20)
+        hand(optionMove, .leftMouseDragged, dropPoint, flags: chord)
+        hand(optionMove, .leftMouseUp, dropPoint, flags: chord)
+        DispatchQueue.main.drain()
+        suite.expect(moveBeforeOption.heldPress && moveBeforeOption.preview && previewHidden
+                     && optionMove.previews == 1 && optionMove.placements.isEmpty,
+                     "Option cancels the snap of a modifier move even when released before the mouse")
+
+        for (optionTilingEnabled, releaseBeforePromotion) in [(true, true), (true, false), (false, false)] {
+            reset()
+            WindowEdgeSnapSupport.optionTilingEnabled = optionTilingEnabled
+            let host = Host()
+            host.pointerTapDemand = [.gesture, .edgeSnap]
+            let withOption = chord.union(.maskAlternate)
+            let pressHeld = !hand(host, .leftMouseDown, pressPoint, flags: chord)
+            hand(host, .flagsChanged, pressPoint, flags: withOption)
+            if releaseBeforePromotion { hand(host, .flagsChanged, pressPoint, flags: chord) }
+            let firstStep = CGPoint(x: pressPoint.x + 40, y: pressPoint.y)
+            // The tap can receive the release before the main queue handles
+            // the start of the move and the steps forwarded by the gesture.
+            let waitForRelease = optionTilingEnabled && releaseBeforePromotion
+            hand(host, .leftMouseDragged, firstStep, flags: releaseBeforePromotion ? chord : withOption,
+                 runQueuedJobs: !waitForRelease)
+            if !releaseBeforePromotion { hand(host, .flagsChanged, firstStep, flags: chord) }
+            clock += 0.05
+            hand(host, .leftMouseDragged, edgePoint, flags: chord, runQueuedJobs: !waitForRelease)
+            if !waitForRelease {
+                DispatchQueue.drainLookups()
+                DispatchQueue.main.drain()
+            }
+            let previewAtEdge = host.previewShown
+            hand(host, .leftMouseUp, edgePoint, flags: chord, runQueuedJobs: false)
+            DispatchQueue.main.runDue()
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.drain()
+            if !optionTilingEnabled {
+                suite.expect(pressHeld && previewAtEdge && host.placedActions == [.rightHalf],
+                             "with macOS Option tiling off, holding Option across the first drag step still previews and snaps")
+                continue
+            }
+            suite.expect(pressHeld && currentFrame == movedToEdge && host.previews == 0 && host.placements.isEmpty,
+                         releaseBeforePromotion
+                         ? "Option released before the move starts keeps that drag moving freely through the snap zone"
+                         : "Option held across the first drag step keeps that drag moving freely through the snap zone")
+
+            let nextPress = CGPoint(x: currentFrame.minX + 20, y: edgePoint.y)
+            let nextMove = chordDrag(host, from: nextPress)
+            hand(host, .leftMouseUp, edgePoint, flags: chord)
+            DispatchQueue.main.drain()
+            suite.expect(nextMove.heldPress && nextMove.preview && host.placedActions == [.rightHalf],
+                         "the next modifier move can snap the same window after Option interrupted the previous press")
+        }
+
+        reset()
         let tapResize = Host()
-        tapResize.edgeSnapTap = dummyTap
+        tapResize.pointerTapDemand = [.gesture, .edgeSnap]
         let tapResizeDrag = chordDrag(tapResize, flags: chord.union(.maskShift))
-        _ = gestureEvent(tapResize, .leftMouseUp, edgePoint, flags: chord.union(.maskShift))
+        hand(tapResize, .leftMouseUp, edgePoint, flags: chord.union(.maskShift))
         DispatchQueue.main.drain()
         suite.expect(tapResizeDrag.heldPress && !tapResizeDrag.preview && tapResize.placements.isEmpty
                         && mainAXWhileHeld + lookupQueueAX + mainAXAfterRelease == 0,
@@ -989,8 +1430,9 @@ enum WindowEdgeSnapRuntimeTests {
 
         reset()
         let tapSnapOff = Host()
+        tapSnapOff.pointerTapDemand = .gesture
         let tapSnapOffDrag = chordDrag(tapSnapOff)
-        _ = gestureEvent(tapSnapOff, .leftMouseUp, edgePoint)
+        hand(tapSnapOff, .leftMouseUp, edgePoint, flags: chord)
         DispatchQueue.main.drain()
         suite.expect(tapSnapOffDrag.heldPress && !tapSnapOffDrag.preview && tapSnapOff.placements.isEmpty
                         && mainAXWhileHeld + lookupQueueAX + mainAXAfterRelease == 0,
@@ -998,9 +1440,9 @@ enum WindowEdgeSnapRuntimeTests {
 
         reset()
         let tapClick = Host()
-        tapClick.edgeSnapTap = dummyTap
-        _ = gestureEvent(tapClick, .leftMouseDown, pressPoint)
-        _ = gestureEvent(tapClick, .leftMouseUp, pressPoint)
+        tapClick.pointerTapDemand = [.gesture, .edgeSnap]
+        hand(tapClick, .leftMouseDown, pressPoint, flags: chord)
+        hand(tapClick, .leftMouseUp, pressPoint, flags: chord)
         DispatchQueue.main.drain()
         suite.expect(tapClick.replayedClicks == 1 && mainAXWhileHeld + mainAXAfterRelease == 0,
                      "a plain chord click is handed back without asking for the window's server ID")
@@ -1008,21 +1450,21 @@ enum WindowEdgeSnapRuntimeTests {
         reset()
         windowIDReadable = false
         let tapNoID = Host()
-        tapNoID.edgeSnapTap = dummyTap
+        tapNoID.pointerTapDemand = [.gesture, .edgeSnap]
         let tapNoIDDrag = chordDrag(tapNoID)
-        _ = gestureEvent(tapNoID, .leftMouseUp, edgePoint)
+        hand(tapNoID, .leftMouseUp, edgePoint, flags: chord)
         DispatchQueue.main.drain()
         suite.expect(!tapNoIDDrag.preview && tapNoID.placements.isEmpty,
                      "a chord drag whose window has no readable server ID moves without snapping")
 
         reset()
         let tapCutOff = Host()
-        tapCutOff.edgeSnapTap = dummyTap
+        tapCutOff.pointerTapDemand = [.gesture, .edgeSnap]
         let tapCutOffDrag = chordDrag(tapCutOff)
-        _ = tapCutOff.handleGestureEvent(proxy: nil, type: .tapDisabledByTimeout, event: CGEvent(source: nil)!)
+        _ = tapCutOff.handlePointerTapEvent(proxy: nil, type: .tapDisabledByTimeout, event: CGEvent(source: nil)!)
         DispatchQueue.main.runDue()
         let hiddenOnCutOff = !tapCutOff.previewShown
-        _ = gestureEvent(tapCutOff, .leftMouseUp, edgePoint)
+        hand(tapCutOff, .leftMouseUp, edgePoint, flags: chord)
         DispatchQueue.main.drain()
         suite.expect(tapCutOffDrag.preview && hiddenOnCutOff && tapCutOff.placements.isEmpty,
                      "a chord drag the system cuts off through the gesture tap hides the preview and never snaps")

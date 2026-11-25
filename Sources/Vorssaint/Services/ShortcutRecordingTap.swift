@@ -28,11 +28,12 @@ enum ShortcutRecordingTap {
     /// release keep being swallowed until the release arrives.
     private static var drainingKeyCode: Int64?
     private static var drainWatchdog: DispatchWorkItem?
-    /// This tap is created after the super key's and therefore sits ahead of
-    /// it, so the trigger key arrives here bare. Reading it the same way the
-    /// super key does lets a field record the combination the way it will be
+    /// This tap sits at the HID head, ahead of the super key's HID tail even
+    /// after a restart, so the trigger key arrives bare. Reading it the same way
+    /// as the super key lets a field record the combination the way it will be
     /// pressed later, instead of asking for the chosen modifiers by hand.
     private static var superState = SuperKeySupport.State()
+    private static var superKeyTap: CFMachPort?
     private static var observingSession = false
 
     /// Starts swallowing key events and delivering each fresh press to the
@@ -44,7 +45,7 @@ enum ShortcutRecordingTap {
         drainWatchdog = nil
         drainingKeyCode = nil
         heldKeyCode = nil
-        superState.reset()
+        resetSuperKey()
         // Registered before the Accessibility check: ShortcutCapture.begin() has
         // already switched the global shortcuts off, and the resign must give them back.
         if !observingSession {
@@ -60,7 +61,7 @@ enum ShortcutRecordingTap {
             let mask = (CGEventMask(1) << CGEventType.keyDown.rawValue)
                 | (CGEventMask(1) << CGEventType.keyUp.rawValue)
             guard let created = CGEvent.tapCreate(
-                tap: .cgSessionEventTap,
+                tap: .cghidEventTap,
                 place: .headInsertEventTap,
                 options: .defaultTap,
                 eventsOfInterest: mask,
@@ -109,7 +110,7 @@ enum ShortcutRecordingTap {
         drainingKeyCode = nil
         heldKeyCode = nil
         handler = nil
-        superState.reset()
+        resetSuperKey()
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
             CFMachPortInvalidate(tap)
@@ -119,6 +120,12 @@ enum ShortcutRecordingTap {
         }
         tap = nil
         runLoopSource = nil
+    }
+
+    /// A keyboard can disappear on wake and return under the same event tap.
+    static func resetSuperKey() {
+        superKeyTap = nil
+        superState.reset()
     }
 
     private static func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -136,20 +143,25 @@ enum ShortcutRecordingTap {
             // Holding the super key while recording means the modifiers it
             // stands for, and the key holding them is never the shortcut.
             var heldModifiers: GlobalShortcutModifiers = []
-            if SuperKeyService.isEngaged {
-                let superEvent: SuperKeySupport.Event
-                if keyCode == SuperKeySupport.triggerKeyCode {
-                    let timestamp = UInt64(event.timestamp)
-                    superEvent = type == .keyDown
-                        ? .triggerDown(
-                            isRepeat: isRepeat,
-                            hasPrimaryModifiers: !GlobalShortcutModifiers(cgFlags: event.flags).isEmpty,
-                            timestamp: timestamp
-                        )
-                        : .triggerUp(timestamp: timestamp)
-                } else {
-                    superEvent = .otherKey
-                }
+            let keyboard = SuperKeyService.shared.keyboardTapForRecording
+            if keyboard !== superKeyTap {
+                superState.reset()
+                superKeyTap = keyboard
+            }
+            let superEvent: SuperKeySupport.Event
+            if keyCode == SuperKeySupport.triggerKeyCode {
+                let timestamp = EventTimestamp.nanoseconds(of: event)
+                superEvent = type == .keyDown
+                    ? .triggerDown(
+                        isRepeat: isRepeat,
+                        hasPrimaryModifiers: !GlobalShortcutModifiers(cgFlags: event.flags).isEmpty,
+                        timestamp: timestamp
+                    )
+                    : .triggerUp(timestamp: timestamp)
+            } else {
+                superEvent = .otherKey
+            }
+            if superState.shouldCapture(superEvent, enabled: keyboard != nil) {
                 switch superState.decide(superEvent) {
                 case .swallow, .soloTap(repeated: _), .soloHold(repeated: _): return nil
                 case .addModifiers: heldModifiers = SuperKeyService.shared.modifiers

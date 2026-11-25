@@ -26,6 +26,7 @@ enum MixerRenderContinuityTests {
         let compensation = FloatBox(1)
         let release = FloatBox(BoostLimiter.release(sampleRate: 48_000))
         let ramp = TapLevelRamp()
+        let appliedGain = MixerRender.AppliedGain()
         let cycles = Counter()
         let configuration = Configuration()
         let tapChannels: Int
@@ -84,6 +85,7 @@ enum MixerRenderContinuityTests {
     }
 
     static func run(_ suite: TestSuite) {
+        muteDuringSilentCallbacks(suite)
         for channels in [2, 8, 16, 32] {
             let frames = 768
             var source: [Float] = []
@@ -220,5 +222,54 @@ enum MixerRenderContinuityTests {
                      && Array(UnsafeBufferPointer(start: right, count: 65))
                         == Array(repeating: 0, count: 32) + Array(repeating: 0.2, count: 33),
                      "inactive outputs leave the delay untouched and unequal buffers stop at their common writable bound")
+    }
+
+    /// A mute can arrive long before the next tap buffer. The production
+    /// callback must forget the audible gain across a gap, while a later
+    /// unmute during continuous rendering must still fade in normally.
+    private static func muteDuringSilentCallbacks(_ suite: TestSuite) {
+        let frames = 512
+        let source = Array(repeating: Float(0.4), count: frames * 2)
+        let gaps: [(name: String, source: [Float]?, suspended: Bool)] = [
+            ("missing tap", nil, false),
+            ("empty tap", [], false),
+            ("suspended callback", source, true),
+        ]
+        for layout: [UInt32] in [[2], [1, 1], [1]] {
+            let channels = Int(layout.reduce(0, +))
+            for gap in gaps {
+                let renderer = Renderer()
+                renderer.box.value = 0.5
+                _ = renderer.render(source, frames: frames, layout: layout)
+                renderer.configuration.canRender = !gap.suspended
+                _ = renderer.render(gap.source, frames: frames, layout: layout)
+                renderer.box.value = 0
+                let silent = renderer.render(gap.source, frames: frames, layout: layout)
+                let progressDuringGap = renderer.cycles.value
+                renderer.configuration.canRender = true
+                let resumed = renderer.render(source, frames: frames, layout: layout)
+                let held = renderer.render(source, frames: frames, layout: layout)
+                suite.expect(silent.allSatisfy { $0 == 0 }
+                                && resumed.allSatisfy { $0 == 0 }
+                                && held.allSatisfy { $0 == 0 },
+                             "muting during a \(gap.name) keeps resumed audio silent (layout \(layout))")
+                suite.expect(progressDuringGap == 1 && renderer.cycles.value == 3,
+                             "a \(gap.name) does not advance capture progress while a resumed muted tap does")
+
+                renderer.box.value = 0.5
+                let faded = renderer.render(source, frames: frames, layout: layout)
+                let settled = renderer.render(source, frames: frames, layout: layout)
+                let expected = (0..<(2 * frames)).flatMap { frame -> [Float] in
+                    let sourceFrame = frame - BoostLookaheadLimiter.lookaheadFrames
+                    let gain: Float = sourceFrame < 0
+                        ? 0 : min(Float(sourceFrame) / Float(frames), 1) * 0.5
+                    return Array(repeating: Float(0.4) * gain, count: channels)
+                }
+                let actual = faded + settled
+                let error = zip(actual, expected).map { abs($0 - $1) }.max() ?? .infinity
+                suite.expect(actual.count == expected.count && error < 0.000001,
+                             "unmuting after a \(gap.name) still slides across the next continuous block (layout \(layout), maximum error \(error))")
+            }
+        }
     }
 }

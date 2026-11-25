@@ -9,9 +9,11 @@ struct NotchAgentsSettingsControls: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var usage = AgentUsageService.shared
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
+    @AppStorage(DefaultsKey.notchAgentsClaudeProfile) private var claudeProfile = ""
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
@@ -49,6 +51,8 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.codex, isOn: $codex)
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
+            providerRow(.cursor, isOn: $cursor)
+            if claude { ClaudeAccountSettings() }
             if codex { CodexAccountsSettings() }
 
             Divider()
@@ -98,7 +102,8 @@ struct NotchAgentsSettingsControls: View {
                 NotchAgentStripSample(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                       display: NotchAgentLimitDisplay(rawValue: limitDisplay) ?? .remaining,
                                       focus: NotchAgentLimitFocus(rawValue: limitFocus) ?? .mostUsed,
-                                      provider: claude ? .claude : codex ? .codex : opencode ? .opencode : .copilot)
+                                      provider: claude ? .claude : codex ? .codex : opencode ? .opencode
+                                        : copilot ? .copilot : .cursor)
                     .padding(.leading, settingsRowTextInset)
             }
 
@@ -141,8 +146,10 @@ struct NotchAgentsSettingsControls: View {
                     claudeLimitsStatus(now: context.date)
                 }
                 if usage.claudeAccountChecking { ProgressView().controlSize(.small) }
-                Text(text.claudeLimitsPrivacy).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if claudeProfile.isEmpty {
+                    Text(text.claudeLimitsPrivacy).font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .toggleStyle(.switch)
@@ -152,10 +159,16 @@ struct NotchAgentsSettingsControls: View {
             if claude { findClaudeApp() }
         }
         .onChange(of: claude) { _, on in if on { findClaudeApp() } }
+        .onChange(of: claudeProfile) { _, _ in
+            claudeAppFileCheck = nil
+            findRoots()
+            if claude { findClaudeApp() }
+            NotchService.shared.syncWithPreferences()
+        }
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot),
-                       String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
+                       String(cursor), String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
     }
@@ -179,6 +192,10 @@ struct NotchAgentsSettingsControls: View {
                       ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                     .foregroundStyle(now.timeIntervalSince(account) < AgentClaudeAppUsage.freshness ? .green : .orange)
                 explained(failure) { Text("Claude Code · " + text.updated(relative(account, now: now))) }
+                Spacer(minLength: 0)
+            } else if !claudeProfile.isEmpty {
+                Image(systemName: "info.circle.fill").foregroundStyle(.secondary)
+                Text(failure ?? FeatureStrings.claudeAccount(l10n.language).noLimits)
                 Spacer(minLength: 0)
             } else if let checked, now.timeIntervalSince(checked) < AgentClaudeAppUsage.freshness {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
@@ -222,10 +239,11 @@ struct NotchAgentsSettingsControls: View {
     /// The app and the file are looked up when the page opens, off the main
     /// thread for the file, never on every draw.
     private func findClaudeApp() {
+        guard claudeProfile.isEmpty else { claudeApp = nil; claudeAppFileCheck = nil; return }
         claudeApp = NSWorkspace.shared.urlForApplication(withBundleIdentifier: AgentClaudeAppUsage.bundleIdentifier)
         DispatchQueue.global(qos: .utility).async {
             let checked = AgentClaudeAppUsage.lastCheck()
-            DispatchQueue.main.async { claudeAppFileCheck = checked }
+            DispatchQueue.main.async { if claudeProfile.isEmpty { claudeAppFileCheck = checked } }
         }
     }
 
@@ -245,13 +263,13 @@ struct NotchAgentsSettingsControls: View {
             Spacer(minLength: 12)
             // One agent stays on; turning the section off stops all.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot].filter { $0 }.count <= 1)
+                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot, cursor].filter { $0 }.count <= 1)
         }
     }
 
     /// Where the logs live is checked when the page opens, not on every draw.
     private func findRoots() {
-        let found = AgentLogRoot.all().filter(\.exists).map(\.provider)
+        let found = AgentLogRoot.all(claudeProfile: ClaudeAccountProfile(directory: claudeProfile)).filter(\.exists).map(\.provider)
         roots = Dictionary(uniqueKeysWithValues: AgentProvider.allCases.map { ($0, found.contains($0)) })
     }
 
@@ -316,13 +334,7 @@ private struct NotchAgentStripSample: View {
     }
 
     private func reading(at now: Date) -> String {
-        var snapshot = usage.snapshot
-        if snapshot.live.isEmpty {
-            snapshot.live = [AgentLiveSession(id: "example", provider: provider, started: now.addingTimeInterval(-754),
-                                              lastActivity: now, model: "", project: "",
-                                              tokens: AgentTokens(input: 1_180_000, cacheWrite: 0, cacheRead: 0, output: 20_000),
-                                              cost: 4.56)]
-        }
+        let snapshot = NotchAgentSupport.stripSampleSnapshot(usage.snapshot, provider: provider, focus: focus, now: now)
         return NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, focus: focus, now: now)
     }
 }
