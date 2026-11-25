@@ -57,8 +57,10 @@ struct CursorReader: AgentHarnessReader {
         if let id, let date, date < window.from, let previous = state.cursorUnmeteredResponses[id], previous.minute == nil {
             state.setUnmeteredResponse(nil, id: id)
         }
-        if let date, let id, let usage,
-           let entry = Self.responseUsage(usage, state: state, date: date, id: id, model: model) { return entry }
+        if let date, let id, let usage {
+            let knownModel = model.isEmpty ? state.cursorUnmeteredResponses[id]?.model ?? "" : model
+            if let entry = Self.responseUsage(usage, state: state, date: date, id: id, model: knownModel) { return entry }
+        }
 
         let minute: Int?
         if let date {
@@ -76,6 +78,7 @@ struct CursorReader: AgentHarnessReader {
             // The first observation already bounds this particular reply. A dated update replaces that bound.
             gap.undatedThrough = gap.minute == nil ? min(gap.undatedThrough ?? now, now) : nil
             state.setUnmeteredResponse(gap, id: id)
+            if !model.isEmpty { return .usageModel(key: Self.usageKey(session: state.session, id: id), model: model) }
         } else if let minute {
             state.cursorUnmeteredMinutes.insert(minute)
             if !model.isEmpty {

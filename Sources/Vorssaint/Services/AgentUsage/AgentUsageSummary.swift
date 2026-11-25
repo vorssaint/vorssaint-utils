@@ -128,7 +128,11 @@ struct AgentUsageSnapshot: Equatable {
 
     func hasPartialCost(_ period: AgentPeriod) -> Bool {
         let usage = usage(period)
-        return usage.total.hasPartialCost || (seen == [.cursor] && usage.byProvider[.cursor] == nil)
+        return hasPartialCost(usage.total, byProvider: usage.byProvider)
+    }
+
+    func hasPartialCost(_ total: AgentTotals, byProvider: [AgentProvider: AgentTotals]) -> Bool {
+        total.hasPartialCost || (seen == [.cursor] && byProvider[.cursor] == nil)
     }
 
     /// Apply transcript observations to the publication, leaving measured records and their rankings intact.
