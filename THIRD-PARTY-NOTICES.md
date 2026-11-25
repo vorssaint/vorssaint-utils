@@ -1,0 +1,96 @@
+# Third-party notices
+
+Vorssaint is licensed under the GPL 3.0 or later, see [LICENSE](LICENSE).
+The emoji names, keywords and shortcodes the command bar searches come from
+the projects below, under their own licenses.
+`Tools/generate-emoji-keywords.py` writes this file.
+
+## Unicode CLDR 49.0.0 emoji annotations
+
+```text
+COPYRIGHT AND PERMISSION NOTICE
+
+Copyright © 2001–2026 Unicode, Inc.
+
+Unicode Technical Standard #35, Unicode Locale Data Markup Language
+(LDML) made available in this repository is protected by copyright, and
+permission must be obtained from Unicode, Inc. prior to any
+reproduction, modification, or other use not permitted by the Unicode
+Terms of Use <https://www.unicode.org/copyright.html>. Specifically, you
+may make copies of this publication and may annotate and translate it
+solely for personal or internal business purposes and not for public
+distribution, provided that any such permitted copies and modifications
+fully reproduce all copyright and other legal notices contained in the
+original. You may not make copies of or modifications to this
+publication for public distribution, or incorporate it in whole or in
+part into any product or publication without the express written
+permission of Unicode. Notwithstanding the foregoing, you may within
+this repository provide comments and propose changes to this standard
+and may make copies/forks solely for such purposes provided that you
+reproduce this copyright notice and these terms of use in any such
+copy/fork.
+
+All other content in this repo is released under UNICODE LICENSE V3
+
+NOTICE TO USER: Carefully read the following legal agreement. BY
+DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of data files and any associated documentation (the "Data Files") or
+software and any associated documentation (the "Software") to deal in the
+Data Files or Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, and/or sell
+copies of the Data Files or Software, and to permit persons to whom the
+Data Files or Software are furnished to do so, provided that either (a)
+this copyright and permission notice appear with all copies of the Data
+Files or Software, or (b) this copyright and permission notice appear in
+associated Documentation.
+
+THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+THIRD PARTY RIGHTS.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+FILES OR SOFTWARE.
+
+Except as contained in this notice, the name of a copyright holder shall
+not be used in advertising or otherwise to promote the sale, use or other
+dealings in these Data Files or Software without prior written
+authorization of the copyright holder.
+
+SPDX-License-Identifier: Unicode-3.0
+```
+
+## iamcal/emoji-data, Slack's emoji shortcodes
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2013 Cal Henderson
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

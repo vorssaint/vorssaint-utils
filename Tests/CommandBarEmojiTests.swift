@@ -98,6 +98,56 @@ enum CommandBarEmojiContract {
             CommandBarEmoji.acceptsSkinTone($0)
         }, "excluding family preserves supported single-person and multi-person tones")
 
+        // Rows folded and ranked the way the bar does it, leading results first.
+        func firstFound(_ query: String, limit: Int = 5) -> [String] {
+            let rows = Catalog.emojiEntries(bar: .enUS)
+            let candidates = rows.enumerated().map { index, row in
+                CommandBarCandidate(index: index, title: row.matchTitle ?? row.title, keywords: row.keywords)
+            }
+            return CommandBarSearch.rankedIndexes(candidates: candidates, matching: query, wordForms: true)
+                .prefix(limit).map { String(rows[$0].id.dropFirst("emoji.".count)) }
+        }
+        let pointingHands: Set<String> = ["👆", "👇", "👈", "👉", "☝️", "🫵"]
+        for query in ["pointer", "point"] {
+            suite.expect(firstFound(query).first.map(pointingHands.contains) == true,
+                         "\(query) leads with a pointing hand, found \(firstFound(query))")
+        }
+        // 💯 "hundred points" and 🔺 "red triangle pointed up" carry these
+        // words exactly, so they may lead.
+        for query in ["points", "pointed"] {
+            suite.expect(firstFound(query).contains(where: pointingHands.contains),
+                         "\(query) lists a pointing hand among the first results, found \(firstFound(query))")
+        }
+        suite.expect(firstFound("lol").first == "😂",
+                     "a word the emoji carries whole leads a name that only starts with it, found \(firstFound("lol"))")
+        suite.expect(firstFound("win").contains("🏆") && !firstFound("win").contains("🍷"),
+                     "the typed word itself leads a word that only shares its stem, found \(firstFound("win"))")
+        for (query, leads, otherForm) in [
+            ("laughing", Set(["😂", "🤣", "😆", "😹"]), "😄"),
+            ("crying", ["😢", "😭"], nil),
+            ("kissing", ["😗", "😙", "😚", "😘"], "💏"),
+        ] as [(String, Set<String>, String?)] {
+            suite.expect(firstFound(query).first.map(leads.contains) == true,
+                         "\(query) leads with \(leads), found \(firstFound(query))")
+            if let otherForm {
+                suite.expect(firstFound(query, limit: 40).contains(otherForm),
+                             "\(query) also lists \(otherForm), which carries another form of the word")
+            }
+        }
+        for (query, expected) in [
+            ("pizza", "🍕"), ("lol", "😂"), ("haha", "😂"), ("rofl", "🤣"), ("facepalm", "🤦"),
+            ("heart eyes", "😍"), ("thumbs up", "👍"), ("money", "💰"), ("sleepy", "😪"),
+            ("poop", "💩"), ("beer", "🍺"), ("party", "🎉"), ("idk", "🤷"), ("thx", "🙏"),
+            ("dead", "💀"), ("congrats", "🎉"),
+        ] {
+            suite.expect(firstFound(query).contains(expected),
+                         "\(query) lists \(expected) among the first results, found \(firstFound(query))")
+        }
+        for (query, expected) in [("thumbsup", "👍"), ("sweat_smile", "😅"), ("heart_eyes", "😍"), ("point_right", "👉"), ("shit", "💩")] {
+            suite.expect(firstFound(query).first == expected,
+                         "the Slack shortcode \(query) leads with \(expected), found \(firstFound(query))")
+        }
+
         // Exercise actual row construction, not just the helper used for IDs.
         let originalIDs = CommandBarEmoji.emoji.map { "emoji." + $0.identity }
         let thumbID = "emoji.👍"
