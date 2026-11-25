@@ -11,6 +11,10 @@ import Foundation
 enum AgentClaudeServer {
     enum Failure: Error, Equatable {
         case missing, needsSignIn, outdated, unreachable
+        /// Signed in, yet Claude Code answered without limits and has never
+        /// saved any. It does not ask the account for them while nonessential
+        /// traffic is turned off, by the person or by an organization.
+        case noLimits
     }
     struct Summary: Equatable {
         let limits: AgentLimits
@@ -42,6 +46,8 @@ enum AgentClaudeServer {
         switch failure {
         case nil: return pageVisible ? freshness : backgroundFreshness
         case .unreachable?: return min(settledRetry, retryAfter * Double(1 << min(3, max(0, repeated - 1))))
+        // Waited out as a failed check is: the opt-out may go, or limits may come once the account is reached.
+        case .noLimits?: return interval(after: .unreachable, repeated: repeated, pageVisible: pageVisible)
         case .missing?, .needsSignIn?, .outdated?: return settledRetry
         }
     }
@@ -232,6 +238,9 @@ enum AgentClaudeServer {
                     if let fetched = saved.usageFetched, started.timeIntervalSince(fetched) > AgentClaudeServer.reuse {
                         return .failure(.unreachable)
                     }
+                    // No limits in the answer and none ever saved: Claude Code
+                    // has nothing to report, as when it does not ask the account.
+                    if saved.usageFetched == nil, !(result["rate_limits"] is [String: Any]) { return .failure(.noLimits) }
                     guard let reading = AgentClaudeServer.limits(result, observed: min(Date(), saved.usageFetched ?? Date()))
                     else { return .failure(.unreachable) }
                     return .success(Summary(limits: reading, identity: identity))

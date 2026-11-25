@@ -5,7 +5,8 @@ import Foundation
 
 /// The Claude app checks the plan's limits itself and keeps a month of them on
 /// this Mac, a percentage for each window every few minutes, while its menu
-/// bar icon is on. Vorssaint reads that file, without a sign-in and sending
+/// bar icon is on and, where the app asks for it, while that icon's menu has
+/// been opened lately. Vorssaint reads that file, without a sign-in and sending
 /// nothing, when Claude Code cannot check the account itself. The format is
 /// the app's own, so a version or an entry this reader does not know is left
 /// out rather than guessed.
