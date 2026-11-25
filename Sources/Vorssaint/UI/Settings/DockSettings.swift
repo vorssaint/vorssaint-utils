@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The Dock page: Dock Preview, Dock clicks and the window previews Dock
 /// Preview shares with the switcher.
@@ -23,6 +24,9 @@ struct DockSettings: View {
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
+    @AppStorage(DefaultsKey.dockClickFinderReplacement) private var finderReplacementEnabled = false
+    @AppStorage(DefaultsKey.dockClickFinderReplacementPath) private var finderReplacementPath = ""
+    @State private var finderReplacementRejected = false
     @AppStorage(DefaultsKey.spacesOrderEnabled) private var spacesOrderEnabled = false
 
     private var pages: SettingsPageStrings { FeatureStrings.settingsPages(l10n.language) }
@@ -177,7 +181,76 @@ struct DockSettings: View {
                         DockClickService.shared.syncWithPreferences()
                     }
             }
+            finderReplacementSettings
         }
+    }
+
+    private var finderReplacementStrings: FinderDockReplacementStrings {
+        FeatureStrings.finderDockReplacement(l10n.language)
+    }
+
+    @ViewBuilder private var finderReplacementSettings: some View {
+        let strings = finderReplacementStrings
+        SettingsRow(symbol: "folder", title: strings.enableLabel, caption: strings.caption) {
+            Toggle(strings.enableLabel, isOn: $finderReplacementEnabled)
+                .labelsHidden()
+                .onChange(of: finderReplacementEnabled) { _, _ in
+                    DockClickService.shared.syncWithPreferences()
+                }
+        }
+        if finderReplacementEnabled {
+            HStack(spacing: 8) {
+                Text(strings.appLabel)
+                Spacer()
+                Text(finderReplacementPath.isEmpty ? strings.noApp
+                     : (FileManager.default.displayName(atPath: finderReplacementPath) as NSString).deletingPathExtension)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(finderReplacementPath)
+                Button(strings.chooseApp) { chooseFinderReplacement() }
+                if !finderReplacementPath.isEmpty {
+                    Button {
+                        finderReplacementPath = ""
+                        finderReplacementRejected = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(strings.clearSelection)
+                    .help(strings.clearSelection)
+                }
+            }
+            .padding(.leading, settingsRowTextInset)
+            .onChange(of: finderReplacementPath) { _, _ in
+                DockClickService.shared.syncWithPreferences()
+            }
+            if finderReplacementRejected || (!finderReplacementPath.isEmpty
+                && DockClickSupport.validatedFinderReplacementURL(path: finderReplacementPath) == nil) {
+                Text(strings.invalidApp)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, settingsRowTextInset)
+            }
+        }
+    }
+
+    private func chooseFinderReplacement() {
+        finderReplacementRejected = false
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let replacement = DockClickSupport.validatedFinderReplacementURL(path: url.path) else {
+            finderReplacementRejected = true
+            return
+        }
+        finderReplacementPath = replacement.path
     }
 
     private var spacesOrderCard: some View {
