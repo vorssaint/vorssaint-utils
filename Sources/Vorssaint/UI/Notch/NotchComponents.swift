@@ -484,6 +484,8 @@ struct NotchBandRow<Leading: View, Trailing: View>: View {
 final class NotchBackdropPresentation: ObservableObject {
     @Published var contour = Path()
     @Published var usesGlass = false
+    /// The pointer is on the island, which darkens resting glass.
+    @Published var pointerOver = false
     /// The camera strip's height in points, which the translucent background
     /// keeps black at every island height.
     @Published var stripHeight: CGFloat = 0
@@ -541,6 +543,7 @@ struct NotchSurfaceBackground: View {
     let glass: Bool
     var translucent = false
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     private var offersGlass: Bool {
@@ -549,6 +552,10 @@ struct NotchSurfaceBackground: View {
 #endif
         return false
     }
+
+    @AppStorage(DefaultsKey.notchRestingGlass) private var restingGlass = false
+    @AppStorage(DefaultsKey.notchRestingGlassTint) private var restingTint = NotchRestingGlass.defaultTint
+    @AppStorage(DefaultsKey.notchRestingGlassFrost) private var restingFrost = NotchRestingGlass.defaultFrost
 
     private var showsGlass: Bool { offersGlass && presentation.usesGlass }
     private var showsTranslucent: Bool {
@@ -561,7 +568,7 @@ struct NotchSurfaceBackground: View {
             // the glass has opened, and the glass exists only while that
             // black lets it show, so the window's resizes at either end of a
             // transition happen in plain black.
-            Color.black.opacity(showsGlass || showsTranslucent ? presentation.restingBlack : 1)
+            restingSurface.opacity(showsGlass || showsTranslucent ? presentation.restingBlack : 1)
 #if compiler(>=6.2)
             if #available(macOS 26, *), showsGlass, presentation.restingBlack < 1 {
                 let shape = NotchBackdropShape(contour: presentation.contour)
@@ -601,6 +608,30 @@ struct NotchSurfaceBackground: View {
 }
 
 extension NotchSurfaceBackground {
+    /// What the island rests in: black, or with resting glass on, the
+    /// system's behind-window blur under a black tint, both adjustable.
+    @ViewBuilder var restingSurface: some View {
+        let box = presentation.contour.boundingRect.integral
+        if restingGlass, !reduceTransparency, !box.isNull, box.width > 0, box.height > 0 {
+            let surface = NotchRestingGlass.surface(tint: restingTint, frost: restingFrost,
+                                                    pointerOver: presentation.pointerOver)
+            ZStack(alignment: .topLeading) {
+                // Kept in place at zero frost, so hovering fades it in.
+                NotchTranslucentMaterial(contour: presentation.contour.offsetBy(dx: -box.minX, dy: -box.minY).cgPath)
+                    .frame(width: box.width, height: box.height)
+                    .padding(EdgeInsets(top: box.minY, leading: box.minX, bottom: 0, trailing: 0))
+                    .opacity(surface.frost)
+                Color.black
+                    .opacity(surface.tint)
+                    .mask(NotchBackdropShape(contour: presentation.contour))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: presentation.pointerOver)
+        } else {
+            Color.black
+        }
+    }
+
     /// The system's behind-window blur while the island is open, black over
     /// the camera strip so every open state meets the housing as the resting
     /// island does. Reduce Transparency keeps it black.

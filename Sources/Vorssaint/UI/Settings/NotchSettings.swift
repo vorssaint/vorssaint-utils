@@ -93,6 +93,9 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchHapticFeedback) private var hapticFeedback = true
     @AppStorage(DefaultsKey.notchTranslucentBackground) private var translucentBackground = false
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var liquidGlass = false
+    @AppStorage(DefaultsKey.notchRestingGlass) private var restingGlass = false
+    @AppStorage(DefaultsKey.notchRestingGlassTint) private var restingGlassTint = NotchRestingGlass.defaultTint
+    @AppStorage(DefaultsKey.notchRestingGlassFrost) private var restingGlassFrost = NotchRestingGlass.defaultFrost
     @AppStorage(DefaultsKey.notchShelf) private var shelfWindow = true
     @AppStorage(DefaultsKey.notchDragReveal) private var dragReveal = true
     @AppStorage(DefaultsKey.notchCaptureControls) private var captureControls = true
@@ -250,6 +253,19 @@ struct NotchSettings: View {
                           caption: liquidGlassIsOn ? text.translucentBackgroundGlassHint : text.translucentBackgroundHint,
                           isOn: liquidGlassIsOn ? .constant(true) : $translucentBackground)
                     .disabled(liquidGlassIsOn)
+                switchRow("square.on.square.intersection.dashed", text.restingGlass,
+                          caption: text.restingGlassHint, isOn: $restingGlass)
+                if restingGlass {
+                    // Transparency reads as the opposite of the stored tint.
+                    restingGlassSlider(text.restingGlassTransparency, hint: text.restingGlassTransparencyHint,
+                                       value: Binding(
+                                           get: { 1 - NotchRestingGlass.level(restingGlassTint, fallback: NotchRestingGlass.defaultTint) },
+                                           set: { restingGlassTint = 1 - NotchRestingGlass.level($0, fallback: 1 - NotchRestingGlass.defaultTint) }))
+                    restingGlassSlider(text.restingGlassFrost, hint: text.restingGlassFrostHint,
+                                       value: Binding(
+                                           get: { NotchRestingGlass.level(restingGlassFrost, fallback: NotchRestingGlass.defaultFrost) },
+                                           set: { restingGlassFrost = NotchRestingGlass.level($0, fallback: NotchRestingGlass.defaultFrost) }))
+                }
             }
             // Only a display without a camera can float the island.
             if NotchSupport.hasDisplayWithoutNotch {
@@ -996,6 +1012,23 @@ struct NotchSettings: View {
             Text(text.title).tag(true)
             Text(editor.separate).tag(false)
         }.disabled(!available)
+    }
+
+    private func restingGlassSlider(_ title: String, hint: String, value: Binding<Double>) -> some View {
+        let formatted = value.wrappedValue.formatted(.percent.precision(.fractionLength(0))
+            .locale(Locale(identifier: l10n.language.rawValue)))
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(formatted).monospacedDigit().foregroundStyle(.secondary)
+            }
+            Slider(value: value, in: 0...1, step: 0.05) {
+                Text(title)
+            }.labelsHidden().accessibilityValue(formatted)
+            Text(hint).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     /// An option with its icon, one line and a switch, like every other page.
