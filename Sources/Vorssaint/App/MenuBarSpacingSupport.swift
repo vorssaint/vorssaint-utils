@@ -6,9 +6,10 @@ import Foundation
 /// How tightly the menu bar metric blocks pack together. The standard reserve
 /// keeps every number rock-steady by sizing blocks for their largest possible
 /// value, which reads as wide gaps on short values (user feedback); compact
-/// hugs the current number instead.
+/// hugs the current number instead, and ultra hugs it even closer: a one-digit
+/// reserve floor plus a hair space in readable style and no glue in dense style.
 enum MenuBarMetricSpacing: String, CaseIterable {
-    case standard, compact
+    case standard, compact, ultra
 
     static var current: MenuBarMetricSpacing {
         let raw = UserDefaults.standard.string(forKey: DefaultsKey.menuBarMetricSpacing) ?? ""
@@ -146,12 +147,19 @@ enum MenuBarSpacingSupport {
     /// without ever moving.
     static let compactMinimumDigits = 2
 
+    /// Ultra hugs the current digit count with no two-digit floor, so a one
+    /// digit reading keeps its narrow block. The session high-water mark below
+    /// still stops the width from oscillating once a value has grown.
+    static let ultraMinimumDigits = 1
+
     /// Highest digit count each block has shown this session, so a spike to
     /// three digits widens that block once and keeps it there instead of
     /// letting the width oscillate while the value hovers at the boundary.
     /// Touched only on the main thread (status item refresh and the settings
-    /// preview both render there).
+    /// preview both render there). Compact and ultra keep separate marks so
+    /// switching modes never inherits the other's wider floor.
     private static var digitHighWater: [String: Int] = [:]
+    private static var ultraDigitHighWater: [String: Int] = [:]
 
     /// A finite Keep Awake countdown is the only menu-bar content whose text
     /// changes just because time passed. Everything else refreshes from its
@@ -175,6 +183,19 @@ enum MenuBarSpacingSupport {
 
     static func compactFloor(currentDigits: Int, highWater: Int?) -> Int {
         max(currentDigits, compactMinimumDigits, highWater ?? 0)
+    }
+
+    /// The tighter ultra reserve: the current value's shape, widened only to
+    /// one digit and to this block's own session high-water mark.
+    static func ultraReserve(label: String, value: String) -> String {
+        let digits = value.filter(\.isNumber).count
+        let floor = max(digits, ultraMinimumDigits, ultraDigitHighWater[label] ?? 0)
+        ultraDigitHighWater[label] = floor
+        return digitMatchedReserve(for: value, minimumDigits: floor)
+    }
+
+    static func ultraFloor(currentDigits: Int, highWater: Int?) -> Int {
+        max(currentDigits, ultraMinimumDigits, highWater ?? 0)
     }
 
     /// A same-width stand-in for the value ("14%" gives "88%"), padded with
@@ -203,6 +224,7 @@ enum MenuBarSpacingSupport {
         switch spacing {
         case .standard: return readableStyle ? "  " : " "
         case .compact: return readableStyle ? " " : "\u{200A}"
+        case .ultra: return readableStyle ? "\u{200A}" : ""
         }
     }
 
