@@ -256,6 +256,11 @@ enum AppManagementFeatureTests {
                "missed WhatsApp checks recover after nine without a first-enable surprise")
         let panel500 = ExtraBrightnessSupport.panelReference(model: "MacBookPro18,1")
         let panel600 = ExtraBrightnessSupport.panelReference(model: "Mac16,7")
+        suite.expect(ExtraBrightnessSupport.isNativeCaptureProcess("screencapture")
+                && ExtraBrightnessSupport.isNativeCaptureProcess("screencaptureui")
+                && !ExtraBrightnessSupport.isNativeCaptureProcess("ScreenshotControls")
+                && !ExtraBrightnessSupport.isNativeCaptureProcess("Vorssaint"),
+               "capture detection ignores the persistent Screenshot controls extension")
         suite.expect(panel500.referenceEDR == 3.2 && panel500.bonus == 0.58,
                "the 2021/2023 500 nit panels take the stronger curve")
         suite.expect(panel600.referenceEDR == 2.66 && panel600.bonus == 0.48,
