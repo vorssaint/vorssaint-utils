@@ -215,7 +215,7 @@ struct PanelHomebrewView: View {
                                       totalCount: homebrew.installed.count,
                                       caskCount: installedCaskCount, formulaCount: installedFormulaCount)
 
-            HStack(spacing: 7) {
+            VStack(alignment: .leading, spacing: 7) {
                 Button {
                     homebrew.refreshInstalled()
                 } label: {
@@ -238,7 +238,6 @@ struct PanelHomebrewView: View {
                 .controlSize(.small)
                 .help(l10n.s.homebrewUpdateHomebrew)
                 .disabled(homebrew.isBusy)
-                Spacer(minLength: 0)
             }
             outdatedSummary
         }
