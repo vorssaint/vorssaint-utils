@@ -279,9 +279,15 @@ enum URLCleaning {
         let names: Set<String>
         let matchesUTMPrefix: Bool
 
+        /// A listed name ending in `*` matches every name that starts with
+        /// what comes before it, and a lone `*` matches every name, for sites
+        /// that change the tracker's name on each share.
         func matches(_ name: String) -> Bool {
             let normalized = name.lowercased()
-            return names.contains(normalized) || (matchesUTMPrefix && normalized.hasPrefix("utm_"))
+            if names.contains(normalized) || (matchesUTMPrefix && normalized.hasPrefix("utm_")) {
+                return true
+            }
+            return names.contains { $0.hasSuffix("*") && normalized.hasPrefix(String($0.dropLast())) }
         }
     }
 

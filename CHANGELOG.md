@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Clean URL site rules accept `*`: a name ending in `*` removes every parameter that starts with it, and a lone `*` removes every parameter on that site. Instagram share links carry a tracker whose name changes on every share, such as `avpt`, `hvrq` or `cnvx`, so `instagram.com` with `*` cleans them all.
+
 ## [3.4.5] - 2026-11-25
 
 ### Summary

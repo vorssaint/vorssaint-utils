@@ -264,6 +264,17 @@ enum RepositoryFeatureTests {
                                               rules: customURLRules)?.url ?? "",
                     "https://example.com/?reference=one",
                     "URL cleaner does not treat custom parameter names as prefixes")
+        let wildcardSiteRules = URLCleaning.rules(globalNames: nil,
+                                                  siteNames: "instagram.com|*\nexample.com|pd_rd_*",
+                                                  disabledNames: nil)
+        expectEqual(URLCleaning.clean("https://www.instagram.com/reel/abc/?hvrq=MTE4dHN3",
+                                      rules: wildcardSiteRules)?.url ?? "",
+                    "https://www.instagram.com/reel/abc/",
+                    "URL cleaner site rule * removes every parameter on that site")
+        expectEqual(URLCleaning.clean("https://example.com/?pd_rd_w=1&id=42",
+                                      rules: wildcardSiteRules)?.url ?? "",
+                    "https://example.com/?id=42",
+                    "URL cleaner site rule ending in * removes names with that prefix")
         // A grouped Form keeps a label column even for an empty label, which
         // left every field on the right half of its row. The hint has to
         // travel as `prompt:` and the label has to be hidden for a field to
