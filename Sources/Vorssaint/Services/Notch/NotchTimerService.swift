@@ -26,7 +26,9 @@ final class NotchTimerService: ObservableObject {
         guard NotchTimerSupport.isEnabled() else { stop(); return }
         suspended = false
         finishIfDue()
-        if session.completed { alert.start(enabled: NotchTimerSupport.isSoundEnabled()) }
+        if session.completed {
+            alert.start(enabled: NotchTimerSupport.isSoundEnabled(), duration: NotchTimerSupport.soundDuration())
+        }
         scheduleCompletion()
     }
 
@@ -86,7 +88,7 @@ final class NotchTimerService: ObservableObject {
             detail: text.phase(session.phase), symbol: "timer", mascot: reaction))
         // It takes the news in the notice, or where it is when the notice cannot show.
         NotchService.shared.reactMascot(reaction)
-        alert.start(enabled: NotchTimerSupport.isSoundEnabled())
+        alert.start(enabled: NotchTimerSupport.isSoundEnabled(), duration: NotchTimerSupport.soundDuration())
     }
 
     private func scheduleCompletion() {
