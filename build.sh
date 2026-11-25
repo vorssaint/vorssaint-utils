@@ -364,6 +364,8 @@ if (( TEST )); then
         Sources/Vorssaint/Core/RecorderShareStrings.swift
         Sources/Vorssaint/Core/CameraPreviewStrings.swift
         Sources/Vorssaint/Core/WallpaperStrings.swift
+        Sources/Vorssaint/Core/GameControllerStrings.swift
+        Sources/Vorssaint/Services/GameController/GameControllerSupport.swift
         Sources/Vorssaint/Services/Wallpaper/WallpaperSupport.swift
         Sources/Vorssaint/UI/MenuPanel/WallpaperThumbnailView.swift
         Sources/Vorssaint/Core/ScratchpadStrings.swift

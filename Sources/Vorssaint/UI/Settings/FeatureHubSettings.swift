@@ -1187,6 +1187,7 @@ extension AppFeature {
         case .screenRecorder: return FeatureStrings.recorder(language).pageTitle
         case .cameraPreview: return FeatureStrings.cameraPreview(language).pageTitle
         case .wallpaper: return FeatureStrings.wallpaper(language).pageTitle
+        case .gameController: return FeatureStrings.gameController(language).pageTitle
         case .notchGestures: return FeatureStrings.notchGestures(language).title
         case .notchTimer: return FeatureStrings.notchActivities(language).timer
         case .notchAccessories: return FeatureStrings.notchActivities(language).accessories
@@ -1274,6 +1275,7 @@ extension AppFeature {
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).hubDescription
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).hubDescription
         case .wallpaper: return FeatureStrings.wallpaper(L10n.shared.language).hubDescription
+        case .gameController: return FeatureStrings.gameController(L10n.shared.language).hubDescription
         case .notchGestures: return FeatureStrings.notchGestures(L10n.shared.language).description
         case .notchTimer: return FeatureStrings.notchActivities(L10n.shared.language).timerDescription
         case .notchAccessories: return FeatureStrings.notchActivities(L10n.shared.language).accessoryDescription

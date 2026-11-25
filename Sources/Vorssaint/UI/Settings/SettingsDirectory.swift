@@ -322,6 +322,7 @@ enum SettingsDirectory {
                                        // so these follow the sidebar's order.
                                        featureKeywords: [
                                         (.musicBlock, [s.musicBlockTitle, s.musicBlockSection]),
+                                        (.gameController, [FeatureStrings.gameController(language).pageTitle]),
                                         (.mixer, [s.mixerSection]),
                                         (.soundOutputSwitcher, [s.soundOutputSwitcherTitle]),
                                         (.audioPriority, [s.audioPrioritySection]),

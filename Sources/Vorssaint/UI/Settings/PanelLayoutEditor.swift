@@ -132,6 +132,7 @@ private extension PanelSectionID {
         case .controls: return text.sectionControls
         case .toggles: return text.sectionToggles
         case .wallpaper: return FeatureStrings.wallpaper(L10n.shared.language).panelDescription
+        case .gameController: return FeatureStrings.gameController(L10n.shared.language).panelDescription
         }
     }
 }
