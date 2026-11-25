@@ -94,6 +94,10 @@ extension AppFeature {
              .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce,
              .dockPreview, .dockClick, .shelf:
             return .mouse
+        case .missionControlActions:
+            return UserDefaults.standard.bool(
+                forKey: DefaultsKey.missionControlKeyboardShortcutsEnabled
+            ) ? .inputs : .mouse
         case .keyboardDebounce, .finderCutPaste, .finderRename, .quitWindowProtection, .musicBlock:
             return .keyboard
         // The switcher's tap also takes clicks and scrolls, and the Super key
