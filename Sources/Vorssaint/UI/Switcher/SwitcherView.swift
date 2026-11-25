@@ -68,6 +68,49 @@ private extension View {
     }
 }
 
+/// Where a window sits in the desktop layout, drawn under its thumbnail: the
+/// Space number, and the display number when more than one display is
+/// attached. A window on several Spaces has no single position, so it carries
+/// no number at all.
+private struct SwitcherSpaceBadges: View {
+    let item: SwitcherItem
+
+    /// A lone display makes every badge say "1", which is noise rather than
+    /// information. Read per card: the panel only exists for a moment and
+    /// `NSScreen.screens` is AppKit's own cache.
+    private var showsDisplay: Bool { NSScreen.screens.count > 1 }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if showsDisplay, let displayIndex = item.displayIndex {
+                badge(text: "\(displayIndex)", systemName: "display")
+            }
+            if let spaceIndex = item.spaceIndex {
+                badge(text: "\(spaceIndex)", systemName: nil)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func badge(text: String, systemName: String?) -> some View {
+        HStack(spacing: 2) {
+            if let systemName {
+                Image(systemName: systemName)
+                    .font(.system(size: 8, weight: .bold))
+            }
+            Text(text)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+        }
+        .foregroundStyle(Color.white.opacity(0.9))
+        .padding(.horizontal, 5)
+        .frame(height: 20)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.black.opacity(0.46))
+        )
+    }
+}
+
 /// Content of the switcher panel: a grid of large window cards with live
 /// thumbnails, hover/keyboard selection and an optional springy highlight.
 struct SwitcherView: View {
@@ -196,6 +239,9 @@ struct SwitcherView: View {
                                    onCommit: {
                                        switcher.select(index: index)
                                        switcher.commitSession()
+                                   },
+                                   onMinimize: {
+                                       switcher.minimizeWindow(window)
                                    },
                                    onClose: {
                                        switcher.closeWindow(window)
@@ -350,6 +396,9 @@ struct SwitcherView: View {
                                                               onCommit: {
                                                                   switcher.select(index: index)
                                                                   switcher.commitSession()
+                                                              },
+                                                              onMinimize: {
+                                                                  switcher.minimizeWindow(window)
                                                               },
                                                               onClose: {
                                                                   switcher.closeWindow(window)
@@ -869,20 +918,33 @@ private struct SwitcherWindowPreviewTile: View {
     let isSelected: Bool
     let instantSelection: Bool
     let onCommit: () -> Void
+    let onMinimize: () -> Void
     let onClose: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @State private var isHovering = false
     @State private var isCloseHovering = false
+    @State private var isMinimizeHovering = false
     @State private var suppressNextCommit = false
 
     private var hasStatusBadges: Bool {
         window.isMinimized || window.isFullscreen || window.isOnHiddenSpace
     }
 
+    private var hasSpaceBadges: Bool {
+        window.spaceIndex != nil
+    }
+
     private var showsCloseButton: Bool {
         !minimalPreviews && isHovering && window.windowID != nil
+    }
+
+    /// A fullscreen window owns its Space and macOS gives it no minimized
+    /// state, and an already minimized card would only get a button that does
+    /// nothing, so neither shows one.
+    private var showsMinimizeButton: Bool {
+        showsCloseButton && !window.isFullscreen && !window.isMinimized
     }
 
     var body: some View {
@@ -912,23 +974,25 @@ private struct SwitcherWindowPreviewTile: View {
                         .switcherHiddenAppBadge(window.isAppHidden, size: 20)
                 }
 
-                if !minimalPreviews && hasStatusBadges {
+                if !minimalPreviews && (hasStatusBadges || hasSpaceBadges) {
                     VStack {
                         Spacer()
                         HStack(spacing: 5) {
                             statusBadges
-                            Spacer()
+                            Spacer(minLength: 0)
+                            SwitcherSpaceBadges(item: window)
                         }
                         .padding(7)
                     }
                 }
 
                 VStack {
-                    HStack {
+                    HStack(spacing: 2) {
                         closeButton
-                            .padding(5)
-                        Spacer()
+                        minimizeButton
+                        Spacer(minLength: 0)
                     }
+                    .padding(5)
                     Spacer()
                 }
             }
@@ -994,6 +1058,29 @@ private struct SwitcherWindowPreviewTile: View {
         }
     }
 
+    @ViewBuilder
+    private var minimizeButton: some View {
+        if showsMinimizeButton {
+            Button {
+                suppressNextCommit = true
+                onMinimize()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    suppressNextCommit = false
+                }
+            } label: {
+                Image(systemName: isMinimizeHovering ? "minus.circle.fill" : "minus.circle")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(isMinimizeHovering ? SwitcherIconStyle.text : SwitcherIconStyle.secondaryText)
+            .help(l10n.s.dockPreviewMinimizeWindow)
+            .accessibilityLabel(l10n.s.dockPreviewMinimizeWindow)
+            .onHover { isMinimizeHovering = $0 }
+        }
+    }
+
     private var statusBadges: some View {
         HStack(spacing: 4) {
             if window.isMinimized {
@@ -1027,20 +1114,33 @@ private struct WindowCard: View {
     let isSelected: Bool
     let animatesSelection: Bool
     let onCommit: () -> Void
+    let onMinimize: () -> Void
     let onClose: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @State private var isHovering = false
     @State private var isCloseHovering = false
+    @State private var isMinimizeHovering = false
     @State private var suppressNextCommit = false
 
     private var showsCloseButton: Bool {
         !minimalPreviews && isHovering && window.windowID != nil
     }
 
+    /// A fullscreen window owns its Space and macOS gives it no minimized
+    /// state, and an already minimized card would only get a button that does
+    /// nothing, so neither shows one.
+    private var showsMinimizeButton: Bool {
+        showsCloseButton && !window.isFullscreen && !window.isMinimized
+    }
+
     private var hasStatusBadges: Bool {
         window.isMinimized || window.isFullscreen || window.isOnHiddenSpace
+    }
+
+    private var hasSpaceBadges: Bool {
+        window.spaceIndex != nil
     }
 
     /// Without a thumbnail the app icon already fills the card, so the small
@@ -1082,7 +1182,7 @@ private struct WindowCard: View {
 
                 // One row along the bottom of the thumbnail: the app on the
                 // left, the window's state on the right, sharing a baseline.
-                if !minimalPreviews && (showsAppBadge || hasStatusBadges) {
+                if !minimalPreviews && (showsAppBadge || hasStatusBadges || hasSpaceBadges) {
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
                         HStack(alignment: .bottom, spacing: 8) {
@@ -1101,17 +1201,19 @@ private struct WindowCard: View {
                                     statusBadges
                                 }
                             }
+                            SwitcherSpaceBadges(item: window)
                         }
                         .padding(7)
                     }
                 }
 
                 VStack {
-                    HStack {
+                    HStack(spacing: 2) {
                         closeButton
-                            .padding(6)
-                        Spacer()
+                        minimizeButton
+                        Spacer(minLength: 0)
                     }
+                    .padding(6)
                     Spacer()
                 }
             }
@@ -1230,5 +1332,33 @@ private struct WindowCard: View {
         .onHover { isCloseHovering = $0 }
         .help(l10n.s.dockPreviewCloseWindow)
         .accessibilityLabel(l10n.s.dockPreviewCloseWindow)
+    }
+
+    /// Sits beside the close button and fades with the same rule, so hovering
+    /// a card never reflows it. It hides on its own for windows macOS cannot
+    /// minimize.
+    private var minimizeButton: some View {
+        Button {
+            suppressNextCommit = true
+            onMinimize()
+            DispatchQueue.main.async {
+                suppressNextCommit = false
+            }
+        } label: {
+            Image(systemName: "minus.circle.fill")
+                .font(.system(size: 19, weight: .medium))
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(Color.white.opacity(isMinimizeHovering ? 0.95 : 0.72),
+                                 Color.black.opacity(isMinimizeHovering ? 0.72 : 0.55))
+                .frame(width: 26, height: 26)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .opacity(showsMinimizeButton ? 1 : 0)
+        .animation(.easeOut(duration: 0.12), value: showsMinimizeButton)
+        .allowsHitTesting(showsMinimizeButton)
+        .onHover { isMinimizeHovering = $0 }
+        .help(l10n.s.dockPreviewMinimizeWindow)
+        .accessibilityLabel(l10n.s.dockPreviewMinimizeWindow)
     }
 }

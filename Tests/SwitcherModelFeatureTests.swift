@@ -1842,7 +1842,8 @@ enum SwitcherModelFeatureTests {
             SwitcherItem(id: name, title: name, appName: name,
                          pid: 1, windowOwnerPID: 1, windowID: windowID,
                          isOnScreen: true, isAppHidden: false, isMinimized: false,
-                         isFullscreen: false, isOnHiddenSpace: false, frame: frame)
+                         isFullscreen: false, isOnHiddenSpace: false, frame: frame,
+                         spaceIndex: nil, displayIndex: nil)
         }
         let onLeftDisplay = displayScopedItem("left",
                                               frame: CGRect(x: 100, y: 100, width: 800, height: 600),
@@ -2243,7 +2244,8 @@ enum SwitcherModelFeatureTests {
             SwitcherItem(id: "w.\(id)", title: "Window \(id)", appName: "App",
                          pid: 1, windowOwnerPID: 1, windowID: id,
                          isOnScreen: true, isAppHidden: false, isMinimized: false,
-                         isFullscreen: false, isOnHiddenSpace: false, frame: .zero)
+                         isFullscreen: false, isOnHiddenSpace: false, frame: .zero,
+                         spaceIndex: nil, displayIndex: nil)
         }
         let lastUseOrder = [dockPreviewWindow(id: 30), dockPreviewWindow(id: 10), dockPreviewWindow(id: 20)]
         suite.expect(DockPreviewSupport.orderedWindows(lastUseOrder, order: .lastUse).map(\.windowID)

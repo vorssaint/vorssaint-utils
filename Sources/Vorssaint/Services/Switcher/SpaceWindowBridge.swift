@@ -154,6 +154,25 @@ enum SpaceWindowBridge {
         var fullscreenSpaces: Set<UInt64> {
             displays.reduce(into: []) { $0.formUnion($1.fullscreenSpaces) }
         }
+
+        /// Where one window sits in the desktop layout: its Space ordinal
+        /// (1-based, counted along its own display's row) and the ordinal of
+        /// the display holding that Space (1-based, in the order this topology
+        /// reports displays).
+        ///
+        /// Nil for a window on several Spaces: it appears on every desktop, so
+        /// neither a number nor a display describes it. Also nil for a window
+        /// whose Space this topology no longer lists, and for a window with no
+        /// Space at all, so an unanswerable query keeps the previous look
+        /// instead of inventing a position.
+        func spaceMarkers(for windowSpaces: [UInt64]) -> (displayIndex: Int, spaceIndex: Int)? {
+            guard windowSpaces.count == 1, let spaceID = windowSpaces.first else { return nil }
+            for (displayOffset, display) in displays.enumerated() {
+                guard let spaceOffset = display.spaces.firstIndex(of: spaceID) else { continue }
+                return (displayOffset + 1, spaceOffset + 1)
+            }
+            return nil
+        }
     }
 
     /// Captures AppKit's display identity while the caller is on main. The

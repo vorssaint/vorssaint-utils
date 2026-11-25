@@ -761,7 +761,8 @@ enum ShelfFeatureTests {
             SwitcherItem(id: "\(appName).\(title)", title: title, appName: appName,
                          pid: 1, windowOwnerPID: 1, windowID: windowID,
                          isOnScreen: true, isAppHidden: false, isMinimized: false,
-                         isFullscreen: false, isOnHiddenSpace: false, frame: .zero)
+                         isFullscreen: false, isOnHiddenSpace: false, frame: .zero,
+                         spaceIndex: nil, displayIndex: nil)
         }
         let sameName = switcherItem(title: "Example App", appName: "Example App", windowID: 7)
         suite.expect(sameName.windowDetail(noOpenWindow: "No window") == nil,

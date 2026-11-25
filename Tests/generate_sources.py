@@ -2263,6 +2263,12 @@ def main():
               .replace("ProcessInfo.processInfo.systemUptime", "Queue.time")
           + declaration(switcher_service, "    private func finishPendingSession(").replace("private func", "func", 1)
               .replace("CGEventSource.flagsState(.combinedSessionState)", "replayModifiers")
+          # This fixture exercises hover, scroll and selection; it draws no
+          # badges and presses no minimize button, so both members stay inert
+          # instead of pulling the shared window-server and activation doubles
+          # into the harness.
+          + "static func addingSpaceMarkers(to items: [SwitcherItem]) -> [SwitcherItem] { items }\n"
+          + "func minimizeWindow(_ item: SwitcherItem) {}\n"
           + declaration(switcher_service, "    private func routeSecureInputHotKey(").replace("private func", "func", 1)
               .replace("CFRunLoopPerformBlock(", "performCarbonBlock(").replace("CFRunLoopWakeUp(runLoop)", "")
           + declaration(switcher_service, "    private func route(type:").replace("private func", "func", 1)

@@ -117,6 +117,17 @@ struct SwitcherItem: Identifiable, Equatable {
     /// `CGDisplayBounds` directly. `.zero` for an entry without a window.
     let frame: CGRect
 
+    /// Ordinal of the Space holding this window, 1-based within its display's
+    /// left-to-right row of Spaces. Nil when the window server could not
+    /// answer, when the window belongs to several Spaces (it is on every
+    /// desktop), and for an entry with no window.
+    let spaceIndex: Int?
+
+    /// Ordinal of the display holding that Space, 1-based, in the order the
+    /// window server reports its displays. Nil under the same conditions as
+    /// `spaceIndex`.
+    let displayIndex: Int?
+
     /// The window whose thumbnail represents this entry.
     var previewWindowID: CGWindowID? { windowID }
 
@@ -200,7 +211,9 @@ struct SwitcherItem: Identifiable, Equatable {
                      isMinimized: minimized,
                      isFullscreen: isFullscreen,
                      isOnHiddenSpace: isOnHiddenSpace,
-                     frame: frame)
+                     frame: frame,
+                     spaceIndex: spaceIndex,
+                     displayIndex: displayIndex)
     }
 
     func withHiddenSpaceState(_ hidden: Bool) -> SwitcherItem {
@@ -215,7 +228,28 @@ struct SwitcherItem: Identifiable, Equatable {
                      isMinimized: isMinimized,
                      isFullscreen: isFullscreen,
                      isOnHiddenSpace: hidden,
-                     frame: frame)
+                     frame: frame,
+                     spaceIndex: spaceIndex,
+                     displayIndex: displayIndex)
+    }
+
+    /// Where the window sits in the desktop layout: its Space ordinal and the
+    /// display that Space belongs to, both resolved by `SpaceWindowBridge`.
+    func withSpaceMarkers(spaceIndex: Int?, displayIndex: Int?) -> SwitcherItem {
+        SwitcherItem(id: id,
+                     title: title,
+                     appName: appName,
+                     pid: pid,
+                     windowOwnerPID: windowOwnerPID,
+                     windowID: windowID,
+                     isOnScreen: isOnScreen,
+                     isAppHidden: isAppHidden,
+                     isMinimized: isMinimized,
+                     isFullscreen: isFullscreen,
+                     isOnHiddenSpace: isOnHiddenSpace,
+                     frame: frame,
+                     spaceIndex: spaceIndex,
+                     displayIndex: displayIndex)
     }
 
     static func window(id: CGWindowID, title: String, appName: String, pid: pid_t,
@@ -229,7 +263,7 @@ struct SwitcherItem: Identifiable, Equatable {
                      isAppHidden: isAppHidden,
                      isMinimized: isMinimized, isFullscreen: isFullscreen,
                      isOnHiddenSpace: false,
-                     frame: frame)
+                     frame: frame, spaceIndex: nil, displayIndex: nil)
     }
 
     static func appOnly(appName: String, pid: pid_t,
@@ -238,6 +272,7 @@ struct SwitcherItem: Identifiable, Equatable {
                      pid: pid, windowOwnerPID: pid, windowID: nil, isOnScreen: false,
                      isAppHidden: isAppHidden,
                      isMinimized: false, isFullscreen: false,
-                     isOnHiddenSpace: false, frame: .zero)
+                     isOnHiddenSpace: false, frame: .zero,
+                     spaceIndex: nil, displayIndex: nil)
     }
 }
