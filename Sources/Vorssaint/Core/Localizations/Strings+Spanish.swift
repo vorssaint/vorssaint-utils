@@ -173,6 +173,7 @@ extension Strings {
         smoothScrollName: "Desplazamiento suave",
         smoothScrollCaption: "Convierte cada paso de la rueda del ratón en un deslizamiento corto y suave. El trackpad no cambia.",
         smoothScrollStepLabel: "Velocidad de desplazamiento",
+        mouseNavigationReverseButtons: "Invertir botones",
         mouseNavigationSection: "Navegación",
         mouseNavigationEnable: "Usar los botones laterales para Atrás y Adelante",
         mouseNavigationCaption: "Convierte los botones Atrás y Adelante del ratón en comandos de navegación para Finder, navegadores y apps compatibles.",

@@ -173,6 +173,7 @@ extension Strings {
         smoothScrollName: "Défilement fluide",
         smoothScrollCaption: "Transforme chaque cran de la molette de la souris en un court glissement fluide. Le trackpad ne change pas.",
         smoothScrollStepLabel: "Vitesse de défilement",
+        mouseNavigationReverseButtons: "Inverser les boutons",
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Utiliser les boutons latéraux pour Précédent et Suivant",
         mouseNavigationCaption: "Transforme les boutons Précédent et Suivant de la souris en commandes de navigation dans le Finder, les navigateurs et les apps compatibles.",

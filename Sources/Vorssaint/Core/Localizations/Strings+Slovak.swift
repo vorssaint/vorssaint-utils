@@ -173,6 +173,7 @@ extension Strings {
         smoothScrollName: "Plynulé rolovanie",
         smoothScrollCaption: "Zmení každý krok kolieska myši na krátky, jemný pohyb. Trackpadu sa to netýka.",
         smoothScrollStepLabel: "Rýchlosť rolovania",
+        mouseNavigationReverseButtons: "Vymeniť tlačidlá",
         mouseNavigationSection: "Navigácia",
         mouseNavigationEnable: "Používať bočné tlačidlá na Späť a Dopredu",
         mouseNavigationCaption: "Zmení tlačidlá Späť a Dopredu na myši na navigačné príkazy vo Finderi, prehliadačoch a kompatibilných aplikáciách.",
