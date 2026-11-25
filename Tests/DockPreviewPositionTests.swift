@@ -45,6 +45,7 @@ enum DockPreviewPositionTests {
         var orientation: DockPreviewOrientation = .bottom
         var windows = [1, 2, 3]
         var pendingHover: DockHit?
+        var declinedHoverPID: Int32?
         var pendingHide = false
         var lastAXMousePoint: CGPoint?
         var lastAppKitMousePoint: CGPoint?
@@ -136,5 +137,34 @@ enum DockPreviewPositionTests {
                              "returning to a stationary preview cancels dismissal")
             }
         }
+
+        // A hover that opened no panel stays declined while the pointer moves
+        // on its icon, so the app's windows are not read again on every open
+        // delay, and arms again once the pointer has left the icon.
+        let icon = CGRect(x: -780, y: 120, width: 80, height: 80)
+        let declinedHit = DockHit(app: App(processIdentifier: 31), iconFrame: icon,
+                                  preferences: DockPreviewPreferences(
+                                    orientation: .bottom, autohide: false,
+                                    tileSize: 80, magnification: false, magnifiedTileSize: 128))
+        let declined = Service()
+        declined.revealedDockHit = declinedHit
+        declined.declinedHoverPID = 31
+        declined.handleMouseMoved(CGPoint(x: icon.midX, y: icon.midY))
+        declined.handleMouseMoved(CGPoint(x: icon.midX + 10, y: icon.midY + 5))
+        suite.expect(declined.pendingHover == nil && declined.declinedHoverPID == 31,
+                     "moving on an icon whose hover opened no panel does not arm it again")
+        declined.handleMouseMoved(CGPoint(x: icon.maxX + 40, y: icon.midY))
+        suite.expect(declined.declinedHoverPID == nil,
+                     "leaving the declined icon clears the decline")
+        declined.handleMouseMoved(CGPoint(x: icon.midX, y: icon.midY))
+        suite.expect(declined.pendingHover?.app.processIdentifier == 31,
+                     "returning to the icon arms its hover again")
+
+        let otherApp = Service()
+        otherApp.revealedDockHit = declinedHit
+        otherApp.declinedHoverPID = 99
+        otherApp.handleMouseMoved(CGPoint(x: icon.midX, y: icon.midY))
+        suite.expect(otherApp.pendingHover?.app.processIdentifier == 31 && otherApp.declinedHoverPID == nil,
+                     "a decline for one app never holds back another app's icon")
     }
 }
