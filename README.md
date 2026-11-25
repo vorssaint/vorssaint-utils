@@ -127,7 +127,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Auto clear clipboard.** Clear the system clipboard after a delay, sleep or lock, while keeping saved history.
 - **Paste as plain text.** Paste without formatting while preserving the original clipboard content.
 - **Shelf.** Park files, text and links near your cursor while dragging, then drop or share them later.
-- **Finder shortcuts.** Move files with ⌘X and ⌘V, rename with F2, or paste copied images as PNG files.
+- **Finder shortcuts.** Move files with ⌘X and ⌘V, rename with F2, trash with ⌦, or paste copied images as PNG files.
 - **Clean URL.** Remove tracking parameters from links, manually or automatically.
 - **Disk image installer.** Install an app from a mounted disk image and eject it, with optional download cleanup. Place an empty `.vorssaint-no-install` file in a build folder to skip prompts for images in that folder and its subfolders. Removing the file restores prompts. Hidden mounts and images in system temporary folders are always skipped. Other visible mounts can prompt, including scripted mounts in unmarked folders. For an untagged image outside Downloads, moving it to Trash requires selecting that option for the current install.
 
