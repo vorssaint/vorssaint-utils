@@ -76,6 +76,23 @@ enum ScreenshotImageFileTests {
                                                preferredFormat: .jpeg), format: .jpeg, suite: suite)
             checkDrag(Service.dragItemProvider(image: opaque, scale: 2, strings: .enUS),
                       format: .png, suite: suite)
+            if let cachedPNG = ScreenshotImageFile.encode(export, preferredFormat: .png)?.data {
+                let source = folder.appendingPathComponent("\(UUID().uuidString).png")
+                let captureDate = Date(timeIntervalSince1970: 1)
+                try cachedPNG.write(to: source)
+                let dragURL = Service.temporaryExportFile(pngAt: source, capturedAt: captureDate, strings: .enUS)
+                defer {
+                    if let dragURL { try? FileManager.default.removeItem(at: dragURL.deletingLastPathComponent()) }
+                }
+                try FileManager.default.removeItem(at: source)
+                suite.expect(dragURL?.lastPathComponent == ScreenshotSupport.fileName(
+                    prefix: ScreenshotFeatureStrings.enUS.fileNamePrefix, date: captureDate),
+                    "a history drag uses the original capture time in its file name")
+                suite.expect(dragURL.flatMap { try? Data(contentsOf: $0) } == cachedPNG,
+                             "a history drag retains the full PNG after its cache entry is removed")
+            } else {
+                suite.expect(false, "a history capture fixture can be encoded as PNG")
+            }
             context.clear(CGRect(x: 3, y: 4, width: 1, height: 1))
             checkDrag(Service.dragItemProvider(image: context.makeImage()!, scale: 2,
                                                strings: .enUS, preferredFormat: .jpeg),

@@ -1019,7 +1019,19 @@ final class ScreenshotService: ObservableObject {
         }
         let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date(),
                                              fileExtension: file.format.fileExtension)
-        guard let url = try? ScreenshotSupport.temporaryDragFile(data: file.data, name: name) else {
+        return temporaryExportFile(data: file.data, name: name)
+    }
+
+    static func temporaryExportFile(pngAt source: URL, capturedAt: Date,
+                                    strings: ScreenshotFeatureStrings) -> URL? {
+        // The history cache can evict the source before the receiver reads it.
+        guard let data = try? Data(contentsOf: source) else { return nil }
+        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: capturedAt)
+        return temporaryExportFile(data: data, name: name)
+    }
+
+    private static func temporaryExportFile(data: Data, name: String) -> URL? {
+        guard let url = try? ScreenshotSupport.temporaryDragFile(data: data, name: name) else {
             return nil
         }
         let folder = url.deletingLastPathComponent()

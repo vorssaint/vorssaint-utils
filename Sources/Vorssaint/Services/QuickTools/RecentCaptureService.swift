@@ -348,6 +348,18 @@ final class RecentCaptureService: ObservableObject {
         return image
     }
 
+    func dragFileURL(for entry: RecentCaptureEntry) -> URL? {
+        guard let url = existingFileURL(for: entry) else { return nil }
+        switch entry.kind {
+        case .screenshot:
+            return ScreenshotService.temporaryExportFile(
+                pngAt: url, capturedAt: entry.createdAt,
+                strings: FeatureStrings.screenshot(L10n.shared.language))
+        case .recording:
+            return url
+        }
+    }
+
     func open(_ entry: RecentCaptureEntry) {
         hideHistoryWindow()
         switch entry.kind {
@@ -410,7 +422,7 @@ final class RecentCaptureService: ObservableObject {
 
     private func pruneMissingEntries() {
         var kept: [RecentCaptureEntry] = []
-        for entry in store.entries where entryExists(entry) {
+        for entry in store.entries where existingFileURL(for: entry) != nil {
             kept.append(entry)
         }
         let keepIDs = cappedIDs(for: kept)
@@ -430,15 +442,17 @@ final class RecentCaptureService: ObservableObject {
         publish()
     }
 
-    private func entryExists(_ entry: RecentCaptureEntry) -> Bool {
+    private func existingFileURL(for entry: RecentCaptureEntry) -> URL? {
+        let url: URL
         switch entry.kind {
         case .screenshot:
-            guard let name = entry.screenshotName, Self.isSafeName(name), let root else { return false }
-            return RecentCaptureStore.isRegularFile(root.appendingPathComponent(name))
+            guard let name = entry.screenshotName, Self.isSafeName(name), let root else { return nil }
+            url = root.appendingPathComponent(name)
         case .recording:
-            guard let url = entry.recordingURL else { return false }
-            return RecentCaptureStore.isRegularFile(url)
+            guard let recordingURL = entry.recordingURL else { return nil }
+            url = recordingURL
         }
+        return RecentCaptureStore.isRegularFile(url) ? url : nil
     }
 
     private func cappedIDs(for entries: [RecentCaptureEntry]) -> Set<UUID> {

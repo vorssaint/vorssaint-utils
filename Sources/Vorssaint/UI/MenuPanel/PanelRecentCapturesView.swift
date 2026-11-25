@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
+import AVFoundation
 import SwiftUI
 
 struct PanelRecentCapturesView: View {
@@ -171,11 +173,12 @@ struct RecentCapturesView: View {
 
     @ViewBuilder
     private func preview(_ entry: RecentCaptureEntry) -> some View {
+        let thumbnail = history.thumbnail(for: entry)
         ZStack {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(Color.black.opacity(0.13))
-            if let image = history.thumbnail(for: entry) {
-                Image(nsImage: image)
+            if let thumbnail {
+                Image(nsImage: thumbnail)
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
@@ -191,6 +194,51 @@ struct RecentCapturesView: View {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
         )
+        .overlay {
+            CaptureFileDragSource(thumbnail: thumbnail) { history.dragFileURL(for: entry) }
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+/// Publish a native file URL like the Shelf, so Finder can copy the file directly.
+private struct CaptureFileDragSource: NSViewRepresentable {
+    let thumbnail: NSImage?
+    let fileURL: () -> URL?
+
+    func makeNSView(context: Context) -> DragView { DragView() }
+
+    func updateNSView(_ view: DragView, context: Context) {
+        view.thumbnail = thumbnail
+        view.fileURL = fileURL
+    }
+
+    final class DragView: NSView, NSDraggingSource {
+        var thumbnail: NSImage?
+        var fileURL: (() -> URL?)?
+        private var start: NSPoint?
+
+        override var mouseDownCanMoveWindow: Bool { false }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+        override func mouseDown(with event: NSEvent) { start = event.locationInWindow }
+        override func mouseUp(with event: NSEvent) { start = nil }
+
+        override func mouseDragged(with event: NSEvent) {
+            let point = event.locationInWindow
+            guard let start, hypot(point.x - start.x, point.y - start.y) >= 4 else { return }
+            self.start = nil
+            guard let url = fileURL?() else { return }
+            let item = NSDraggingItem(pasteboardWriter: url as NSURL)
+            let image = thumbnail ?? NSWorkspace.shared.icon(forFile: url.path)
+            let rect = AVMakeRect(aspectRatio: image.size, insideRect: bounds)
+            item.setDraggingFrame(rect, contents: image)
+            beginDraggingSession(with: [item], event: event, source: self)
+        }
+
+        func draggingSession(_ session: NSDraggingSession,
+                             sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+            .copy
+        }
     }
 }
 
