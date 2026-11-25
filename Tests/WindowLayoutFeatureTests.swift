@@ -284,6 +284,15 @@ enum WindowLayoutFeatureTests {
                 && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutCenterTwoThirds] as? String
                     == WindowLayoutAction.clearedShortcutStorageValue,
                "center two thirds starts with no combination of its own")
+        let centerThreeFourths = WindowLayoutAction.centerThreeFourths
+        suite.expect(centerThreeFourths.supportsShortcut
+                && WindowLayoutAction(shortcutID: centerThreeFourths.shortcutID) == centerThreeFourths,
+               "center three fourths registers and resolves its own shortcut")
+        suite.expect(centerThreeFourths.defaultShortcut == nil
+                && Defaults.registeredDefaults[centerThreeFourths.shortcutKey] as? String
+                    == WindowLayoutAction.clearedShortcutStorageValue
+                && SettingsBackupSupport.exportKeys().contains(centerThreeFourths.shortcutKey),
+               "center three fourths has an initially unassigned shortcut that travels in backups")
         let verticalLayouts: [(WindowLayoutAction, UInt32, String)] = [
             (.topQuarter, 66, DefaultsKey.windowLayoutShortcutTopQuarter),
             (.upperMiddleQuarter, 58, DefaultsKey.windowLayoutShortcutUpperMiddleQuarter),
@@ -325,6 +334,7 @@ enum WindowLayoutFeatureTests {
                     && !layoutStrings.marginPerEdge.isEmpty
                     && !layoutStrings.centerHalf.isEmpty
                     && !layoutStrings.centerTwoThirds.isEmpty
+                    && centerThreeFourths.title(layoutStrings).contains("3/4")
                     && !layoutStrings.quarterRows.isEmpty
                     && !layoutStrings.quarterColumns.isEmpty
                     && !layoutStrings.leftQuarter.isEmpty
@@ -599,6 +609,11 @@ enum WindowLayoutFeatureTests {
                && WindowEdgeSnapLayout.previewRect(for: .bottomRight)
                    == CGRect(x: 0.5, y: 0.5, width: 0.5, height: 0.5),
                "the map draws a placement from the top left, the way the screen shows it")
+        let centeredSnap = WindowEdgeSnapLayout(storageValue: "top=centerThreeFourths")
+        suite.expect(centeredSnap.actions(for: .top) == [.centerThreeFourths]
+               && WindowEdgeSnapLayout.previewRect(for: .centerThreeFourths)
+                   == CGRect(x: 0.125, y: 0, width: 0.75, height: 1),
+               "edge snap can store and preview center three fourths")
 
         let quartzScreenFrame = CGRect(x: 0, y: 0, width: 1440, height: 900)
         let quartzTopCenter = CGPoint(x: 720, y: 0)
@@ -861,6 +876,27 @@ enum WindowLayoutFeatureTests {
                                                visibleFrame: visibleFrame)
                == CGRect(x: 240, y: 40, width: 960, height: 860),
                "window layout center two thirds sits two thirds wide in the middle of the screen")
+        let offsetUltrawideFrame = CGRect(x: -3440, y: 40, width: 3440, height: 1400)
+        let centeredThreeFourths = WindowLayoutGeometry.rect(for: .centerThreeFourths,
+                                                            current: currentWindow,
+                                                            visibleFrame: offsetUltrawideFrame)
+        suite.expect(centeredThreeFourths == CGRect(x: -3010, y: 40, width: 2580, height: 1400),
+               "center three fourths uses 75% of an offset ultrawide display and its full visible height")
+        suite.expect(WindowLayoutGeometry.rect(for: .centerThreeFourths, current: currentWindow,
+                                              visibleFrame: offsetUltrawideFrame, windowGap: 16, screenGap: 16)
+               == CGRect(x: -2990, y: 56, width: 2540, height: 1368),
+               "center three fourths respects window and screen gaps symmetrically")
+        let widerWindow = WindowLayoutGeometry.anchoredRect(for: .centerThreeFourths,
+                                                           targetRect: centeredThreeFourths,
+                                                           actualSize: CGSize(width: 2800, height: 1400),
+                                                           visibleFrame: offsetUltrawideFrame)
+        suite.expect(widerWindow == CGRect(x: -3120, y: 40, width: 2800, height: 1400)
+               && WindowLayoutGeometry.accepts(actualRect: widerWindow, targetRect: centeredThreeFourths,
+                                               action: .centerThreeFourths, anchorTolerance: 10)
+               && !WindowLayoutGeometry.accepts(actualRect: widerWindow.offsetBy(dx: 50, dy: 0),
+                                                targetRect: centeredThreeFourths,
+                                                action: .centerThreeFourths, anchorTolerance: 10),
+               "center three fourths keeps wider windows centered and rejects an off-center result")
         let verticalStripLayouts: [(WindowLayoutAction, CGRect)] = [
             (.topQuarter, CGRect(x: 0, y: 685, width: 1440, height: 215)),
             (.upperMiddleQuarter, CGRect(x: 0, y: 470, width: 1440, height: 215)),
