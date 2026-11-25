@@ -100,9 +100,14 @@ private struct DockPreviewPanelContent: View {
     @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var backgroundOpacity = 1.0
     @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var quitAppOnClose = false
+    @AppStorage(DefaultsKey.dockPreviewQuitOnLastWindowOnly) private var quitOnLastWindowOnly = false
 
+    /// The label follows the cards on screen; the click itself recounts the
+    /// app's windows on every desktop before it decides.
     private var closeActionTitle: String {
-        DockPreviewSupport.closeAction(quitAppOnClose: quitAppOnClose) == .quitApp
+        DockPreviewSupport.closeAction(quitAppOnClose: quitAppOnClose,
+                                       quitOnLastWindowOnly: quitOnLastWindowOnly,
+                                       appWindowCount: windows.count) == .quitApp
             ? l10n.s.panelQuit
             : l10n.s.dockPreviewCloseWindow
     }

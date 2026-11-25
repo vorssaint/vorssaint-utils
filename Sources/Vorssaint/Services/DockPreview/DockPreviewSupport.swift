@@ -133,8 +133,16 @@ enum DockPreviewSupport {
             && buttonNumber == 2 && !isHidden && visibleRect.contains(point)
     }
 
-    static func closeAction(quitAppOnClose: Bool) -> DockPreviewCloseAction {
-        quitAppOnClose ? .quitApp : .closeWindow
+    /// With `quitOnLastWindowOnly`, × still closes a single window while the
+    /// app has others open, and quits only when it would close the last one.
+    /// `appWindowCount` counts the app's windows on every desktop, not only the
+    /// ones the panel shows, so a window on another Space is never lost to a quit.
+    static func closeAction(quitAppOnClose: Bool,
+                            quitOnLastWindowOnly: Bool = false,
+                            appWindowCount: Int = 1) -> DockPreviewCloseAction {
+        guard quitAppOnClose else { return .closeWindow }
+        if quitOnLastWindowOnly, appWindowCount > 1 { return .closeWindow }
+        return .quitApp
     }
 
     /// Reorders Dock Preview cards. Last-use keeps the enumerator’s MRU order;
@@ -153,9 +161,15 @@ enum DockPreviewSupport {
 
 
     static func performCloseAction(quitAppOnClose: Bool,
+                                   quitOnLastWindowOnly: Bool = false,
+                                   appWindowCount: () -> Int = { 1 },
                                    requestQuit: () -> Bool,
                                    closeWindow: () -> Void) {
-        if closeAction(quitAppOnClose: quitAppOnClose) == .quitApp,
+        // The window count is only read when it can change the outcome.
+        let count = quitAppOnClose && quitOnLastWindowOnly ? appWindowCount() : 1
+        if closeAction(quitAppOnClose: quitAppOnClose,
+                       quitOnLastWindowOnly: quitOnLastWindowOnly,
+                       appWindowCount: count) == .quitApp,
            requestQuit() {
             return
         }
