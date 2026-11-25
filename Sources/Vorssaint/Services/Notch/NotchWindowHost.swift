@@ -15,7 +15,9 @@ struct NotchFileDropActions {
 
 /// `depart` keeps the leaving content on screen while the shape closes
 /// around it, fading out before the next content takes its place.
-enum NotchContentTransition { case none, reveal, dismiss, depart, replace }
+/// `slideNext` and `slidePrevious` replace a page with its neighbour in the
+/// page order, the next one arriving from the right as a Space does.
+enum NotchContentTransition { case none, reveal, dismiss, depart, replace, slideNext, slidePrevious }
 
 /// The window reserves the transition's bounds once. Core Animation moves
 /// the silhouette independently of SwiftUI layout and the application run loop.
@@ -104,6 +106,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
 
     /// The view has swapped out the departed content; the next one fades in.
     func finishDeparture() { canvas.finishDeparture() }
+    func bumpContent(forward: Bool) { canvas.bumpContent(forward: forward) }
 
     /// Temporary order-outs still belong to the current presentation.
     private var isPresented: Bool { panel.isVisible || concealedForFrameChange || relocationHidden }
@@ -1589,12 +1592,20 @@ private final class NotchCanvas: NSView {
         endArrival()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        if kind == .replace {
+        if kind == .replace || kind == .slideNext || kind == .slidePrevious {
             contentVisibility.opacity = 1
             let transition = CATransition()
-            transition.type = .fade
-            transition.duration = 0.18
-            transition.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            // Sliding is motion; with Reduce Motion the pages cross-fade.
+            if kind != .replace, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+                transition.type = .push
+                transition.subtype = kind == .slideNext ? .fromRight : .fromLeft
+                transition.duration = 0.34
+                transition.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.85, 0.25, 1)
+            } else {
+                transition.type = .fade
+                transition.duration = 0.18
+                transition.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            }
             host.layer?.add(transition, forKey: kCATransition)
         } else {
             // Mask only the content pixels. A black overlay would obscure the
@@ -1635,6 +1646,24 @@ private final class NotchCanvas: NSView {
         }
         CATransaction.commit()
     }
+
+    /// The first or last page gives a little against a swipe past it, as the
+    /// first and last Space do.
+    func bumpContent(forward: Bool) {
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, let layer = host.layer,
+              layer.animation(forKey: kCATransition) == nil else { return }
+        let push: CGFloat = forward ? -14 : 14
+        let animation = CAKeyframeAnimation(keyPath: "transform.translation.x")
+        animation.values = [0, push, 0]
+        animation.keyTimes = [0, 0.35, 1]
+        animation.duration = 0.32
+        animation.timingFunctions = [CAMediaTimingFunction(name: .easeOut), CAMediaTimingFunction(name: .easeInEaseOut)]
+        // Added on top of the arrival's growth rather than replacing it.
+        animation.isAdditive = true
+        layer.add(animation, forKey: Self.bumpKey)
+    }
+
+    private static let bumpKey = "notch.bump"
 
     func finishDeparture() {
         guard departsContent else { return }
