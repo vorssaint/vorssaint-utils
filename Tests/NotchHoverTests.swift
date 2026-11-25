@@ -24,7 +24,7 @@ enum NotchHoverTests {
     enum UserDefaults {
         static var standard = Preferences()
         struct Preferences {
-            var enabled = true, expands = true, hides = false, fullscreenHover = false
+            var enabled = true, expands = true, hides = false, fullscreenHover = false, closeAfterClick = false
             var delay = NotchSupport.defaultHoverDelay
             var closeDelay = NotchSupport.defaultCloseDelay
             func bool(forKey key: String) -> Bool {
@@ -32,6 +32,7 @@ enum NotchHoverTests {
                 case DefaultsKey.notchHideUntilHover: return hides
                 case DefaultsKey.notchOpenOnHover: return enabled
                 case DefaultsKey.notchHoverInFullscreen: return fullscreenHover
+                case DefaultsKey.notchCloseOnPointerExit: return closeAfterClick
                 default: return expands
                 }
             }
@@ -938,6 +939,86 @@ enum NotchHoverTests {
                                  "the selected closing time applies to visible and hidden islands on either display")
                 }
             }
+        }
+
+        // Direct openings reuse the same deadline, cancellation and protected surfaces.
+        for physical in [false, true] {
+            for enabled in [false, true] {
+                for delay in [0.10, 0.65, 2.0] {
+                    let clicked = fixture(physical: physical)
+                    UserDefaults.standard.enabled = false
+                    UserDefaults.standard.closeAfterClick = enabled
+                    UserDefaults.standard.closeDelay = delay
+                    clicked.open(takeFocus: true)
+                    clicked.hover(true)
+                    leave(clicked)
+                    let closing = clicked.hoverWork
+                    DispatchQueue.main.advance(delay - 0.01)
+                    suite.expect(clicked.closures == 0, "click-opened islands wait for the selected closing time")
+                    clicked.hover(false)
+                    suite.expect(clicked.hoverWork === closing, "duplicate exits do not postpone closing after a click")
+                    DispatchQueue.main.advance(0.02)
+                    suite.expect(clicked.closures == (enabled ? 1 : 0),
+                                 "click-only openings close on departure only when the option is enabled")
+                }
+            }
+        }
+        let keyboardOpened = fixture()
+        UserDefaults.standard.enabled = false
+        UserDefaults.standard.closeAfterClick = true
+        NSEvent.mouseLocation = .zero
+        keyboardOpened.open(takeFocus: true)
+        keyboardOpened.hover(false)
+        DispatchQueue.main.advance(1)
+        suite.expect(keyboardOpened.closures == 0,
+                     "opening with the pointer already elsewhere waits for a real entry and exit")
+
+        for local in [false, true] {
+            let clicked = fixture()
+            UserDefaults.standard.enabled = false
+            UserDefaults.standard.closeAfterClick = true
+            clicked.open(takeFocus: true)
+            clicked.hover(true)
+            let island = clicked.windowHost!.rect
+            clicked.windowHost?.controls = [CGRect(x: island.midX - 38, y: island.minY - 72, width: 76, height: 88)]
+            NSEvent.mouseLocation = CGPoint(x: island.midX, y: island.minY - 60)
+            clicked.hover(false)
+            suite.expect(clicked.inside && clicked.hoverWork == nil && !NSEvent.global.isEmpty && !NSEvent.local.isEmpty,
+                         "click-opened islands follow a departure reported in the floating controls' margin")
+            follow(to: CGPoint(x: island.midX, y: island.minY - 400), local: local)
+            DispatchQueue.main.advance(0.19)
+            suite.expect(clicked.closures == 1, "leaving the margin closes a click-opened island without another tracking exit")
+        }
+
+        let clickedReturn = fixture()
+        UserDefaults.standard.enabled = false
+        UserDefaults.standard.closeAfterClick = true
+        UserDefaults.standard.closeDelay = 0.65
+        clickedReturn.open(takeFocus: true)
+        clickedReturn.hover(true)
+        leave(clickedReturn)
+        DispatchQueue.main.advance(0.3)
+        NSEvent.mouseLocation = CGPoint(x: clickedReturn.geometry.screen.midX, y: clickedReturn.geometry.screen.maxY)
+        clickedReturn.hover(true)
+        DispatchQueue.main.advance(1)
+        suite.expect(clickedReturn.closures == 0 && clickedReturn.openings == 1,
+                     "returning before the deadline keeps the click-opened island open")
+
+        for protect: (Service) -> Void in [
+            { $0.pinned = true }, { $0.heldDrag = true }, { $0.keepsWorkingSurface = true },
+            { $0.captureControls = true }, { $0.running = false }, { $0.suspended = true },
+            { _ in UserDefaults.standard.closeAfterClick = false },
+            { _ in AssistiveKeyboard.active = true }
+        ] {
+            let clicked = fixture()
+            UserDefaults.standard.enabled = false
+            UserDefaults.standard.closeAfterClick = true
+            clicked.open(takeFocus: true)
+            clicked.hover(true)
+            leave(clicked)
+            protect(clicked)
+            DispatchQueue.main.advance(1)
+            suite.expect(clicked.closures == 0, "click closing rechecks protections and the preference at its deadline")
         }
 
         let changedClosing = fixture()
