@@ -34,6 +34,11 @@ enum MixerFeatureTests {
         suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 2)), 2, "the boost range keeps its ceiling")
         suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: -1)), 0, "a level below zero never plays")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: 0.456) == 46, "a volume shows as a rounded percent")
+        suite.expect(MixerRoutingSupport.inputPercentText(forVolume: 0) == "0%"
+                    && MixerRoutingSupport.inputPercentText(forVolume: Double(Float(0.005))) == "<1%"
+                    && MixerRoutingSupport.inputPercentText(forVolume: 0.00005) == "<1%"
+                    && MixerRoutingSupport.inputPercentText(forVolume: 0.456) == "46%",
+                    "input gain labels reserve 0% for zero and keep positive residuals visible")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: 2) == 200, "a boosted volume shows above 100%")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: .infinity) == 0, "infinity shows as 0% instead of trapping")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: -.infinity) == 0, "negative infinity shows as 0%")

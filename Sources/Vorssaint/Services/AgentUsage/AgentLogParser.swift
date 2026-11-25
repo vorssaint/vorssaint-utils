@@ -49,8 +49,8 @@ struct AgentLogState: Equatable {
     /// running totals, which are the fallback until a record appears.
     var sawUsageRecords = false
     var lastTotal: AgentTokens?
-    /// Codex runs the thread on the fast tier, which bills at a premium.
-    var fast = false
+    /// The service tier from the latest Codex thread settings.
+    var serviceTier: AgentServiceTier?
     /// A Codex subagent, review or memory task owns no turn. Only the log's
     /// metadata says so: a reverted thread goes on in a log named after both
     /// the thread and a new rollout.
@@ -214,9 +214,13 @@ enum AgentLogParser {
                            output: int(usage["output_tokens"]), reasoning: int(usage["reasoning_output_tokens"]))
     }
 
-    /// Fast mode, named priority before July 2026.
-    static func fastTier(_ tier: String) -> Bool {
-        ["fast", "priority"].contains(tier.lowercased())
+    static func serviceTier(_ tier: String) -> AgentServiceTier {
+        switch tier.lowercased() {
+        case "default", "standard": return .standard
+        case "fast", "priority": return .fast
+        case "ultrafast": return .ultrafast
+        default: return .unknown
+        }
     }
 
     // MARK: OpenCode

@@ -79,6 +79,8 @@ enum FanControlIdentifiers {
     func applyConfiguration(_ configuration: Data, withReply reply: @escaping (Data) -> Void)
     func heartbeat(withReply reply: @escaping (Data) -> Void)
     func restoreAutomatic(withReply reply: @escaping (Data) -> Void)
+    func restoreOwnedControl(withReply reply: @escaping (Data) -> Void)
+    func prepareForUnregister(withReply reply: @escaping (Data) -> Void)
 }
 
 enum FanControlIPC {

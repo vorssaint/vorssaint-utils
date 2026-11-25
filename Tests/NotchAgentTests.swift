@@ -137,15 +137,68 @@ enum NotchAgentTests {
                         && abs((AgentPricing.cost(writes, model: "gpt-5.5").cost ?? 0) - 0.5) < 0.000001,
                      "cache writes bill at their own rate where a model has one, and as input otherwise")
         var longFast = AgentBillable(tokens: AgentTokens(input: 300_000, output: 1000))
-        longFast.fast = true
+        longFast.serviceTier = .fast
         suite.expectClose(AgentPricing.cost(longFast, model: "gpt-6-astra").cost ?? -1,
                           (300_000 * 10 * 4 + 1000 * 50 * 3) / 1_000_000,
                           "a long prompt on the fast tier pays both premiums")
         suite.expectClose(AgentPricing.cost(AgentBillable(tokens: AgentTokens(input: 272_000)), model: "gpt-6-astra").cost ?? -1,
                           2.72, "the long-context premium starts past its threshold")
+        // OpenAI's Ultrafast list price starts at midnight Pacific on March 1, 2027.
+        let listStartsAt = Date(timeIntervalSince1970: 1_803_888_000)
+        let promotion = listStartsAt.addingTimeInterval(-1)
+        for (model, shortCost, longCost, hasFast) in [("gpt-6.2-astra", 1.52, 3.010016, true),
+                                                      ("gpt-6.2-sol", 0.38, 0.752504, true),
+                                                      ("gpt-6.2-astra-law", 1.52, 3.010016, false)] {
+            var request = AgentBillable(tokens: AgentTokens(input: 160_000, cacheWrite: 12_000, cacheRead: 100_000, output: 1500))
+            request.longCacheWrite = 2000
+            suite.expectClose(AgentPricing.cost(request, model: model).cost ?? -1, shortCost,
+                              "\(model) bills both cache write durations at 272K prompt tokens", tol: 0.000001)
+            request.serviceTier = .ultrafast
+            let short = AgentPricing.cost(request, model: model, at: promotion)
+            if hasFast {
+                suite.expectClose(short.cost ?? -1, shortCost * 3, "\(model) bills the Ultrafast promotion at 272K")
+                suite.expectClose(short.savings, model == "gpt-6.2-sol" ? 0.57 : 2.28, "\(model) applies the promotion to cache savings")
+            } else {
+                suite.expect(short.cost == nil && short.savings == 0, "Astra Law has no published Ultrafast rate")
+            }
+            request.serviceTier = .standard
+            request.tokens.input += 1
+            suite.expectClose(AgentPricing.cost(request, model: model).cost ?? -1, longCost,
+                              "\(model) bills the entire request at long-context rates above 272K", tol: 0.000001)
+            request.serviceTier = .fast
+            if hasFast {
+                suite.expectClose(AgentPricing.cost(request, model: model).cost ?? -1, longCost * 2, "\(model) applies the Fast rate")
+                request.serviceTier = .ultrafast
+                let snapshot = "\(model)-2026-11-24"
+                suite.expectClose(AgentPricing.cost(request, model: snapshot, at: promotion).cost ?? -1,
+                                  longCost * 3, "\(model) applies the promotion before midnight Pacific", tol: 0.000001)
+                suite.expectClose(AgentPricing.cost(request, model: snapshot, at: listStartsAt).cost ?? -1,
+                                  longCost * 6, "\(model) applies the list rate at midnight Pacific", tol: 0.000001)
+                suite.expect(AgentPricing.cost(request, model: model).cost == nil, "dated rates require a response time")
+                request.hasEventTimestamp = false
+                suite.expect(AgentPricing.cost(request, model: model, at: promotion).cost == nil,
+                             "a substitute file date cannot choose the Ultrafast rate")
+            } else {
+                suite.expect(AgentPricing.cost(request, model: "\(model)-2026-11-24").cost == nil,
+                             "Astra Law and its snapshots have no published Fast rate")
+            }
+            request.serviceTier = .unknown
+            suite.expect(AgentPricing.cost(request, model: model, at: listStartsAt).cost == nil,
+                         "\(model) leaves an unknown service tier unpriced")
+        }
+        // Global Standard promotional rates: https://developers.openai.com/api/docs/pricing.md
+        let rosalind = AgentBillable(tokens: AgentTokens(input: 170_000, cacheWrite: 2_000, cacheRead: 100_000, output: 1_000))
+        suite.expectClose(AgentPricing.cost(rosalind, model: "gpt-6-rosalind").cost ?? -1, 1.875,
+                          "Rosalind bills the promotional rates including 30-minute cache writes")
+        var law = AgentBillable(tokens: AgentTokens(input: 172_000, cacheRead: 100_000, output: 1_000))
+        suite.expectClose(AgentPricing.cost(law, model: "gpt-6-astra-law").cost ?? -1, 1.87,
+                          "Astra Law bills short-context rates at exactly 272K prompt tokens")
+        law.tokens.input += 1
+        suite.expectClose(AgentPricing.cost(law, model: "gpt-6-astra-law").cost ?? -1, 3.71502,
+                          "Astra Law bills long-context rates for the whole request above 272K")
         let plain = AgentBillable(tokens: AgentTokens(input: 1_000_000))
         var fast = plain
-        fast.fast = true
+        fast.serviceTier = .fast
         var domestic = plain
         domestic.domestic = true
         suite.expect(AgentPricing.cost(fast, model: "claude-opus-5").cost == 10
@@ -197,8 +250,10 @@ enum NotchAgentTests {
     private static func priceJSON(schema: String = "1", updated: String = "2026-09-22",
                                   claude: String = #"{"id":"claude-opus-5","input":5,"output":25,"cacheRead":0.5,"cacheWrite":6.25,"cacheWriteLong":10}"#,
                                   codex: String = #"{"id":"gpt-6-astra","input":10,"output":50,"cacheRead":1}"#,
+                                  tiered: String? = nil,
                                   extra: String = "") -> Data {
-        Data(#"{"schema":\#(schema),"updated":"\#(updated)"\#(extra),"claude":{"webSearch":0.01,"usOnlyMultiplier":1.1,"models":[\#(claude)],"plans":[{"match":"max_20x","name":"Max 20×","monthly":200}]},"codex":{"models":[\#(codex)],"plans":[{"match":"plus","name":"Plus","monthly":20}]}}"#.utf8)
+        let section = tiered.map { #","tieredModels":\#($0)"# } ?? ""
+        return Data(#"{"schema":\#(schema),"updated":"\#(updated)"\#(extra),"claude":{"webSearch":0.01,"usOnlyMultiplier":1.1,"models":[\#(claude)],"plans":[{"match":"max_20x","name":"Max 20×","monthly":200}]},"codex":{"models":[\#(codex)]\#(section),"plans":[{"match":"plus","name":"Plus","monthly":20}]}}"#.utf8)
     }
 
     private static func priceList(_ suite: TestSuite, shipped: AgentPriceList) {
@@ -226,6 +281,12 @@ enum NotchAgentTests {
             priceJSON(claude: #"{"id":"claude-opus-5","input":5,"output":25,"cacheRead":0.5,"fastMultiplier":50}"#),
             priceJSON(codex: #"{"id":"gpt-6-astra","input":10,"output":50,"cacheRead":1,"longContext":{"above":5,"inputMultiplier":2,"outputMultiplier":1.5}}"#),
             priceJSON(codex: #"{"id":"gpt-6-astra","input":10,"output":50,"cacheRead":1,"longContext":true}"#),
+            priceJSON(tiered: "null"),
+            priceJSON(tiered: #"[{"id":"gpt-6-astra","input":1,"output":2,"cacheRead":0}]"#),
+            priceJSON(tiered: #"[{"id":"gpt-6.2-sol","input":2,"output":10,"cacheRead":0.1,"ultrafast":{"promotionalMultiplier":true,"listMultiplier":6,"listStartsAt":"2027-03-01T08:00:00Z"}}]"#),
+            priceJSON(tiered: #"[{"id":"gpt-6.2-sol","input":2,"output":10,"cacheRead":0.1,"ultrafast":{"promotionalMultiplier":3,"listMultiplier":11,"listStartsAt":"2027-03-01T08:00:00Z"}}]"#),
+            priceJSON(tiered: #"[{"id":"gpt-6.2-sol","input":2,"output":10,"cacheRead":0.1,"ultrafast":{"promotionalMultiplier":3,"listMultiplier":6,"listStartsAt":"2027-02-30T08:00:00Z"}}]"#),
+            priceJSON(codex: #"{"id":"gpt-6.2-sol","input":2,"output":10,"cacheRead":0.1,"ultrafast":{"promotionalMultiplier":3,"listMultiplier":6,"listStartsAt":"2027-03-01T08:00:00Z"}}"#),
             Data("not json".utf8), Data(repeating: 0x20, count: AgentPriceList.maximumSize + 1),
         ]
         suite.expect(refused.allSatisfy { AgentPriceList.decode($0) == nil },
@@ -235,6 +296,30 @@ enum NotchAgentTests {
         suite.expect(AgentPriceList.newer(early, late) == late && AgentPriceList.newer(late, early) == late
                         && AgentPriceList.newer(nil, early) == early && AgentPriceList.newer(early, nil) == early,
                      "the newer of the shipped and downloaded lists wins")
+        let astra = #"{"id":"gpt-6.2-astra","input":8,"output":40,"cacheRead":0.4}"#
+        let extended = AgentPriceList.decode(priceJSON(tiered: "[\(astra)]"))
+        let corrected = AgentPriceList.decode(priceJSON(codex: #"{"id":"gpt-6-astra","input":7,"output":50,"cacheRead":1}"#))
+        let merged = AgentPriceList.newer(extended, corrected)
+        suite.expect(merged?.codex.map(\.price.input) == [7, 8] && corrected?.tieredModelCount == nil,
+                     "a same-day legacy cache keeps its price correction and gains the bundled tiered models")
+        let withdrawn = AgentPriceList.decode(priceJSON(tiered: "[]"))
+        suite.expect(withdrawn?.tieredModelCount == 0 && AgentPriceList.newer(extended, withdrawn) == withdrawn,
+                     "an explicitly empty download withdraws the bundled tiered models")
+        suite.expect(AgentPricing.price(for: "gpt-6.2-astra-law", in: extended ?? .empty) == nil,
+                     "a withdrawn Law variant cannot fall back to the parent model's tiers")
+        // Earlier releases only read codex.models. No GPT-6.2 family can match in that view.
+        var legacy = shipped
+        legacy.codex.removeLast(legacy.tieredModelCount ?? 0)
+        legacy.tieredModelCount = nil
+        if let existing = shipped.codex.last {
+            var fullCache = legacy
+            fullCache.codex = [existing] + (1..<500).map { AgentPriceList.Model(id: "model-\($0)", price: existing.price) }
+            suite.expect(AgentPriceList.newer(shipped, fullCache) == fullCache,
+                         "a full legacy cache keeps every existing rate when the additional models cannot fit")
+        }
+        let tieredIDs = ["gpt-6.2-astra", "gpt-6.2-sol", "gpt-6.2-astra-law"]
+        suite.expect(tieredIDs.allSatisfy { AgentPricing.price(for: $0, in: shipped) != nil && AgentPricing.price(for: $0, in: legacy) == nil },
+                     "all three GPT-6.2 entries are isolated from readers that cannot distinguish Ultrafast")
         suite.expect(!AgentPricing.install(shipped), "installing the list in use changes nothing")
 
         // A newer list prices the history again.
@@ -591,9 +676,9 @@ enum NotchAgentTests {
         }
         suite.expectClose(fastStore.records.first?.cost ?? -1, 2 * (usage?.cost ?? 0),
                           "the fast tier Codex records doubles the response's price")
-        suite.expect(AgentLogParser.fastTier("priority") && AgentLogParser.fastTier("Fast") && !AgentLogParser.fastTier("default")
-                        && !AgentLogParser.fastTier("flex"),
-                     "fast mode is recognized by both of its names")
+        suite.expect(AgentLogParser.serviceTier("priority") == .fast && AgentLogParser.serviceTier("Fast") == .fast
+                        && AgentLogParser.serviceTier("default") == .standard && AgentLogParser.serviceTier("flex") == .unknown,
+                     "Fast aliases, Standard and unsupported tiers remain distinct")
 
         // Older logs carry running totals only.
         var legacy = AgentLogState()
