@@ -923,6 +923,11 @@ enum DefaultsKey {
     static let notchWatchEnabled = "notchWatchEnabled"
     static let notchWatchSound = "notchWatchSound"
     static let notchWatchCondition = "notchWatchCondition"
+    // Scores: followed teams' and athletes' games from ESPN's public scoreboards.
+    static let notchScoresEnabled = "notchScoresEnabled"
+    static let notchScoresFollows = "notchScoresFollows" // JSON list of followed teams and athletes
+    static let notchScoresLiveActivity = "notchScoresLiveActivity"
+    static let notchScoresAlerts = "notchScoresAlerts"
     static let notchCalendarEnabled = "notchCalendarEnabled"
     static let notchCalendarCountdown = "notchCalendarCountdown"
     static let notchCalendarCountdownLead = "notchCalendarCountdownLead" // minutes before a start, chosen events included
@@ -1574,6 +1579,10 @@ enum Defaults {
         DefaultsKey.notchWatchEnabled: true,
         DefaultsKey.notchWatchSound: true,
         DefaultsKey.notchWatchCondition: NotchWatchCondition.changes.rawValue,
+        DefaultsKey.notchScoresEnabled: true,
+        DefaultsKey.notchScoresFollows: "",
+        DefaultsKey.notchScoresLiveActivity: true,
+        DefaultsKey.notchScoresAlerts: true,
         DefaultsKey.notchEnabled: false,
         DefaultsKey.notchDisplay: NotchDisplay.automatic.rawValue,
         DefaultsKey.notchSilhouette: NotchSilhouette.capsule.rawValue,

@@ -161,6 +161,7 @@ enum ReleaseChangeAliases {
         case .notchAgents: return ["ai agents", "ai agent", "claude code", "claude code timer", "codex", "ai usage",
             "opencode", "github copilot", .island("agent"), .island("agents")]
         case .notchWatch: return [.exact("Watch")]
+        case .notchScores: return ["live scores", "scoreboard", .island("scores")]
         case .notchMascot: return ["companion"]
         case .monitorCPU: return ["cpu temperature", "cpu load", "cpu readings", "per core", "per-core",
             "processor temperature", "process breakdowns", "cpu alert", "cpu and gpu temperatures"]
