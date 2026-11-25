@@ -160,11 +160,20 @@ enum CommandBarLinks {
     ///
     /// The name is matched whole and case-insensitively, so "gh vorssaint"
     /// finds the link called "gh" and "ghost" does not.
+    ///
+    /// A name that ends in something other than a letter or a digit, such as
+    /// "go/" or "jira:", already marks where it stops, so what follows may be
+    /// typed straight after it: "go/mr" opens the "go/" search with "mr"
+    /// (issue #4012). A name ending in a letter or digit still needs the
+    /// space, or "g" would swallow "github".
     static func trailingArgument(query: String, name: String) -> String? {
         let normalizedName = CommandBarSearch.normalized(name)
         guard !normalizedName.isEmpty else { return nil }
         let normalizedQuery = CommandBarSearch.normalized(query)
-        guard normalizedQuery.hasPrefix(normalizedName + " ") else { return nil }
+        guard normalizedQuery.hasPrefix(normalizedName + " ") else {
+            return unspacedArgument(query: query, normalizedName: normalizedName,
+                                    normalizedQuery: normalizedQuery)
+        }
         // The remainder comes from the ORIGINAL text: what someone searches for
         // keeps its capitals and its accents. Splitting on any whitespace — not
         // just the ASCII space — keeps a full-width space (U+3000), which some
@@ -174,6 +183,40 @@ enum CommandBarLinks {
         let nameWords = normalizedName.split(separator: " ").count
         guard words.count > nameWords else { return nil }
         return words.dropFirst(nameWords).joined(separator: " ")
+    }
+
+    /// Whether a name ends in a character that already separates it from
+    /// whatever is typed next, so it needs no space after it.
+    private static func endsInSeparator(_ normalizedName: String) -> Bool {
+        guard let last = normalizedName.last else { return false }
+        return !last.isLetter && !last.isNumber && !last.isWhitespace
+    }
+
+    /// The argument typed straight after a name that ends in a separator, or
+    /// nil when the name does not end in one or nothing follows it. Like the
+    /// spaced form, the argument comes from the ORIGINAL text, so its capitals
+    /// and accents survive: the name's last word is found inside the first
+    /// original word that runs on past it, one character at a time, because
+    /// folding can change how many characters a word has.
+    private static func unspacedArgument(query: String, normalizedName: String,
+                                         normalizedQuery: String) -> String? {
+        guard endsInSeparator(normalizedName),
+              normalizedQuery.hasPrefix(normalizedName),
+              normalizedQuery.count > normalizedName.count else { return nil }
+        let words = query.split(whereSeparator: \.isWhitespace)
+        let nameWords = normalizedName.split(separator: " ")
+        guard let lastNameWord = nameWords.last, words.count >= nameWords.count else { return nil }
+        let joined = words[nameWords.count - 1]
+        var prefix = ""
+        for (offset, character) in joined.enumerated() {
+            prefix.append(character)
+            guard CommandBarSearch.normalized(prefix) == lastNameWord else { continue }
+            let head = String(joined.dropFirst(offset + 1))
+            guard !head.isEmpty else { return nil }
+            return ([head] + words.dropFirst(nameWords.count).map(String.init))
+                .joined(separator: " ")
+        }
+        return nil
     }
 
     /// What a link's row is scored against. Its own name works until the
