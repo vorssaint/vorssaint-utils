@@ -15,6 +15,10 @@ enum MenuPanelSectionGateContract {
                      "smooth scrolling alone keeps the Controls tab available")
         suite.expect(ControlCategory.category(for: .smoothScroll) == .inputDevices,
                      "smooth scrolling appears in Mouse & keyboard")
+        suite.expect(UtilityPanelItem.allCases.contains { $0.feature == .killProcess },
+                     "installed Kill Process has a menu bar utility row")
+        suite.expect(PanelSectionID.utilities.featureGate.contains(.killProcess),
+                     "Kill Process alone keeps the Utilities tab available")
         let savedOrder = ControlPanelItem.allCases.filter { $0 != .smoothScroll }.map(\.rawValue)
         let restoredOrder = Defaults.sanitizedPanelItemOrder(savedOrder.joined(separator: ","),
                                                            defaultOrder: ControlPanelItem.allCases.map(\.rawValue))
