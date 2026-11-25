@@ -14,11 +14,11 @@
 "NSCameraUsageDescription" = "Vorssaint mostra la fotocamera solo nella finestra di anteprima che apri, così puoi controllare il tuo aspetto prima di una chiamata. Nulla viene registrato e nulla lascia il tuo Mac.";
 
 /* macOS Downloads folder permission prompt. */
-"NSDownloadsFolderUsageDescription" = "Vorssaint controlla i metadati locali in Download per esaminare, organizzare o spostare nel Cestino solo i file WhatsApp confermati scelti da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui.";
+"NSDownloadsFolderUsageDescription" = "Vorssaint controlla i metadati locali in Download per esaminare, organizzare o spostare nel Cestino solo i file WhatsApp confermati scelti da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui. Il menu radiale mostra anche il contenuto di una cartella aggiunta alla ruota quando vi fermi sopra il puntatore.";
 
 /* macOS user-selected organizer destination prompts. */
-"NSDesktopFolderUsageDescription" = "Vorssaint organizza i download WhatsApp confermati in una cartella di destinazione scelta esplicitamente da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui.";
-"NSDocumentsFolderUsageDescription" = "Vorssaint organizza i download WhatsApp confermati in una cartella di destinazione scelta esplicitamente da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui.";
-"NSNetworkVolumesUsageDescription" = "Vorssaint organizza i download WhatsApp confermati in una cartella di destinazione scelta esplicitamente da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui.";
-"NSRemovableVolumesUsageDescription" = "Vorssaint organizza i download WhatsApp confermati in una cartella di destinazione scelta esplicitamente da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui.";
+"NSDesktopFolderUsageDescription" = "Vorssaint organizza i download WhatsApp confermati in una cartella di destinazione scelta esplicitamente da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui. Il menu radiale mostra anche il contenuto di una cartella aggiunta alla ruota quando vi fermi sopra il puntatore.";
+"NSDocumentsFolderUsageDescription" = "Vorssaint organizza i download WhatsApp confermati in una cartella di destinazione scelta esplicitamente da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui. Il menu radiale mostra anche il contenuto di una cartella aggiunta alla ruota quando vi fermi sopra il puntatore.";
+"NSNetworkVolumesUsageDescription" = "Vorssaint organizza i download WhatsApp confermati in una cartella di destinazione scelta esplicitamente da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui. Il menu radiale mostra anche il contenuto di una cartella aggiunta alla ruota quando vi fermi sopra il puntatore.";
+"NSRemovableVolumesUsageDescription" = "Vorssaint organizza i download WhatsApp confermati in una cartella di destinazione scelta esplicitamente da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui. Il menu radiale mostra anche il contenuto di una cartella aggiunta alla ruota quando vi fermi sopra il puntatore.";
 "NSCalendarsFullAccessUsageDescription" = "Mostra i tuoi prossimi appuntamenti nella parte superiore dello schermo. Gli eventi del calendario restano su questo Mac.";
