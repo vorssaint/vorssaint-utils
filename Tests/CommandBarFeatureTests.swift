@@ -168,6 +168,7 @@ enum CommandBarFeatureTests {
     }
 
     static func run(_ suite: TestSuite) {
+        CommandBarMicMuteTests.run(suite)
         CommandBarInputSourceContract.run(suite)
         CommandBarTerminationContract.run(suite)
         CommandBarAppSortContract.run(suite)
@@ -368,6 +369,14 @@ enum CommandBarFeatureTests {
         suite.expect(math("4 squared") == "16" && math("3 cubed") == "27"
                      && math("2 to the power of 10") == "1,024",
                      "spoken square, cube and power notation")
+        for (query, expected) in [("2 to the power sqrt(9)", 8.0), ("2 to the power of sqrt(9)", 8),
+                                  ("2 to the power 3^2", 512), ("2 to the power minus 2", 0.25),
+                                  ("2 to the 3", 8)] {
+            suite.expect(mathValue(query) == expected, "\(query) evaluates the full exponent")
+        }
+        for query in ["2 to the power typo(9)", "2 to the power of"] {
+            suite.expect(calculate(query) == nil, "\(query) requires a valid exponent")
+        }
         suite.expect(math("10 mod 3") == "1" && math("-10 mod 3") == "-1",
                      "modulo keeps the sign of its left operand")
         suite.expect(math("1e5") == "100,000" && math("10k") == "10,000",
@@ -478,7 +487,7 @@ enum CommandBarFeatureTests {
                 "virtual closers preserve bracket kind and nesting")
         suite.expect(mathValue("sqrt(81") == 9 && mathValue("2*(3+[4") == 14,
                "functions and nested brackets evaluate before closers are typed")
-        for expression in ["(2+3]", "2+3)", "2*(3+", "sqrt(", "sin2", "log100(2)",
+        for expression in ["(2+3]", "2+3)", "2*(3+", "sqrt(", "sin2", "log100(2)", "2pix2", "2πxx2",
                            "sqrt(-1)", "log(0)", "acos(2)", "1e309+0", "7=+3", "7+3=="] {
             suite.expect(mathValue(expression) == nil
                     && CommandBarCalculator.evaluate(expression)?.closingBrackets == nil,
@@ -490,6 +499,7 @@ enum CommandBarFeatureTests {
             ("ln(exp(1))+log(100)+log10(100)", 5.0),
             ("floor(1.9)+ceil(1.1)+round(1.5)", 5.0),
             ("2pi", 2 * Double.pi), ("π+e", Double.pi + Foundation.exp(1)),
+            ("2πx2", 4 * Double.pi), ("πsin(pi/2)", Double.pi),
             ("2x3+2 x 4", 14.0), ("2(3)+(2)(3)+2[3]", 18.0), ("1e-9*1e9", 1.0),
         ] {
             suite.expect(mathValue(expression).map { abs($0 - expected) < 1e-7 } ?? false,
@@ -1437,6 +1447,20 @@ enum CommandBarFeatureTests {
             ("10kg + 500g to lb", 23.148_537_52),
             ("5 feet 3 inches to ft", 5.25),
             ("5 feet 3 inches to cm", 160.02),
+            ("5ft3in to cm", 160.02), ("5ft 3in to cm", 160.02),
+            ("5ft3 to cm", 160.02), ("5ft3 in cm", 160.02),
+            ("5ft3 inches to cm", 160.02), ("5ft3″ to cm", 160.02),
+            ("5ft3.5in to cm", 161.29), ("-5ft3in to cm", -160.02),
+            ("5ft2in to cm", 157.48), ("5ft4in to cm", 162.56),
+            ("5ft3 to liters", 141.584_232_96), ("5ft3 in in3", 8640),
+            ("5ft³ to liters", 141.584_232_96), ("5 cubic feet to liters", 141.584_232_96),
+            ("5ft² to m2", 0.464_515_2), ("5 square feet to m²", 0.464_515_2),
+            ("5ft3/h to L/min", 2.359_737_216),
+            ("1ft3 / 5ft3in to ft²", 1 / 5.25),
+            ("5ft3in * 1 sqft to ft3", 5.25),
+            ("1ft + 5ft3 to cm", 190.5), ("1ft + 5ft 3 to cm", 190.5),
+            ("1ft3 / 2 in * 5ft3in to ft3", 31.5), ("1ft3 / 2in * 5ft3in to ft3", 31.5),
+            ("5ft3in / 1ft3 to ft/ft3", 5.25), ("5ft3 / 4 in to cm", 154.305),
             ("1hr 30min", 90),
             (#"5/16" in mm"#, 7.9375),
             (#"5 / 16 " in mm"#, 7.9375),
@@ -1465,6 +1489,7 @@ enum CommandBarFeatureTests {
             ("1kg/m3 to g/cm3", 0.001),
             ("how many feet in a mile", 5_280),
             ("cm in 5 inches", 12.7),
+            ("5 m to in in cm", 500),
             ("convert 5 km into miles", 3.106_855_961),
             ("10l / 2min to l/min", 5),
             ("10 km/h to min/km", 6),
@@ -1500,6 +1525,18 @@ enum CommandBarFeatureTests {
         for connector in ["to", "in", "into", "as", "em", "para", "pra", "en", "a",
                           "nach", "zu", "à", "su", "->", ">", "→"] {
             suite.expect(unitValue("2 kg \(connector) g") == 2000, "conversion through \(connector)")
+            suite.expect(unitValue("2 KG \(connector.uppercased()) G") == 2000,
+                         "uppercase conversion through \(connector.uppercased())")
+        }
+        suite.expect(unitValue("2 A A mA") == 2000 && unitValue("2 mA A A") == 0.002,
+                     "A is an ampere at either end and a connector between units")
+        suite.expect(unitValue("2A in mA") == 2000, "A attached to the source number means amperes")
+        for query in ["5 ft 11 in A cm", "5 ft 11 A cm"] {
+            suite.expect(unitValue(query) == 180.34, "\(query) converts feet and inches to centimeters")
+        }
+        suite.expect(unitValue("1 kg 2 A g") == 1002, "a spaced A converts kilograms and grams")
+        for query in ["2 kg ampere g", "2 KG A m", "5 ft 12 A cm", "5 ft 11A cm", "1 kg 2A g"] {
+            suite.expect(calculate(query) == nil, "\(query) stays a search")
         }
         for query in ["1 cm + 1", "1 kg + 1 m", "1 kg / 1 m * 1 s * 1 s to Pa",
                       "20 °C * 2", "1 kg in 2 kg", "20 ms to Hz", "1 / 0 ms to Hz"] {
@@ -1541,6 +1578,25 @@ enum CommandBarFeatureTests {
         expectSplit("1m", [3, 3.370_078_74], units: ["ft", "in"])
         expectSplit("1hr", [60], units: ["min"])
 
+        for (input, whole) in [
+            ("7 ft to feet and inches", "7 ft to ft"),
+            ("-7 ft to feet and inches", "-7 ft to ft"),
+            ("53 ft to feet and inches", "53 ft to ft"),
+            ("-53 ft to feet and inches", "-53 ft to ft"),
+            ("6.9999999999 ft to feet and inches", "7 ft to ft"),
+            ("-0.99999999999 h to hours and minutes", "-1 h to h"),
+        ] {
+            let shown = units(input)
+            suite.expect(shown != nil && shown == units(whole),
+                         "\(input) should match \(whole), got \(shown ?? "nil")")
+        }
+        expectSplit("6.99999998 ft to feet and inches", [6, 11.99999976], units: ["ft", "in"])
+        expectSplit("7 1/32 ft to feet and inches", [7, 0.375], units: ["ft", "in"])
+        let tinyRemainder = calculatorNumbers(units("53.000000000000014 ft to feet and inches"))
+        suite.expect(tinyRemainder.count == 2 && tinyRemainder[0] == 53
+                     && (1e-13...2e-13).contains(tinyRemainder[1]),
+                     "one representable SI step above 53 feet keeps its fractional inches")
+
         suite.expect(unitValue("100 km to mi").map { abs($0 - 62.1371) < 0.001 } == true,
                "a distance converts")
         suite.expect(unitValue("20 c to f").map { abs($0 - 68) < 0.001 } == true,
@@ -1555,24 +1611,32 @@ enum CommandBarFeatureTests {
                "the number and the unit do not need a space between them")
         suite.expect(unitValue("5 in to cm").map { abs($0 - 12.7) < 0.001 } == true,
                "the word that also means inches is read correctly on both sides")
-        for query in ["5ft 11 in cm", "5ft 11in in cm", "5ft11in to cm", "5 ft 11 in to cm", "5 feet 11 inches to cm",
+        for query in ["5ft 11 in cm", "5ft 11in in cm", "5 ft 11 in in cm", "5ft11in to cm",
+                      "5 ft 11 in to cm", "5 ft 11 in a cm", "5 feet 11 inches to cm",
                       #"5'11" in cm"#, "5′ 11″ in cm", "5’11” in cm"] {
             suite.expect(unitValue(query).map { abs($0 - 180.34) < 0.001 } == true,
                          "\(query) converts five feet and eleven inches")
         }
         for (query, expected) in [("5' in cm", 152.4), ("5′ in cm", 152.4), ("11in in cm", 27.94),
                                   ("11″ in cm", 27.94), ("-5ft 11in to in", -71), ("-0′6″ to in", -6),
-                                  ("5.5ft to in", 66), ("0ft 0in to cm", 0)] {
+                                  ("5.5ft to in", 66), ("0ft 0in to cm", 0),
+                                  ("5 ft 11 in in", 71), ("5 ft 11 in in in", 71),
+                                  ("5 ft 11 in in to cm", 180.34)] {
             suite.expect(unitValue(query).map { abs($0 - expected) < 0.001 } == true,
                          "\(query) converts to \(expected)")
         }
+        suite.expect(unitValue("5ft3,5in para cm", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR")) == 161.29,
+                     "compact feet and fractional inches use the localized decimal separator")
         suite.expect(unitValue("5 pés 11,5 polegadas em cm", decimal: ",", grouping: ".",
                                locale: Locale(identifier: "pt_BR"))
                 .map { abs($0 - 181.61) < 0.001 } == true,
                      "mixed lengths use the same localized names and decimal parser as single units")
         for query in ["5ft 11in", "5ft 11in cm", "5ft 11in in kg", "5in 11ft in cm", "5m 11 in cm",
                       "5ft 11cm in cm", "5ft 11in 1in in cm", "5ft 11in in cm today",
-                      "5.5ft 1in to cm", "5ft -1in to cm", "5ft 12in to cm", "1'003 in cm"] {
+                      "5.5ft 1in to cm", "5ft -1in to cm", "5ft 12in to cm", "1'003 in cm",
+                      "5 ft 12 in in cm", "5 ft 11 in in kg", "5ft3in cm", "5ft3cm to cm",
+                      "5.5ft3in to cm", "5ft³ to cm", "5ft3in to liters"] {
             suite.expect(units(query) == nil, "\(query) stays a search")
         }
 

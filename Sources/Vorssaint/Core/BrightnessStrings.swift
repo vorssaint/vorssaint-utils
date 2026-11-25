@@ -40,6 +40,7 @@ struct BrightnessFeatureStrings {
     let volumeLabel: String
     let mute: String
     let unmute: String
+    let mutedState: String
     let volumeKeysToggle: String
     let volumeKeysCaption: String
     let keyboardBrightnessShortcuts: String
@@ -56,6 +57,10 @@ struct BrightnessFeatureStrings {
     let speakersMinimumCaption: String
     let speakersMaximum: String
     let speakersMaximumCaption: String
+
+    func mutedVolumeDescription(percent: Int) -> String {
+        "\(mutedState), \(percent)%"
+    }
 }
 
 extension FeatureStrings {
@@ -115,6 +120,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "Volume",
         mute: "Mute",
         unmute: "Unmute",
+        mutedState: "Muted",
         volumeKeysToggle: "Volume keys reach monitor speakers",
         volumeKeysCaption: "While the sound comes out of a monitor, the keyboard volume keys move that monitor instead of a level macOS cannot change.",
         keyboardBrightnessShortcuts: "Use keyboard brightness shortcuts",
@@ -128,7 +134,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "Volume step",
         speakersStepStandard: "Standard (6.25%)",
         speakersMinimum: "Minimum volume",
-        speakersMinimumCaption: "Volume down stops here. Mute still silences the monitor.",
+        speakersMinimumCaption: "The volume down key stops here. The mute key works only on monitors with a mute control.",
         speakersMaximum: "Maximum volume",
         speakersMaximumCaption: "Volume up stops here."
     )
@@ -167,6 +173,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "Volume",
         mute: "Silenciar",
         unmute: "Ativar o som",
+        mutedState: "Som silenciado",
         volumeKeysToggle: "Teclas de volume alcançam os alto-falantes do monitor",
         volumeKeysCaption: "Enquanto o som sai por um monitor, as teclas de volume do teclado ajustam esse monitor em vez de um nível que o macOS não consegue mudar.",
         keyboardBrightnessShortcuts: "Usar atalhos para o brilho do teclado",
@@ -180,7 +187,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "Passo do volume",
         speakersStepStandard: "Padrão (6,25%)",
         speakersMinimum: "Volume mínimo",
-        speakersMinimumCaption: "Diminuir o volume para aqui. Silenciar ainda deixa o monitor mudo.",
+        speakersMinimumCaption: "A tecla de volume reduz o som até este nível. A tecla de silenciar só funciona se o monitor oferecer essa função.",
         speakersMaximum: "Volume máximo",
         speakersMaximumCaption: "Aumentar o volume para aqui."
     )
@@ -219,6 +226,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "Ses düzeyi",
         mute: "Sesi kapat",
         unmute: "Sesi aç",
+        mutedState: "Ses kapalı",
         volumeKeysToggle: "Ses tuşları monitör hoparlörlerine ulaşır",
         volumeKeysCaption: "Ses bir monitörden çıkarken, klavyedeki ses tuşları macOS’un değiştiremediği bir düzey yerine o monitörü ayarlar.",
         keyboardBrightnessShortcuts: "Klavye parlaklığı kısayollarını kullan",
@@ -232,7 +240,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "Ses adımı",
         speakersStepStandard: "Standart (%6,25)",
         speakersMinimum: "En düşük ses",
-        speakersMinimumCaption: "Sesi azaltma burada durur. Sessiz tuşu monitörü yine de susturur.",
+        speakersMinimumCaption: "Sesi kısma tuşu bu sınırda durur. Sessize alma tuşu yalnızca sessize almayı destekleyen monitörlerde çalışır.",
         speakersMaximum: "En yüksek ses",
         speakersMaximumCaption: "Sesi artırma burada durur."
     )
@@ -271,6 +279,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "Громкость",
         mute: "Выключить звук",
         unmute: "Включить звук",
+        mutedState: "Звук выключен",
         volumeKeysToggle: "Клавиши громкости управляют динамиками монитора",
         volumeKeysCaption: "Пока звук идёт через монитор, клавиши громкости меняют именно его уровень, а не тот, который macOS изменить не может.",
         keyboardBrightnessShortcuts: "Использовать сочетания клавиш для подсветки клавиатуры",
@@ -284,7 +293,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "Шаг громкости",
         speakersStepStandard: "Стандартный (6,25%)",
         speakersMinimum: "Минимальная громкость",
-        speakersMinimumCaption: "Уменьшение громкости останавливается здесь. Выключение звука по-прежнему заглушает монитор.",
+        speakersMinimumCaption: "Клавиша уменьшения громкости останавливается на этом уровне. Клавиша отключения звука работает только на мониторах, которые поддерживают эту функцию.",
         speakersMaximum: "Максимальная громкость",
         speakersMaximumCaption: "Увеличение громкости останавливается здесь."
     )
@@ -323,6 +332,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "Volumen",
         mute: "Silenciar",
         unmute: "Activar el sonido",
+        mutedState: "Sonido silenciado",
         volumeKeysToggle: "Las teclas de volumen llegan a los altavoces del monitor",
         volumeKeysCaption: "Mientras el sonido sale por un monitor, las teclas de volumen del teclado ajustan ese monitor en lugar de un nivel que macOS no puede cambiar.",
         keyboardBrightnessShortcuts: "Usar atajos para el brillo del teclado",
@@ -336,7 +346,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "Paso de volumen",
         speakersStepStandard: "Estándar (6,25 %)",
         speakersMinimum: "Volumen mínimo",
-        speakersMinimumCaption: "Bajar el volumen se detiene aquí. Silenciar sigue dejando el monitor mudo.",
+        speakersMinimumCaption: "La tecla para bajar el volumen se detiene en este nivel. La tecla de silencio solo funciona en monitores que permiten silenciar el sonido.",
         speakersMaximum: "Volumen máximo",
         speakersMaximumCaption: "Subir el volumen se detiene aquí."
     )
@@ -375,6 +385,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "Hlasitosť",
         mute: "Stlmiť",
         unmute: "Zrušiť stlmenie",
+        mutedState: "Zvuk je stlmený",
         volumeKeysToggle: "Klávesy hlasitosti ovládajú reproduktory monitora",
         volumeKeysCaption: "Kým zvuk ide z monitora, klávesy hlasitosti na klávesnici upravujú tento monitor namiesto úrovne, ktorú macOS nemôže zmeniť.",
         keyboardBrightnessShortcuts: "Používať klávesové skratky pre jas klávesnice",
@@ -388,7 +399,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "Krok hlasitosti",
         speakersStepStandard: "Štandardný (6,25 %)",
         speakersMinimum: "Minimálna hlasitosť",
-        speakersMinimumCaption: "Znižovanie hlasitosti sa zastaví tu. Stlmenie monitor aj tak umlčí.",
+        speakersMinimumCaption: "Tlačidlom zníženia hlasitosti sa dostanete najnižšie na túto úroveň. Tlačidlo stlmenia funguje len na monitoroch, ktoré podporujú stlmenie zvuku.",
         speakersMaximum: "Maximálna hlasitosť",
         speakersMaximumCaption: "Zvyšovanie hlasitosti sa zastaví tu."
     )
@@ -427,6 +438,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "Lautstärke",
         mute: "Stummschalten",
         unmute: "Ton einschalten",
+        mutedState: "Stummgeschaltet",
         volumeKeysToggle: "Lautstärketasten erreichen die Monitorlautsprecher",
         volumeKeysCaption: "Solange der Ton aus einem Monitor kommt, regeln die Lautstärketasten diesen Monitor statt eines Pegels, den macOS nicht ändern kann.",
         keyboardBrightnessShortcuts: "Kurzbefehle für die Tastaturhelligkeit verwenden",
@@ -440,7 +452,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "Lautstärkeschritt",
         speakersStepStandard: "Standard (6,25 %)",
         speakersMinimum: "Mindestlautstärke",
-        speakersMinimumCaption: "Leiser stoppt hier. Stumm schaltet den Monitor trotzdem stumm.",
+        speakersMinimumCaption: "Mit der Leisertaste lässt sich die Lautstärke bis zu diesem Wert senken. Die Stummtaste funktioniert nur bei Monitoren mit Stummschaltung.",
         speakersMaximum: "Höchstlautstärke",
         speakersMaximumCaption: "Lauter stoppt hier."
     )
@@ -479,6 +491,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "Volume",
         mute: "Couper le son",
         unmute: "Rétablir le son",
+        mutedState: "Son coupé",
         volumeKeysToggle: "Les touches de volume atteignent les haut-parleurs du moniteur",
         volumeKeysCaption: "Tant que le son sort d’un moniteur, les touches de volume règlent ce moniteur au lieu d’un niveau que macOS ne peut pas changer.",
         keyboardBrightnessShortcuts: "Utiliser les raccourcis de luminosité du clavier",
@@ -492,7 +505,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "Pas du volume",
         speakersStepStandard: "Standard (6,25 %)",
         speakersMinimum: "Volume minimal",
-        speakersMinimumCaption: "La baisse du volume s’arrête ici. Le silence coupe toujours le son du moniteur.",
+        speakersMinimumCaption: "La touche de baisse du volume s’arrête à ce niveau. La touche de sourdine fonctionne uniquement sur les moniteurs qui permettent de couper le son.",
         speakersMaximum: "Volume maximal",
         speakersMaximumCaption: "La hausse du volume s’arrête ici."
     )
@@ -531,6 +544,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "Volume",
         mute: "Silenzia",
         unmute: "Riattiva l’audio",
+        mutedState: "Audio disattivato",
         volumeKeysToggle: "I tasti volume raggiungono gli altoparlanti del monitor",
         volumeKeysCaption: "Finché l’audio esce da un monitor, i tasti volume regolano quel monitor invece di un livello che macOS non può cambiare.",
         keyboardBrightnessShortcuts: "Usa le scorciatoie per la luminosità della tastiera",
@@ -544,7 +558,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "Passo del volume",
         speakersStepStandard: "Standard (6,25%)",
         speakersMinimum: "Volume minimo",
-        speakersMinimumCaption: "Abbassare il volume si ferma qui. Il silenziamento azzera comunque il monitor.",
+        speakersMinimumCaption: "Il tasto per abbassare il volume si ferma a questo livello. Il tasto muto funziona solo sui monitor che supportano il silenziamento.",
         speakersMaximum: "Volume massimo",
         speakersMaximumCaption: "Alzare il volume si ferma qui."
     )
@@ -583,6 +597,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "音量",
         mute: "消音",
         unmute: "消音を解除",
+        mutedState: "消音中",
         volumeKeysToggle: "音量キーでモニタのスピーカーを操作",
         volumeKeysCaption: "音がモニタから出ている間、キーボードの音量キーは macOS が変更できない値ではなく、そのモニタを調整します。",
         keyboardBrightnessShortcuts: "キーボードの明るさのショートカットを使用",
@@ -596,7 +611,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "音量のステップ",
         speakersStepStandard: "標準（6.25%）",
         speakersMinimum: "最小音量",
-        speakersMinimumCaption: "音量を下げるとここで止まります。消音キーではモニタを消音できます。",
+        speakersMinimumCaption: "音量を下げるキーで設定できる下限です。消音キーは消音機能のあるモニタでのみ使えます。",
         speakersMaximum: "最大音量",
         speakersMaximumCaption: "音量を上げるとここで止まります。"
     )
@@ -635,6 +650,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "음량",
         mute: "음소거",
         unmute: "음소거 해제",
+        mutedState: "음소거됨",
         volumeKeysToggle: "음량 키로 모니터 스피커 조절",
         volumeKeysCaption: "소리가 모니터에서 나오는 동안, 키보드 음량 키는 macOS가 바꿀 수 없는 값 대신 해당 모니터를 조절합니다.",
         keyboardBrightnessShortcuts: "키보드 밝기 단축키 사용",
@@ -648,7 +664,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "음량 단계",
         speakersStepStandard: "표준(6.25%)",
         speakersMinimum: "최소 음량",
-        speakersMinimumCaption: "음량을 줄이면 여기서 멈춥니다. 음소거는 여전히 모니터를 무음으로 만듭니다.",
+        speakersMinimumCaption: "음량 낮추기 키로 줄일 수 있는 최솟값입니다. 음소거 키는 음소거를 지원하는 모니터에서만 작동합니다.",
         speakersMaximum: "최대 음량",
         speakersMaximumCaption: "음량을 높이면 여기서 멈춥니다."
     )
@@ -687,6 +703,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "音量",
         mute: "静音",
         unmute: "取消静音",
+        mutedState: "已静音",
         volumeKeysToggle: "音量键控制显示器扬声器",
         volumeKeysCaption: "当声音从显示器发出时，键盘上的音量键调节该显示器，而不是 macOS 无法改变的音量。",
         keyboardBrightnessShortcuts: "使用键盘亮度快捷键",
@@ -700,7 +717,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "音量步长",
         speakersStepStandard: "标准（6.25%）",
         speakersMinimum: "最低音量",
-        speakersMinimumCaption: "降低音量时在此停止。静音仍会让显示器静音。",
+        speakersMinimumCaption: "音量减小键最多可将音量降至此值。静音键仅适用于支持静音的显示器。",
         speakersMaximum: "最高音量",
         speakersMaximumCaption: "提高音量时在此停止。"
     )
@@ -739,6 +756,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "音量",
         mute: "靜音",
         unmute: "取消靜音",
+        mutedState: "已靜音",
         volumeKeysToggle: "音量鍵控制顯示器揚聲器",
         volumeKeysCaption: "當聲音從顯示器傳出時，鍵盤上的音量鍵會調整該顯示器，而不是 macOS 無法改變的音量。",
         keyboardBrightnessShortcuts: "使用鍵盤亮度快捷鍵",
@@ -752,7 +770,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "音量間距",
         speakersStepStandard: "標準（6.25%）",
         speakersMinimum: "最低音量",
-        speakersMinimumCaption: "降低音量時會停在這裡。靜音仍會讓顯示器靜音。",
+        speakersMinimumCaption: "降低音量鍵最多可將音量降至此值。靜音鍵僅適用於支援靜音的顯示器。",
         speakersMaximum: "最高音量",
         speakersMaximumCaption: "提高音量時會停在這裡。"
     )
@@ -791,6 +809,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "音量",
         mute: "靜音",
         unmute: "取消靜音",
+        mutedState: "已靜音",
         volumeKeysToggle: "音量鍵控制顯示器揚聲器",
         volumeKeysCaption: "當聲音從顯示器傳出時，鍵盤上的音量鍵會調整該顯示器，而不是 macOS 無法改變的音量。",
         keyboardBrightnessShortcuts: "使用鍵盤亮度快捷鍵",
@@ -804,7 +823,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "音量間距",
         speakersStepStandard: "標準（6.25%）",
         speakersMinimum: "最低音量",
-        speakersMinimumCaption: "調低音量時會停在這裡。靜音仍會令顯示器靜音。",
+        speakersMinimumCaption: "調低音量鍵最多可將音量降至此值。靜音鍵只適用於支援靜音的顯示器。",
         speakersMaximum: "最高音量",
         speakersMaximumCaption: "調高音量時會停在這裡。"
     )
@@ -842,6 +861,7 @@ extension BrightnessFeatureStrings {
         volumeLabel: "Гучність",
         mute: "Вимкнути звук",
         unmute: "Увімкнути звук",
+        mutedState: "Звук вимкнено",
         volumeKeysToggle: "Клавіші гучності керують динаміками монітора",
         volumeKeysCaption: "Поки звук виходить через монітор, клавіші гучності на клавіатурі змінюють саме його, а не рівень, який macOS не може змінити.",
         keyboardBrightnessShortcuts: "Клавіатурні скорочення яскравості клавіатури",
@@ -855,7 +875,7 @@ extension BrightnessFeatureStrings {
         speakersStep: "Крок гучності",
         speakersStepStandard: "Стандартний (6,25%)",
         speakersMinimum: "Мінімальна гучність",
-        speakersMinimumCaption: "Зменшення гучності зупиняється тут. Вимкнення звуку все одно глушить монітор.",
+        speakersMinimumCaption: "Клавіша зменшення гучності знижує її до цього рівня. Клавіша вимкнення звуку працює лише на моніторах, які підтримують цю функцію.",
         speakersMaximum: "Максимальна гучність",
         speakersMaximumCaption: "Збільшення гучності зупиняється тут."
     )

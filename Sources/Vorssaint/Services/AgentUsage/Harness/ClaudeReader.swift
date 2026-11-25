@@ -97,7 +97,7 @@ struct ClaudeReader: AgentHarnessReader {
                 output: AgentLogParser.int(usage["output_tokens"]),
                 reasoning: AgentLogParser.int((usage["output_tokens_details"] as? [String: Any])?["thinking_tokens"]))
             billable.longCacheWrite = AgentLogParser.int((usage["cache_creation"] as? [String: Any])?["ephemeral_1h_input_tokens"])
-            billable.fast = usage["speed"] as? String == "fast"
+            billable.serviceTier = usage["speed"] as? String == "fast" ? .fast : .standard
             billable.domestic = usage["inference_geo"] as? String == "us"
             billable.webSearches = AgentLogParser.int((usage["server_tool_use"] as? [String: Any])?["web_search_requests"])
             let key = id.isEmpty && request.isEmpty

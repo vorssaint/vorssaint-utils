@@ -69,11 +69,22 @@ enum CommandBarExpressions {
     static func parse(_ input: String,
                       decimalSeparator: String,
                       groupingSeparator: String) -> Parsed? {
-        var fractions: [MeasuredFraction] = []
-        guard let tokens = tokenize(input, decimalSeparator: decimalSeparator,
-                                    groupingSeparator: groupingSeparator, fractions: &fractions),
-              let closings = virtualClosings(for: tokens)
-        else { return nil }
+        // Preserve valid cubic-foot expressions. Try explicit inch marks before
+        // assuming an omitted mark or reading a division as fractional inches.
+        for reading in CompactFeetReading.allCases {
+            var hasAlternative = false
+            var fractions: [MeasuredFraction] = []
+            if let tokens = tokenize(input, decimalSeparator: decimalSeparator,
+                                     groupingSeparator: groupingSeparator, fractions: &fractions,
+                                     compactFeet: reading, hasAlternative: &hasAlternative),
+               let parsed = parse(tokens, fractions: fractions) { return parsed }
+            if !hasAlternative { break }
+        }
+        return nil
+    }
+
+    private static func parse(_ tokens: [Token], fractions: [MeasuredFraction]) -> Parsed? {
+        guard let closings = virtualClosings(for: tokens) else { return nil }
         func evaluate(_ tokens: [Token]) -> Parsed? {
             var parser = Parser(tokens: tokens + closings.map(Token.right))
             guard let parsed = parser.parseWhole() else { return nil }
@@ -151,10 +162,16 @@ enum CommandBarExpressions {
 
     // MARK: - Tokenizer
 
+    private enum CompactFeetReading: Int, CaseIterable {
+        case cubicFeet, markedInches, impliedInches, fractionalInches
+    }
+
     private static func tokenize(_ input: String,
                                  decimalSeparator: String,
                                  groupingSeparator: String,
-                                 fractions: inout [MeasuredFraction]) -> [Token]? {
+                                 fractions: inout [MeasuredFraction],
+                                 compactFeet: CompactFeetReading,
+                                 hasAlternative: inout Bool) -> [Token]? {
         var tokens: [Token] = []
         let characters = Array(input)
         var index = 0
@@ -239,12 +256,49 @@ enum CommandBarExpressions {
             return 1
         }
 
-        /// Whether a unit name starts at `p`, used to tell "5 ft 11 in cm"
-        /// (the "in" is the connector) from "5 in to cm" (inches).
-        func unitAhead(at start: Int) -> Bool {
+        func unitAhead(at start: Int, asConversionTarget: Bool = false) -> Bool {
             var p = start
             while p < characters.count, characters[p].isWhitespace { p += 1 }
-            return readUnit(at: p) != nil
+            guard let next = readUnit(at: p) else { return false }
+            // In "5 ft 11 in in cm" the second "in" introduces a target.
+            // In "5 ft 11 in in" that same word is the target (inches).
+            if asConversionTarget, conversionWords.contains(fold(next.raw)) {
+                return !unitAhead(at: next.end, asConversionTarget: true)
+            }
+            return true
+        }
+
+        func couldStartInches(at digit: Int) -> Bool {
+            var next = digit
+            var consumedDivision = false
+            guard readNumber(characters, &next, separators: separators,
+                             unitAhead: { unitAhead(at: $0) }, argumentComma: commaSeparatesArguments,
+                             measuredFraction: { _, _ in consumedDivision = true }) != nil else { return false }
+            while next < characters.count, characters[next].isWhitespace { next += 1 }
+            var required: CompactFeetReading
+            if let inch = readUnit(at: next), inch.unit.id == "in",
+               fold(inch.raw) != "in" || !unitAhead(at: inch.end, asConversionTarget: true) {
+                required = .markedInches
+            } else {
+                let tail = characters[next...]
+                let connector = tail.first?.isLetter == true
+                    ? tail.prefix(while: \.isLetter) : tail.prefix { "->→".contains($0) }
+                guard conversionWords.contains(fold(String(connector))) else { return false }
+                required = .impliedInches
+            }
+            if consumedDivision { required = .fractionalInches }
+            if compactFeet.rawValue >= required.rawValue { return true }
+            hasAlternative = true
+            return false
+        }
+
+        func followsUnitOrMixedRemainder(at start: Int) -> Bool {
+            if case .unit? = tokens.last { return true }
+            // "5 ft 11 A cm" omits inches. In "11A", the A belongs to the number.
+            guard start > 0, characters[start - 1].isWhitespace,
+                  case .number? = tokens.last, case .unit(let larger)? = tokens.dropLast().last
+            else { return false }
+            return CommandBarUnitCatalog.mixedPairs[larger.id] != nil
         }
 
         // A detached negative inch remainder is invalid (5ft -1in). A binary
@@ -316,7 +370,7 @@ enum CommandBarExpressions {
             }
             if separators.isPart(ofNumber: character), !isUnitSymbol(character) {
                 guard let number = readNumber(characters, &index, separators: separators,
-                                              unitAhead: unitAhead, argumentComma: commaSeparatesArguments,
+                                              unitAhead: { unitAhead(at: $0) }, argumentComma: commaSeparatesArguments,
                                               measuredFraction: { numerator, denominator in
                     fractions.append(MeasuredFraction(index: tokens.count, numerator: numerator,
                                                       denominator: denominator))
@@ -336,6 +390,12 @@ enum CommandBarExpressions {
                 }
                 continue
             }
+            // π is a symbol even when the next character is a letter (2πx2).
+            if character == "π" {
+                tokens.append(.constant(Double.pi))
+                index += 1
+                continue
+            }
             // A letter or a unit symbol: a unit name, an operator word or a
             // filler word.
             if character.isLetter || isUnitSymbol(character) {
@@ -348,6 +408,12 @@ enum CommandBarExpressions {
                 let tokenStart = index
                 if let matched = readUnit(at: index) {
                     index = matched.end
+                    if case .number? = tokens.last, matched.unit.id == "ft3", matched.raw.last == "3",
+                       couldStartInches(at: index - 1), let feet = CommandBarUnitCatalog.unit(byID: "ft") {
+                        tokens.append(.unit(feet))
+                        index -= 1
+                        continue
+                    }
                     if matched.unit.id == "min" {
                         var p = index
                         while p < characters.count, characters[p].isWhitespace { p += 1 }
@@ -357,8 +423,8 @@ enum CommandBarExpressions {
                             continue
                         }
                     }
-                    if matched.unit.id == "a", matched.raw != "A",
-                       case .unit? = tokens.last, unitAhead(at: index) {
+                    if matched.unit.id == "a", fold(matched.raw) == "a",
+                       followsUnitOrMixedRemainder(at: tokenStart), unitAhead(at: index) {
                         tokens.append(.to)
                         continue
                     }
@@ -371,10 +437,10 @@ enum CommandBarExpressions {
                     case .some(.number(_, _)), .some(.to), .some(.inKeyword): inchesHere = true
                     default: inchesHere = false
                     }
-                    if matched.unit.id == "in", fold(matched.raw) == "in", inchesHere,
+                    if matched.unit.id == "in", fold(matched.raw) == "in", case .number? = tokens.last,
                        tokens.contains(where: { if case .unit = $0 { return true } else { return false } }),
                        tokenStart > 0, characters[tokenStart - 1].isWhitespace,
-                       unitAhead(at: index) {
+                       unitAhead(at: index, asConversionTarget: true) {
                         inchesHere = false
                     }
                     if matched.unit.id == "in", fold(matched.raw) == "in", !inchesHere {
@@ -398,10 +464,6 @@ enum CommandBarExpressions {
                 // A lone x between numbers is the written multiplication sign.
                 if raw.count == 1, lower == "x" {
                     tokens.append(.times)
-                    continue
-                }
-                if lower == "π" {
-                    tokens.append(.constant(Double.pi))
                     continue
                 }
                 if let token = wordToken(for: lower, characters: characters, index: &index) {
@@ -439,7 +501,6 @@ enum CommandBarExpressions {
                 _ = argumentLists.popLast()
                 tokens.append(.right(character))
             case ",", ";": tokens.append(.comma)
-            case "π": tokens.append(.constant(Double.pi))
             case ">": tokens.append(.to)
             case "\u{2192}": tokens.append(.to)   // →
             default: return nil
@@ -521,7 +582,10 @@ enum CommandBarExpressions {
         case "to":
             if matchAhead(["the"]) {
                 consume(1)
-                if matchAhead(["power"]) { consume(2); return .powerWord }
+                if matchAhead(["power"]) {
+                    consume(1)
+                    if matchAhead(["of"]) { consume(1) }
+                }
                 return .powerWord
             }
             return .to
@@ -532,7 +596,7 @@ enum CommandBarExpressions {
             return .rootWord
         case "logarithm":
             return .function(.log)
-        case "pi": return .constant(Double.pi)
+        case "pi", "π": return .constant(Double.pi)
         case "e": return .constant(Foundation.exp(1))
         default:
             if let function = Function(rawValue: lower) { return .function(function) }
@@ -1193,8 +1257,8 @@ enum CommandBarExpressions {
                          percentRaw: value.percentRaw.map { -$0 }, hasNumber: value.hasNumber)
         }
 
-        private func displayValue(_ value: Value) -> Double {
-            guard let unit = value.unit else { return value.si }
+        private func displayValue(_ value: Value, in target: CommandBarUnitCatalog.Unit? = nil) -> Double {
+            guard let unit = target ?? value.unit else { return value.si }
             let displayed = unit.displayValue(siValue: value.si)
             // An integral reading can gain a fractional bit on its return trip
             // from SI. Keep floor(29 cm) at 29 when that integer maps to the same SI value.
@@ -1237,7 +1301,7 @@ enum CommandBarExpressions {
                            larger: CommandBarUnitCatalog.Unit,
                            smaller: CommandBarUnitCatalog.Unit) -> Outcome? {
             guard value.dims == larger.dimensions, larger.dimensions == smaller.dimensions else { return nil }
-            let largerTotal = (value.si - larger.offset) / larger.scale
+            let largerTotal = displayValue(value, in: larger)
             let whole = largerTotal >= 0 ? largerTotal.rounded(.down) : largerTotal.rounded(.up)
             let remainderLarger = largerTotal - whole
             let smallerValue = remainderLarger * larger.scale / smaller.scale

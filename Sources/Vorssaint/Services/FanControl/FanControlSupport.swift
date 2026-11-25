@@ -136,17 +136,30 @@ enum FanControlErrorCode: String, Codable, Equatable, Error, Sendable {
 }
 
 struct FanControlResponse: Codable, Equatable, Sendable {
+    // Advertised by status even if the helper cannot read fan telemetry.
+    var supportsUnregisterPreparation: Bool?
     let succeeded: Bool
     let snapshot: FanControlSnapshot
     let error: FanControlErrorCode?
+    // Advertised by an accepted Apply. Older helpers omit this key.
+    let supportsOwnedRestore: Bool?
+    // Present only when this request caused the stop. The snapshot is global.
+    let localStopReason: FanControlStopReason?
+    // The failed Apply made no manual change or rolled its own writes back.
+    let retryableApply: Bool?
 
-    static func success(_ snapshot: FanControlSnapshot) -> FanControlResponse {
-        FanControlResponse(succeeded: true, snapshot: snapshot, error: nil)
+    static func success(_ snapshot: FanControlSnapshot,
+                        supportsOwnedRestore: Bool? = nil) -> FanControlResponse {
+        FanControlResponse(succeeded: true, snapshot: snapshot, error: nil,
+                           supportsOwnedRestore: supportsOwnedRestore, localStopReason: nil, retryableApply: nil)
     }
 
     static func failure(_ error: FanControlErrorCode,
-                        snapshot: FanControlSnapshot = .empty) -> FanControlResponse {
-        FanControlResponse(succeeded: false, snapshot: snapshot, error: error)
+                        snapshot: FanControlSnapshot = .empty,
+                        localStopReason: FanControlStopReason? = nil,
+                        retryableApply: Bool? = nil) -> FanControlResponse {
+        FanControlResponse(succeeded: false, snapshot: snapshot, error: error,
+                           supportsOwnedRestore: nil, localStopReason: localStopReason, retryableApply: retryableApply)
     }
 }
 

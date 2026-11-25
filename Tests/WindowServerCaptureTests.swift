@@ -2,13 +2,42 @@
 // Copyright (C) 2026 Vorssaint
 
 import CoreGraphics
+import CoreImage
 import Foundation
+import ScreenCaptureKit
 
-/// The production capture body and queue run against a controllable native
-/// call, permission check and clock. No windows are captured and no Screen
-/// Recording permission is needed.
+/// The production refresh loop and capture queue run against a controllable
+/// native call, permission check and clock. No real windows are captured.
 enum WindowServerCaptureContract {
-    enum Provider {
+    final class Provider {
+        static let shared = Provider()
+        static let defaultMaxPixelSize: CGFloat = 640
+        static let rectifyContext = CIContext()
+        var cache: [CGWindowID: CGImage] = [:]
+        var lastTouched: [CGWindowID: TimeInterval] = [:]
+        var warming = false
+
+        func startWarming() { warming = true }
+        func stopWarming() { warming = false }
+
+        struct Permissions {
+            static let shared = Permissions()
+            let screenRecording = true
+        }
+
+        static func screenIsInView() -> Bool { true }
+        static func captureIsPaused(excludedAppsKey: String) -> Bool { false }
+        func pruneCache(keeping active: Set<CGWindowID>) {}
+
+        // There are no real shareable windows in the fixture, including when
+        // a simulated native capture fails and the refresh tries its fallback.
+        struct SCShareableContent {
+            let windows: [SCWindow] = []
+            static func excludingDesktopWindows(_ exclude: Bool, onScreenWindowsOnly: Bool) async throws -> Self {
+                Self()
+            }
+        }
+
         typealias CGSConnectionID = UInt32
         typealias CGSCaptureFunction =
             @convention(c) (CGSConnectionID, UnsafeMutablePointer<UInt32>, UInt32, UInt32) -> Unmanaged<CFArray>?
@@ -69,9 +98,12 @@ enum WindowServerCaptureContract {
         static let tinyImage = makeImage(size: 1)
 
         private static func makeImage(size: Int) -> CGImage {
-            CGContext(data: nil, width: size, height: size, bitsPerComponent: 8,
-                      bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
-                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!.makeImage()!
+            let context = CGContext(data: nil, width: size, height: size, bitsPerComponent: 8,
+                                    bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+            context.setFillColor(gray: 1, alpha: 1)
+            context.fill(CGRect(x: 0, y: 0, width: CGFloat(size), height: CGFloat(size)))
+            return context.makeImage()!
         }
 
         static func capture(connection: UInt32, id: UInt32, count: UInt32,
@@ -115,6 +147,9 @@ enum WindowServerCaptureContract {
                 clockReads = 0
             }
             Provider.windowServerCaptures = makeQueue()
+            Provider.shared.cache.removeAll()
+            Provider.shared.lastTouched.removeAll()
+            Provider.shared.warming = false
         }
     }
 
