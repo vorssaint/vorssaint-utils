@@ -56,9 +56,11 @@ enum URLCleaning {
 
     /// A cleaned link and the names taken out of it, so every surface that
     /// cleans can say what it removed instead of only that something changed.
+    /// `embedService` names the embed fixer the link was pointed at, if any.
     struct Result: Equatable {
         let url: String
         let removed: [String]
+        var embedService: String? = nil
     }
 
     /// What the user changed about the tables above: names they added, and
@@ -115,10 +117,12 @@ enum URLCleaning {
         case unchanged
         case rewritten
         case removed([String])
+        case embedFixed(service: String, removed: [String])
     }
 
     static func outcome(for result: Result?, input: String) -> Outcome {
         guard let result else { return .notAURL }
+        if let service = result.embedService { return .embedFixed(service: service, removed: result.removed) }
         guard result.removed.isEmpty else { return .removed(result.removed) }
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         return result.url == trimmed ? .unchanged : .rewritten

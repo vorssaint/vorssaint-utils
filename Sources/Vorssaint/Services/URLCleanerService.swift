@@ -14,6 +14,8 @@ final class URLCleanerService: ObservableObject {
     /// Names the last automatic clean took out, so Settings can say what the
     /// silent rewrite did rather than only that it is running.
     @Published private(set) var lastRemoved: [String] = []
+    /// The embed fixer the last automatic rewrite pointed a link at.
+    @Published private(set) var lastEmbedService: String?
 
     private final class PollToken {
         private let lock = NSLock()
@@ -53,7 +55,7 @@ final class URLCleanerService: ObservableObject {
     }
 
     func clean(_ text: String) -> URLCleaning.Result? {
-        URLCleaning.clean(text, rules: Self.rules)
+        URLCleaning.clean(text, rules: Self.rules).map { EmbedFixing.apply(to: $0, choices: Self.embedFixes) }
     }
 
     /// Writes on the shared lane and settles the change count on the main
@@ -135,6 +137,7 @@ final class URLCleanerService: ObservableObject {
                 if let cleaned = result.cleaned {
                     self.lastCleaned = cleaned.url
                     self.lastRemoved = cleaned.removed
+                    self.lastEmbedService = cleaned.embedService
                 }
             }
         }
@@ -155,19 +158,22 @@ final class URLCleanerService: ObservableObject {
         // put the link on the pasteboard only as a URL, with no text next
         // to it.
 
-        // The rewrite is for a link something was actually taken out of. A
-        // copy with nothing to remove is left exactly as the user put it,
-        // because writing to the pasteboard discards whatever else the copy
-        // carried, and a link the cleaner did not need to touch is the one
-        // most likely to come back spelled differently.
+        // The rewrite is for a link something was actually taken out of, or
+        // that the embed fixer points elsewhere. A copy with nothing to
+        // change is left exactly as the user put it, because writing to the
+        // pasteboard discards whatever else the copy carried, and a link the
+        // cleaner did not need to touch is the one most likely to come back
+        // spelled differently.
         let types = (pasteboard.types ?? []).map(\.rawValue)
         let cleaningRules = rules
+        let embedChoices = embedFixes
         guard URLCleaning.canRewritePasteboard(types: types),
               // The rewrite writes one item, so a copy of several is left alone.
               pasteboard.pasteboardItems?.count == 1,
               let text = pasteboard.string(forType: .string) ?? pasteboard.string(forType: urlType),
-              let cleaned = URLCleaning.clean(text, rules: cleaningRules),
-              !cleaned.removed.isEmpty,
+              let cleaned = URLCleaning.clean(text, rules: cleaningRules)
+                .map({ EmbedFixing.apply(to: $0, choices: embedChoices) }),
+              !cleaned.removed.isEmpty || cleaned.embedService != nil,
               !token.isCancelled else {
             return PollResult(changeCount: changeCount, cleaned: nil)
         }
@@ -222,7 +228,10 @@ final class URLCleanerService: ObservableObject {
             }
         }
         var linkMetadata: Data?
-        if types.contains(URLCleanerLinkMetadata.pasteboardType.rawValue) {
+        // A preview of the original post would send a rich paste back to the
+        // site the fixer stands in for, so a fixed link goes without it and
+        // the app it is pasted into asks the fixer for its own.
+        if cleaned.embedService == nil, types.contains(URLCleanerLinkMetadata.pasteboardType.rawValue) {
             let data = pasteboard.data(forType: URLCleanerLinkMetadata.pasteboardType)
             guard !token.isCancelled, pasteboard.changeCount == changeCount else {
                 return PollResult(changeCount: changeCount, cleaned: nil)
@@ -257,6 +266,13 @@ final class URLCleanerService: ObservableObject {
             globalNames: defaults.string(forKey: DefaultsKey.urlCleanerCustomParameters),
             siteNames: defaults.string(forKey: DefaultsKey.urlCleanerSiteParameters),
             disabledNames: defaults.string(forKey: DefaultsKey.urlCleanerDisabledParameters))
+    }
+
+    /// Nil while the embed fixer is switched off.
+    private static var embedFixes: EmbedFixing.Choices? {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: DefaultsKey.urlCleanerEmbedFixEnabled) else { return nil }
+        return EmbedFixing.choices(from: defaults.string(forKey: DefaultsKey.urlCleanerEmbedFixServices))
     }
 
     @discardableResult

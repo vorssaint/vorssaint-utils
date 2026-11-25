@@ -25,7 +25,7 @@ enum CommandBarSelectionTests {
         var isAvailable: Bool { false }
     }
     struct URLCleanerService {
-        struct Cleaned { let url: String; let removed: [String] }
+        struct Cleaned { let url: String; let removed: [String]; var embedService: String? = nil }
         static let shared = Self()
         func clean(_ text: String) -> Cleaned? { nil }
         func copy(_ text: String) {}
@@ -39,6 +39,7 @@ enum CommandBarSelectionTests {
             let urlCleanerName = "cleaner"
             let urlCleanerCleaned = "cleaned"
             let urlCleanerRemovedFormat = "%@"
+            func urlCleanerEmbedFixed(service: String, removed: [String]) -> String { service }
             let shelfName = "shelf"
         }
     }

@@ -11,6 +11,8 @@ struct URLCleanerSettings: View {
     @AppStorage(DefaultsKey.urlCleanerCustomParameters) private var globalNames = ""
     @AppStorage(DefaultsKey.urlCleanerSiteParameters) private var siteNames = ""
     @AppStorage(DefaultsKey.urlCleanerDisabledParameters) private var disabledNames = ""
+    @AppStorage(DefaultsKey.urlCleanerEmbedFixEnabled) private var embedEnabled = false
+    @AppStorage(DefaultsKey.urlCleanerEmbedFixServices) private var embedServices = ""
     @State private var parameterDrafts: [String: String] = [:]
     @State private var siteDraft = ""
     @State private var siteParameterDraft = ""
@@ -20,7 +22,8 @@ struct URLCleanerSettings: View {
     /// Worked out from the field on every render, so Copy always takes the
     /// link that is in the field now under the rules in force now.
     private var result: URLCleaning.Result? {
-        cleaner.clean(input)
+        _ = (embedEnabled, embedServices)
+        return cleaner.clean(input)
     }
     private var rules: URLCleaning.Rules {
         URLCleaning.rules(globalNames: globalNames,
@@ -48,10 +51,37 @@ struct URLCleanerSettings: View {
                     // The automatic rewrite is silent by design. Naming what it
                     // took out is the only place someone can see that the
                     // rules did anything to a link they copied.
-                    if !cleaner.lastRemoved.isEmpty {
+                    if let service = cleaner.lastEmbedService {
+                        Text(l10n.s.urlCleanerEmbedFixed(service: service, removed: cleaner.lastRemoved))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if !cleaner.lastRemoved.isEmpty {
                         Text(removedSummary(cleaner.lastRemoved))
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Section(l10n.s.urlCleanerEmbedTitle) {
+                Toggle(l10n.s.urlCleanerEmbedEnable, isOn: $embedEnabled)
+                Text(l10n.s.urlCleanerEmbedCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(l10n.s.urlCleanerEmbedNetworkNote)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                if embedEnabled {
+                    ForEach(EmbedFixing.platforms) { platform in
+                        Picker(selection: embedServiceBinding(for: platform)) {
+                            ForEach(platform.services) { service in
+                                Text(verbatim: service.name).tag(service.id)
+                            }
+                            Divider()
+                            Text(l10n.s.urlCleanerEmbedOff).tag(EmbedFixing.off)
+                        } label: {
+                            Text(verbatim: platform.name)
+                        }
                     }
                 }
             }
@@ -234,6 +264,18 @@ struct URLCleanerSettings: View {
         String(format: l10n.s.urlCleanerRemovedFormat, names.joined(separator: ", "))
     }
 
+    /// Reads as the service in force, the default included, and stores only
+    /// a choice that differs from it.
+    private func embedServiceBinding(for platform: EmbedFixing.Platform) -> Binding<String> {
+        Binding {
+            EmbedFixing.service(for: platform, choices: EmbedFixing.choices(from: embedServices))?.id
+                ?? EmbedFixing.off
+        } set: { id in
+            embedServices = EmbedFixing.storageValue(setting: id, for: platform,
+                                                     in: EmbedFixing.choices(from: embedServices))
+        }
+    }
+
     private func parameterDraftBinding(for site: String) -> Binding<String> {
         Binding { parameterDrafts[site] ?? "" } set: { parameterDrafts[site] = $0 }
     }
@@ -325,6 +367,8 @@ struct URLCleanerSettings: View {
         case .unchanged: return l10n.s.urlCleanerNoChange
         case .rewritten: return l10n.s.urlCleanerCleaned
         case .removed(let names): return removedSummary(names)
+        case .embedFixed(let service, let removed):
+            return l10n.s.urlCleanerEmbedFixed(service: service, removed: removed)
         }
     }
 

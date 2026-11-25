@@ -105,6 +105,7 @@ enum ClipboardFeatureTests {
         }
         static let urlType = AppKit.NSPasteboard.PasteboardType("public.url")
         static let rules = URLCleaning.Rules.none
+        static var embedFixes: EmbedFixing.Choices? = nil
     }
 
     private static func panelGeometryPersistence(_ suite: TestSuite) {

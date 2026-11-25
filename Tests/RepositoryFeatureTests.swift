@@ -30,6 +30,8 @@ enum RepositoryFeatureTests {
         let cleaner = URLCleanerManualCleaner()
         var input = ""
         var copied: String?
+        var embedEnabled = false
+        var embedServices = ""
     }
     final class URLCleanerManualPanel: URLCleanerManualSurface {
         let cleaner = URLCleanerManualCleaner()
@@ -38,6 +40,8 @@ enum RepositoryFeatureTests {
         var globalNames = ""
         var siteNames = ""
         var disabledNames = ""
+        var embedEnabled = false
+        var embedServices = ""
     }
 
     private struct SourceRead: Sendable {
@@ -94,6 +98,7 @@ enum RepositoryFeatureTests {
         }
         static let urlType = Kind(rawValue: "public.url")
         static var rules: URLCleaning.Rules { .none }
+        static var embedFixes: EmbedFixing.Choices?
         static var written: [String] = []
         static var writtenSources: [String?] = []
         static var writtenRemote: [Bool] = []
@@ -260,6 +265,55 @@ enum RepositoryFeatureTests {
                                               rules: customURLRules)?.url ?? "",
                     "https://example.com/?id=42",
                     "URL cleaner removes custom parameters by exact case-insensitive name")
+
+        // MARK: Embed fixing
+
+        for (link, choices, expected, what) in [
+            ("https://x.com/user/status/123?s=20", [:], "https://fixupx.com/user/status/123?s=20",
+             "an X post goes to FxEmbed, everything after the host kept"),
+            ("https://mobile.twitter.com/user/status/123", [:], "https://fxtwitter.com/user/status/123",
+             "a mobile Twitter post loses the subdomain"),
+            ("https://x.com/user/status/123", ["x": "bettertwitfix"], "https://fixvx.com/user/status/123",
+             "a chosen service replaces the default"),
+            ("https://x.com/user/status/123", ["x": "gone"], "https://fixupx.com/user/status/123",
+             "a stored service this version no longer has falls back to the default"),
+            ("https://www.instagram.com/reel/AbC-1/", [:], "https://oginstagram.com/reel/AbC-1/",
+             "an Instagram reel goes to OGInstagram"),
+            ("https://vm.tiktok.com/ZMabc/", [:], "https://vm.tnktok.com/ZMabc/",
+             "a TikTok short link keeps the subdomain the fixer serves"),
+            ("https://old.reddit.com/r/pics/comments/abc/title/", [:], "https://vxreddit.com/r/pics/comments/abc/title/",
+             "an old Reddit post goes to vxReddit"),
+            ("https://bsky.app/profile/a.bsky.social/post/3k", [:], "https://fxbsky.app/profile/a.bsky.social/post/3k",
+             "a Bluesky post goes to FxEmbed"),
+            ("https://youtu.be/abc", ["youtube": "koutube"], "https://koutu.be/abc",
+             "YouTube is fixed once a service is chosen for it"),
+        ] as [(String, EmbedFixing.Choices, String, String)] {
+            expectEqual(EmbedFixing.fix(link, choices: choices)?.url ?? "", expected, "embed fixer: \(what)")
+        }
+        for (link, choices, what) in [
+            ("https://x.com/user", [:], "a profile"),
+            ("https://x.com/home", [:], "a feed"),
+            ("https://fixupx.com/user/status/123", [:], "a link already fixed"),
+            ("https://notx.com/user/status/123", [:], "a host that only ends like a covered one"),
+            ("https://x.com:8443/user/status/123", [:], "a link with a port"),
+            ("https://x.com/user/status/123", ["x": EmbedFixing.off], "a site switched off"),
+            ("https://youtu.be/abc", [:], "YouTube by default"),
+        ] as [(String, EmbedFixing.Choices, String)] {
+            suite.expect(EmbedFixing.fix(link, choices: choices) == nil, "embed fixer leaves alone \(what)")
+        }
+        let fixedAndCleaned = EmbedFixing.apply(to: URLCleaning.clean("https://x.com/u/status/1?t=abc&s=20")!,
+                                                choices: [:])
+        suite.expect(fixedAndCleaned == URLCleaning.Result(url: "https://fixupx.com/u/status/1",
+                                                           removed: ["t", "s"], embedService: "FxEmbed"),
+                     "embed fixing runs on the cleaned link: \(fixedAndCleaned)")
+        let xPlatform = EmbedFixing.platforms.first { $0.id == "x" }!
+        let youtube = EmbedFixing.platforms.first { $0.id == "youtube" }!
+        let storedChoices = EmbedFixing.storageValue(setting: "koutube", for: youtube,
+                                                     in: EmbedFixing.choices(from: "x|bettertwitfix"))
+        expectEqual(storedChoices, "x|bettertwitfix,youtube|koutube", "embed choices store one pair per changed site")
+        expectEqual(EmbedFixing.storageValue(setting: "fxembed", for: xPlatform,
+                                             in: EmbedFixing.choices(from: storedChoices)),
+                    "youtube|koutube", "choosing a site's default drops its stored choice")
         expectEqual(URLCleaning.clean("https://example.com/?reference=one",
                                               rules: customURLRules)?.url ?? "",
                     "https://example.com/?reference=one",
@@ -303,8 +357,9 @@ enum RepositoryFeatureTests {
                 lines[start...].prefix { $0 != "    }" }.joined(separator: "\n")
             } ?? ""
         }
-        let storedRules = memberText(repository.lines(at: "Sources/Vorssaint/Services/URLCleanerService.swift"),
-                                     "    private static var rules: URLCleaning.Rules {")
+        let serviceLines = repository.lines(at: "Sources/Vorssaint/Services/URLCleanerService.swift")
+        let storedRules = memberText(serviceLines, "    private static var rules: URLCleaning.Rules {")
+            + memberText(serviceLines, "    private static var embedFixes: EmbedFixing.Choices? {")
         let ruleKeys = storedRules.components(separatedBy: "DefaultsKey.").dropFirst()
             .map { rest in String(rest.prefix { $0.isLetter || $0.isNumber }) }
         for (surface, path) in [("Settings", "Sources/Vorssaint/UI/Settings/URLCleanerSettings.swift"),
@@ -688,6 +743,25 @@ enum RepositoryFeatureTests {
             _ = URLCleanerPollHost.pollPasteboard(sinceChangeCount: 0, token: URLCleanerPollHost.PollToken())
             suite.expect(URLCleanerPollHost.written == ["https://x.com/a/status/1"] && URLCleanerPollHost.writtenRemote == [true],
                    "automatic cleaning keeps a copy from another device marked as one: \(URLCleanerPollHost.writtenRemote)")
+        }
+        // A post link with nothing to clean is still rewritten once the
+        // embed fixer is on, and only then.
+        do {
+            let pasteboard = URLCleanerPollHost.Pasteboard.general
+            pasteboard.types = ["public.utf8-plain-text"].map(URLCleanerPollHost.Kind.init(rawValue:))
+            pasteboard.items = 1
+            pasteboard.text = "https://x.com/a/status/1"
+            pasteboard.html = ""
+            pasteboard.copiedDuringRead = false
+            URLCleanerPollHost.written = []
+            _ = URLCleanerPollHost.pollPasteboard(sinceChangeCount: 0, token: URLCleanerPollHost.PollToken())
+            suite.expect(URLCleanerPollHost.written.isEmpty,
+                         "automatic cleaning leaves a clean post link alone with the embed fixer off")
+            URLCleanerPollHost.embedFixes = [:]
+            defer { URLCleanerPollHost.embedFixes = nil }
+            _ = URLCleanerPollHost.pollPasteboard(sinceChangeCount: 0, token: URLCleanerPollHost.PollToken())
+            suite.expect(URLCleanerPollHost.written == ["https://fixupx.com/a/status/1"],
+                         "the embed fixer rewrites a clean post link: \(URLCleanerPollHost.written)")
         }
 
         // A title over the same link, an href the browser resolved and a
