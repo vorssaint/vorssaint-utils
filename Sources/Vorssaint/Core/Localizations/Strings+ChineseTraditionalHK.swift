@@ -61,6 +61,8 @@ extension Strings {
         keepAwakeMouseJiggle: "輕微移動指標",
         keepAwakeMouseJiggleCaption: "時段內按所選間隔輕微移動指標。",
         keepAwakeMouseJiggleInterval: "間隔",
+        keepAwakeMouseJiggleSkipFullscreen: "全螢幕時暫停",
+        keepAwakeMouseJiggleSkipFullscreenCaption: "影片、遊戲或其他 App 全螢幕時不移動指標。",
         keepAwakeActiveIconLabel: "使用中的圖示",
         keepAwakeActiveIconVorssaint: "Vorssaint",
         keepAwakeActiveIconCoffee: "咖啡",

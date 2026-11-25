@@ -61,6 +61,8 @@ extension Strings {
         keepAwakeMouseJiggle: "포인터 살짝 움직이기",
         keepAwakeMouseJiggleCaption: "세션 중 선택한 간격마다 포인터를 살짝 움직입니다.",
         keepAwakeMouseJiggleInterval: "간격",
+        keepAwakeMouseJiggleSkipFullscreen: "전체 화면에서 일시 정지",
+        keepAwakeMouseJiggleSkipFullscreenCaption: "비디오, 게임 등 앱이 전체 화면일 때는 포인터를 움직이지 않습니다.",
         keepAwakeActiveIconLabel: "활성 아이콘",
         keepAwakeActiveIconVorssaint: "Vorssaint",
         keepAwakeActiveIconCoffee: "커피",

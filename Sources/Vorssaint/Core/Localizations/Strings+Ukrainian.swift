@@ -58,6 +58,8 @@ extension Strings {
         keepAwakeMouseJiggle: "Злегка рухати вказівник",
         keepAwakeMouseJiggleCaption: "Під час сеансу злегка рухає вказівник із вибраною періодичністю.",
         keepAwakeMouseJiggleInterval: "Інтервал",
+        keepAwakeMouseJiggleSkipFullscreen: "Пауза в повноекранному режимі",
+        keepAwakeMouseJiggleSkipFullscreenCaption: "Не рухає вказівник, поки відео, гра або інша програма займає весь екран.",
         keepAwakeActiveIconLabel: "Активний значок",
         keepAwakeActiveIconVorssaint: "Vorssaint",
         keepAwakeActiveIconCoffee: "Кава",

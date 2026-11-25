@@ -357,7 +357,8 @@ enum SettingsDirectory {
                                        ], terms: [
                                         .init([s.dimScreenOnLidCloseTitle], feature: .keepAwake,
                                               when: state.on(DefaultsKey.clamshellPreferred)),
-                                        .init([s.keepAwakeMouseJiggleInterval], feature: .keepAwake,
+                                        .init([s.keepAwakeMouseJiggleInterval, s.keepAwakeMouseJiggleSkipFullscreen],
+                                              feature: .keepAwake,
                                               when: state.on(DefaultsKey.keepAwakeMouseJiggleEnabled)),
                                         .init([s.batteryDisableBelow], feature: .keepAwake, when: state.hardware.battery),
                                         .init([brightness.keyStep, brightness.keyStepHalf, brightness.keyStepQuarter,
