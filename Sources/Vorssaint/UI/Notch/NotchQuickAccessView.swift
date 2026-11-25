@@ -130,12 +130,13 @@ struct NotchQuickAccessView: View {
             if service.pinned { symbol = "pin.fill" }
         case .control(.microphone):
             actionTitle = microphone.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName
-            if microphone.isMuted { symbol = "mic.slash.fill" }
+            symbol = microphone.controlSymbol
         case .control(.keepAwake) where awake.isActive: symbol = "cup.and.saucer.fill"
         case .control(.recording) where recorder.isRecording: symbol = "stop.circle.fill"
         default: break
         }
         let title = isBack ? l10n.s.obBack : button.label.isEmpty ? actionTitle : button.label
+        let warning = action == .control(.microphone) ? microphone.warning?.message : nil
         return Button {
             service.activateQuickAction(action)
         } label: {
@@ -154,8 +155,9 @@ struct NotchQuickAccessView: View {
                 .contentShape(Circle())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: NotchQuickAccessLayout.diameter / 2))
-        .help(title)
+        .help(warning ?? title)
         .accessibilityLabel(title)
+        .accessibilityValue(warning ?? "")
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("notch.quickAccess.\(button.id.uuidString)")
     }

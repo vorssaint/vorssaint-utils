@@ -4513,11 +4513,16 @@ final class NotchService: ObservableObject {
         if let output, output.isHeadphones {
             symbol = NotchAccessorySupport.symbol(for: .audio, name: output.name)
         } else {
-            symbol = value == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill"
+            let showsMute = muted == true || (!mixer.outputIsMonitorSpeakers && value == 0)
+            symbol = showsMute ? "speaker.slash.fill" : "speaker.wave.2.fill"
         }
-        return show(NotchNotice(event: .volume, title: FeatureStrings.notch(L10n.shared.language).volume,
-                                detail: "\(Int((value * 100).rounded()))%",
-                                symbol: symbol, level: value))
+        let language = L10n.shared.language
+        let percent = Int((value * 100).rounded())
+        return show(NotchNotice(event: .volume, title: FeatureStrings.notch(language).volume,
+                                detail: "\(percent)%", symbol: symbol,
+                                accessibilityDetail: muted == true
+                                    ? FeatureStrings.brightness(language).mutedVolumeDescription(percent: percent) : nil,
+                                level: value))
     }
 
     /// The Command Bar borrows a Latin layout while it is up and gives it

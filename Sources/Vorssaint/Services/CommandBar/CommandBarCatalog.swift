@@ -13,8 +13,7 @@ struct CommandBarEntry: Identifiable {
         case color(ColorValue)
     }
 
-    /// Why Return will not do the main thing yet. The row says so in one
-    /// sentence instead of failing silently.
+    /// Setup, permission or status information the action needs to show.
     enum Trouble {
         /// The feature is installed but its switch is off; Return opens the
         /// Settings page where it lives.
@@ -22,6 +21,8 @@ struct CommandBarEntry: Identifiable {
         /// A system permission is missing; Return runs anyway, which is what
         /// triggers the system prompt.
         case needsPermission
+        /// The action is available, but its result needs the user's attention.
+        case warning(String)
     }
 
     let id: String
@@ -542,14 +543,15 @@ enum CommandBarCatalog {
         }
 
         if AppFeature.micMute.isAvailable {
-            let muted = MicMuteService.shared.isMuted
+            let micMute = MicMuteService.shared
             entries.append(CommandBarEntry(
                 id: "action.micMute",
-                title: muted ? s.micUnmuteName : s.micMuteName,
+                title: micMute.isMuted ? s.micUnmuteName : s.micMuteName,
                 subtitle: area(.micMute),
-                icon: .symbol(muted ? "mic.slash.fill" : "mic"),
+                icon: .symbol(micMute.controlSymbol),
                 shortcut: roleShortcut(.micMute),
-                isActive: muted,
+                isActive: micMute.isMuted,
+                trouble: micMute.warning.map { .warning($0.message) },
                 run: { _ in MicMuteService.shared.toggle() }))
         }
 

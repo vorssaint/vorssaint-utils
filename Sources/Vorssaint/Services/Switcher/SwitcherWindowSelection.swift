@@ -8,6 +8,19 @@ enum SwitcherWindowSelection {
         current.contains { $0.id == selected.id || (selected.isAppEntry && $0.pid == selected.pid) }
     }
 
+    static func excludesFrontmostApp(pid: pid_t, regularBundleIdentifier: String?,
+                                     remembered: WindowEnumerator.WindowList) -> Bool {
+        let rules = SwitcherAppRule.rules(
+            storedValue: UserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules))
+        guard !rules.isEmpty else { return false }
+        // A regular app identifies itself even before its first window arrives.
+        // An embedded helper's windows use the host app's rule.
+        let bundleIdentifier = regularBundleIdentifier ?? remembered.items.first {
+            $0.windowOwnerPID == pid || $0.pid == pid
+        }.flatMap { remembered.bundleIdentifiers[$0.pid] }
+        return SwitcherSupport.hidesApp(bundleIdentifier: bundleIdentifier, appRules: rules)
+    }
+
     static func select(
         remembered: WindowEnumerator.WindowList,
         scope: SwitcherSessionScope,

@@ -192,7 +192,7 @@ struct MonitorSpeakerVolumeRow: View {
     let audio: BrightnessDisplay.Audio
     let strings: BrightnessFeatureStrings
     let compact: Bool
-    @State private var feedback = SpeakerSliderFeedback()
+    @State private var feedback = SpeakerSliderFeedback { BrightnessService.shared.sliderFeedbackOutput }
 
     var body: some View {
         HStack(spacing: compact ? 6 : 12) {
@@ -206,6 +206,7 @@ struct MonitorSpeakerVolumeRow: View {
                         .frame(width: 16)
                 }
                 .buttonStyle(.plain)
+                .disabled(!audio.canToggleMute)
                 .help(muted ? strings.unmute : strings.mute)
                 .accessibilityLabel("\(displayName): \(muted ? strings.unmute : strings.mute)")
             } else {
