@@ -52,6 +52,9 @@ struct FanControlFeatureStrings {
     let gpuIdle: String
     let helperUnavailable: String
     let resumeAfterRestart: String
+    let curveSystemControlWhenCool: String
+    let curveActivationTemperaturesFormat: String
+    let curveWaitingForActivation: String
 }
 
 extension FeatureStrings {
@@ -125,7 +128,10 @@ extension FanControlFeatureStrings {
         hottestGPU: "Hottest GPU",
         gpuIdle: "GPU idle",
         helperUnavailable: "The protected fan controller is unavailable. Allow Vorssaint in Login Items, then try again.",
-        resumeAfterRestart: "Resume after restart or sleep"
+        resumeAfterRestart: "Resume after restart or sleep",
+        curveSystemControlWhenCool: "Let macOS control fans when cool",
+        curveActivationTemperaturesFormat: "Curve starts when the hottest SoC reading reaches %1$@. macOS takes over at %2$@.",
+        curveWaitingForActivation: "Curve waiting · macOS controls fans"
     )
 
     static let ptBR = FanControlFeatureStrings(
@@ -176,7 +182,10 @@ extension FanControlFeatureStrings {
         hottestGPU: "GPU mais quente",
         gpuIdle: "GPU em repouso",
         helperUnavailable: "O controlador protegido das ventoinhas não está disponível. Permita o Vorssaint nos Itens de Início e tente novamente.",
-        resumeAfterRestart: "Retomar depois de reiniciar ou repousar"
+        resumeAfterRestart: "Retomar depois de reiniciar ou repousar",
+        curveSystemControlWhenCool: "Deixar o macOS controlar as ventoinhas quando o chip estiver frio",
+        curveActivationTemperaturesFormat: "A curva começa quando a maior temperatura do SoC chega a %1$@. O macOS assume em %2$@.",
+        curveWaitingForActivation: "Curva em espera · Controle pelo macOS"
     )
 
     static let tr = FanControlFeatureStrings(
@@ -227,7 +236,10 @@ extension FanControlFeatureStrings {
         hottestGPU: "En sıcak GPU",
         gpuIdle: "GPU boşta",
         helperUnavailable: "Korumalı fan denetleyicisi kullanılamıyor. Giriş Öğeleri’nde Vorssaint’e izin verip yeniden deneyin.",
-        resumeAfterRestart: "Yeniden başlatma veya uykudan sonra sürdür"
+        resumeAfterRestart: "Yeniden başlatma veya uykudan sonra sürdür",
+        curveSystemControlWhenCool: "Çip serinken fanları macOS yönetsin",
+        curveActivationTemperaturesFormat: "En yüksek SoC sıcaklığı %1$@ değerine ulaşınca eğri devreye girer. %2$@ değerinde macOS devralır.",
+        curveWaitingForActivation: "Eğri beklemede · Fanları macOS yönetiyor"
     )
 
     static let ru = FanControlFeatureStrings(
@@ -278,7 +290,10 @@ extension FanControlFeatureStrings {
         hottestGPU: "Самая горячая GPU",
         gpuIdle: "GPU в режиме ожидания",
         helperUnavailable: "Защищённый контроллер вентиляторов недоступен. Разрешите Vorssaint в Объектах входа и повторите попытку.",
-        resumeAfterRestart: "Возобновлять после перезагрузки или сна"
+        resumeAfterRestart: "Возобновлять после перезагрузки или сна",
+        curveSystemControlWhenCool: "Передавать управление вентиляторами macOS при низкой температуре",
+        curveActivationTemperaturesFormat: "Кривая включается, когда максимальная температура SoC достигает %1$@. При %2$@ управление переходит к macOS.",
+        curveWaitingForActivation: "Кривая в ожидании · Вентиляторами управляет macOS"
     )
 
     static let es = FanControlFeatureStrings(
@@ -329,7 +344,10 @@ extension FanControlFeatureStrings {
         hottestGPU: "GPU más caliente",
         gpuIdle: "GPU en reposo",
         helperUnavailable: "El controlador protegido de los ventiladores no está disponible. Permite Vorssaint en Ítems de inicio e inténtalo de nuevo.",
-        resumeAfterRestart: "Reanudar tras reiniciar o salir del reposo"
+        resumeAfterRestart: "Reanudar tras reiniciar o salir del reposo",
+        curveSystemControlWhenCool: "Dejar que macOS controle los ventiladores a baja temperatura",
+        curveActivationTemperaturesFormat: "La curva se activa cuando la temperatura más alta del SoC alcanza %1$@. macOS toma el control a %2$@.",
+        curveWaitingForActivation: "Curva en espera · Control de macOS"
     )
 
     static let sk = FanControlFeatureStrings(
@@ -380,7 +398,10 @@ extension FanControlFeatureStrings {
         hottestGPU: "Najteplejší GPU",
         gpuIdle: "GPU v pokoji",
         helperUnavailable: "Chránený ovládač ventilátorov nie je dostupný. Povoľte Vorssaint v časti Položky a rozšírenia spúšťané pri prihlásení a skúste to znova.",
-        resumeAfterRestart: "Pokračovať po reštarte alebo spánku"
+        resumeAfterRestart: "Pokračovať po reštarte alebo spánku",
+        curveSystemControlWhenCool: "Pri nízkej teplote prenechať ventilátory systému macOS",
+        curveActivationTemperaturesFormat: "Krivka sa aktivuje, keď najvyššia teplota SoC dosiahne %1$@. Pri %2$@ prevezme riadenie macOS.",
+        curveWaitingForActivation: "Krivka čaká · Ventilátory riadi macOS"
     )
 
     static let de = FanControlFeatureStrings(
@@ -431,7 +452,10 @@ extension FanControlFeatureStrings {
         hottestGPU: "Heißeste GPU",
         gpuIdle: "GPU im Leerlauf",
         helperUnavailable: "Die geschützte Lüftersteuerung ist nicht verfügbar. Erlaube Vorssaint unter Anmeldeobjekte und versuche es erneut.",
-        resumeAfterRestart: "Nach Neustart oder Ruhezustand fortsetzen"
+        resumeAfterRestart: "Nach Neustart oder Ruhezustand fortsetzen",
+        curveSystemControlWhenCool: "Bei niedriger Temperatur macOS die Lüfter steuern lassen",
+        curveActivationTemperaturesFormat: "Die Kurve greift, sobald die höchste SoC-Temperatur %1$@ erreicht. Bei %2$@ übernimmt macOS.",
+        curveWaitingForActivation: "Lüfterkurve wartet · macOS steuert"
     )
 
     static let fr = FanControlFeatureStrings(
@@ -482,7 +506,10 @@ extension FanControlFeatureStrings {
         hottestGPU: "GPU le plus chaud",
         gpuIdle: "GPU au repos",
         helperUnavailable: "Le contrôleur protégé des ventilateurs est indisponible. Autorisez Vorssaint dans Ouverture, puis réessayez.",
-        resumeAfterRestart: "Reprendre après un redémarrage ou la veille"
+        resumeAfterRestart: "Reprendre après un redémarrage ou la veille",
+        curveSystemControlWhenCool: "Laisser macOS gérer les ventilateurs à basse température",
+        curveActivationTemperaturesFormat: "La courbe s’active quand la température maximale du SoC atteint %1$@. macOS reprend la main à %2$@.",
+        curveWaitingForActivation: "Courbe en attente · Contrôle par macOS"
     )
 
     static let it = FanControlFeatureStrings(
@@ -533,7 +560,10 @@ extension FanControlFeatureStrings {
         hottestGPU: "GPU più calda",
         gpuIdle: "GPU a riposo",
         helperUnavailable: "Il controller protetto delle ventole non è disponibile. Consenti Vorssaint negli elementi di login e riprova.",
-        resumeAfterRestart: "Riprendi dopo il riavvio o lo stop"
+        resumeAfterRestart: "Riprendi dopo il riavvio o lo stop",
+        curveSystemControlWhenCool: "Lascia che macOS controlli le ventole a basse temperature",
+        curveActivationTemperaturesFormat: "La curva si attiva quando la temperatura massima del SoC raggiunge %1$@. A %2$@ il controllo passa a macOS.",
+        curveWaitingForActivation: "Curva in attesa · Controllo di macOS"
     )
 
     static let ja = FanControlFeatureStrings(
@@ -584,7 +614,10 @@ extension FanControlFeatureStrings {
         hottestGPU: "最高GPU",
         gpuIdle: "GPU はアイドル状態",
         helperUnavailable: "保護されたファンコントローラを利用できません。ログイン項目でVorssaintを許可してから、もう一度お試しください。",
-        resumeAfterRestart: "再起動やスリープのあとに再開"
+        resumeAfterRestart: "再起動やスリープのあとに再開",
+        curveSystemControlWhenCool: "低温時は macOS にファンの制御を任せる",
+        curveActivationTemperaturesFormat: "SoC の最高温度が %1$@ に達するとカーブが有効になります。%2$@ まで下がると macOS が制御します。",
+        curveWaitingForActivation: "カーブは待機中 · macOS がファンを制御"
     )
 
     static let ko = FanControlFeatureStrings(
@@ -635,7 +668,10 @@ extension FanControlFeatureStrings {
         hottestGPU: "가장 뜨거운 GPU",
         gpuIdle: "GPU 유휴 상태",
         helperUnavailable: "보호된 팬 컨트롤러를 사용할 수 없습니다. 로그인 항목에서 Vorssaint를 허용한 다음 다시 시도하세요.",
-        resumeAfterRestart: "재시작 또는 잠자기 후 다시 적용"
+        resumeAfterRestart: "재시작 또는 잠자기 후 다시 적용",
+        curveSystemControlWhenCool: "온도가 낮을 때 macOS가 팬 제어",
+        curveActivationTemperaturesFormat: "SoC 최고 온도가 %1$@에 도달하면 곡선이 활성화됩니다. %2$@까지 내려가면 macOS가 팬을 제어합니다.",
+        curveWaitingForActivation: "곡선 대기 중 · macOS가 팬 제어"
     )
 
     static let zhHans = FanControlFeatureStrings(
@@ -686,7 +722,10 @@ extension FanControlFeatureStrings {
         hottestGPU: "GPU最高温度",
         gpuIdle: "GPU 空闲",
         helperUnavailable: "受保护的风扇控制器不可用。请在登录项中允许 Vorssaint，然后重试。",
-        resumeAfterRestart: "重新启动或睡眠后恢复"
+        resumeAfterRestart: "重新启动或睡眠后恢复",
+        curveSystemControlWhenCool: "低温时由 macOS 控制风扇",
+        curveActivationTemperaturesFormat: "SoC 最高温度达到 %1$@ 时启用曲线，降至 %2$@ 时由 macOS 接管。",
+        curveWaitingForActivation: "曲线待命 · macOS 控制风扇"
     )
 
     static let zhTW = FanControlFeatureStrings(
@@ -737,7 +776,10 @@ extension FanControlFeatureStrings {
         hottestGPU: "GPU最高溫度",
         gpuIdle: "GPU 閒置",
         helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目中允許 Vorssaint，然後再試一次。",
-        resumeAfterRestart: "重新開機或睡眠後恢復"
+        resumeAfterRestart: "重新開機或睡眠後恢復",
+        curveSystemControlWhenCool: "低溫時由 macOS 控制風扇",
+        curveActivationTemperaturesFormat: "SoC 最高溫度達到 %1$@ 時啟用曲線，降至 %2$@ 時由 macOS 接手。",
+        curveWaitingForActivation: "曲線待命 · macOS 控制風扇"
     )
 
     static let zhHK = FanControlFeatureStrings(
@@ -788,7 +830,10 @@ extension FanControlFeatureStrings {
         hottestGPU: "GPU最高溫度",
         gpuIdle: "GPU 閒置",
         helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目允許 Vorssaint，然後再試一次。",
-        resumeAfterRestart: "重新啟動或睡眠後恢復"
+        resumeAfterRestart: "重新啟動或睡眠後恢復",
+        curveSystemControlWhenCool: "低溫時由 macOS 控制風扇",
+        curveActivationTemperaturesFormat: "SoC 最高溫度達到 %1$@ 時啟用曲線，降至 %2$@ 時由 macOS 接管。",
+        curveWaitingForActivation: "曲線待命 · macOS 控制風扇"
     )
     static let uk = FanControlFeatureStrings(
         title: "Керування вентиляторами",
@@ -838,6 +883,9 @@ extension FanControlFeatureStrings {
         hottestGPU: "Найгарячіший GPU",
         gpuIdle: "GPU у стані спокою",
         helperUnavailable: "Захищений контролер вентиляторів недоступний. Дозвольте Vorssaint у розділі «Автозапуск» і спробуйте знову.",
-        resumeAfterRestart: "Відновлювати після перезавантаження або сну"
+        resumeAfterRestart: "Відновлювати після перезавантаження або сну",
+        curveSystemControlWhenCool: "Дозволити macOS керувати вентиляторами за низької температури",
+        curveActivationTemperaturesFormat: "Крива вмикається, коли найвища температура SoC досягає %1$@. За %2$@ керування перебирає macOS.",
+        curveWaitingForActivation: "Крива очікує · Вентиляторами керує macOS"
     )
 }

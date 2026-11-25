@@ -606,6 +606,9 @@ enum SettingsBackupSupport {
         switch key {
         case DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird:
             return value is String
+        case DefaultsKey.fanControlActivationTemperature:
+            guard isInteger(value), let temperature = value as? Int else { return false }
+            return FanControlPolicy.activationTemperatureRange.contains(temperature)
         default: break
         }
         guard let expected = Defaults.registeredDefaults[key] else {

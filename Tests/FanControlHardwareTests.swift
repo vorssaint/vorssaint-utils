@@ -147,8 +147,11 @@ enum FanControlHardwareContract {
                                                            .init(sensor: .hottestGPU, points: points)])
         controller.hardware = driver
         controller.activeConfiguration = configuration
-        let level = controller.requestedLevel(for: configuration, hardware: driver)
-        let started = level.flatMap { try? hardware.startCooling(level: $0) }
+        guard case .cooling(let level) = controller.requestedTarget(for: configuration, hardware: driver) else {
+            suite.expect(false, "fresh CPU and GPU readings request manual cooling")
+            return
+        }
+        let started = try? hardware.startCooling(level: level)
         controller.coolingLevel = level
         suite.expect(level == 50 && started?.count == 2 && started?.allSatisfy(\.isManuallyControlled) == true,
                      "fresh CPU and GPU readings start the selected curve on both fans")

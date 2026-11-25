@@ -1149,11 +1149,28 @@ enum FeatureCatalogTests {
                "stored curves reject duplicate sensors, unsafe slopes and malformed data")
         let resumedManual = FanControlConfiguration.manual(level: 100)
         let resumedCurves = FanControlConfiguration.curve([defaultCurve, cpuCurve])
+        let resumedThresholdCurve = FanControlConfiguration.curve([defaultCurve], activationTemperature: 65)
         suite.expect(FanControlConfiguration.decodeResume(
                     FanControlConfiguration.encodeResume(resumedManual) ?? "") == resumedManual
                 && FanControlConfiguration.decodeResume(
-                    FanControlConfiguration.encodeResume(resumedCurves) ?? "") == resumedCurves,
+                    FanControlConfiguration.encodeResume(resumedCurves) ?? "") == resumedCurves
+                && FanControlConfiguration.decodeResume(
+                    FanControlConfiguration.encodeResume(resumedThresholdCurve) ?? "") == resumedThresholdCurve
+                && FanControlConfiguration.decodeResume(
+                    #"{"releasedConfiguration":{"curves":[],"manualLevel":100,"mode":"manual"}}"#) == resumedManual,
                "a resumed manual speed or curve comes back exactly as the user applied it")
+        let activationKey = DefaultsKey.fanControlActivationEnabled
+        let temperatureKey = DefaultsKey.fanControlActivationTemperature
+        let fanSettings: [String: Any] = [activationKey: true, temperatureKey: 65]
+        let fanBackup = SettingsBackupSupport.payload(appVersion: "test", valueFor: { fanSettings[$0] })
+        let restoredFanSettings = SettingsBackupSupport.sanitizedSettings(from: fanBackup)
+        suite.expect(Defaults.registeredDefaults[activationKey] as? Bool == false
+                && restoredFanSettings?[activationKey] as? Bool == true
+                && restoredFanSettings?[temperatureKey] as? Int == 65
+                && !SettingsBackupSupport.valueLooksRight(temperatureKey, 125)
+                && !SettingsBackupSupport.valueLooksRight(temperatureKey, true)
+                && !SettingsBackupSupport.valueLooksRight(activationKey, 1),
+               "curve activation defaults off and its validated preferences round-trip through backups")
         suite.expect(FanControlConfiguration.encodeResume(
                     FanControlConfiguration(mode: .system, manualLevel: 100, curves: [])) == nil
                 && FanControlConfiguration.encodeResume(.manual(level: 37)) == nil
@@ -1519,6 +1536,8 @@ enum FeatureCatalogTests {
                          "current fan speed format stays valid for \(language.rawValue)")
             expectFormat(strings.targetRPMFormat, ["d"],
                          "target fan speed format stays valid for \(language.rawValue)")
+            expectFormat(strings.curveActivationTemperaturesFormat, ["@", "@"],
+                         "curve activation and release temperatures stay valid for \(language.rawValue)")
         }
         suite.expect(FanControlFeatureStrings.ru.rpmFormat == "%d об/мин"
                 && FanControlFeatureStrings.de.rpmFormat == "%d U/min"

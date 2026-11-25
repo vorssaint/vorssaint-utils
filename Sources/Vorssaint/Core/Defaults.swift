@@ -458,6 +458,8 @@ enum DefaultsKey {
     static let fanControlMode = "fanControlMode"
     static let fanControlCoolingLevel = "fanControlCoolingLevel"
     static let fanControlCurves = "fanControlCurves"
+    static let fanControlActivationEnabled = "fanControlActivationEnabled"
+    static let fanControlActivationTemperature = "fanControlActivationTemperature"
     // Re-apply the last manual speed or curve when the app opens and after wake.
     static let fanControlResume = "fanControlResume"
     // Machine-only: arm resume only after the helper releases this connection's control.
@@ -1756,6 +1758,8 @@ enum Defaults {
         DefaultsKey.fanControlMode: FanControlMode.system.rawValue,
         DefaultsKey.fanControlCoolingLevel: FanControlPolicy.defaultCoolingLevel,
         DefaultsKey.fanControlCurves: FanControlConfiguration.defaultCurvesStorage,
+        DefaultsKey.fanControlActivationEnabled: false,
+        DefaultsKey.fanControlActivationTemperature: FanControlPolicy.defaultActivationTemperature,
         DefaultsKey.fanControlResume: false,
         DefaultsKey.fanControlResumeConfiguration: "",
         DefaultsKey.fanControlRecoveryNeeded: false,

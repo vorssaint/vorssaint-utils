@@ -95,7 +95,7 @@ private final class FanControlController {
     private var verificationFailures = 0
     private var temperatureFailures = 0
     private var lastStopReason: FanControlStopReason?
-    private var coolingLevel: Int?
+    private var coolingLevel: Int?  // nil while macOS controls the fans
     private var activeConfiguration: FanControlConfiguration?
     private var connectionCount = 0
     private var idleGeneration = 0
@@ -264,20 +264,18 @@ private final class FanControlController {
             ownership.release()
             return .failure(.unsupportedHardware)
         }
-        guard ownership.createMarker() else {
-            ownership.release()
-            return .failure(.controlFailed, retryableApply: true)
-        }
-
         do {
-            guard let level = requestedLevel(for: configuration, hardware: control) else {
+            guard let target = requestedTarget(for: configuration, hardware: control) else {
                 finishFailedStart(mayHaveChangedHardware: false)
                 return .failure(.controlFailed, retryableApply: true)
             }
-            _ = try control.startCooling(level: level)
+            if case .cooling(let level) = target {
+                try startManualCooling(level: level, hardware: control)
+            } else {
+                coolingLevel = nil
+            }
             owner = id
             isCooling = true
-            coolingLevel = level
             activeConfiguration = configuration
             isRecovering = false
             let uptime = ProcessInfo.processInfo.systemUptime
@@ -300,7 +298,7 @@ private final class FanControlController {
             finishFailedStart(mayHaveChangedHardware: false)
             return .failure(.unsupportedHardware)
         } catch {
-            finishFailedStart(mayHaveChangedHardware: true)
+            finishFailedStart(mayHaveChangedHardware: ownership.markerExists())
             return .failure(.controlFailed, snapshot: currentSnapshot(),
                             localStopReason: isRecovering ? .recovery : nil, retryableApply: !isRecovering)
         }
@@ -310,13 +308,24 @@ private final class FanControlController {
                                            duration: TimeInterval?) -> FanControlResponse {
         if hardware == nil { hardware = FanControlHardware() }
         guard let hardware,
-              let level = requestedLevel(for: configuration, hardware: hardware) else {
+              let target = requestedTarget(for: configuration, hardware: hardware) else {
             return .failure(.controlFailed, snapshot: currentSnapshot())
         }
         do {
-            _ = try hardware.updateCooling(level: level)
+            switch target {
+            case .system:
+                guard yieldToSystemIfNeeded() else {
+                    return .failure(.controlFailed, snapshot: currentSnapshot(), localStopReason: .hardwareChanged)
+                }
+            case .cooling(let level):
+                if coolingLevel == nil {
+                    try startManualCooling(level: level, hardware: hardware)
+                } else {
+                    _ = try hardware.updateCooling(level: level)
+                    coolingLevel = level
+                }
+            }
             activeConfiguration = configuration
-            coolingLevel = level
             let uptime = ProcessInfo.processInfo.systemUptime
             endsAt = duration.map { Date().addingTimeInterval($0) }
             endsAtUptime = duration.map { uptime + $0 }
@@ -331,23 +340,46 @@ private final class FanControlController {
         }
     }
 
-    private func requestedLevel(for configuration: FanControlConfiguration,
-                                hardware: FanControlHardware,
-                                previousLevel: Int? = nil) -> Int? {
+    private func requestedTarget(for configuration: FanControlConfiguration,
+                                 hardware: FanControlHardware,
+                                 previousLevel: Int? = nil) -> FanControlPolicy.Target? {
         switch configuration.mode {
         case .system:
             return nil
         case .manual:
-            return configuration.manualLevel
+            return .cooling(configuration.manualLevel)
         case .curve:
-            let sample = hardware.readTemperatures()
-            return FanControlPolicy.curveCoolingLevel(
-                curves: configuration.curves,
-                temperatures: sample.readings,
-                gpuPoweredDown: sample.gpuPoweredDown,
+            return FanControlPolicy.curveTarget(
+                configuration: configuration,
+                sample: hardware.readTemperatures(),
+                hasManualControl: coolingLevel != nil
+                    && activeConfiguration?.activationTemperature == configuration.activationTemperature,
                 previousLevel: previousLevel
             )
         }
+    }
+
+    private func startManualCooling(level: Int, hardware: FanControlHardware) throws {
+        // Another controller could have taken over while the curve was waiting.
+        if isCooling { try hardware.validateAutomaticControl() }
+        guard ownership.createMarker() else { throw FanControlHardwareError.operationFailed }
+        do {
+            _ = try hardware.startCooling(level: level)
+            coolingLevel = level
+        } catch let error as FanControlHardwareError {
+            switch error {
+            case .alreadyControlled, .noFans, .unsupported:
+                // The hardware rejected the start before making a manual write.
+                _ = ownership.removeMarker()
+            case .operationFailed, .unsafeControlState:
+                break
+            }
+            throw error
+        }
+    }
+
+    private func yieldToSystemIfNeeded() -> Bool {
+        coolingLevel == nil || performRestore(reason: .hardwareChanged, keepingSession: true)
     }
 
     private func finishFailedStart(mayHaveChangedHardware: Bool) {
@@ -365,7 +397,7 @@ private final class FanControlController {
     }
 
     @discardableResult
-    private func performRestore(reason: FanControlStopReason?) -> Bool {
+    private func performRestore(reason: FanControlStopReason?, keepingSession: Bool = false) -> Bool {
         if !ownership.isHeld {
             guard ownership.acquire() else { return false }
         }
@@ -373,10 +405,17 @@ private final class FanControlController {
             ownership.release()
             return true
         }
+        let alreadyYielded = isCooling && coolingLevel == nil && !ownership.markerExists() && !isRecovering
+        if !alreadyYielded, hardware == nil { hardware = FanControlHardware() }
+        let restored = alreadyYielded || (hardware?.restoreAutomatic() == true && ownership.removeMarker())
+        if restored, keepingSession {
+            // Keep the owner and heartbeat while macOS controls the fans.
+            coolingLevel = nil
+            verificationFailures = 0
+            return true
+        }
         // Retrying the restore must preserve the reason the session ended.
         if !isRecovering { lastStopReason = reason }
-        if hardware == nil { hardware = FanControlHardware() }
-        let restored = hardware?.restoreAutomatic() == true && ownership.removeMarker()
         isRecovering = !restored
         isCooling = false
         owner = nil
@@ -437,19 +476,19 @@ private final class FanControlController {
             stopWatchdogIfIdle()
             return
         }
-        var level = coolingLevel
+        var target = coolingLevel.map(FanControlPolicy.Target.cooling)
         if let configuration = activeConfiguration, configuration.mode == .curve {
-            if let hardware, let requested = requestedLevel(for: configuration, hardware: hardware,
-                                                           previousLevel: coolingLevel) {
+            if let hardware, let requested = requestedTarget(for: configuration, hardware: hardware,
+                                                            previousLevel: coolingLevel) {
                 temperatureFailures = 0
-                level = requested
+                target = requested
             } else {
                 temperatureFailures += 1
             }
         }
         // Check the previous targets even when the curve is changing level.
         // A successful write cannot prove that firmware will leave them in place.
-        let controlIntact = level != nil && hardware?.coolingIsIntact() == true
+        let controlIntact = coolingLevel == nil || hardware?.coolingIsIntact() == true
         if !controlIntact { verificationFailures += 1 }
         if let reason = watchdogStopReason() {
             _ = performRestore(reason: reason)
@@ -465,7 +504,21 @@ private final class FanControlController {
             }
             return
         }
-        guard let hardware, let level else { return }
+        guard let hardware, let target else { return }
+        guard case .cooling(let level) = target else {
+            if yieldToSystemIfNeeded(), let reason = watchdogStopReason() { _ = performRestore(reason: reason) }
+            return
+        }
+        if coolingLevel == nil {
+            do {
+                try startManualCooling(level: level, hardware: hardware)
+            } catch {
+                _ = performRestore(reason: .hardwareChanged)
+                return
+            }
+            if let reason = watchdogStopReason() { _ = performRestore(reason: reason) }
+            return
+        }
         if controlIntact && level == coolingLevel {
             verificationFailures = 0
             return
