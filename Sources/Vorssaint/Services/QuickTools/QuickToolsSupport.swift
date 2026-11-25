@@ -162,40 +162,7 @@ enum QuickToolsSupport {
             .joined(separator: "\n")
     }
 
-    // MARK: - Paste as plain text
-
-    /// Whether a menu item is an app's own matching-style paste, judged by its
-    /// key equivalent instead of its localized title. The universal
-    /// convention is ⌥⇧⌘V; in the AX menu attributes that is command
-    /// character "V" with the shift (1) and option (2) bits set and nothing
-    /// else (0 alone means a plain ⌘ equivalent). ⇧⌘V and ⌃ variants are
-    /// deliberately out: in several apps those are different edit commands,
-    /// and pressing one would touch the document (issue #349).
-    static func isMatchStyleEquivalent(commandCharacter: String?,
-                                       modifierMask: UInt32?,
-                                       isEnabled: Bool) -> Bool {
-        let shiftAndOption: UInt32 = 1 | 2
-        return commandCharacter?.uppercased() == "V"
-            && modifierMask == shiftAndOption
-            && isEnabled
-    }
-
-    /// The text a picture or clip copied on its own carries beside it: nothing,
-    /// or one link or media file name, as a browser or a chat copies an image.
-    /// Anything else, a cell's "example.com" or "2.4GHz" included, is text
-    /// that came with a picture of itself and still pastes plain.
-    static func isMediaTextFallback(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return true }
-        guard !trimmed.contains(where: { $0.isWhitespace }) else { return false }
-        let lowercased = trimmed.lowercased()
-        if lowercased.hasPrefix("data:") || lowercased.hasPrefix("blob:")
-            || (trimmed.contains("://") && URL(string: trimmed)?.scheme != nil) { return true }
-        let name = trimmed as NSString
-        guard !name.deletingPathExtension.isEmpty, !name.pathExtension.isEmpty,
-              let type = UTType(filenameExtension: name.pathExtension.lowercased()) else { return false }
-        return type.conforms(to: .image) || type.conforms(to: .audiovisualContent) || type.conforms(to: .pdf)
-    }
+    // MARK: - QR payloads
 
     /// The payload as a web link for the optional open action. Limited to
     /// http and https on purpose: a scanned code must never be able to launch

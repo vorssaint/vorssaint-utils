@@ -923,11 +923,24 @@ def main():
               "private final class", "final class", 1)
           + "}\n")
     paste_plain = "Sources/Vorssaint/Services/QuickTools/PastePlainService.swift"
-    write("PastePlain.swift", "import AppKit\nimport UniformTypeIdentifiers\n"
+    write("PastePlain.swift", "import AppKit\nimport ApplicationServices\nimport UniformTypeIdentifiers\n"
           + "extension PastePlainTests {\nfinal class Service: Fixture {\n"
           + "".join(declaration(paste_plain, prefix).replace("private func", "func", 1)
-                    for prefix in ["    func performPastePlain()", "    private func pastePlain(",
-                                   "    static func plainText("])
+                    .replace("private static func", "static func", 1)
+                    for prefix in [
+                        "    func performPastePlain()",
+                        "    private func forwardPaste(attempt: Int = 0) {",
+                        "    private func pasteRich(original items:",
+                        "    private func scheduleRestripe()",
+                        "    private func restripeAfterPaste()",
+                        "    private func runPendingRestripe()",
+                        "    func clearFormattingNow(attempt: Int = 0) {",
+                        "    private func clipboardNeedsStrip(changeCount:",
+                        "    private func stripOnce(sinceChangeCount:",
+                        "    private func applyStrip(_ result:",
+                        "    private static func stripPasteboard(_ pasteboard:",
+                        "    private static func plainText(of item:",
+                        "    private static func readTransformOptions()"])
           + "}\n}\nextension PastePlainTests.OriginalPasteHost {\n"
           + declaration("Sources/Vorssaint/Services/TransientPaste.swift", "    func pasteCurrentContents(")
           + "}\n")

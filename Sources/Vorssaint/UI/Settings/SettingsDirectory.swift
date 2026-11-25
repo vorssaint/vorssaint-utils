@@ -503,7 +503,19 @@ enum SettingsDirectory {
                                                                 .autoClearOnScreenLock,
                                                              FeatureStrings.clipboardIgnoredApps(language)
                                                                 .listTitle]),
-                                        (.pastePlain, [s.pastePlainName]),
+                                        (.pastePlain, [s.pastePlainName,
+                                                       FeatureStrings.pastePlain(language)
+                                                          .pasteWithFormatting,
+                                                       FeatureStrings.pastePlain(language)
+                                                          .clearFormatting,
+                                                       FeatureStrings.pastePlain(language)
+                                                          .cleanInvisibleToggle,
+                                                       FeatureStrings.pastePlain(language)
+                                                          .trimWhitespaceToggle,
+                                                       FeatureStrings.pastePlain(language)
+                                                          .cleanLinksToggle,
+                                                       FeatureStrings.pastePlain(language)
+                                                          .excludedListTitle]),
                                        ]),
                 SettingsDirectoryItem(page: .cutPaste,
                                        title: FeatureStrings.finderRename(language).pageTitle,

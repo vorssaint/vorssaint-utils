@@ -212,7 +212,7 @@ extension Strings {
         micMuteMenuBarToggle: "Mostra nella barra dei menu quando attivo",
         micMuteMenuBarCaption: "Il microfono rosso nella barra dei menu indica che la funzione è attiva. Non garantisce che tutte le app smettano di acquisire audio.",
         pastePlainName: "Incolla come testo semplice",
-        pastePlainCaption: "Incolla ciò che hai copiato senza colori, font o formattazione. L’originale resta negli appunti.",
+        pastePlainCaption: "Gli appunti restano testo semplice, quindi ⌘V incolla senza formattazione ovunque. La scorciatoia incolla l’originale con la sua formattazione.",
         launcherName: "Pannello rapido",
         launcherCaption: "Un pannello fluttuante con i tuoi strumenti preferiti, richiamato con un’abbreviazione da ovunque.",
         launcherOpenNow: "Apri pannello rapido",

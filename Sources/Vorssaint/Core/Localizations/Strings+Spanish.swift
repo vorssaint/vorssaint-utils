@@ -212,7 +212,7 @@ extension Strings {
         micMuteMenuBarToggle: "Mostrar en la barra de menús mientras esté activo",
         micMuteMenuBarCaption: "El micrófono rojo de la barra de menús indica que la función está activa. No garantiza que todas las apps dejen de captar audio.",
         pastePlainName: "Pegar como texto sin formato",
-        pastePlainCaption: "Pega lo copiado sin colores, fuentes ni formato. El original se mantiene en el portapapeles.",
+        pastePlainCaption: "El portapapeles se mantiene como texto sin formato, así que ⌘V pega sin formato en todas partes. El atajo pega el original con su formato.",
         launcherName: "Panel rápido",
         launcherCaption: "Un panel flotante con tus herramientas favoritas, invocado con un atajo desde cualquier lugar.",
         launcherOpenNow: "Abrir panel rápido",

@@ -212,7 +212,7 @@ extension Strings {
         micMuteMenuBarToggle: "Özellik açıkken menü çubuğunda göster",
         micMuteMenuBarCaption: "Menü çubuğundaki kırmızı mikrofon, özelliğin açık olduğunu gösterir. Tüm uygulamaların ses kaydını durdurduğunu garanti etmez.",
         pastePlainName: "Düz metin olarak yapıştır",
-        pastePlainCaption: "Kopyalananı renk, yazı tipi ve biçimlendirme olmadan yapıştırır. Orijinal panoda kalır.",
+        pastePlainCaption: "Pano her zaman düz metin olarak tutulur, böylece ⌘V her yerde biçimlendirme olmadan yapıştırır. Kısayol ise orijinali biçimlendirmesiyle yapıştırır.",
         launcherName: "Hızlı panel",
         launcherCaption: "En sevdiğiniz araçları toplayan, her yerden kısayolla açılan yüzen bir panel.",
         launcherOpenNow: "Hızlı paneli aç",
