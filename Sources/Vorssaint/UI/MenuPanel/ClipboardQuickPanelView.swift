@@ -35,6 +35,16 @@ struct ClipboardQuickPanelView: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbar
+            if layout == .list {
+                Picker(text.search, selection: $history.quickPinnedTab) {
+                    Text(text.recent).tag(false)
+                    Text(text.pinned).tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
+            }
             Divider()
             HStack(spacing: 0) {
                 content
@@ -67,6 +77,10 @@ struct ClipboardQuickPanelView: View {
         }
         .onChange(of: history.quickQuery) { _, _ in
             previewSelection.select(history.selectedQuickEntryID)
+        }
+        .onChange(of: history.quickPinnedTab) { _, _ in
+            previewSelection.select(history.selectedQuickEntryID)
+            previewIsEditing = false
         }
         .onChange(of: history.quickWindowPresentationID) { _, _ in
             previewSelection.select(history.selectedQuickEntryID)
@@ -146,6 +160,7 @@ struct ClipboardQuickPanelView: View {
                         }
                     }
                 }
+                .id(history.quickPinnedTab)
                 .background(ScrollBounceDisabler())
                 .onChange(of: history.quickSelectionID) { _, _ in
                     scrollSelectedEntry(with: proxy)
@@ -202,9 +217,7 @@ struct ClipboardQuickPanelView: View {
     private var sections: some View {
         if history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             if layout == .list {
-                rows(title: text.pinned, entries: history.pinnedEntries)
-                rows(title: text.recent, entries: history.recentEntries,
-                     followsSection: !history.pinnedEntries.isEmpty)
+                rows(title: nil, entries: filtered)
             } else {
                 cards(history.pinnedEntries)
                 if !history.pinnedEntries.isEmpty, !history.recentEntries.isEmpty {
