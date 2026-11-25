@@ -1696,6 +1696,10 @@ def main():
           + "}\n}\n")
     scratchpad_service = "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift"
     scratchpad_view = "Sources/Vorssaint/UI/Notch/NotchScratchpadView.swift"
+    write("NotchCalendarControls.swift", "import SwiftUI\n"
+          + declaration("Sources/Vorssaint/UI/Notch/NotchComponents.swift", "struct NotchButtonStyle:")
+          + declaration("Sources/Vorssaint/UI/Notch/NotchComponents.swift", "struct NotchIconButton:")
+          + "typealias NotchControlSurface = NotchCompactTests.NotchControlSurface\n")
     scratchpad_reading = "Sources/Vorssaint/UI/Scratchpad/ScratchpadView.swift"
     write("NotchCompact.swift", "import AppKit\nimport AVFoundation\nimport Carbon.HIToolbox\nimport SwiftUI\nextension NotchCompactTests {\n"
           + declaration("Sources/Vorssaint/UI/CameraPreview/CameraPreviewView.swift", "private struct CameraLayerView:")
