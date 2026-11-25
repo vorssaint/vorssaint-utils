@@ -44,4 +44,10 @@ extension NSScreen {
     static var pointerVisibleFrame: CGRect {
         (withMouse ?? screens.first)?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
     }
+
+    /// The whole screen under the pointer, menu bar and Dock included, for a
+    /// surface that opens over them.
+    static var pointerFrame: CGRect {
+        (withMouse ?? screens.first)?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
+    }
 }
