@@ -1049,16 +1049,37 @@ enum ScreenshotFeatureTests {
                 && screenshotRouteBody.contains("dismissInterval: dismissInterval,"),
                "route shows exactly the preview the shared decision asks for")
         for action in ScreenshotDefaultAction.allCases {
-            suite.expect(!ScreenshotSupport.shouldRunBackgroundAutoCopy(
-                autoCopyEnabled: false, defaultAction: action),
-                   "background automatic copy stays off when the preference is disabled (\(action))")
-            let expected = !action.copiesToClipboard
-            suite.expect(ScreenshotSupport.shouldRunBackgroundAutoCopy(
-                autoCopyEnabled: true, defaultAction: action) == expected,
-                   "background automatic copy runs only when the default action does not already copy (\(action))")
+            for saved in [false, true] {
+                for copied in [false, true] {
+                    suite.expect(!ScreenshotSupport.shouldRunBackgroundAutoCopy(
+                        autoCopyEnabled: false, defaultAction: action, saved: saved, copied: copied),
+                           "background automatic copy stays off when the preference is disabled (\(action), saved: \(saved), copied: \(copied))")
+                }
+            }
         }
-        suite.expect(screenshotRouteBody.contains("ScreenshotSupport.shouldRunBackgroundAutoCopy("),
-               "route delegates background automatic copy gating to the shared helper")
+        for action in [ScreenshotDefaultAction.none, .save, .edit] {
+            suite.expect(ScreenshotSupport.shouldRunBackgroundAutoCopy(
+                autoCopyEnabled: true, defaultAction: action),
+                   "background automatic copy runs when the default action does not copy (\(action))")
+        }
+        suite.expect(!ScreenshotSupport.shouldRunBackgroundAutoCopy(
+            autoCopyEnabled: true, defaultAction: .copy, saved: false, copied: true)
+                && !ScreenshotSupport.shouldRunBackgroundAutoCopy(
+                    autoCopyEnabled: true, defaultAction: .copy, saved: false, copied: false),
+               "copy default action already copies synchronously without a duplicate background copy")
+        suite.expect(ScreenshotSupport.shouldRunBackgroundAutoCopy(
+            autoCopyEnabled: true, defaultAction: .saveAndCopy, saved: false, copied: false)
+                && !ScreenshotSupport.shouldRunBackgroundAutoCopy(
+                    autoCopyEnabled: true, defaultAction: .saveAndCopy, saved: true, copied: true)
+                && !ScreenshotSupport.shouldRunBackgroundAutoCopy(
+                    autoCopyEnabled: true, defaultAction: .saveAndCopy, saved: true, copied: false),
+               "save-and-copy keeps background automatic copy only when saving failed before copying")
+        let routeRunDefaultRange = screenshotRouteBody.range(of: "let result = runDefaultAction(defaultAction, capture: capture)")
+        let routePostActionAutoCopyRange = screenshotRouteBody.range(of: "saved: result.saved != nil,\n            copied: result.performed.contains(.copy))")
+        suite.expect(screenshotRouteBody.components(separatedBy: "ScreenshotSupport.shouldRunBackgroundAutoCopy(").count == 3
+                && routeRunDefaultRange != nil && routePostActionAutoCopyRange != nil
+                && routeRunDefaultRange!.upperBound < routePostActionAutoCopyRange!.lowerBound,
+               "route delegates background automatic copy gating to the shared helper for edit and after running the default action")
 
         // A gesture that ends with more than one release, like a drag made
         // with three fingers, delivers events after the capture is over.

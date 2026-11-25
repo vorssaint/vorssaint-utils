@@ -382,19 +382,27 @@ final class ScreenshotService: ObservableObject {
         preview?.close()
         RecentCaptureService.shared.recordScreenshot(capture)
         let defaults = UserDefaults.standard
+        let autoCopyEnabled = defaults.bool(forKey: DefaultsKey.screenshotCopyToClipboard)
         let defaultAction = ScreenshotDefaultAction.current
-        if ScreenshotSupport.shouldRunBackgroundAutoCopy(
-            autoCopyEnabled: defaults.bool(forKey: DefaultsKey.screenshotCopyToClipboard),
-            defaultAction: defaultAction) {
-            autoCopy(capture)
-        }
         if defaultAction == .edit {
+            if ScreenshotSupport.shouldRunBackgroundAutoCopy(
+                autoCopyEnabled: autoCopyEnabled,
+                defaultAction: defaultAction) {
+                autoCopy(capture)
+            }
             // The editor decides what is kept. Its Add to Shelf puts the
             // finished picture there, so the raw capture is not shelved too.
             openEditor(with: capture)
             return
         }
         let result = runDefaultAction(defaultAction, capture: capture)
+        if ScreenshotSupport.shouldRunBackgroundAutoCopy(
+            autoCopyEnabled: autoCopyEnabled,
+            defaultAction: defaultAction,
+            saved: result.saved != nil,
+            copied: result.performed.contains(.copy)) {
+            autoCopy(capture)
+        }
         autoShelve(capture, saved: result.saved?.url)
         guard case .shown(let dismissInterval) = ScreenshotSupport.quickPreviewPresentation(
             defaultAction: defaultAction,
