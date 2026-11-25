@@ -48,6 +48,7 @@ struct ScratchpadStore {
 
         var loaded = decoded.sanitized(defaultName: defaultName)
         loaded.applyRetention(retention, now: now)
+        loaded.discardInactiveEmptyPads()
         canSave = true
         if save(loaded) {
             if preference != nil { defaults.removeObject(forKey: DefaultsKey.scratchpadDocument) }

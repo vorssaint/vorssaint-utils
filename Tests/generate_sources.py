@@ -617,7 +617,7 @@ def main():
           + "".join(declaration("Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift", prefix)
                     .replace("private func", "func", 1) for prefix in [
                         "    func commitEdits(", "    private func flushSave(", "    private func save(",
-                        "    func createPad("])
+                        "    func createPad(", "    func navigate(", "    private func hasMarkedText("])
           + "}\n}\n")
     write("WallpaperPicker.swift", "import AppKit\nimport Foundation\nimport UniformTypeIdentifiers\n"
           + "extension WallpaperPickerContract {\nfinal class Service: Fixture {\n"

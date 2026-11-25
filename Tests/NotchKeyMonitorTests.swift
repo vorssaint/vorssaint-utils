@@ -100,7 +100,8 @@ enum NotchKeyMonitorTests {
         func toggleSections() { NotchKeyMonitorTests.actions.append("sections") }
         func select(_ module: NotchModule) { selected = module }
         func handleSectionKey(_ event: NSEvent) -> Bool { false }
-        func handleScratchpadKey(_ event: NSEvent) -> Bool { false }
+        var scratchpadKeys: (NSEvent) -> Bool = { _ in false }
+        func handleScratchpadKey(_ event: NSEvent) -> Bool { scratchpadKeys(event) }
         func handleClipboardPasteKey(_ event: NSEvent) -> Bool { false }
         func ownsWindow(_ window: Panel?) -> Bool { window === panel }
     }
@@ -188,6 +189,15 @@ enum NotchKeyMonitorTests {
                                    charactersIgnoringModifiers: ",")
         suite.expect(NSEvent.handler?(commandComma) == nil && actions == ["settings"],
                      "Command-Comma opens the island's settings from inside it")
+        let bracket = NSEvent(window: service.panel, keyCode: 3, modifierFlags: [.command, .option],
+                              charactersIgnoringModifiers: "f")
+        service.selected = .scratchpad
+        service.scratchpadKeys = { event in event.keyCode == bracket.keyCode }
+        suite.expect(NSEvent.handler?(bracket) == nil && service.selected == .scratchpad,
+                     "a Scratchpad chord that types a bracket takes precedence over the Files shortcut")
+        service.scratchpadKeys = { _ in false }
+        suite.expect(NSEvent.handler?(bracket) == nil && service.selected == .files,
+                     "the Files module shortcut works when the Scratchpad does not handle the chord")
         // Keep open, Settings and Collapse have no button in the row; besides
         // the secondary-click menu, VoiceOver reaches them as named actions.
         let islandSource = ((try? String(contentsOfFile: "Sources/Vorssaint/UI/Notch/NotchView.swift",

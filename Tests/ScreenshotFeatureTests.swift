@@ -4006,8 +4006,10 @@ enum ScreenshotFeatureTests {
         let migratedScratchpad = ScratchpadDocument.initial(
             defaultName: "Scratchpad", id: firstPadID, text: "existing text",
             modifiedAt: scratchpadNow.addingTimeInterval(-120))
-        let twoPads = migratedScratchpad.addingPad(defaultName: "Scratchpad", id: secondPadID)
-        let threePads = twoPads?.addingPad(defaultName: "Scratchpad", id: thirdPadID)
+        var twoPads = migratedScratchpad.addingPad(defaultName: "Scratchpad", id: secondPadID)
+        twoPads?.updateSelectedText("Second pad", modifiedAt: scratchpadNow)
+        var threePads = twoPads?.addingPad(defaultName: "Scratchpad", id: thirdPadID)
+        threePads?.updateSelectedText("Third pad", modifiedAt: scratchpadNow)
         suite.expect(threePads?.pads.map(\.name) == ["Scratchpad 1", "Scratchpad 2", "Scratchpad 3"]
                 && threePads?.pads.map(\.id) == [firstPadID, secondPadID, thirdPadID]
                 && threePads?.selectedID == thirdPadID,
@@ -4084,6 +4086,7 @@ enum ScreenshotFeatureTests {
         var limitedScratchpads = migratedScratchpad
         for _ in 2...ScratchpadDocument.maximumPadCount {
             limitedScratchpads = limitedScratchpads.addingPad(defaultName: "Scratchpad")!
+            limitedScratchpads.updateSelectedText("Keep this pad", modifiedAt: scratchpadNow)
         }
         suite.expect(limitedScratchpads.pads.count == ScratchpadDocument.maximumPadCount
                 && limitedScratchpads.addingPad(defaultName: "Scratchpad") == nil,

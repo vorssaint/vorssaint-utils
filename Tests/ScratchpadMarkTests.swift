@@ -233,6 +233,16 @@ enum ScratchpadMarkTests {
                                                 canCreatePad: true,
                                                 canClosePad: true) == nil,
                "a plain f is text, not a shortcut")
+        let optionBracket = ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: "5",
+                                                               commandOnly: false, layoutCharacter: "[",
+                                                               canCreatePad: true, canClosePad: true)
+        expect(optionBracket == .navigate(.previous), "a layout that needs Option can still enter Command-[")
+        let fullChord = ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: "9",
+                                                          commandOnly: false,
+                                                          chordCharacter: "]", layoutCharacter: "[",
+                                                          canCreatePad: true, canClosePad: true)
+        expect(fullChord == .navigate(.next), "the bracket produced with Command takes priority")
+
         func shifted(_ key: String) -> ScratchpadFocusedShortcut.Action? {
             ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: key,
                                              commandOnly: true,

@@ -46,6 +46,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     private var localClickMonitor: Any?
     private var outsideClickMonitor: Any?
     private weak var textView: NSTextView?
+    private weak var islandTextView: NSTextView?
     private var pendingSave: DispatchWorkItem?
     private var document: ScratchpadDocument?
     private var store = ScratchpadStore(directoryURL: PrivateFileStore.containerURL,
@@ -179,6 +180,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             defaults.string(forKey: DefaultsKey.scratchpadRetention))
         do {
             let loaded = try store.load(defaultName: defaultName, retention: retention, now: Date())
+            saveFailed = loaded != store.lastSavedDocument
             apply(loaded)
             hasLoaded = true
             return true
@@ -228,13 +230,29 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     }
 
     func createPad(defaultName: String) {
-        guard let document, let next = document.addingPad(defaultName: defaultName), save(next) else { return }
+        guard !hasMarkedText(), let document, let next = document.addingPad(defaultName: defaultName),
+              save(next) else { return }
         apply(next, focus: true)
     }
 
     func selectPad(_ id: UUID) {
-        guard id != selectedPadID, let document, let next = document.selecting(id), save(next) else { return }
+        guard id != selectedPadID, !hasMarkedText(),
+              let document, let next = document.selecting(id), save(next) else { return }
         apply(next, focus: true)
+    }
+
+    func navigate(_ direction: ScratchpadDirection) {
+        guard !modalInteractionActive, !hasMarkedText(), let document else { return }
+        let defaultName = FeatureStrings.scratchpad(L10n.shared.language).pageTitle
+        guard let next = document.navigating(direction, defaultName: defaultName), save(next) else { return }
+        apply(next)
+        if !isPreviewing { focusText() }
+    }
+
+    private func hasMarkedText() -> Bool {
+        [textView, islandTextView].contains { view in
+            view?.window?.isVisible == true && view?.hasMarkedText() == true
+        }
     }
 
     func renamePad(_ id: UUID, to name: String) {
@@ -437,6 +455,10 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         textView = view
     }
 
+    func registerIslandTextView(_ view: NSTextView) {
+        islandTextView = view
+    }
+
     /// Document actions keep focus in their host. Only an explicit show may
     /// bring the floating pad forward while the island or another app is key.
     private func focusText(requiresKeyWindow: Bool = true) {
@@ -535,6 +557,8 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             keyboardCloseSelectedPadSerial += 1
         case .hidePad:
             hide()
+        case .navigate(let direction):
+            navigate(direction)
         case .find:
             performFind(.showFindInterface)
         case .findNext:
@@ -591,21 +615,15 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
                 return nil
             }
             guard !self.modalInteractionActive else { return event }
-            let commandOnly = event.modifierFlags
-                .intersection([.command, .option, .control]) == .command
-            let shift = event.modifierFlags.contains(.shift)
-            if let action = ScratchpadFocusedShortcut.action(
-                charactersIgnoringModifiers: event.charactersIgnoringModifiers,
-                commandOnly: commandOnly,
-                shift: shift,
-                canCreatePad: self.canCreatePad,
-                canClosePad: self.canClosePad
-            ) {
+            if let action = ScratchpadFocusedShortcut.action(for: event,
+                                                              canCreatePad: self.canCreatePad,
+                                                              canClosePad: self.canClosePad) {
                 self.performFocusedTabShortcut(action)
                 return nil
             }
             // At the tab limit Command-T still belongs to the pad, not the text.
-            if commandOnly, !shift, event.charactersIgnoringModifiers?.lowercased() == "t" {
+            let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+            if modifiers == .command, event.charactersIgnoringModifiers?.lowercased() == "t" {
                 return nil
             }
             return event

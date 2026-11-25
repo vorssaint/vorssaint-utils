@@ -74,6 +74,8 @@ enum NotchCompactTests {
         func loadForEmbedding() -> Bool { true }
         func commitEdits() {}
         func createPad(defaultName: String) {}
+        func navigate(_ direction: ScratchpadDirection) {}
+        func registerIslandTextView(_ view: NSTextView) {}
         func closePad(_ id: UUID) -> Bool { true }
         func renamePad(_ id: UUID, to name: String) {}
         func selectPad(_ id: UUID) {}
@@ -415,9 +417,16 @@ enum NotchCompactTests {
             suite.expect(false, "the embedded scratchpad creates its native editor")
             return
         }
+        suite.expect(editor.enclosingScrollView is ScratchpadScrollView,
+                     "the embedded editor receives wheel phases in its native scroll view")
         for preview in [true, false] {
             pad.isPreviewing = preview
             settle(host)
+            if preview {
+                let previewScrolls = descendants(host).compactMap { $0 as? ScratchpadScrollView }
+                suite.expect(previewScrolls.contains { !$0.isHidden && $0 !== editor.enclosingScrollView },
+                             "the visible Markdown preview receives wheel phases too")
+            }
             suite.expect(descendants(host).contains { $0 === editor },
                          "preview preserves the same editor and undo history")
             pad.clear(through: editor)
@@ -441,6 +450,14 @@ enum NotchCompactTests {
         settle(host)
         suite.expect(editor.string == "another pad" && editor.undoManager?.canUndo != true,
                      "switching documents while previewing cannot undo into the previous document")
+
+        pad.clear(through: editor)
+        settle(host)
+        let undoBeforeSwitch = editor.undoManager?.canUndo == true
+        pad.selectedPadID = UUID()
+        settle(host)
+        suite.expect(undoBeforeSwitch && editor.string.isEmpty && editor.undoManager?.canUndo != true,
+                     "switching to another empty pad cannot undo a clear from the previous pad")
         // Option-Up trades two lines; undo and redo put the text and the
         // selection back exactly, not the caret at the end of the note.
         if let coordinator = editor.delegate as? PlainTextEditor.Coordinator {

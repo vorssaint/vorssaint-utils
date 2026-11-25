@@ -288,6 +288,7 @@ struct ScratchpadView: View {
     private var editor: some View {
         ZStack {
             PlainTextEditor(text: $service.text,
+                            documentID: service.selectedPadID,
                             fontSize: textSize,
                             textColor: .labelColor,
                             textContainerInset: Self.editorInset,
@@ -295,6 +296,7 @@ struct ScratchpadView: View {
                             completesTaskBoxes: true,
                             continuesLists: true,
                             onCommandReturn: { service.togglePreview() },
+                            onSwipe: { service.navigate($0) },
                             isActive: !service.isPreviewing,
                             onCreate: { ScratchpadService.shared.registerTextView($0) })
                 .opacity(service.isPreviewing ? 0 : 1)
@@ -318,7 +320,8 @@ struct ScratchpadView: View {
                 MarkdownPreview(blocks: ScratchpadSupport.markdownPreview(service.text),
                                 baseSize: textSize,
                                 taskStates: (done: text.taskDone, notDone: text.taskNotDone),
-                                onToggleTask: { service.toggleTask(box: $0) })
+                                onToggleTask: { service.toggleTask(box: $0) },
+                                onSwipe: { service.navigate($0) })
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -584,11 +587,13 @@ struct MarkdownPreview: NSViewRepresentable {
     /// Called with the text offset of the box whose checkbox is clicked; the
     /// owner edits the text, and the preview follows from it.
     var onToggleTask: ((Int) -> Void)?
+    var onSwipe: ((ScratchpadDirection) -> Void)?
 
     func makeNSView(context: Context) -> NSScrollView {
         // The same text view `scrollableTextView()` makes, as the subclass that
         // answers a click on a checkbox and points its cursor at it.
-        let scroll = NSScrollView()
+        let scroll = ScratchpadScrollView()
+        scroll.onSwipe = onSwipe
         scroll.drawsBackground = false
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
@@ -614,6 +619,7 @@ struct MarkdownPreview: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
+        (nsView as? ScratchpadScrollView)?.onSwipe = onSwipe
         guard let textView = nsView.documentView as? NSTextView else { return }
         context.coordinator.onToggleTask = onToggleTask
         (textView as? TaskPreviewTextView)?.onToggleTask = onToggleTask
