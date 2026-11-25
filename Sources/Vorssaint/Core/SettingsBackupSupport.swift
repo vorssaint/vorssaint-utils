@@ -146,11 +146,17 @@ enum SettingsBackupSupport {
         // are never preferences: they live in the Keychain and a sealed file.
         DefaultsKey.faceUnlockCameraID,
         DefaultsKey.micMuteActive,
+        DefaultsKey.micMuteReleasePending,
+        DefaultsKey.micMuteReleasedUIDs,
         DefaultsKey.micMuteSavedVolume,
         // Levels and device ids belong to the microphones of one Mac.
         DefaultsKey.micMuteSavedVolumes,
         DefaultsKey.micMuteSavedChannelVolumes,
         DefaultsKey.micMuteSavedControls,
+        DefaultsKey.micMuteProtectedChannels,
+        DefaultsKey.micMutePendingLegacyControls,
+        DefaultsKey.micMuteMixerHandoffUID,
+        DefaultsKey.micMuteManualCheckNeeded,
         DefaultsKey.micMuteMutedDevices,
         DefaultsKey.cleanerLastAutoRun,
         // When the last check ran and what it found belong to one Mac.
@@ -212,6 +218,9 @@ enum SettingsBackupSupport {
         // grant this Mac gave, not a setting.
         DefaultsKey.recorderSystemAudioTapVerified,
         DefaultsKey.fanControlRecoveryNeeded,
+        DefaultsKey.fanControlUnregisterPending,
+        DefaultsKey.fanControlInterruptedStop,
+        DefaultsKey.fanControlDismissedStop,
         DefaultsKey.fanControlHelperVersion,
         // Control left running on one Mac must not start fans on another.
         DefaultsKey.fanControlResumeConfiguration,
