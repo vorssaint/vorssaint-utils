@@ -4,6 +4,19 @@
 import CryptoKit
 import Foundation
 
+enum CommandBarShortcutDisplay {
+    /// Uses the Super key's compact mark only while that exact modifier chord
+    /// is working. The ordinary label remains available for accessibility.
+    static func visible(_ shortcut: GlobalShortcut,
+                        superKeyRunning: Bool,
+                        superKeyModifiers: GlobalShortcutModifiers) -> String {
+        guard superKeyRunning,
+              shortcut.superKeyAlternative(sourceLabel: "◇", superKeyModifiers: superKeyModifiers) != nil,
+              let key = shortcut.keyCaps.last else { return shortcut.displayString }
+        return "◇" + key
+    }
+}
+
 enum CommandBarClipboardAccess {
     static func canUseHistory(captureEnabled: Bool, hasSavedItems: Bool) -> Bool {
         captureEnabled || hasSavedItems
