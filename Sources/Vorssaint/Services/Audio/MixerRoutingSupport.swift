@@ -198,15 +198,20 @@ enum MixerRoutingSupport {
     /// itself keeps nearly all of its audible range in the bottom fifth: 50%
     /// was only 6 dB down and hardly sounded quieter. Squaring the position
     /// puts 50% at -12 dB and 25% at -24 dB, with silence still at 0 and an
-    /// untouched level at 100%. The boost range stays linear, so 200% is the
-    /// same +6 dB it always was.
+    /// untouched level at 100%.
+    ///
+    /// The boost range follows the same curve, so every step of the slider
+    /// changes the level by the same number of decibels on both sides of
+    /// 100% and 200% is +12 dB. A linear boost made the slider half as
+    /// steep the moment it crossed 100%, and 200% (+6 dB) barely sounded
+    /// louder than 100% (issue #4179).
     static func gain(forVolume volume: Double) -> Float {
         // Squaring would turn a level below zero into a positive gain. Such a
         // level is silence, and one that is not a number plays the app
         // untouched, the same reading a saved volume gets.
         guard volume.isFinite else { return 1 }
         let level = max(volume, 0)
-        return Float(level < 1 ? level * level : level)
+        return Float(level * level)
     }
 
     /// The slider position that plays `gain`, the inverse of the curve above.
@@ -215,8 +220,21 @@ enum MixerRoutingSupport {
     /// an app plays, only where its slider sits.
     static func volume(forGain gain: Double) -> Double {
         guard gain.isFinite else { return 1 }
-        let level = max(gain, 0)
-        return level < 1 ? level.squareRoot() : level
+        return max(gain, 0).squareRoot()
+    }
+
+    /// The gain the top of the slider plays, `gain(forVolume: 2)`. Engines
+    /// clamp to it, so a stray value can never play an app louder than the
+    /// slider allows.
+    static let maximumGain: Float = 4
+
+    /// Where a slider position saved while the boost range was linear has to
+    /// sit to play exactly as loud on the current curve. Below 100% nothing
+    /// changed; above it the saved position was the gain itself.
+    static func volume(forLinearBoostPosition position: Double) -> Double {
+        guard position.isFinite else { return 1 }
+        let level = max(position, 0)
+        return level > 1 ? volume(forGain: level) : level
     }
 
     /// The most a tap is ever turned back up: four channel pairs, the widest
