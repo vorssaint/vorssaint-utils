@@ -292,5 +292,18 @@ enum ScreenshotAutoCopyTests {
                 && ScreenshotSupport.pruned.isEmpty && NSSound.beeps == 1
                 && QuickToolHUD.messages.isEmpty,
                      "a refused pasteboard write removes its file and signals failure without reporting success")
+
+        reset(folder: directory, imageOnly: false)
+        let preSaveChangeCount = pasteboard.changeCount
+        pasteboard.replace(png: Data([99]))
+        let staleSnapshotService = Service()
+        staleSnapshotService.autoCopy(9, expectedPasteboardChangeCount: preSaveChangeCount)
+        await staleSnapshotService.autoCopyTask?.value
+        suite.expect(staleSnapshotService.autoCopyTask == nil
+                && pasteboard.png == Data([99])
+                && ScreenshotEditorController.attemptedModes.isEmpty
+                && ScreenshotSupport.createdFiles.isEmpty
+                && NSSound.beeps == 0,
+                     "an automatic copy whose pre-save pasteboard snapshot is already stale skips encoding and preserves the newer clipboard")
     }
 }

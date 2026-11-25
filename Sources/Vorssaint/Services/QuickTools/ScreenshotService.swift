@@ -382,17 +382,28 @@ final class ScreenshotService: ObservableObject {
         preview?.close()
         RecentCaptureService.shared.recordScreenshot(capture)
         let defaults = UserDefaults.standard
-        if defaults.bool(forKey: DefaultsKey.screenshotCopyToClipboard) {
-            autoCopy(capture)
-        }
+        let autoCopyEnabled = defaults.bool(forKey: DefaultsKey.screenshotCopyToClipboard)
         let defaultAction = ScreenshotDefaultAction.current
         if defaultAction == .edit {
+            if ScreenshotSupport.shouldRunBackgroundAutoCopy(
+                autoCopyEnabled: autoCopyEnabled,
+                defaultAction: defaultAction) {
+                autoCopy(capture)
+            }
             // The editor decides what is kept. Its Add to Shelf puts the
             // finished picture there, so the raw capture is not shelved too.
             openEditor(with: capture)
             return
         }
+        let pasteboardChangeCount = NSPasteboard.general.changeCount
         let result = runDefaultAction(defaultAction, capture: capture)
+        if ScreenshotSupport.shouldRunBackgroundAutoCopy(
+            autoCopyEnabled: autoCopyEnabled,
+            defaultAction: defaultAction,
+            saved: result.saved != nil,
+            copied: result.performed.contains(.copy)) {
+            autoCopy(capture, expectedPasteboardChangeCount: pasteboardChangeCount)
+        }
         autoShelve(capture, saved: result.saved?.url)
         guard case .shown(let dismissInterval) = ScreenshotSupport.quickPreviewPresentation(
             defaultAction: defaultAction,
@@ -764,7 +775,13 @@ final class ScreenshotService: ObservableObject {
     /// already appearing and says the capture happened, so a HUD on top of it
     /// would only repeat that. A failure still beeps, since nothing else
     /// would reveal an empty clipboard before the paste.
-    private func autoCopy(_ capture: ScreenshotSelectionController.Capture) {
+    private func autoCopy(_ capture: ScreenshotSelectionController.Capture,
+                          expectedPasteboardChangeCount: Int = NSPasteboard.general.changeCount) {
+        let pasteboardChangeCount = expectedPasteboardChangeCount
+        autoCopyTask?.cancel()
+        autoCopyTask = nil
+        autoCopyGeneration += 1
+        guard pasteboardChangeCount == NSPasteboard.general.changeCount else { return }
         let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
         let imageOnly = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotCopyImageOnly)
         let folder = imageOnly ? nil : ScreenshotSupport.copiedFilesDirectory()
@@ -773,10 +790,7 @@ final class ScreenshotService: ObservableObject {
             return
         }
         let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
-        autoCopyTask?.cancel()
-        autoCopyGeneration += 1
         let generation = autoCopyGeneration
-        let pasteboardChangeCount = NSPasteboard.general.changeCount
         autoCopyTask = Task { @MainActor [weak self] in
             let output = await Task.detached(priority: .userInitiated) {
                 guard let export = Self.flatten(capture, downscaleTo1x: downscale) else {
