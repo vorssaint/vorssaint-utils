@@ -43,8 +43,10 @@ enum SliderScrollRoutingTests {
     static func event(_ phase: CGScrollPhase?, delta: Int32 = 0, sideways: Int32 = 0,
                       momentum: CGMomentumScrollPhase = .none, units: CGScrollEventUnit = .pixel,
                       timestamp: CGEventTimestamp? = nil) -> NSEvent {
-        let cg = CGEvent(scrollWheelEvent2Source: nil, units: units, wheelCount: 2,
+        let source = CGEventSource(stateID: .privateState)!
+        let cg = CGEvent(scrollWheelEvent2Source: source, units: units, wheelCount: 2,
                          wheel1: delta, wheel2: sideways, wheel3: 0)!
+        cg.setIntegerValueField(.scrollWheelEventIsContinuous, value: units == .pixel ? 1 : 0)
         cg.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase?.rawValue ?? 0))
         cg.setIntegerValueField(.scrollWheelEventMomentumPhase, value: Int64(momentum.rawValue))
         if let timestamp { cg.timestamp = timestamp }
