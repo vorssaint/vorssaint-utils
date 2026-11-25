@@ -183,6 +183,11 @@ enum MixerRoutingSupport {
         return Int((min(max(volume, -1000), 1000) * 100).rounded())
     }
 
+    static func inputPercentText(forVolume volume: Double) -> String {
+        let percent = displayPercent(forVolume: volume)
+        return percent == 0 && volume.isFinite && volume > 0 ? "<1%" : "\(percent)%"
+    }
+
     static func isUnity(_ volume: Double) -> Bool {
         abs(volume - 1) < 0.005
     }

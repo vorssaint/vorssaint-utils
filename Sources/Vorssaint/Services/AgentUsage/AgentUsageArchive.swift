@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 7
+    private static let format = 8
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -138,7 +138,9 @@ enum AgentUsageArchive {
             if !same { body.tokens(entry.billable.tokens) }
             body.bool(entry.billable.isAggregate)
             body.int(entry.billable.longCacheWrite)
-            body.bool(entry.billable.fast)
+            body.bytes.append(entry.billable.serviceTier.rawValue)
+            body.bool(entry.billable.hasEventTimestamp)
+            body.bool(entry.billable.assumesStandardTier)
             body.bool(entry.billable.domestic)
             body.int(entry.billable.webSearches)
             body.count(entry.sources.count)
@@ -216,7 +218,8 @@ enum AgentUsageArchive {
                 let same = try reader.bool()
                 let billable = AgentBillable(tokens: same ? record.tokens : try reader.tokens(),
                                              isAggregate: try reader.bool(),
-                                             longCacheWrite: try reader.amount(), fast: try reader.bool(),
+                                             longCacheWrite: try reader.amount(), serviceTier: try reader.serviceTier(),
+                                             hasEventTimestamp: try reader.bool(), assumesStandardTier: try reader.bool(),
                                              domestic: try reader.bool(), webSearches: try reader.amount())
                 var sources: [String] = []
                 for _ in 0..<(try reader.count()) { sources.append(try reader.string()) }
@@ -354,7 +357,7 @@ enum AgentUsageArchive {
             bool(value.turnOpen)
             bool(value.sawUsageRecords)
             optional(value.lastTotal) { $0.tokens($1) }
-            bool(value.fast)
+            optional(value.serviceTier) { $0.bytes.append($1.rawValue) }
             bool(value.codexSubagent)
             bool(value.codexHeaderRead)
             string(value.codexRoot)
@@ -403,6 +406,11 @@ enum AgentUsageArchive {
             guard position < bytes.count else { throw Malformed() }
             defer { position += 1 }
             return bytes[position]
+        }
+
+        mutating func serviceTier() throws -> AgentServiceTier {
+            guard let tier = AgentServiceTier(rawValue: try byte()) else { throw Malformed() }
+            return tier
         }
 
         mutating func take(_ length: Int) throws -> ArraySlice<UInt8> {
@@ -529,7 +537,7 @@ enum AgentUsageArchive {
 
         mutating func state(provider: AgentProvider, offset: UInt64) throws -> AgentLogState {
             var value = AgentLogState(session: try string(), project: try string(), model: try string(), turnOpen: try bool(),
-                                      sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, fast: try bool())
+                                      sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, serviceTier: try optional { try $0.serviceTier() })
             value.codexSubagent = try bool()
             value.codexHeaderRead = try bool()
             value.codexRoot = try string()

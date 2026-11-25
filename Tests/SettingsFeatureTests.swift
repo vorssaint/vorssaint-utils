@@ -695,6 +695,7 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.menuBarFanSpeed)
                 && backupKeys.contains(DefaultsKey.fanControlResume)
                 && !backupKeys.contains(DefaultsKey.fanControlRecoveryNeeded)
+                && !backupKeys.contains(DefaultsKey.fanControlUnregisterPending)
                 && !backupKeys.contains(DefaultsKey.fanControlHelperVersion)
                 && !backupKeys.contains(DefaultsKey.fanControlResumeConfiguration),
                "fan display and cooling preferences travel while helper recovery state stays on one Mac")
@@ -707,9 +708,17 @@ enum SettingsFeatureTests {
                 && !backupKeys.contains(DefaultsKey.sleepDisabledFlag)
                 && !backupKeys.contains(DefaultsKey.keepAwakeSessionEnd)
                 && !backupKeys.contains(DefaultsKey.micMuteActive)
+                && !backupKeys.contains(DefaultsKey.micMuteReleasePending)
+                && SettingsBackupSupport.machineStateKeys.contains(DefaultsKey.micMuteReleasedUIDs)
+                && !backupKeys.contains(DefaultsKey.micMuteReleasedUIDs)
                 && !backupKeys.contains(DefaultsKey.micMuteSavedVolumes)
                 && !backupKeys.contains(DefaultsKey.micMuteSavedChannelVolumes)
+                && !backupKeys.contains(DefaultsKey.micMutePendingLegacyControls)
+                && SettingsBackupSupport.machineStateKeys.contains(DefaultsKey.micMuteMixerHandoffUID)
+                && !backupKeys.contains(DefaultsKey.micMuteMixerHandoffUID)
+                && !backupKeys.contains(DefaultsKey.micMuteManualCheckNeeded)
                 && !backupKeys.contains(DefaultsKey.micMuteSavedControls)
+                && !backupKeys.contains(DefaultsKey.micMuteProtectedChannels)
                 && !backupKeys.contains(DefaultsKey.micMuteMutedDevices)
                 && !backupKeys.contains(DefaultsKey.cleanerLastAutoRun)
                 && !backupKeys.contains(DefaultsKey.statusItemPlacementGeneration)
@@ -978,13 +987,17 @@ enum SettingsFeatureTests {
         let tampered: [String: Any] = [
             SettingsBackupSupport.formatVersionKey: 1,
             SettingsBackupSupport.settingsKey: ["evilKey": "x", DefaultsKey.autoQuitEnabled: true,
+                                                DefaultsKey.micMuteMixerHandoffUID: "another-microphone",
+                                                DefaultsKey.micMuteReleasedUIDs: ["another-microphone"],
                                                 DefaultsKey.keepAwakeSessionEnd: ["end": 0.0, "minutes": 0]] as [String: Any],
         ]
         let filteredImport = SettingsBackupSupport.sanitizedSettings(from: tampered)
         suite.expect(filteredImport?["evilKey"] == nil
+                && filteredImport?[DefaultsKey.micMuteMixerHandoffUID] == nil
+                && filteredImport?[DefaultsKey.micMuteReleasedUIDs] == nil
                 && filteredImport?[DefaultsKey.keepAwakeSessionEnd] == nil
                 && filteredImport?[DefaultsKey.autoQuitEnabled] as? Bool == true,
-               "unknown keys and live Keep Awake sessions are dropped on import")
+               "unknown keys, microphone recovery state and live Keep Awake sessions are dropped on import")
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: [
             SettingsBackupSupport.formatVersionKey: 99,
             SettingsBackupSupport.settingsKey: [String: Any](),
