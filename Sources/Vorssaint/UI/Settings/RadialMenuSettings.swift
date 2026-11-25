@@ -11,6 +11,8 @@ struct RadialMenuSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = RadialMenuService.shared
+    /// Watched so a shortcut's name replaces its fallback label once read.
+    @ObservedObject private var appleShortcuts = RadialAppleShortcutCatalog.shared
     @AppStorage(DefaultsKey.radialMenuEnabled) private var enabled = false
     @AppStorage(DefaultsKey.radialMenuAtPointer) private var atPointer = true
     @AppStorage(DefaultsKey.radialMenuActivationMode) private var activationModeRaw =
@@ -189,6 +191,9 @@ struct RadialMenuSettings: View {
         .onAppear {
             if selectedProfileID == nil || !profiles.contains(where: { $0.id == selectedProfileID }) {
                 selectedProfileID = profiles.first?.id
+            }
+            if profiles.contains(where: { RadialMenuSupport.containsAppleShortcut($0.items) }) {
+                appleShortcuts.refresh()
             }
         }
         .onDrop(of: [UTType.text], delegate: RadialDragCleanupDelegate(dragging: $dragging))
@@ -674,20 +679,6 @@ private struct RadialItemRow: View {
     let openChildren: (() -> Void)?
     let moveHandler: (RadialMenuItem, RadialMenuItem) -> Void
 
-    private var kindLabel: String {
-        switch item.kind {
-        case .app: return text.kindApp
-        case .file: return text.kindFile
-        case .url: return text.kindURL
-        case .shortcut: return text.kindShortcut
-        case .tool: return text.kindTool
-        case .quickToggle: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
-        case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
-        case .media: return text.kindMedia
-        case .submenu: return text.kindSubmenu
-        }
-    }
-
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "line.3.horizontal")
@@ -697,7 +688,7 @@ private struct RadialItemRow: View {
                     badge
                     VStack(alignment: .leading, spacing: 1) {
                         Text(item.displayName(text))
-                        Text(kindLabel)
+                        Text(item.kindTitle(text))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -802,6 +793,7 @@ private struct RadialItemEditor: View {
     let delete: (() -> Void)?
 
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var appleShortcuts = RadialAppleShortcutCatalog.shared
     @Environment(\.dismiss) private var dismiss
     @State private var shortcutMessage: ShortcutMessage?
     @State private var isFetchingFavicon = false
@@ -859,6 +851,8 @@ private struct RadialItemEditor: View {
                     Text(text.kindFile).tag(RadialMenuItem.Kind.file)
                     Text(text.kindURL).tag(RadialMenuItem.Kind.url)
                     Text(text.kindShortcut).tag(RadialMenuItem.Kind.shortcut)
+                    Text(text.kindAppleShortcut).tag(RadialMenuItem.Kind.appleShortcut)
+                    Text(text.kindScript).tag(RadialMenuItem.Kind.script)
                     if !availableTools.isEmpty {
                         Text(text.kindTool).tag(RadialMenuItem.Kind.tool)
                     }
@@ -894,6 +888,17 @@ private struct RadialItemEditor: View {
                     .font(.caption)
                     .foregroundStyle(shortcutMessage.isProblem ? AnyShapeStyle(.orange)
                                                                : AnyShapeStyle(.secondary))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if item.kind == .appleShortcut, appleShortcuts.hasLoaded, appleShortcuts.shortcuts.isEmpty {
+                Text(text.appleShortcutsEmpty)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if item.kind == .script {
+                Text(text.scriptCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if item.kind == .submenu {
@@ -938,6 +943,9 @@ private struct RadialItemEditor: View {
         }
         .padding(18)
         .frame(width: 440)
+        .onAppear {
+            if item.kind == .appleShortcut { appleShortcuts.refresh() }
+        }
     }
 
     /// Changing the action type clears targets that no longer make sense but
@@ -950,6 +958,9 @@ private struct RadialItemEditor: View {
             faviconStatus = nil
             if kind != .url { item.customIconData = nil }
             switch kind {
+            case .appleShortcut:
+                appleShortcuts.refresh()
+                item.payload = appleShortcuts.shortcuts.first?.id ?? ""
             case .tool: item.payload = availableTools.first?.rawValue ?? ""
             case .quickToggle: item.payload = availableQuickToggles.first?.rawValue ?? ""
             case .windowLayout: item.payload = WindowLayoutAction.leftHalf.rawValue
@@ -965,11 +976,15 @@ private struct RadialItemEditor: View {
         switch item.kind {
         case .app:
             LabeledContent(text.kindApp) {
-                Button(chooseTitle) { choose(applications: true) }
+                Button(chooseTitle) { choose(.app) }
             }
         case .file:
             LabeledContent(text.kindFile) {
-                Button(chooseTitle) { choose(applications: false) }
+                Button(chooseTitle) { choose(.file) }
+            }
+        case .script:
+            LabeledContent(text.kindScript) {
+                Button(chooseTitle) { choose(.script) }
             }
         case .url:
             VStack(alignment: .leading, spacing: 6) {
@@ -1047,6 +1062,19 @@ private struct RadialItemEditor: View {
                                        })
                     .frame(width: 108)
             }
+        case .appleShortcut:
+            Picker(text.appleShortcutLabel, selection: $item.payload) {
+                // Nothing picked yet, or a shortcut that is gone, keeps a row
+                // of its own so the picker never points at a missing tag.
+                if appleShortcuts.name(for: item.payload) == nil {
+                    Text(item.payload.isEmpty || !appleShortcuts.hasLoaded
+                         ? text.chooseButton : text.appleShortcutMissing)
+                        .tag(item.payload)
+                }
+                ForEach(appleShortcuts.shortcuts) { shortcut in
+                    Text(shortcut.name).tag(shortcut.id)
+                }
+            }
         case .tool:
             Picker(text.toolLabel, selection: $item.payload) {
                 ForEach(availableTools) { tool in
@@ -1087,12 +1115,13 @@ private struct RadialItemEditor: View {
         return RadialMenuIconStore.fileName(for: item.payload)
     }
 
-    private func choose(applications: Bool) {
+    private func choose(_ kind: RadialMenuItem.Kind) {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
         panel.canChooseFiles = true
-        panel.canChooseDirectories = !applications
-        if applications {
+        // A script is a file, never a folder; a file slice opens either.
+        panel.canChooseDirectories = kind == .file
+        if kind == .app {
             panel.allowedContentTypes = [.applicationBundle]
             panel.directoryURL = URL(fileURLWithPath: "/Applications")
         }
