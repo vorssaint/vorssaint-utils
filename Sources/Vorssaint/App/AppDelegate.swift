@@ -91,6 +91,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // quitting to relaunch under the new name, so skip the rest of startup.
         if BundleMigration.run() { return }
 
+        BetterDisplayOSDBridge.shared.start()
+
         DispatchQueue.global(qos: .utility).async {
             RecorderGIFWorkspace.sweep()
         }
