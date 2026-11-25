@@ -31,6 +31,8 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     private var animationGeneration = 0
     private var isAnimating = false
     private var hidesWhenSettled = false
+    private var vanishing = false
+    private static let vanishKey = "notch.vanish"
     private var targetUsesGlass = false
     private var mouseEventsBeforeHide: Bool?
     private var frameProbe: NotchFrameProbe?
@@ -256,9 +258,50 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
                 hideWhenSettled: true)
     }
 
+    /// Full screen takes the island away from the outside in: it shrinks
+    /// towards its centre as it fades, then hides as it otherwise would.
+    func vanish(animated: Bool) {
+        guard isPresented, !vanishing else { return }
+        guard animated, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+              let layer = panel.contentView?.layer else { hide(animated: false); return }
+        vanishing = true
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak self] in
+            guard let self, self.vanishing else { return }
+            self.vanishing = false
+            // Ordered out first, so the island never shows again at full size.
+            self.hide(animated: false)
+            layer.removeAnimation(forKey: Self.vanishKey)
+        }
+        let shrink = CABasicAnimation(keyPath: "transform")
+        shrink.toValue = NSValue(caTransform3D: centredScale(0.2, in: layer))
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.toValue = 0
+        let group = CAAnimationGroup()
+        group.animations = [shrink, fade]
+        group.duration = 0.22
+        group.timingFunction = CAMediaTimingFunction(name: .easeIn)
+        group.fillMode = .forwards
+        group.isRemovedOnCompletion = false
+        layer.add(group, forKey: Self.vanishKey)
+        CATransaction.commit()
+    }
+
+    private func centredScale(_ scale: CGFloat, in layer: CALayer) -> CATransform3D {
+        let anchor = CGPoint(x: layer.anchorPoint.x * layer.bounds.width, y: layer.anchorPoint.y * layer.bounds.height)
+        let offset = CGPoint(x: layer.bounds.midX - anchor.x, y: layer.bounds.midY - anchor.y)
+        let transform = CATransform3DScale(CATransform3DMakeTranslation(offset.x, offset.y, 0), scale, scale, 1)
+        return CATransform3DTranslate(transform, -offset.x, -offset.y, 0)
+    }
+
     func present(size: CGSize, geometry: NotchGeometry, animated: Bool, transitionContent: NotchContentTransition = .none,
                  quickAccess: NotchQuickAccessConfiguration? = nil, revealFromHidden: Bool = false,
                  hideWhenSettled: Bool = false, usesGlass: Bool = false, steady: Bool = false) {
+        // Leaving full screen before the island has vanished brings it back as it was.
+        if vanishing {
+            vanishing = false
+            panel.contentView?.layer?.removeAnimation(forKey: Self.vanishKey)
+        }
         // Choosing the capsule or the notch redraws the island at once, even
         // at a size it already has.
         canvas.setFloatingGap(geometry.floatingGap)
