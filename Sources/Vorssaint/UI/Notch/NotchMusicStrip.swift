@@ -131,10 +131,10 @@ struct NotchMusicStrip: View {
                                    bars: NotchLayout.compactMusicBarCount,
                                    barWidth: NotchLayout.compactMusicBarWidth,
                                    height: geometry.compactMusicBarHeight,
-                                   tint: tint?.color ?? .white)
+                                   tint: tint?.barColor ?? .white, field: tint?.field ?? [])
                 .opacity(showsControl ? 0 : 1)
             if showsControl {
-                NotchMusicStripButton(playing: playing, tint: tint?.color ?? .white,
+                NotchMusicStripButton(playing: playing, tint: tint?.controlColor ?? .white,
                                       height: geometry.compactMusicBarHeight)
                     .transition(.opacity)
             }

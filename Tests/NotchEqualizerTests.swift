@@ -29,7 +29,7 @@ enum NotchEqualizerTests {
                        height: CGFloat = 20, tint: NSColor = .white) {
             view.configure(animates: animates, bars: count, barWidth: width, height: height, tint: tint)
         }
-        func layers() -> [CALayer] { view.layer?.sublayers ?? [] }
+        func layers() -> [CALayer] { view.barLayers }
         func heights() -> [CGFloat] { layers().map(\.bounds.height) }
         func isStopped() -> Bool {
             !view.isMoving && layers().allSatisfy { $0.bounds.height == $0.bounds.width }
@@ -50,7 +50,7 @@ enum NotchEqualizerTests {
         view.layout()
         expect(zip(original, layers()).allSatisfy { $0 === $1 } && view.motionStart == started,
                "metadata, tint and layout changes preserve bar layers and the motion's phase")
-        expect(layers().allSatisfy { $0.backgroundColor == NSColor.red.cgColor },
+        expect(view.barColors == NotchEqualizerView.gradientColors(for: .red),
                "a new artwork tint updates every bar without restarting motion")
         view.step(at: started + 0.1)
         let early = heights()
@@ -81,7 +81,7 @@ enum NotchEqualizerTests {
         for count in [1, 3, 4, 7] {
             configure(count: count, width: 1.8, height: 14)
             expect(layers().count == count, "changing the music indicator replaces obsolete bars")
-            let width = CGFloat(count) * 1.8 + CGFloat(count - 1) * 1.8 * 0.85
+            let width = NotchAudioLevelSupport.barRowWidth(bars: count, barWidth: 1.8)
             var lowest = Array(repeating: CGFloat.infinity, count: count)
             var highest = Array(repeating: -CGFloat.infinity, count: count)
             for frame in 0...45 {
@@ -97,7 +97,7 @@ enum NotchEqualizerTests {
             }
             expect(zip(lowest, highest).allSatisfy { $0 >= 1.8 && $1 <= 14 }
                    && highest[count / 2] > lowest[count / 2] + 1
-                   && layers().allSatisfy { $0.cornerRadius == 0.9 },
+                   && layers().allSatisfy { $0.cornerRadius == $0.bounds.width / 2 },
                    "music motion rises and falls within its reserved height with rounded ends")
         }
         view.removeFromSuperview()
@@ -189,7 +189,7 @@ enum NotchEqualizerTests {
         window.shown = false
         window.exposed = false
         window.notifyVisibility()
-        expect((arrived.layer?.sublayers ?? []).allSatisfy { $0.bounds.height == $0.bounds.width },
+        expect(arrived.barLayers.allSatisfy { $0.bounds.height == $0.bounds.width },
                "letting the copied pose go drops the wave once the window is away")
         arrived.removeFromSuperview()
         window.shown = true
@@ -205,16 +205,24 @@ enum NotchEqualizerTests {
         window.exposed = false
         window.notifyVisibility()
         expect(wave.isMoving && wave.motionStart == phase
-               && (wave.layer?.sublayers ?? []).allSatisfy { $0.bounds.height > $0.bounds.width },
+               && wave.barLayers.allSatisfy { $0.bounds.height > $0.bounds.width },
                "a display change keeps the music wave drawn and in phase while the window is away")
         wave.configure(animates: true, bars: 7, barWidth: 2, height: 20, tint: .white,
                        levels: [1, 1, 1, 1, 1, 1, 1])
         expect(wave.motionStart == phase
-               && (wave.layer?.sublayers ?? []).allSatisfy { abs($0.bounds.height - 20) < 0.001 },
+               && abs(wave.barLayers[3].bounds.height - 20) < 0.001
+               && wave.barLayers.allSatisfy { $0.bounds.height > 12 },
                "live levels keep updating the held wave without restarting its phase")
+        let tall = wave.barLayers
+        expect(tall.allSatisfy { abs($0.cornerRadius - $0.bounds.width / 2) < 0.001 } && abs(tall[3].bounds.width - 2.88) < 0.001,
+               "a bar at full height is wider than its dot, with its ends still fully round")
+        expect(zip(tall, tall.dropFirst()).allSatisfy { abs($1.position.x - $0.position.x - 4.26) < 0.001 }
+               && abs(tall[0].frame.minX) < 0.001
+               && abs((tall.last?.frame.maxX ?? 0) - NotchAudioLevelSupport.barRowWidth(bars: 7, barWidth: 2)) < 0.001,
+               "the bars widen in place, and the end bars stay inside the row at their widest")
         window.holdsWave = false
         window.notifyVisibility()
-        expect(!wave.isMoving && (wave.layer?.sublayers ?? []).allSatisfy { $0.bounds.height == $0.bounds.width },
+        expect(!wave.isMoving && wave.barLayers.allSatisfy { $0.bounds.height == $0.bounds.width },
                "a window that is still away drops the wave once the display change lets it go")
         wave.removeFromSuperview()
 
