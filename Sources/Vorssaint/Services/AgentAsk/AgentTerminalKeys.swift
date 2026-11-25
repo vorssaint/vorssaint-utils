@@ -6,7 +6,7 @@ import Foundation
 /// The keys that answer Claude Code's own prompts in its terminal, as a person
 /// would press them. Each prompt opens with its first choice highlighted.
 enum AgentTerminalKey: Equatable {
-    case down, enter, escape
+    case down, enter, escape, space
 
     /// The bytes a terminal sends for the key.
     var bytes: String {
@@ -14,6 +14,7 @@ enum AgentTerminalKey: Equatable {
         case .down: return "\u{1B}[B"
         case .enter: return "\r"
         case .escape: return "\u{1B}"
+        case .space: return " "
         }
     }
 
@@ -23,6 +24,7 @@ enum AgentTerminalKey: Equatable {
         case .down: return 125
         case .enter: return 36
         case .escape: return 53
+        case .space: return 49
         }
     }
 }
@@ -38,8 +40,29 @@ enum AgentTerminalKeys {
     /// sending; where there is none it lands in an empty prompt and does nothing.
     /// Nil when an answer is not one of the question's options.
     static func answers(_ chosen: [Int]) -> [AgentTerminalKey]? {
-        guard !chosen.isEmpty, chosen.allSatisfy({ $0 >= 0 }) else { return nil }
-        return chosen.flatMap { Array(repeating: AgentTerminalKey.down, count: $0) + [.enter] } + [.enter]
+        answers(chosen.map { [$0] })
+    }
+
+    /// Each question's picks, in order. One pick is a single choice: down to it, Enter.
+    /// A multi-select question's are ticked from the top with Space, moving down between them, then Enter.
+    /// The last Enter confirms the review before sending.
+    static func answers(_ chosen: [[Int]], multiSelect: Set<Int> = []) -> [AgentTerminalKey]? {
+        guard !chosen.isEmpty, chosen.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0 >= 0 } }) else { return nil }
+        var keys: [AgentTerminalKey] = []
+        for (question, picks) in chosen.enumerated() {
+            if !multiSelect.contains(question) {
+                guard picks.count == 1 else { return nil }
+                keys += Array(repeating: .down, count: picks[0]) + [.enter]
+            } else {
+                var cursor = 0
+                for pick in Set(picks).sorted() {
+                    keys += Array(repeating: .down, count: pick - cursor) + [.space]
+                    cursor = pick
+                }
+                keys.append(.enter)
+            }
+        }
+        return keys + [.enter]
     }
 
     /// The hook's first line names the terminal Claude Code runs in.

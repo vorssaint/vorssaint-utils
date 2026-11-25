@@ -41,8 +41,9 @@ enum AgentTerminalTyper {
             let text: String
             switch key {
             case .down: return "tell s to write text ((character id 27) & \"[B\") newline no\ndelay 0.06"
-            case .enter: text = "(character id 13)"
+            case .enter: return "tell s to write text (character id 13) newline no\ndelay 0.3"
             case .escape: text = "(character id 27)"
+            case .space: text = "\" \""
             }
             return "tell s to write text \(text) newline no\ndelay 0.06"
         }.joined(separator: "\n")
@@ -124,7 +125,9 @@ enum AgentTerminalTyper {
         for key in keys {
             guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == terminal else { return false }
             post(key)
-            usleep(70_000)
+            // Claude Code redraws after Enter (next question, then the review); keys
+            // typed during that redraw are lost, so give it time.
+            usleep(key == .enter ? 300_000 : 70_000)
         }
         return true
     }

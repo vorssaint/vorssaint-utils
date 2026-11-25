@@ -42,7 +42,7 @@ private struct AgentAskCard: View {
     let cameraInset: CGFloat
     @State private var step = 0
     /// The chosen option's position in each question answered so far.
-    @State private var chosen: [Int] = []
+    @State private var chosen: [[Int]] = []
     @State private var picked: [String] = []
 
     var body: some View {
@@ -94,9 +94,12 @@ private struct AgentAskCard: View {
                 ForEach(question.options) { option in optionRow(option, in: question, of: questions.count) }
             }
             if question.multiSelect {
-                // Several choices are ticked in the terminal itself.
-                Button { service.goToTerminal(request) } label: {
-                    Text("Choose in terminal").font(.system(size: 13, weight: .semibold)).frame(maxWidth: .infinity, minHeight: 34)
+                // Ticked here, typed into the terminal with the other answers.
+                Button {
+                    let indexes = question.options.indices.filter { picked.contains(question.options[$0].label) }
+                    if !indexes.isEmpty { advance(with: indexes, of: questions.count) }
+                } label: {
+                    Text(step + 1 < questions.count ? "Next" : "Send").font(.system(size: 13, weight: .semibold)).frame(maxWidth: .infinity, minHeight: 34)
                         .background(Capsule().fill(.white.opacity(0.95)))
                         .foregroundStyle(.black)
                 }
@@ -137,7 +140,11 @@ private struct AgentAskCard: View {
 
     private func commit(_ question: AgentAskQuestion, option: AgentAskQuestion.Option, of count: Int) {
         guard let index = question.options.firstIndex(where: { $0.id == option.id }) else { return }
-        chosen.append(index)
+        advance(with: [index], of: count)
+    }
+
+    private func advance(with picks: [Int], of count: Int) {
+        chosen.append(picks)
         picked = []
         if step + 1 < count { step += 1 } else { service.answer(request, chosen: chosen) }
     }
