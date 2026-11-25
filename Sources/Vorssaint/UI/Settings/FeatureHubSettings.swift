@@ -1201,6 +1201,7 @@ extension AppFeature {
         case .notchMascot: return FeatureStrings.notchMascot(language).title
         case .notch: return FeatureStrings.notch(language).title
         case .radialMenu: return FeatureStrings.radialMenu(language).pageTitle
+        case .browserPicker: return FeatureStrings.browserPicker(language).title
         case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
         case .commandBar: return FeatureStrings.commandBar(language).pageTitle
         case .cleaningMode: return s.cleaningMenuItem
@@ -1288,6 +1289,7 @@ extension AppFeature {
         case .notchMascot: return FeatureStrings.notchMascot(L10n.shared.language).hubDescription
         case .notch: return FeatureStrings.notch(L10n.shared.language).description
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).hubDescription
+        case .browserPicker: return FeatureStrings.browserPicker(L10n.shared.language).description
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).hubDescription
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).hubDescription
         case .cleaningMode: return hub.descCleaningMode
