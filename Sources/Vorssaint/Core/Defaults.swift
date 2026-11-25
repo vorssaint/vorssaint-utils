@@ -161,6 +161,7 @@ enum DefaultsKey {
     static let whatsNewKnownFeatures = "whatsNewKnownFeatures" // comma-joined AppFeature raw values
     static let appVolumes = "appVolumes"                  // [bundle id: 0...2]
     static let appVolumesArePositions = "appVolumesArePositions" // appVolumes hold slider positions, not gains; travels with them so an older backup converts on restore
+    static let appVolumeBoostFollowsCurve = "appVolumeBoostFollowsCurve" // one-time: boosted positions saved on the linear boost range moved to the squared curve at the same loudness
     static let appOutputDevices = "appOutputDevices"      // [bundle id: audio device UID]
     static let mixerCallAppVolumeEnabled = "mixerCallAppVolumeEnabled" // bundle ids explicitly allowed to process call audio despite screen-sharing echo
     static let mixerUniversalOutputDevice = "mixerUniversalOutputDevice" // retired: all-apps output saved by 3.4.1 betas
@@ -2102,6 +2103,7 @@ enum Defaults {
         migrateOrphanedCaptureShortcut(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateAppVolumesToPositions(in: defaults)
+        migrateAppVolumeBoostToCurve(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
         recheckBrightnessDDCWriteOnlyPaths(in: defaults)
         recheckBrightnessDDCHDMIConverterPaths(in: defaults)
@@ -2796,6 +2798,12 @@ enum Defaults {
         return min(max(volume, 0), 2)
     }
 
+    /// A saved or imported gain, up to what the top of the slider plays.
+    static func sanitizedAppGain(_ gain: Double) -> Double {
+        guard gain.isFinite else { return 1 }
+        return min(max(gain, 0), Double(MixerRoutingSupport.maximumGain))
+    }
+
     /// The volume the speakers are set to when headphones disconnect. At zero
     /// the lowering also turns their mute on, because the bottom of the level
     /// range is still faintly audible on some speakers. The default stays
@@ -2831,12 +2839,35 @@ enum Defaults {
     /// it, and the relaunch that follows converts that backup's levels too.
     static func migrateAppVolumesToPositions(in defaults: UserDefaults) {
         guard !defaults.bool(forKey: DefaultsKey.appVolumesArePositions) else { return }
-        defer { defaults.set(true, forKey: DefaultsKey.appVolumesArePositions) }
+        defer {
+            defaults.set(true, forKey: DefaultsKey.appVolumesArePositions)
+            // Gains convert straight onto the current curve, boost included.
+            defaults.set(true, forKey: DefaultsKey.appVolumeBoostFollowsCurve)
+        }
         guard let saved = defaults.dictionary(forKey: DefaultsKey.appVolumes), !saved.isEmpty else { return }
         var positions: [String: Double] = [:]
         for (id, value) in saved {
             guard let gain = (value as? NSNumber)?.doubleValue, gain.isFinite else { continue }
-            positions[id] = MixerRoutingSupport.volume(forGain: sanitizedAppVolume(gain))
+            positions[id] = MixerRoutingSupport.volume(forGain: sanitizedAppGain(gain))
+        }
+        defaults.set(positions, forKey: DefaultsKey.appVolumes)
+    }
+
+    /// 3.4.2 to 3.4.5 saved slider positions whose boost range was the gain
+    /// itself. Each boosted position moves once to where it plays exactly as
+    /// loud on the squared curve, so 150% becomes about 122%: the app sounds
+    /// the same and only the slider moves. Positions at or below 100% were
+    /// already on the curve. Gains that still wait for the position
+    /// migration are left to it, which converts them onto this curve directly.
+    static func migrateAppVolumeBoostToCurve(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.appVolumeBoostFollowsCurve) else { return }
+        guard defaults.bool(forKey: DefaultsKey.appVolumesArePositions) else { return }
+        defer { defaults.set(true, forKey: DefaultsKey.appVolumeBoostFollowsCurve) }
+        guard let saved = defaults.dictionary(forKey: DefaultsKey.appVolumes), !saved.isEmpty else { return }
+        var positions: [String: Double] = [:]
+        for (id, value) in saved {
+            guard let position = (value as? NSNumber)?.doubleValue, position.isFinite else { continue }
+            positions[id] = MixerRoutingSupport.volume(forLinearBoostPosition: sanitizedAppVolume(position))
         }
         defaults.set(positions, forKey: DefaultsKey.appVolumes)
     }

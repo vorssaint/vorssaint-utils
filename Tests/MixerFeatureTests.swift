@@ -31,7 +31,24 @@ enum MixerFeatureTests {
         suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 0.5)), 0.25,
                     "half the slider is a clearly quieter app, not a 6 dB trim")
         suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 1)), 1, "100% plays the app untouched")
-        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 2)), 2, "the boost range keeps its ceiling")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 2)), 4, "200% is +12 dB, the same curve as below 100%")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 2)),
+                          Double(MixerRoutingSupport.maximumGain), "engines clamp to what the top of the slider plays")
+        // Every 10% step changes the level by the same decibels on both sides
+        // of 100%, so the boost is not half as steep as the cut (issue #4179).
+        let stepDB = { (from: Double, to: Double) -> Double in
+            20 * log10(Double(MixerRoutingSupport.gain(forVolume: to))
+                       / Double(MixerRoutingSupport.gain(forVolume: from)))
+        }
+        suite.expectClose(stepDB(1.0, 1.1), -stepDB(1.0, 1.0 / 1.1),
+                          "the slider is as steep just above 100% as just below it", tol: 1e-6)
+        suite.expect(stepDB(1.9, 2.0) > 0.8, "the last boost step is still clearly louder")
+        suite.expectClose(Defaults.sanitizedAppGain(9), 4, "an imported gain clamps to the top of the slider")
+        suite.expectClose(Defaults.sanitizedAppGain(.nan), 1, "a gain that is not a number plays the app untouched")
+        suite.expectClose(MixerRoutingSupport.volume(forLinearBoostPosition: 2), 2.0.squareRoot(),
+                          "a 200% saved on the linear boost moves to where it plays +6 dB")
+        suite.expectClose(MixerRoutingSupport.volume(forLinearBoostPosition: 0.5), 0.5,
+                          "positions below 100% were already on the curve")
         suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: -1)), 0, "a level below zero never plays")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: 0.456) == 46, "a volume shows as a rounded percent")
         suite.expect(MixerRoutingSupport.inputPercentText(forVolume: 0) == "0%"
@@ -58,8 +75,38 @@ enum MixerFeatureTests {
             let migrated = curveDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
             suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: migrated["com.example.quiet"] ?? -1)), 0.25,
                         "an app saved below 100% plays exactly as loud after the update, converted once")
-            suite.expect(migrated["com.example.boosted"] == 1.5 && migrated["com.example.muted"] == 0,
-                   "boosted and muted apps keep their saved levels")
+            suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: migrated["com.example.boosted"] ?? -1)), 1.5,
+                        "a boosted gain plays exactly as loud after the update")
+            suite.expect(migrated["com.example.muted"] == 0
+                         && curveDefaults.bool(forKey: DefaultsKey.appVolumeBoostFollowsCurve),
+                   "a muted app stays muted, and gains land on the current boost curve directly")
+            Defaults.migrateAppVolumeBoostToCurve(in: curveDefaults)
+            let notTwice = curveDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
+            suite.expect(notTwice == migrated, "converted gains are not moved again by the boost migration")
+            // A Mac upgrading from 3.4.2-3.4.5: positions, boost still linear.
+            curveDefaults.removePersistentDomain(forName: curveSuite)
+            curveDefaults.set(true, forKey: DefaultsKey.appVolumesArePositions)
+            curveDefaults.set(["com.example.quiet": 0.5, "com.example.boosted": 1.5, "com.example.top": 2.0],
+                              forKey: DefaultsKey.appVolumes)
+            Defaults.migrateAppVolumesToPositions(in: curveDefaults)
+            Defaults.migrateAppVolumeBoostToCurve(in: curveDefaults)
+            Defaults.migrateAppVolumeBoostToCurve(in: curveDefaults)
+            let boosted = curveDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
+            suite.expect(boosted["com.example.quiet"] == 0.5, "a position below 100% stays where it was")
+            suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: boosted["com.example.boosted"] ?? -1)), 1.5,
+                              "a boosted app plays exactly as loud as before, converted once")
+            suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: boosted["com.example.top"] ?? -1)), 2,
+                              "a 200% app keeps its +6 dB instead of jumping to +12 dB")
+            curveDefaults.removePersistentDomain(forName: curveSuite)
+            Defaults.migrateAppVolumeBoostToCurve(in: curveDefaults)
+            suite.expect(!curveDefaults.bool(forKey: DefaultsKey.appVolumeBoostFollowsCurve),
+                         "gains waiting for the position migration are left to it")
+            curveDefaults.set(["com.example.boosted": 1.5], forKey: DefaultsKey.appVolumes)
+            Defaults.migrateAppVolumesToPositions(in: curveDefaults)
+            Defaults.migrateAppVolumeBoostToCurve(in: curveDefaults)
+            let fromGains = curveDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
+            suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: fromGains["com.example.boosted"] ?? -1)), 1.5,
+                              "an upgrade from 3.4.1 converts a boost once, not twice")
             curveDefaults.removeObject(forKey: DefaultsKey.appVolumesArePositions)
             curveDefaults.set(["com.example.quiet": 0.25], forKey: DefaultsKey.appVolumes)
             Defaults.migrateAppVolumesToPositions(in: curveDefaults)
@@ -72,9 +119,11 @@ enum MixerFeatureTests {
             let exportedVolumes = exportedSettings[DefaultsKey.appVolumes] as? [String: Double] ?? [:]
             suite.expectClose(exportedVolumes["com.example.quiet"] ?? -1, 0.25,
                         "a backup saves app volumes as the gains 3.4.1 plays, at the same loudness")
-            suite.expect(exportedVolumes["com.example.boosted"] == 1.5
-                   && exportedSettings[DefaultsKey.appVolumesArePositions] == nil,
-                   "a backup keeps boosted levels and leaves the position marker out")
+            suite.expectClose(exportedVolumes["com.example.boosted"] ?? -1, 2.25,
+                        "a backup saves a boosted level as the gain it plays")
+            suite.expect(exportedSettings[DefaultsKey.appVolumesArePositions] == nil
+                   && exportedSettings[DefaultsKey.appVolumeBoostFollowsCurve] == nil,
+                   "a backup leaves both migration markers out")
             let imported = SettingsBackupSupport.sanitizedSettings(from: exported) ?? [:]
             for key in SettingsBackupSupport.keysToClear(whenImporting: imported) {
                 curveDefaults.removeObject(forKey: key)
@@ -84,6 +133,8 @@ enum MixerFeatureTests {
             let reimported = curveDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
             suite.expectClose(reimported["com.example.quiet"] ?? -1, 0.5,
                         "importing that backup here puts the sliders back where they were")
+            suite.expectClose(reimported["com.example.boosted"] ?? -1, 1.5,
+                        "a boosted slider comes back where it was too")
             curveDefaults.removePersistentDomain(forName: curveSuite)
         }
         suite.expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: "40",
@@ -826,6 +877,10 @@ enum MixerFeatureTests {
                      && !mixerCode.contains("Float(app.volume)")
                      && !mixerCode.contains("Float(latestApp.volume)"),
                      "every engine plays an app's slider through the same loudness curve")
+        suite.expect(mixerCode.contains("static let maxVolume: Double = 2.0")
+                     && mixerCode.components(separatedBy: "MixerRoutingSupport.maximumGain)").count == 4
+                     && !mixerCode.contains("Float(AppVolumeMixer.maxVolume)"),
+                     "every engine clamps to the gain the top of the slider plays")
         let levelWatch = mixerCode.range(of: "final class LevelCompensationWatch")
             .flatMap { start in
                 mixerCode.range(of: "\n}\n", range: start.upperBound..<mixerCode.endIndex)

@@ -3491,7 +3491,7 @@ private final class TapGainEngine: GainEngine {
     var clockDeviceUID: String? { nil }
     var gain: Float {
         get { gainBox.value }
-        set { gainBox.value = min(max(newValue, 0), Float(AppVolumeMixer.maxVolume)) }
+        set { gainBox.value = min(max(newValue, 0), MixerRoutingSupport.maximumGain) }
     }
 
     private final class AtomicCycleBox {
@@ -3543,7 +3543,7 @@ private final class TapGainEngine: GainEngine {
 
     init?(objects: [AudioObjectID], gain: Float, outputDeviceUID: String) {
         tappedObjects = objects
-        gainBox.value = min(max(gain, 0), Float(AppVolumeMixer.maxVolume))
+        gainBox.value = min(max(gain, 0), MixerRoutingSupport.maximumGain)
         self.outputDeviceUID = outputDeviceUID
 
         guard let capture = Self.createTap(objects: objects, outputDeviceUID: outputDeviceUID) else { return nil }
@@ -3828,7 +3828,7 @@ private final class AirPlayGainEngine: GainEngine {
 
     var gain: Float {
         get { gainBox.value }
-        set { gainBox.value = min(max(newValue, 0), Float(AppVolumeMixer.maxVolume)) }
+        set { gainBox.value = min(max(newValue, 0), MixerRoutingSupport.maximumGain) }
     }
 
     private var tapID: AudioObjectID = 0
