@@ -240,7 +240,7 @@ See [troubleshooting](docs/TROUBLESHOOTING.md) for launch problems, permissions 
 
 Vorssaint went from first commit to the front of GitHub trending in three days, top of the Swift charts, and issues and pull requests have shaped every release since. Bug reports, feature ideas and translations are all welcome, starting from the [contributing guide](CONTRIBUTING.md).
 
-Vorssaint is free and will stay that way. If it earned its place in your menu bar, a star helps other people find it, and a [coffee](https://buymeacoffee.com/vorssaint) keeps the maintainer awake, with or without the Keep awake feature.
+Vorssaint is free and open source. If the app has been useful to you and you’d like to support my work, you can [buy me a coffee](https://buymeacoffee.com/vorssaint). Contributions are entirely optional. Everyone gets the same features and updates, and contributing doesn’t come with perks or priority support.
 
 ## Acknowledgements
 
