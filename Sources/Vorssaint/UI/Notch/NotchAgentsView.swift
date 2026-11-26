@@ -19,6 +19,7 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
     @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
+    @AppStorage(DefaultsKey.notchAgentsAntigravityQuota) private var antigravityQuota = false
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
@@ -44,19 +45,19 @@ struct NotchAgentsView: View {
         return NotchAgentSupport.rows(NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers,
                                                               codexAccounts: codexAccounts.map(\.id),
                                                               claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id,
-                                                              snapshot: usage.snapshot),
+                                                              antigravityQuota: antigravityQuota, snapshot: usage.snapshot),
                                       width: size.width)
     }
 
     var body: some View {
         Group {
-            if !usage.snapshot.loaded && codexAccounts.isEmpty {
+            if !usage.snapshot.loaded && codexAccounts.isEmpty && !antigravityQuota {
                 VStack(spacing: 10) {
                     ProgressView().controlSize(.small)
                     Text(text.loading).font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if providers.isEmpty {
+            } else if providers.isEmpty && !antigravityQuota {
                 NotchEmptyView(symbol: "sparkles", message: text.empty)
             } else if rows.isEmpty {
                 NotchEmptyView(symbol: "square.grid.2x2", message: text.noCards)
@@ -115,7 +116,9 @@ struct NotchAgentsView: View {
         let shown = chosenPeriod
         switch tile.card {
         case .limits:
-            if let provider = tile.provider {
+            if tile.antigravityQuota {
+                NotchAntigravityQuotaCard(now: now, text: text)
+            } else if let provider = tile.provider {
                 NotchAgentLimitsCard(provider: provider, snapshot: snapshot, now: now,
                                      display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text,
                                      account: account(tile, now: now),
@@ -234,6 +237,87 @@ private struct NotchAgentLimitReading: View {
             .fixedSize()
             .contentTransition(.numericText())
             .accessibilityIdentifier("notch.agentLimitShare")
+    }
+}
+
+private struct NotchAntigravityQuotaCard: View {
+    let now: Date
+    let text: NotchAgentStrings
+    @Environment(\.locale) private var locale
+    @Environment(\.notchSettingsPreview) private var preview
+    @State private var windows: [AgentLimitWindow] = []
+    @State private var checking = true
+
+    private let tint = Color(red: 0.39, green: 0.65, blue: 0.98)
+
+    var body: some View {
+        let current = AgentAntigravityQuota.current(windows, now: now)
+        NotchAgentCardChrome {
+            VStack(alignment: .leading, spacing: 6) {
+                NotchAgentCardHeader(title: AgentAntigravityQuota.title, symbol: AgentAntigravityQuota.symbol, tint: tint)
+                if current.isEmpty {
+                    Text(checking && !preview ? text.loading : text.antigravityQuotaUnavailable)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                } else {
+                    VStack(spacing: 5) {
+                        ForEach(current) { window in
+                            let title = window.kind == .weekly ? text.weekly
+                                : AgentFormat.duration(TimeInterval(window.minutes ?? 300) * 60, locale: locale, units: 1)
+                            NotchAgentLimitMeterRow(window: window, title: title, display: .used, text: text,
+                                                    now: now, tint: tint, accent: tint)
+                                .help(window.resetsAt?.formatted(
+                                    Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale)) ?? title)
+                        }
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .task {
+            guard !preview else { return }
+            while !Task.isCancelled {
+                let reading = await AgentAntigravityQuota.read()
+                guard !Task.isCancelled else { return }
+                windows = reading
+                checking = false
+                do {
+                    try await Task.sleep(for: .seconds(reading.isEmpty ? 300 : 60))
+                } catch {
+                    return
+                }
+            }
+        }
+    }
+}
+
+private struct NotchAgentLimitMeterRow: View {
+    let window: AgentLimitWindow
+    let title: String
+    let display: NotchAgentLimitDisplay
+    let text: NotchAgentStrings
+    let now: Date
+    let tint: Color
+    let accent: Color
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        let pace = AgentLimitSupport.pace(for: window, now: now)
+        let remaining = display == .remaining
+        let fraction = remaining ? window.remainingFraction : window.usedFraction
+        let reset = AgentLimitSupport.displayedReset(window, now: now).map {
+            let seconds = $0.timeIntervalSince(now)
+            let countdown = AgentFormat.duration(max(60, seconds), locale: locale, units: seconds >= 3600 ? 2 : 1)
+            return (window.estimatedResetsAt == nil ? "" : "≈ ") + countdown
+        }
+        VStack(alignment: .leading, spacing: 2) {
+            NotchAgentLimitReading(title: title,
+                                  share: NotchAgentSupport.limitShare(window, display: display, text: text),
+                                  countdown: reset, tint: tint == accent ? Color.white : tint)
+            NotchAgentMeter(value: fraction, pace: pace.map { remaining ? 1 - $0.elapsed : $0.elapsed },
+                            tint: tint, height: 4)
+        }
     }
 }
 
@@ -356,21 +440,9 @@ private struct NotchAgentLimitsCard: View {
     /// A usage-based forecast would read as a promise, so a row says only
     /// what is left or used, as chosen, and when the window renews.
     private func row(_ window: AgentLimitWindow) -> some View {
-        let pace = AgentLimitSupport.pace(for: window, now: now)
-        let tint = agentLimitTint(provider, usedFraction: window.usedFraction)
-        let remaining = display == .remaining
-        let fraction = remaining ? window.remainingFraction : window.usedFraction
-        let reset = AgentLimitSupport.displayedReset(window, now: now).map {
-            (window.estimatedResetsAt == nil ? "" : "≈ ") + countdown(to: $0)
-        }
-        return VStack(alignment: .leading, spacing: 2) {
-            NotchAgentLimitReading(title: label(window),
-                                  share: NotchAgentSupport.limitShare(window, display: display, text: text),
-                                  countdown: reset, tint: tint == provider.tint ? Color.white : tint)
-            NotchAgentMeter(value: fraction, pace: pace.map { remaining ? 1 - $0.elapsed : $0.elapsed },
-                            tint: tint, height: 4)
-        }
-        .help(help(window))
+        NotchAgentLimitMeterRow(window: window, title: label(window), display: display, text: text, now: now,
+                                tint: agentLimitTint(provider, usedFraction: window.usedFraction), accent: provider.tint)
+            .help(help(window))
     }
 
     /// What the window covers: its length, or the model it is kept for.
