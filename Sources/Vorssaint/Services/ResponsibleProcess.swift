@@ -50,7 +50,7 @@ enum ResponsibleProcess {
             parentPid: parent(of:))
     }
 
-    private static func parent(of pid: pid_t) -> pid_t {
+    static func parent(of pid: pid_t) -> pid_t {
         var info = proc_bsdinfo()
         let size = Int32(MemoryLayout<proc_bsdinfo>.size)
         guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return 0 }

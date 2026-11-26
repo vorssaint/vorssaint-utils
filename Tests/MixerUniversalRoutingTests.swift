@@ -111,7 +111,7 @@ enum MixerUniversalRoutingContract {
         let mixer = Mixer()
         mixer.volumes = [:]
         defer { mixer.volumes = [:] }
-        let levels = ["com.valvesoftware.steam": 0.25, "org.example.devicehub": 0.5,
+        let levels = ["com.valvesoftware.steam": 0.25, "com.apple.dt.Devices": 0.5,
                       "com.example.gloomhaven": 0.75]
         func discover() -> [MixerApp] {
             let request = Mixer.RefreshRequest(savedVolumes: mixer.savedVolumes())
@@ -133,6 +133,64 @@ enum MixerUniversalRoutingContract {
                      && refreshed.first(where: { $0.ownerPid == 14271 })?.audioObjects == [101, 104]
                      && refreshed.first(where: { $0.ownerPid == 44794 })?.audioObjects == [103],
                      "rediscovery restores individual volumes and keeps the audio helper with Steam")
+    }
+
+    private static func simulatorVolumes(_ suite: TestSuite) {
+        let mixer = Mixer()
+        let hubID = "com.apple.dt.Devices"
+        let phoneID = "simulator:phone"
+        let tabletID = "simulator:tablet"
+        mixer.volumes = [hubID: 0, tabletID: 0.5]
+        defer { mixer.volumes = [:] }
+
+        func discover(_ objects: [AudioObjectID]) -> [MixerApp] {
+            let request = Mixer.RefreshRequest(savedVolumes: mixer.savedVolumes())
+            return mixer.applyingCurrentVolumes(to: Mixer.processRows(
+                for: objects, request: request, availableUIDs: ["speakers"], defaultUID: "speakers"))
+        }
+
+        mixer.apps = discover([102, 105, 106, 107, 108])
+        guard let hub = mixer.apps.first(where: { $0.id == hubID }),
+              let phone = mixer.apps.first(where: { $0.id == phoneID }),
+              let tablet = mixer.apps.first(where: { $0.id == tabletID }) else {
+            suite.expect(false, "Device Hub and each simulator with an audio connection have separate rows")
+            return
+        }
+        suite.expect(mixer.apps.count == 3 && hub.audioObjects == [102]
+                     && phone.audioObjects == [105, 107] && tablet.audioObjects == [106],
+                     "simulator audio groups by device and unrelated background audio is excluded")
+        suite.expect(phone.volume == 1 && tablet.volume == 0.5
+                     && [phone, tablet].allSatisfy { $0.playbackVolume == 0 && mixer.rowMayBeTapped($0) },
+                     "saved Device Hub mute applies to both simulators without overwriting their volume")
+
+        mixer.setVolume(0.5, for: hub)
+        let updatedPhone = mixer.applied.first { $0.id == phoneID }
+        let updatedTablet = mixer.applied.first { $0.id == tabletID }
+        suite.expect(updatedPhone?.playbackVolume == 0.5 && updatedTablet?.playbackVolume == 0.25,
+                     "moving Device Hub's slider updates both existing simulator routes immediately")
+        mixer.setVolume(0, for: phone)
+        let refreshed = discover([102, 106, 109])
+        suite.expect(refreshed.first { $0.id == phoneID }?.volume == 0
+                     && refreshed.first { $0.id == phoneID }?.audioObjects == [109]
+                     && refreshed.first { $0.id == tabletID }?.playbackVolume == 0.25,
+                     "a simulator retains its own mute across process replacement without affecting its neighbor")
+        suite.expect(discover([106]).first?.playbackVolume == 0.5,
+                     "a simulator can be adjusted independently when Device Hub is absent")
+        Mixer.NSRunningApplication.deviceHubRunning = true
+        defer { Mixer.NSRunningApplication.deviceHubRunning = false }
+        let hubWithoutAudioConnection = discover([106])
+        suite.expect(hubWithoutAudioConnection.first { $0.id == hubID }?.audioObjects == []
+                     && hubWithoutAudioConnection.first { $0.id == tabletID }?.playbackVolume == 0.25,
+                     "Device Hub remains a master slider with no audio connection of its own")
+        mixer.volumes = [:]
+        mixer.apps = discover([106])
+        if let idleHub = mixer.apps.first(where: { $0.id == hubID }) {
+            suite.expect(!idleHub.isPlaying && idleHub.volume == 1
+                         && mixer.shouldShowApp(idleHub, hideInactiveApps: true),
+                         "an active simulator keeps the idle master slider visible")
+        } else {
+            suite.expect(false, "Device Hub is discoverable at unity gain")
+        }
     }
 
     private static func callAudioCompatibility(_ suite: TestSuite) {
@@ -221,6 +279,7 @@ enum MixerUniversalRoutingContract {
         Preferences.standard.values = [:]
         Preferences.standard.arrays = [:]
         distinctProcessVolumes(suite)
+        simulatorVolumes(suite)
         callAudioCompatibility(suite)
         Mixer.deviceLists = [100: [10], 200: [20]]
         Mixer.reads = []; Mixer.writes = []; Mixer.writeStatus = noErr
@@ -403,22 +462,29 @@ extension MixerUniversalRoutingContract.Mixer {
     }
 
     struct NSRunningApplication {
+        static var deviceHubRunning = false
         let processIdentifier: pid_t = -1
         let bundleIdentifier: String?
         let localizedName: String?
         init?(processIdentifier pid: pid_t) {
             switch pid {
             case 14271: (bundleIdentifier, localizedName) = ("com.valvesoftware.steam", "Steam")
-            case 2836: (bundleIdentifier, localizedName) = ("org.example.devicehub", "Device Hub")
+            case 2836: (bundleIdentifier, localizedName) = ("com.apple.dt.Devices", "Device Hub")
             case 44794: (bundleIdentifier, localizedName) = ("com.example.gloomhaven", "Gloomhaven")
             default: return nil
             }
+        }
+
+        static func runningApplications(withBundleIdentifier id: String) -> [NSRunningApplication] {
+            guard deviceHubRunning, id == "com.apple.dt.Devices",
+                  let app = NSRunningApplication(processIdentifier: 2836) else { return [] }
+            return [app]
         }
     }
 
     enum ResponsibleProcess {
         static func regularAppOwnerPid(of pid: pid_t) -> pid_t? {
-            MixerRoutingSupport.regularAppOwnerPid(of: pid, responsiblePid: pid == 2836 ? 2836 : 14271,
+            MixerRoutingSupport.regularAppOwnerPid(of: pid, responsiblePid: pid >= 60000 ? pid : 14271,
                 isRegularApp: { NSRunningApplication(processIdentifier: $0) != nil }, parentPid: { _ in 0 })
         }
         static func displayName(pid: pid_t, fallback: String) -> String {
@@ -426,8 +492,32 @@ extension MixerUniversalRoutingContract.Mixer {
         }
     }
 
+    struct SimulatorAudioDevice {
+        let ownerPid: pid_t
+        let id: String
+        let name: String
+
+        struct Discovery {
+            mutating func device(for pid: pid_t) -> SimulatorAudioDevice? {
+                switch pid {
+                case 60001, 60003:
+                    return SimulatorAudioDevice(ownerPid: 61001, id: "simulator:phone", name: "iPhone")
+                case 60002:
+                    return SimulatorAudioDevice(ownerPid: 61002, id: "simulator:tablet", name: "iPad")
+                case 60005:
+                    return SimulatorAudioDevice(ownerPid: 61003, id: "simulator:phone", name: "iPhone")
+                default:
+                    return nil
+                }
+            }
+        }
+    }
+
     static func read(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ pid: inout pid_t) -> Bool {
-        let owners: [AudioObjectID: pid_t] = [101: 14271, 102: 2836, 103: 44794, 104: 20000]
+        let owners: [AudioObjectID: pid_t] = [
+            101: 14271, 102: 2836, 103: 44794, 104: 20000,
+            105: 60001, 106: 60002, 107: 60003, 108: 60004, 109: 60005,
+        ]
         guard selector == kAudioProcessPropertyPID, let value = owners[object] else { return false }
         pid = value
         return true

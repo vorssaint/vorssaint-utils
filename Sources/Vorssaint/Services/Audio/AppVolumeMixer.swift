@@ -50,10 +50,46 @@ struct MixerApp: Identifiable, Equatable {
     var effectiveOutputDeviceUID: String?
     var outputDeviceUnavailable: Bool
     var volume: Double
+    /// Simulator rows have an independent slider beneath Device Hub's gain.
+    var deviceHubVolume: Double? = nil
+
+    var isSimulator: Bool { id.hasPrefix(MixerRoutingSupport.simulatorRowPrefix) }
+    var playbackGain: Float { MixerRoutingSupport.gain(forVolume: playbackVolume) }
+    var playbackVolume: Double { playbackVolume(for: volume) }
+
+    func playbackVolume(for volume: Double) -> Double {
+        guard let deviceHubVolume, deviceHubVolume != 1 else { return volume }
+        let gain = MixerRoutingSupport.gain(forVolume: volume)
+            * MixerRoutingSupport.gain(forVolume: deviceHubVolume)
+        return MixerRoutingSupport.volume(forGain: Double(gain))
+    }
 
     var identity: MixerRowIdentity {
         MixerRowIdentity(rowID: id, persistenceID: persistenceID)
     }
+}
+
+extension MixerApp {
+    static let iconPointSize: CGFloat = 32
+
+    var icon: NSImage {
+        if isSimulator, let icon = Self.simulatorIcon { return icon }
+        return ResponsibleProcess.icon(for: ownerPid, pointSize: Self.iconPointSize)
+    }
+
+    private static let simulatorIcon: NSImage? = {
+        let bundleIDs = [MixerRoutingSupport.deviceHubBundleIdentifier, "com.apple.iphonesimulator"]
+        for id in bundleIDs {
+            if let icon = NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.icon {
+                return ImageThumbnailer.thumbnail(for: icon, pointSize: iconPointSize) ?? icon
+            }
+            if let url = InstalledApps.url(for: id) {
+                let icon = NSWorkspace.shared.icon(forFile: url.path)
+                return ImageThumbnailer.thumbnail(for: icon, pointSize: iconPointSize) ?? icon
+            }
+        }
+        return NSImage(systemSymbolName: "iphone", accessibilityDescription: nil)
+    }()
 }
 
 /// An app the user took out of the mixer list, remembered by name so it can
@@ -1188,13 +1224,28 @@ final class AppVolumeMixer: ObservableObject {
     /// route keeps running at unity gain.
     private func isUnity(_ volume: Double) -> Bool { MixerRoutingSupport.isUnity(volume) }
 
+    func shouldShowApp(_ app: MixerApp, hideInactiveApps: Bool) -> Bool {
+        let controlsActiveSimulator = app.id == MixerRoutingSupport.deviceHubBundleIdentifier
+            && apps.contains { $0.isSimulator && $0.isPlaying }
+        return MixerRoutingSupport.shouldShowApp(isPlaying: app.isPlaying || controlsActiveSimulator,
+                                                volume: app.volume,
+                                                selectedOutputDeviceUID: app.selectedOutputDeviceUID,
+                                                hideInactiveApps: hideInactiveApps)
+    }
+
     func setVolume(_ volume: Double, for app: MixerApp) {
         guard !app.isBypassed else { return }
         engineRecovery.clear(app.id)
         let clamped = Defaults.sanitizedAppVolume(volume)
         persistVolume(clamped, for: app)
         if clamped > 0.001 { lastAudibleVolume[app.id] = clamped }
-        if let index = apps.firstIndex(where: { $0.id == app.id }) {
+        if app.id == MixerRoutingSupport.deviceHubBundleIdentifier {
+            apps = applyingCurrentVolumes(to: apps)
+            for row in apps where row.id == app.id || row.deviceHubVolume != nil {
+                if row.isSimulator { engineRecovery.clear(row.id) }
+                applyRouting(for: row)
+            }
+        } else if let index = apps.firstIndex(where: { $0.id == app.id }) {
             apps[index].volume = clamped
             let updated = apps[index]
             applyRouting(for: updated)
@@ -1407,7 +1458,7 @@ final class AppVolumeMixer: ObservableObject {
            engine.tappedObjects == app.audioObjects,
            engine.outputDeviceUID == targetOutputDeviceUID,
            !engine.requiresRebuild {
-            engine.gain = MixerRoutingSupport.gain(forVolume: app.volume)
+            engine.gain = app.playbackGain
             return
         }
         if let delay = configurationRepairDelay(for: app.id) {
@@ -1446,7 +1497,7 @@ final class AppVolumeMixer: ObservableObject {
                 }
                 let engine = AirPlayGainEngine(appID: app.id,
                                                objects: app.audioObjects,
-                                               gain: MixerRoutingSupport.gain(forVolume: app.volume),
+                                               gain: app.playbackGain,
                                                clockDeviceUID: clockUID)
                 if engine == nil {
                     AirPlayRouteManager.shared.stopIfIdle()
@@ -1464,7 +1515,7 @@ final class AppVolumeMixer: ObservableObject {
 
         buildQueue.async { [weak self] in
             let engine = TapGainEngine(objects: app.audioObjects,
-                                       gain: MixerRoutingSupport.gain(forVolume: app.volume),
+                                       gain: app.playbackGain,
                                        outputDeviceUID: targetOutputDeviceUID)
             DispatchQueue.main.async {
                 guard let self else {
@@ -1543,7 +1594,7 @@ final class AppVolumeMixer: ObservableObject {
             applyRouting(for: latestApp)
             return
         }
-        engine.gain = MixerRoutingSupport.gain(forVolume: latestApp.volume)
+        engine.gain = latestApp.playbackGain
         configurationRepairs.removeValue(forKey: id)
         let previous = engines.updateValue(engine, forKey: id)
         engineChangeAt[id] = CFAbsoluteTimeGetCurrent()
@@ -1599,8 +1650,9 @@ final class AppVolumeMixer: ObservableObject {
 
     private func rowMayBeTapped(_ app: MixerApp) -> Bool {
         guard !app.isBypassed else { return false }
+        let savedVolume = storedVolume(for: app.identity, saved: savedVolumes())
         return MixerRoutingSupport.rowMayBeTapped(
-            savedVolume: storedVolume(for: app.identity, saved: savedVolumes()),
+            savedVolume: app.deviceHubVolume == nil ? savedVolume : app.playbackVolume(for: savedVolume ?? 1),
             savedRouteUID: storedRoute(for: app.identity, saved: savedOutputDeviceUIDs()),
             defaultOutputDeviceUID: app.effectiveOutputDeviceUID,
             universalOutputRouteUID: app.universalOutputRouteUID)
@@ -1612,7 +1664,7 @@ final class AppVolumeMixer: ObservableObject {
         // The picker may already show the next successful choice, but that
         // must not dismantle this route before its replacement is ready.
         return MixerRoutingSupport.requiresEngine(hasAudioObjects: !app.audioObjects.isEmpty,
-                                           volume: app.volume,
+                                           volume: app.playbackVolume,
                                            selectedOutputDeviceUID: app.selectedOutputDeviceUID,
                                            targetOutputDeviceUID: app.effectiveOutputDeviceUID,
                                            defaultOutputDeviceUID: app.effectiveOutputDeviceUID,
@@ -1929,6 +1981,9 @@ final class AppVolumeMixer: ObservableObject {
         var playing: Set<pid_t> = []
         var bypassed: Set<pid_t> = []
         var bundleHints: [pid_t: String] = [:]
+        var names: [pid_t: String] = [:]
+        var simulatorDiscovery = SimulatorAudioDevice.Discovery()
+        var hasSimulator = false
         for object in processObjects {
             var pid: pid_t = -1
             guard Self.read(object, kAudioProcessPropertyPID, &pid), pid > 0, pid != request.ownPid else { continue }
@@ -1938,18 +1993,31 @@ final class AppVolumeMixer: ObservableObject {
             // they play and stay put between sounds.
             // Keyed by the owner's real pid: the app's own processIdentifier
             // is -1 for some apps and would merge them (issue #3929).
-            guard let owner = ResponsibleProcess.regularAppOwnerPid(of: pid),
-                  let app = NSRunningApplication(processIdentifier: owner) else { continue }
-            let name = ResponsibleProcess.displayName(pid: owner, fallback: app.localizedName ?? "pid \(owner)")
-            // Bypassed apps still get a row — hiding them read
-            // as a bug (issue #177) — but they are never tapped: volume
-            // pinned at unity, no saved routing, so appNeedsEngine is always
-            // false for them.
-            if MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: app.bundleIdentifier,
-                                                      name: name,
-                                                      allowCallAppVolume: request.callAppVolumeEnabled.contains(
-                                                        app.bundleIdentifier?.lowercased() ?? "")) {
-                bypassed.insert(owner)
+            let owner: pid_t
+            if let appOwner = ResponsibleProcess.regularAppOwnerPid(of: pid),
+               let app = NSRunningApplication(processIdentifier: appOwner) {
+                owner = appOwner
+                let name = ResponsibleProcess.displayName(pid: owner, fallback: app.localizedName ?? "pid \(owner)")
+                // Bypassed apps stay visible at unity with no tap or route.
+                if MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: app.bundleIdentifier,
+                                                          name: name,
+                                                          allowCallAppVolume: request.callAppVolumeEnabled.contains(
+                                                            app.bundleIdentifier?.lowercased() ?? "")) {
+                    bypassed.insert(owner)
+                }
+                if bundleHints[owner] == nil {
+                    // A helper's bundle ID describes the helper, so use the
+                    // Core Audio bundle hint only when the app itself plays.
+                    bundleHints[owner] = app.bundleIdentifier
+                        ?? (pid == owner ? Self.processBundleIdentifier(of: object) : nil)
+                }
+            } else if let simulator = simulatorDiscovery.device(for: pid) {
+                owner = simulator.ownerPid
+                bundleHints[owner] = simulator.id
+                names[owner] = simulator.name
+                hasSimulator = true
+            } else {
+                continue
             }
 
             var running: UInt32 = 0
@@ -1957,20 +2025,23 @@ final class AppVolumeMixer: ObservableObject {
             if running != 0 { playing.insert(owner) }
 
             groups[owner, default: []].append(object)
-            if bundleHints[owner] == nil {
-                // The audio object knows the bundle id of its own process,
-                // which is the app itself whenever it plays its own sound.
-                // For a helper that plays on an app's behalf the owner found
-                // above is the app, and its bundle id is the one that counts.
-                bundleHints[owner] = app.bundleIdentifier
-                    ?? (pid == owner ? Self.processBundleIdentifier(of: object) : nil)
-            }
+        }
+
+        let hubID = MixerRoutingSupport.deviceHubBundleIdentifier
+        if hasSimulator, !bundleHints.values.contains(hubID),
+           let hub = NSRunningApplication.runningApplications(withBundleIdentifier: hubID).first {
+            // Keep the master slider available when only the simulators
+            // have an audio connection.
+            let pid = hub.processIdentifier
+            groups[pid] = []
+            bundleHints[pid] = hubID
+            names[pid] = hub.localizedName ?? "Device Hub"
         }
 
         var next: [MixerApp] = []
         for (owner, objects) in groups {
             let fallbackName = "pid \(owner)"
-            let name = ResponsibleProcess.displayName(pid: owner, fallback: fallbackName)
+            let name = names[owner] ?? ResponsibleProcess.displayName(pid: owner, fallback: fallbackName)
             // The pid fallback is not a name to save under: pids recycle.
             let identity = MixerRoutingSupport.rowIdentity(bundleIdentifier: bundleHints[owner],
                                                            ownerPid: owner,
@@ -2279,7 +2350,12 @@ final class AppVolumeMixer: ObservableObject {
             guard engine.tappedObjects != app.audioObjects
                 || engine.outputDeviceUID != app.effectiveOutputDeviceUID
                 || !appNeedsEngine(app)
-                || clockIsGone else { continue }
+                || clockIsGone else {
+                if app.isSimulator, engine.gain != app.playbackGain {
+                    engine.gain = app.playbackGain
+                }
+                continue
+            }
 
             engineChangeAt[id] = now
             guard appNeedsEngine(app) else {
@@ -2499,9 +2575,12 @@ final class AppVolumeMixer: ObservableObject {
     /// write from being reverted; everything else in a row stays as read.
     private func applyingCurrentVolumes(to rows: [MixerApp]) -> [MixerApp] {
         let saved = savedVolumes()
+        let hubID = MixerRoutingSupport.deviceHubBundleIdentifier
+        let hubVolume = rows.contains { $0.id == hubID && !$0.isBypassed } ? (saved[hubID] ?? 1) : nil
         return rows.map { row in
             var row = row
             row.volume = row.isBypassed ? 1 : (storedVolume(for: row.identity, saved: saved) ?? 1)
+            row.deviceHubVolume = row.isSimulator ? hubVolume : nil
             return row
         }
     }

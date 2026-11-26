@@ -601,6 +601,8 @@ enum MixerRoutingSupport {
     }
 
     static let unidentifiedRowPrefix = "process:"
+    static let simulatorRowPrefix = "simulator:"
+    static let deviceHubBundleIdentifier = "com.apple.dt.Devices"
 
     /// Window used to fold a row's comings and goings into one decision.
     static let engineChurnCoalescingWindow: Double = 0.2
