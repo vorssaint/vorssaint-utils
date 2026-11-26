@@ -1266,7 +1266,8 @@ def main():
           + "extension MixerUniversalRoutingContract.Mixer {\n"
           + "".join(declaration(mixer, prefix).replace("private ", "", 1) for prefix in [
               "    private var universalOutputDeviceUID:",
-              "    private static func processRows(", "    func setVolume(", "    private func persistVolume(",
+              "    private static func processRows(", "    func shouldShowApp(", "    func setVolume(",
+              "    private func persistVolume(",
               "    private static func applyingUniversalOutputRoute(",
               "    private static func coalescingAppsWithDuplicateIDs(",
               "    private static func runningAddress(",

@@ -406,10 +406,7 @@ struct MixerSection: View {
 
     private var visibleApps: [MixerApp] {
         arrangement.ordered(mixer.apps, identity: { $0.persistenceID }).filter { app in
-            MixerRoutingSupport.shouldShowApp(isPlaying: app.isPlaying,
-                                              volume: app.volume,
-                                              selectedOutputDeviceUID: app.selectedOutputDeviceUID,
-                                              hideInactiveApps: hideInactiveApps)
+            mixer.shouldShowApp(app, hideInactiveApps: hideInactiveApps)
         }
     }
 
@@ -464,7 +461,7 @@ struct MixerSection: View {
                      moveDown: moveAction(for: app, offset: 1))
                 .modifier(MixerAppReorderModifier(
                     id: app.persistenceID,
-                    icon: ResponsibleProcess.icon(for: app.ownerPid, pointSize: 32),
+                    icon: app.icon,
                     draggingID: $draggingAppID,
                     target: $dropTarget,
                     dragChanged: { active in
@@ -907,15 +904,13 @@ private struct MixerRow: View {
     private var isBoosting: Bool { (app.volume * 100).rounded() > 100 }
     private var isAtUnity: Bool { (app.volume * 100).rounded() == 100 }
 
-    /// SoundSource-sized icon spanning the row's two lines (issue #166); the
-    /// bitmap must be requested at this size or the upscale looks blurry.
-    private static let iconPointSize: CGFloat = 32
+    /// The icon spans both lines and uses the bitmap's original point size.
+    private static let iconPointSize = MixerApp.iconPointSize
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
             ZStack(alignment: .bottomTrailing) {
-                Image(nsImage: ResponsibleProcess.icon(for: app.ownerPid,
-                                                       pointSize: Self.iconPointSize))
+                Image(nsImage: app.icon)
                     .resizable()
                     .frame(width: Self.iconPointSize, height: Self.iconPointSize)
                 if app.isPlaying {

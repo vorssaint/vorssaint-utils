@@ -35,9 +35,7 @@ struct NotchMixerView: View {
     /// The same order and the same hidden rows as the panel's list.
     private var apps: [MixerApp] {
         arrangement.ordered(mixer.apps, identity: { $0.persistenceID }).filter { app in
-            MixerRoutingSupport.shouldShowApp(isPlaying: app.isPlaying, volume: app.volume,
-                                              selectedOutputDeviceUID: app.selectedOutputDeviceUID,
-                                              hideInactiveApps: hideInactiveApps)
+            mixer.shouldShowApp(app, hideInactiveApps: hideInactiveApps)
         }
     }
 
@@ -107,7 +105,7 @@ struct NotchMixerView: View {
                               moveForward: moveAction(for: app, offset: 1, ids: ids))
                     .modifier(MixerAppReorderModifier(
                         id: app.persistenceID,
-                        icon: ResponsibleProcess.icon(for: app.ownerPid, pointSize: 32),
+                        icon: app.icon,
                         draggingID: $draggingAppID,
                         target: $dropTarget,
                         dragChanged: { NotchService.shared.fileDragChanged($0, internalDrag: true) },
@@ -587,7 +585,7 @@ private struct NotchAppFader: View {
 
     private var icon: some View {
         ZStack(alignment: .bottomTrailing) {
-            Image(nsImage: ResponsibleProcess.icon(for: app.ownerPid, pointSize: 32))
+            Image(nsImage: app.icon)
                 .resizable()
                 .frame(width: 28, height: 28)
             if app.isPlaying {

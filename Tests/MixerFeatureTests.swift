@@ -822,7 +822,9 @@ enum MixerFeatureTests {
                      && mixerCode.contains("let currentGain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)")
                      && mixerCode.components(separatedBy: "let ramp = TapLevelRamp()").count == 3,
                      "both engines give back the level the tap's mixdown took, eased")
-        suite.expect(mixerCode.components(separatedBy: "MixerRoutingSupport.gain(forVolume:").count == 5
+        suite.expect(mixerCode.contains("var playbackGain: Float { MixerRoutingSupport.gain(forVolume: playbackVolume) }")
+                     && mixerCode.components(separatedBy: "gain: app.playbackGain").count == 3
+                     && mixerCode.contains("engine.gain = latestApp.playbackGain")
                      && !mixerCode.contains("Float(app.volume)")
                      && !mixerCode.contains("Float(latestApp.volume)"),
                      "every engine plays an app's slider through the same loudness curve")
@@ -1732,7 +1734,7 @@ enum MixerFeatureTests {
         let icon = section(from: "ZStack(alignment: .bottomTrailing) {", to: "VStack(alignment: .leading, spacing: 5)")
         let name = section(from: "Text(app.name)", to: "if isPinned {")
         let hint = ".help(arrangementStrings.arrange)"
-        suite.expect(icon.contains("ResponsibleProcess.icon(for: app.ownerPid") && icon.hasSuffix(hint)
+        suite.expect(icon.contains("Image(nsImage:") && icon.hasSuffix(hint)
                 && !name.isEmpty && name.hasSuffix(hint)
                 && panel.components(separatedBy: hint).count == 3,
                "the reorder hint remains on both the app icon and name")
