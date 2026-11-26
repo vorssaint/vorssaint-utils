@@ -9,6 +9,10 @@ private enum SwitcherIconStyle {
     static let tile = Color.primary.opacity(0.045)
     static let tileSelected = Color.accentColor.opacity(0.15)
     static let stroke = Color.primary.opacity(0.12)
+    /// The search chip is the one control that floats over whatever is behind
+    /// the panel, so its edge cannot borrow the panel hairline: at 12% it
+    /// dissolved into a white document and the chip read as clipped (#3508).
+    static let searchChipStroke = Color.primary.opacity(0.26)
     static let text = Color.primary
     static let secondaryText = Color.secondary
     static let tertiaryText = Color.secondary.opacity(0.72)
@@ -143,9 +147,12 @@ struct SwitcherView: View {
     private var iconRowPanel: some View {
         iconRowSwitcher
             .padding(.top, switcher.searchTopInset)
+            // The header is reserved above the panel, so it has to stay at the
+            // top edge: a centred frame let content that measured taller than
+            // its computed layout ride up over the chip (#3508).
             .frame(width: iconRowPanelSize.width,
                    height: iconRowPanelSize.height + switcher.searchTopInset,
-                   alignment: .center)
+                   alignment: .top)
             .overlay(alignment: .topTrailing) {
                 searchChip
             }
@@ -154,6 +161,9 @@ struct SwitcherView: View {
     @ViewBuilder
     private var searchChip: some View {
         if !switcher.searchQuery.isEmpty || switcher.isSearchPinned {
+            let alignsWithCard = SwitcherSupport.usesIconRowLayout(iconRowMode: iconRowMode,
+                                                                   simpleMode: simpleMode)
+                && !switcher.windows.isEmpty
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 10, weight: .bold))
@@ -174,8 +184,21 @@ struct SwitcherView: View {
                 SwitcherIconRowSurface(cornerRadius: SwitcherSearchLayout.chipHeight / 2,
                                        fill: SwitcherIconStyle.surfaceRaised,
                                        contrast: .high)
+                    // The shadow belongs to the pill, not to the label: it is
+                    // what lifts an opaque chip off a white document.
+                    .shadow(color: Color.black.opacity(0.20), radius: 6, x: 0, y: 2)
             )
-            .padding(SwitcherSearchLayout.edgeInset)
+            .overlay(
+                RoundedRectangle(cornerRadius: SwitcherSearchLayout.chipHeight / 2, style: .continuous)
+                    .strokeBorder(SwitcherIconStyle.searchChipStroke, lineWidth: 1)
+            )
+            .padding(.top, SwitcherSearchLayout.edgeInset)
+            // The grid panel draws a backdrop around the header, so the chip
+            // keeps its edge inset. The icon-row panel is transparent: its
+            // visible edge is the preview card, and a chip hanging further out
+            // than that card looked bumped against the panel's top corner.
+            .padding(.trailing, alignsWithCard ? SwitcherIconRowLayout.padding
+                                              : SwitcherSearchLayout.edgeInset)
         }
     }
 
