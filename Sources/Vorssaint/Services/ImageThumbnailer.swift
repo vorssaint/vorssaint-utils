@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
-import ImageIO
 
 enum ImageThumbnailer {
     static let defaultPointSize: CGFloat = 20
@@ -23,29 +22,24 @@ enum ImageThumbnailer {
     }
 
     private static func thumbnail(for url: URL, pointSize: CGFloat, scale: CGFloat) -> NSImage? {
-        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) else { return nil }
-
-        return thumbnail(source: source, pointSize: pointSize, scale: scale)
+        guard let thumbnail = Downsampler.thumbnail(
+            at: url, maxPixelSize: CGFloat(pixelSize(for: pointSize, scale: scale))
+        ) else { return nil }
+        return image(thumbnail, scale: scale)
     }
 
     static func thumbnail(data: Data, pointSize: CGFloat, scale: CGFloat) -> NSImage? {
-        guard let source = CGImageSourceCreateWithData(data as CFData,
-                                                       [kCGImageSourceShouldCache: false] as CFDictionary)
-        else { return nil }
-        return thumbnail(source: source, pointSize: pointSize, scale: scale)
+        guard let thumbnail = Downsampler.thumbnail(
+            from: data, maxPixelSize: CGFloat(pixelSize(for: pointSize, scale: scale))
+        ) else { return nil }
+        return image(thumbnail, scale: scale)
     }
 
-    private static func thumbnail(source: CGImageSource, pointSize: CGFloat, scale: CGFloat) -> NSImage? {
-        let options = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: pixelSize(for: pointSize, scale: scale)
-        ] as CFDictionary
-        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else { return nil }
-        return NSImage(cgImage: image, size: NSSize(width: CGFloat(image.width) / scale,
-                                                   height: CGFloat(image.height) / scale))
+    /// The downsample is shared; only the point size differs per caller.
+    private static func image(_ thumbnail: Downsampler.Thumbnail, scale: CGFloat) -> NSImage {
+        NSImage(cgImage: thumbnail.cgImage,
+                size: NSSize(width: CGFloat(thumbnail.cgImage.width) / scale,
+                             height: CGFloat(thumbnail.cgImage.height) / scale))
     }
 
     static func thumbnail(for image: NSImage, pointSize: CGFloat = defaultPointSize) -> NSImage? {

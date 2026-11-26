@@ -13,7 +13,10 @@ enum WindowServerCaptureContract {
         static let shared = Provider()
         static let defaultMaxPixelSize: CGFloat = 640
         static let rectifyContext = CIContext()
-        var cache: [CGWindowID: CGImage] = [:]
+        var cache = ThumbnailCache<CGWindowID, CGImage>(
+            byteBudget: 64 * 1024 * 1024,
+            eviction: .callerDriven
+        )
         var lastTouched: [CGWindowID: TimeInterval] = [:]
         var warming = false
 
