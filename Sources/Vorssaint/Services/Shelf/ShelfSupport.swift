@@ -178,7 +178,27 @@ enum ShelfTileLayout {
     }
 }
 
+/// What a finished tile click does, once a drag has been ruled out.
+enum ShelfTileClickAction: Equatable {
+    case openFiles
+    case toggleBatchExpansion
+    case extendSelection
+    case toggleSelection
+}
+
 enum ShelfInteractionSupport {
+    /// A second click opens a file tile (#4433). A pile keeps using that
+    /// click to expand, and notes and links keep the plain selection toggle
+    /// they always had (#2453). Shift stays a selection gesture.
+    static func tileClickAction(clickCount: Int,
+                                isBatch: Bool,
+                                holdsFile: Bool,
+                                extendingSelection: Bool) -> ShelfTileClickAction {
+        if isBatch, clickCount >= 2 { return .toggleBatchExpansion }
+        if holdsFile, clickCount >= 2, !extendingSelection { return .openFiles }
+        return extendingSelection ? .extendSelection : .toggleSelection
+    }
+
     /// App exclusions only suppress automatic Shelf appearances. A deliberate
     /// shortcut or "Open now" action remains an escape hatch everywhere.
     static func allowsAutomaticOpen(sourceBundleIdentifier: String?,

@@ -64,6 +64,7 @@ enum ShelfDragCompletionContract {
             standaloneWindow.contentView = self
         }
         @objc func toggleBatchExpansion() { preconditionFailure() }
+        @objc func openFiles() { preconditionFailure() }
         @objc func removeSelf() { preconditionFailure() }
         func beginDraggingSession(with items: [NSDraggingItem], event: NSEvent, source: AnyObject) {
             sessionStarts += 1
