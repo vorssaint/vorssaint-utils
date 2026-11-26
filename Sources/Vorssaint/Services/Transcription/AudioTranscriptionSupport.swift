@@ -551,6 +551,18 @@ enum AudioTranscriptionSupport {
         return true
     }
 
+    static func ivritDirectorySizeBytes(_ dir: URL, fileManager: FileManager = .default) -> Int64 {
+        var total: Int64 = 0
+        for spec in ivritRequiredModelFiles {
+            let url = dir.appendingPathComponent(spec.relativePath)
+            if let attrs = try? fileManager.attributesOfItem(atPath: url.path),
+               let size = attrs[.size] as? NSNumber {
+                total += size.int64Value
+            }
+        }
+        return total
+    }
+
     // MARK: - Language Routing & Hebrew Detection
 
     enum ResolvedEngine: Equatable, Sendable {

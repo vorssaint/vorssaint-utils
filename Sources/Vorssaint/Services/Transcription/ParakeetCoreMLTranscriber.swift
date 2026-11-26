@@ -67,63 +67,31 @@ final class ParakeetCoreMLTranscriber: @unchecked Sendable {
         for spec in specs {
             try Task.checkCancellation()
             let dest = directory.appendingPathComponent(spec.relativePath)
+            let minSize = max(1, spec.expectedBytes * 9 / 10)
             if let attrs = try? fm.attributesOfItem(atPath: dest.path),
                let size = attrs[.size] as? NSNumber,
-               size.int64Value >= max(1, spec.expectedBytes * 9 / 10) {
+               size.int64Value >= minSize {
                 continue
             }
 
-            try fm.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
-            let partial = dest.appendingPathExtension("partial")
-            try? fm.removeItem(at: partial)
-            fm.createFile(atPath: partial.path, contents: nil)
-            let handle = try FileHandle(forWritingTo: partial)
-            var finishedFile = false
-            defer {
-                try? handle.close()
-                if !finishedFile { try? fm.removeItem(at: partial) }
-            }
-
-            var request = URLRequest(url: AudioTranscriptionSupport.downloadURL(for: spec.relativePath))
-            request.timeoutInterval = 3600
-            let (bytes, response) = try await URLSession.shared.bytes(for: request)
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-                throw TranscriberError.downloadFailed("HTTP \(code) for \(spec.relativePath)")
-            }
-
-            var written: Int64 = 0
-            var lastReported: Int64 = 0
-            var chunk = Data()
-            chunk.reserveCapacity(1 << 20)
-
-            for try await byte in bytes {
-                try Task.checkCancellation()
-                chunk.append(byte)
-                if chunk.count >= (1 << 20) {
-                    try handle.write(contentsOf: chunk)
-                    written += Int64(chunk.count)
-                    chunk.removeAll(keepingCapacity: true)
-                    if written - lastReported >= (4 << 20) {
-                        lastReported = written
-                        let aggregate = min(totalExpected, completedBytes + written)
-                        progress(Double(aggregate) / Double(max(1, totalExpected)), aggregate, totalExpected)
-                    }
+            let baseDone = completedBytes
+            let url = AudioTranscriptionSupport.downloadURL(for: spec.relativePath)
+            do {
+                _ = try await ModelFileDownloader.download(
+                    from: url,
+                    to: dest,
+                    label: spec.relativePath,
+                    minExpectedBytes: minSize
+                ) { fileBytes in
+                    let aggregate = min(totalExpected, baseDone + min(fileBytes, spec.expectedBytes))
+                    let frac = min(0.999, Double(aggregate) / Double(max(1, totalExpected)))
+                    progress(frac, aggregate, totalExpected)
                 }
+            } catch is CancellationError {
+                throw TranscriberError.cancelled
+            } catch {
+                throw TranscriberError.downloadFailed(error.localizedDescription)
             }
-            if !chunk.isEmpty {
-                try handle.write(contentsOf: chunk)
-                written += Int64(chunk.count)
-            }
-            try handle.close()
-
-            let minSize = max(1, spec.expectedBytes * 9 / 10)
-            guard written >= minSize else {
-                throw TranscriberError.downloadFailed("Incomplete transfer for \(spec.relativePath)")
-            }
-            try? fm.removeItem(at: dest)
-            try fm.moveItem(at: partial, to: dest)
-            finishedFile = true
 
             completedBytes = min(totalExpected, completedBytes + spec.expectedBytes)
             progress(Double(completedBytes) / Double(max(1, totalExpected)), completedBytes, totalExpected)
@@ -697,5 +665,195 @@ final class ParakeetCoreMLTranscriber: @unchecked Sendable {
             throw TranscriberError.unreadableAudio(reader.error?.localizedDescription ?? "Reader failed.")
         }
         return samples
+    }
+}
+
+/// Streams a remote Core ML model artifact straight to disk via
+/// `URLSessionDownloadTask` (full network throughput, ~0% CPU, automatic
+/// Hugging Face 302/307 CDN redirect handling, and immediate cancellation).
+final class ModelFileDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    enum DownloadError: LocalizedError {
+        case httpStatus(Int, String)
+        case incomplete(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .httpStatus(let code, let path):
+                return "HTTP \(code) for \(path)"
+            case .incomplete(let path):
+                return "Incomplete transfer for \(path)"
+            }
+        }
+    }
+
+    private let destination: URL
+    private let label: String
+    private let minExpectedBytes: Int64
+    private let onBytes: @Sendable (Int64) -> Void
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Int64, Error>?
+    private var movedBytes: Int64?
+    private var moveError: Error?
+    private var activeTask: URLSessionDownloadTask?
+    private var session: URLSession?
+    private var cancelled = false
+    private var lastProgressReport = Date.distantPast
+
+    private init(destination: URL,
+                 label: String,
+                 minExpectedBytes: Int64,
+                 onBytes: @escaping @Sendable (Int64) -> Void) {
+        self.destination = destination
+        self.label = label
+        self.minExpectedBytes = minExpectedBytes
+        self.onBytes = onBytes
+    }
+
+    static func download(from url: URL,
+                         to destination: URL,
+                         label: String,
+                         minExpectedBytes: Int64,
+                         onBytes: @escaping @Sendable (Int64) -> Void) async throws -> Int64 {
+        try Task.checkCancellation()
+        let downloader = ModelFileDownloader(
+            destination: destination,
+            label: label,
+            minExpectedBytes: minExpectedBytes,
+            onBytes: onBytes
+        )
+        return try await withTaskCancellationHandler {
+            try await downloader.run(url: url)
+        } onCancel: {
+            downloader.cancel()
+        }
+    }
+
+    private func run(url: URL) async throws -> Int64 {
+        try await withCheckedThrowingContinuation { cont in
+            lock.lock()
+            if cancelled {
+                lock.unlock()
+                cont.resume(throwing: CancellationError())
+                return
+            }
+            continuation = cont
+            let config = URLSessionConfiguration.ephemeral
+            config.timeoutIntervalForRequest = 60
+            config.timeoutIntervalForResource = 3600
+            let session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
+            self.session = session
+            var request = URLRequest(url: url)
+            request.setValue("Vorssaint/\(AppInfo.version)", forHTTPHeaderField: "User-Agent")
+            let task = session.downloadTask(with: request)
+            self.activeTask = task
+            lock.unlock()
+            task.resume()
+        }
+    }
+
+    private func cancel() {
+        lock.lock()
+        cancelled = true
+        let task = activeTask
+        let session = self.session
+        lock.unlock()
+        task?.cancel()
+        session?.invalidateAndCancel()
+    }
+
+    private func finish(_ result: Result<Int64, Error>) {
+        lock.lock()
+        let cont = continuation
+        continuation = nil
+        let session = self.session
+        self.session = nil
+        self.activeTask = nil
+        lock.unlock()
+        session?.finishTasksAndInvalidate()
+        cont?.resume(with: result)
+    }
+
+    func urlSession(_ session: URLSession,
+                    downloadTask: URLSessionDownloadTask,
+                    didWriteData bytesWritten: Int64,
+                    totalBytesWritten: Int64,
+                    totalBytesExpectedToWrite: Int64) {
+        let now = Date()
+        lock.lock()
+        let shouldReport = now.timeIntervalSince(lastProgressReport) >= 0.12
+        if shouldReport { lastProgressReport = now }
+        lock.unlock()
+        if shouldReport {
+            onBytes(totalBytesWritten)
+        }
+    }
+
+    func urlSession(_ session: URLSession,
+                    downloadTask: URLSessionDownloadTask,
+                    didFinishDownloadingTo location: URL) {
+        if let http = downloadTask.response as? HTTPURLResponse,
+           !(200...299).contains(http.statusCode) {
+            lock.lock()
+            moveError = DownloadError.httpStatus(http.statusCode, label)
+            lock.unlock()
+            return
+        }
+        let fm = FileManager.default
+        do {
+            let attrs = try fm.attributesOfItem(atPath: location.path)
+            let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+            guard size >= minExpectedBytes else {
+                throw DownloadError.incomplete(label)
+            }
+            try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let staging = destination.appendingPathExtension("download-\(UUID().uuidString)")
+            try? fm.removeItem(at: staging)
+            try fm.moveItem(at: location, to: staging)
+            if fm.fileExists(atPath: destination.path) {
+                _ = try fm.replaceItemAt(destination, withItemAt: staging)
+            } else {
+                try fm.moveItem(at: staging, to: destination)
+            }
+            lock.lock()
+            movedBytes = size
+            lock.unlock()
+        } catch {
+            lock.lock()
+            moveError = error
+            lock.unlock()
+        }
+    }
+
+    func urlSession(_ session: URLSession,
+                    task: URLSessionTask,
+                    didCompleteWithError error: Error?) {
+        lock.lock()
+        let wasCancelled = cancelled
+        let err = moveError
+        let bytes = movedBytes
+        lock.unlock()
+
+        if wasCancelled {
+            finish(.failure(CancellationError()))
+            return
+        }
+        if let error {
+            let ns = error as NSError
+            if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled {
+                finish(.failure(CancellationError()))
+            } else {
+                finish(.failure(error))
+            }
+            return
+        }
+        if let err {
+            finish(.failure(err))
+            return
+        }
+        if let bytes {
+            finish(.success(bytes))
+        } else {
+            finish(.failure(DownloadError.incomplete(label)))
+        }
     }
 }

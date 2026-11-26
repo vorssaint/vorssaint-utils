@@ -1972,7 +1972,7 @@ enum Defaults {
         DefaultsKey.meetingRecorderAutoTranscribe: false,
         DefaultsKey.meetingRecorderPerAppAudio: false,
         DefaultsKey.meetingRecorderEchoCancellation: true,
-        DefaultsKey.meetingRecorderShowIndicator: true,
+        DefaultsKey.meetingRecorderShowIndicator: false,
         DefaultsKey.meetingRecorderSaveFolder: "",
         DefaultsKey.audioTranscriptionIncludeTimestamps: true,
         DefaultsKey.audioTranscriptionSaveBesideAudio: true,

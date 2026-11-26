@@ -1072,7 +1072,7 @@ struct UtilitiesSection: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: $showAudioTranscription,
-                                captionStaysVisible: transcription.isTranscribing || transcription.isDownloadingModel,
+                                captionStaysVisible: transcription.isTranscribing || transcription.isDownloadingActiveModel,
                                 action: { showTranscriptionPanel = true })
         }
     }
@@ -1138,6 +1138,10 @@ struct UtilitiesSection: View {
         if transcription.isDownloadingModel {
             return String(format: strings.downloadingStatusFormat,
                           Int((transcription.downloadProgress * 100).rounded()))
+        }
+        if transcription.isDownloadingIvritModel {
+            return String(format: strings.downloadingStatusFormat,
+                          Int((transcription.ivritDownloadProgress * 100).rounded()))
         }
         if transcription.isTranscribing {
             return String(format: strings.transcribingFormat, transcription.currentFileName ?? "")

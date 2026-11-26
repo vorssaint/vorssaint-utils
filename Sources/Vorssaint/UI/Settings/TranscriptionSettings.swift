@@ -164,101 +164,12 @@ struct TranscriptionSettings: View {
 
             Section {
                 VStack(alignment: .leading, spacing: 4) {
-                    Toggle(extras.dictationToggle, isOn: $dictationEnabled)
-                        .onChange(of: dictationEnabled) { _, _ in
-                            service.syncWithPreferences()
-                        }
-                    Text(extras.dictationCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                ShortcutPreferenceRow(role: .voiceDictation,
-                                      isEnabled: dictationEnabled,
-                                      label: extras.dictationShortcutLabel) {
-                    service.syncWithPreferences()
-                }
-
-                HStack(spacing: 10) {
-                    if service.isDictating {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 8, height: 8)
-                        Text(String(format: extras.dictatingStatusFormat,
-                                    MeetingRecorderSupport.elapsedLabel(seconds: service.dictationElapsedSeconds)))
-                            .font(.caption)
-                            .monospacedDigit()
-                        Spacer()
-                        Button(extras.stopDictationButton) {
-                            service.toggleSystemDictation()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        Button(strings.cancelButton) {
-                            service.cancelDictation()
-                        }
-                    } else {
-                        Button {
-                            service.toggleSystemDictation()
-                        } label: {
-                            Label(extras.startDictationButton, systemImage: "mic.fill")
-                        }
-                        .disabled(service.isTranscribing || service.isDownloadingModel)
-                        Spacer()
-                    }
-                }
-
-                if !permissions.accessibility {
-                    Text(extras.dictationAccessibilityHint)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } header: {
-                Text(extras.dictationSectionHeader)
-            }
-
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    Toggle(extras.summaryToggle, isOn: $summaryEnabled)
-                    Text(extras.summaryCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text(extras.summaryPromptLabel)
-                            .font(.callout.weight(.medium))
-                        Spacer()
-                        Button(extras.resetPromptButton) {
-                            service.resetSummaryPrompt()
-                        }
-                        .controlSize(.small)
-                        .disabled(summaryPrompt.trimmingCharacters(in: .whitespacesAndNewlines) == AudioTranscriptionSupport.defaultSummaryPrompt)
-                    }
-                    TextEditor(text: $summaryPrompt)
-                        .font(.callout)
-                        .frame(minHeight: 72, maxHeight: 120)
-                        .padding(4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(Color.primary.opacity(0.03))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
-                        )
-                }
-            } header: {
-                Text(extras.summarySectionHeader)
-            }
-
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
                     Picker(modelStrings.modelChoiceLabel, selection: $modelChoiceRaw) {
                         Text(modelStrings.modelAuto).tag(TranscriptionModelChoice.auto.rawValue)
                         Text(modelStrings.modelParakeet).tag(TranscriptionModelChoice.parakeetEnglish.rawValue)
                         Text(modelStrings.modelIvrit).tag(TranscriptionModelChoice.ivritHebrew.rawValue)
                     }
+                    .pickerStyle(.menu)
                     Text(modelStrings.modelAutoCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -321,8 +232,99 @@ struct TranscriptionSettings: View {
                     Text(strings.computeGPU).tag(ParakeetComputeMode.cpuAndGPU.rawValue)
                     Text(strings.computeCPU).tag(ParakeetComputeMode.cpuOnly.rawValue)
                 }
+                .pickerStyle(.menu)
             } header: {
                 Text(strings.modelSectionHeader)
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle(extras.dictationToggle, isOn: $dictationEnabled)
+                        .onChange(of: dictationEnabled) { _, _ in
+                            service.syncWithPreferences()
+                        }
+                    Text(extras.dictationCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                ShortcutPreferenceRow(role: .voiceDictation,
+                                      isEnabled: dictationEnabled,
+                                      label: extras.dictationShortcutLabel) {
+                    service.syncWithPreferences()
+                }
+
+                HStack(spacing: 10) {
+                    if service.isDictating {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                        Text(String(format: extras.dictatingStatusFormat,
+                                    MeetingRecorderSupport.elapsedLabel(seconds: service.dictationElapsedSeconds)))
+                            .font(.caption)
+                            .monospacedDigit()
+                        Spacer()
+                        Button(extras.stopDictationButton) {
+                            service.toggleSystemDictation()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button(strings.cancelButton) {
+                            service.cancelDictation()
+                        }
+                    } else {
+                        Button {
+                            service.toggleSystemDictation()
+                        } label: {
+                            Label(extras.startDictationButton, systemImage: "mic.fill")
+                        }
+                        .disabled(service.isTranscribing || service.isDownloadingActiveModel)
+                        Spacer()
+                    }
+                }
+
+                if !permissions.accessibility {
+                    Text(extras.dictationAccessibilityHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text(extras.dictationSectionHeader)
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle(extras.summaryToggle, isOn: $summaryEnabled)
+                    Text(extras.summaryCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(extras.summaryPromptLabel)
+                            .font(.callout.weight(.medium))
+                        Spacer()
+                        Button(extras.resetPromptButton) {
+                            service.resetSummaryPrompt()
+                        }
+                        .controlSize(.small)
+                        .disabled(summaryPrompt.trimmingCharacters(in: .whitespacesAndNewlines) == AudioTranscriptionSupport.defaultSummaryPrompt)
+                    }
+                    TextEditor(text: $summaryPrompt)
+                        .font(.callout)
+                        .frame(minHeight: 72, maxHeight: 120)
+                        .padding(4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.primary.opacity(0.03))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
+                        )
+                }
+            } header: {
+                Text(extras.summarySectionHeader)
             }
 
             Section {

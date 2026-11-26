@@ -9,16 +9,24 @@ struct MeetingRecorderSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = MeetingRecorderService.shared
+    @ObservedObject private var transcription = AudioTranscriptionService.shared
     @AppStorage(DefaultsKey.meetingRecorderAutoRecord) private var autoRecord = false
     @AppStorage(DefaultsKey.meetingRecorderAutoTranscribe) private var autoTranscribe = false
+    @AppStorage(DefaultsKey.audioTranscriptionModelChoice) private var modelChoiceRaw = TranscriptionModelChoice.auto.rawValue
     @AppStorage(DefaultsKey.meetingRecorderPerAppAudio) private var perAppAudio = false
     @AppStorage(DefaultsKey.meetingRecorderEchoCancellation) private var echoCancellation = true
-    @AppStorage(DefaultsKey.meetingRecorderShowIndicator) private var showIndicator = true
+    @AppStorage(DefaultsKey.meetingRecorderShowIndicator) private var showIndicator = false
     @AppStorage(DefaultsKey.meetingRecorderSaveFolder) private var saveFolder = ""
     @AppStorage(DefaultsKey.panelUtilityMeetingRecorder) private var showInPanel = true
 
     private var strings: MeetingRecorderFeatureStrings {
         FeatureStrings.meetingRecorder(l10n.language)
+    }
+    private var transcriptionStrings: AudioTranscriptionFeatureStrings {
+        FeatureStrings.audioTranscription(l10n.language)
+    }
+    private var modelStrings: TranscriptionModelStrings {
+        FeatureStrings.transcriptionModels(l10n.language)
     }
 
     var body: some View {
@@ -90,10 +98,75 @@ struct MeetingRecorderSettings: View {
                         .foregroundStyle(.secondary)
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Toggle(FeatureStrings.audioTranscription(l10n.language).autoTranscribeToggle, isOn: $autoTranscribe)
-                    Text(FeatureStrings.audioTranscription(l10n.language).autoTranscribeCaption)
+                    Toggle(transcriptionStrings.autoTranscribeToggle, isOn: $autoTranscribe)
+                    Text(transcriptionStrings.autoTranscribeCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker(modelStrings.modelChoiceLabel, selection: $modelChoiceRaw) {
+                        Text(modelStrings.modelAuto).tag(TranscriptionModelChoice.auto.rawValue)
+                        Text(modelStrings.modelParakeet).tag(TranscriptionModelChoice.parakeetEnglish.rawValue)
+                        Text(modelStrings.modelIvrit).tag(TranscriptionModelChoice.ivritHebrew.rawValue)
+                    }
+                    .pickerStyle(.menu)
+                    Text(modelStrings.modelAutoCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if modelChoiceRaw != TranscriptionModelChoice.ivritHebrew.rawValue,
+                   !transcription.modelReady || transcription.isDownloadingModel {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(transcriptionStrings.modelTitle)
+                            Text(transcription.isDownloadingModel
+                                 ? String(format: transcriptionStrings.downloadingStatusFormat,
+                                          Int((transcription.downloadProgress * 100).rounded()))
+                                 : transcriptionStrings.modelMissingStatus)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if transcription.isDownloadingModel {
+                            Button(transcriptionStrings.cancelButton) {
+                                transcription.cancelDownload()
+                            }
+                        } else {
+                            Button(transcriptionStrings.downloadModelButton) {
+                                transcription.downloadModel()
+                            }
+                        }
+                    }
+                    if transcription.isDownloadingModel {
+                        ProgressView(value: transcription.downloadProgress)
+                    }
+                }
+                if modelChoiceRaw != TranscriptionModelChoice.parakeetEnglish.rawValue,
+                   !transcription.ivritModelReady || transcription.isDownloadingIvritModel {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(modelStrings.ivritModelTitle)
+                            Text(transcription.isDownloadingIvritModel
+                                 ? String(format: transcriptionStrings.downloadingStatusFormat,
+                                          Int((transcription.ivritDownloadProgress * 100).rounded()))
+                                 : modelStrings.ivritModelMissingStatus)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if transcription.isDownloadingIvritModel {
+                            Button(transcriptionStrings.cancelButton) {
+                                transcription.cancelIvritDownload()
+                            }
+                        } else {
+                            Button(transcriptionStrings.downloadModelButton) {
+                                transcription.downloadIvritModel()
+                            }
+                        }
+                    }
+                    if transcription.isDownloadingIvritModel {
+                        ProgressView(value: transcription.ivritDownloadProgress)
+                    }
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle(strings.perAppToggle, isOn: $perAppAudio)
@@ -126,6 +199,7 @@ struct MeetingRecorderSettings: View {
         .formStyle(.grouped)
         .onAppear {
             service.refreshAudioPermission()
+            transcription.refreshModelStatus()
             permissions.refresh()
         }
     }

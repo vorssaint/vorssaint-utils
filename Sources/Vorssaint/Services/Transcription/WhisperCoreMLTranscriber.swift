@@ -62,86 +62,55 @@ final class WhisperCoreMLTranscriber: @unchecked Sendable {
         let fm = FileManager.default
         try fm.createDirectory(at: directory, withIntermediateDirectories: true)
 
+        let specs = AudioTranscriptionSupport.ivritRequiredModelFiles
         let totalExpected = AudioTranscriptionSupport.totalExpectedIvritModelBytes
         var completedBytes: Int64 = 0
 
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 60
-        config.timeoutIntervalForResource = 3600
-        let session = URLSession(configuration: config)
-        defer { session.invalidateAndCancel() }
+        // Count already-complete files first so resumed downloads report accurate progress.
+        for spec in specs {
+            let destURL = directory.appendingPathComponent(spec.relativePath)
+            let minSize = spec.expectedBytes > 10_000 ? max(1, (spec.expectedBytes * 9) / 10) : 1
+            if let attrs = try? fm.attributesOfItem(atPath: destURL.path),
+               let existingSize = attrs[.size] as? Int64,
+               existingSize >= minSize {
+                completedBytes += spec.expectedBytes
+            }
+        }
+        progress(min(1.0, Double(completedBytes) / Double(max(1, totalExpected))), completedBytes, totalExpected)
 
-        for spec in AudioTranscriptionSupport.ivritRequiredModelFiles {
+        for spec in specs {
             try Task.checkCancellation()
             let destURL = directory.appendingPathComponent(spec.relativePath)
-            try fm.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let minSize = spec.expectedBytes > 10_000 ? max(1, (spec.expectedBytes * 9) / 10) : 1
 
             if let attrs = try? fm.attributesOfItem(atPath: destURL.path),
                let existingSize = attrs[.size] as? Int64,
-               existingSize >= (spec.expectedBytes * 9) / 10,
-               existingSize > 0 {
-                completedBytes += spec.expectedBytes
-                let frac = min(1.0, Double(completedBytes) / Double(max(1, totalExpected)))
-                progress(frac, completedBytes, totalExpected)
+               existingSize >= minSize {
                 continue
             }
 
+            let baseDone = completedBytes
             let remoteURL = AudioTranscriptionSupport.ivritDownloadURL(for: spec.relativePath)
-            var request = URLRequest(url: remoteURL)
-            request.setValue("Vorssaint/\(AppInfo.version)", forHTTPHeaderField: "User-Agent")
-
-            let (asyncBytes, response) = try await session.bytes(for: request)
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-                throw TranscriberError.downloadFailed("HTTP \(code) for \(spec.relativePath)")
-            }
-
-            let partURL = destURL.appendingPathExtension("part")
-            try? fm.removeItem(at: partURL)
-            fm.createFile(atPath: partURL.path, contents: nil)
-            let handle = try FileHandle(forWritingTo: partURL)
-
-            var fileBytes: Int64 = 0
-            var buffer = Data()
-            buffer.reserveCapacity(262_144)
-            var lastReported = Date.distantPast
-
             do {
-                for try await byte in asyncBytes {
-                    try Task.checkCancellation()
-                    buffer.append(byte)
-                    if buffer.count >= 262_144 {
-                        try handle.write(contentsOf: buffer)
-                        fileBytes += Int64(buffer.count)
-                        buffer.removeAll(keepingCapacity: true)
-                        let now = Date()
-                        if now.timeIntervalSince(lastReported) >= 0.12 {
-                            lastReported = now
-                            let totalSoFar = min(totalExpected, completedBytes + fileBytes)
-                            let frac = min(0.999, Double(totalSoFar) / Double(max(1, totalExpected)))
-                            progress(frac, totalSoFar, totalExpected)
-                        }
-                    }
+                _ = try await ModelFileDownloader.download(
+                    from: remoteURL,
+                    to: destURL,
+                    label: spec.relativePath,
+                    minExpectedBytes: minSize
+                ) { fileBytes in
+                    let totalSoFar = min(totalExpected, baseDone + min(fileBytes, spec.expectedBytes))
+                    let frac = min(0.999, Double(totalSoFar) / Double(max(1, totalExpected)))
+                    progress(frac, totalSoFar, totalExpected)
                 }
-                if !buffer.isEmpty {
-                    try handle.write(contentsOf: buffer)
-                    fileBytes += Int64(buffer.count)
-                }
-                try handle.close()
+            } catch is CancellationError {
+                throw TranscriberError.cancelled
             } catch {
-                try? handle.close()
-                try? fm.removeItem(at: partURL)
-                if error is CancellationError { throw TranscriberError.cancelled }
-                throw error
+                throw TranscriberError.downloadFailed(error.localizedDescription)
             }
 
-            if fm.fileExists(atPath: destURL.path) {
-                try fm.removeItem(at: destURL)
-            }
-            try fm.moveItem(at: partURL, to: destURL)
-            completedBytes += max(fileBytes, spec.expectedBytes)
+            completedBytes = min(totalExpected, completedBytes + spec.expectedBytes)
             let frac = min(1.0, Double(completedBytes) / Double(max(1, totalExpected)))
-            progress(frac, min(completedBytes, totalExpected), totalExpected)
+            progress(frac, completedBytes, totalExpected)
         }
     }
 

@@ -83,6 +83,15 @@ struct PanelTranscriptionView: View {
         VStack(alignment: .leading, spacing: 8) {
             dropZone
 
+            Picker(modelStrings.modelChoiceLabel, selection: $modelChoiceRaw) {
+                Text(modelStrings.modelAuto).tag(TranscriptionModelChoice.auto.rawValue)
+                Text(modelStrings.modelParakeet).tag(TranscriptionModelChoice.parakeetEnglish.rawValue)
+                Text(modelStrings.modelIvrit).tag(TranscriptionModelChoice.ivritHebrew.rawValue)
+            }
+            .pickerStyle(.menu)
+            .controlSize(.mini)
+            .font(.system(size: 10.5))
+
             if service.isDownloadingModel {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -100,7 +109,7 @@ struct PanelTranscriptionView: View {
                     ProgressView(value: service.downloadProgress)
                         .progressViewStyle(.linear)
                 }
-            } else if !service.modelReady {
+            } else if modelChoiceRaw != TranscriptionModelChoice.ivritHebrew.rawValue, !service.modelReady {
                 HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(strings.modelTitle)
@@ -112,6 +121,41 @@ struct PanelTranscriptionView: View {
                     Spacer(minLength: 0)
                     Button(strings.downloadModelButton) {
                         service.downloadModel()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.mini)
+                }
+            }
+
+            if service.isDownloadingIvritModel {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(String(format: strings.downloadingStatusFormat,
+                                    Int((service.ivritDownloadProgress * 100).rounded())))
+                            .font(.system(size: 10.5, weight: .medium))
+                            .monospacedDigit()
+                        Spacer()
+                        Button(strings.cancelButton) {
+                            service.cancelIvritDownload()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
+                    ProgressView(value: service.ivritDownloadProgress)
+                        .progressViewStyle(.linear)
+                }
+            } else if modelChoiceRaw != TranscriptionModelChoice.parakeetEnglish.rawValue, !service.ivritModelReady {
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(modelStrings.ivritModelTitle)
+                            .font(.system(size: 10.5, weight: .semibold))
+                        Text(modelStrings.ivritModelMissingStatus)
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    Button(strings.downloadModelButton) {
+                        service.downloadIvritModel()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.mini)
@@ -174,55 +218,11 @@ struct PanelTranscriptionView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
-                    .disabled(service.isTranscribing || service.isDownloadingModel)
+                    .disabled(service.isTranscribing || service.isDownloadingActiveModel)
                     Spacer()
                     Text(GlobalShortcutRole.voiceDictation.savedShortcut.displayString)
                         .font(.system(size: 9.5, design: .monospaced))
                         .foregroundStyle(.secondary)
-                }
-            }
-
-            Picker(modelStrings.modelChoiceLabel, selection: $modelChoiceRaw) {
-                Text(modelStrings.modelAuto).tag(TranscriptionModelChoice.auto.rawValue)
-                Text(modelStrings.modelParakeet).tag(TranscriptionModelChoice.parakeetEnglish.rawValue)
-                Text(modelStrings.modelIvrit).tag(TranscriptionModelChoice.ivritHebrew.rawValue)
-            }
-            .pickerStyle(.menu)
-            .controlSize(.mini)
-            .font(.system(size: 10.5))
-
-            if service.isDownloadingIvritModel {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(String(format: strings.downloadingStatusFormat,
-                                    Int((service.ivritDownloadProgress * 100).rounded())))
-                            .font(.system(size: 10.5, weight: .medium))
-                            .monospacedDigit()
-                        Spacer()
-                        Button(strings.cancelButton) {
-                            service.cancelIvritDownload()
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                    }
-                    ProgressView(value: service.ivritDownloadProgress)
-                        .progressViewStyle(.linear)
-                }
-            } else if modelChoiceRaw == TranscriptionModelChoice.ivritHebrew.rawValue, !service.ivritModelReady {
-                HStack(spacing: 8) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(modelStrings.ivritModelTitle)
-                            .font(.system(size: 10.5, weight: .semibold))
-                        Text(modelStrings.ivritModelMissingStatus)
-                            .font(.system(size: 9.5))
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                    Button(strings.downloadModelButton) {
-                        service.downloadIvritModel()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.mini)
                 }
             }
 

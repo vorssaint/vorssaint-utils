@@ -148,7 +148,7 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         modelDiskBytes = AudioTranscriptionSupport.directorySizeBytes(dir)
         let ivritDir = ivritModelDirectory
         ivritModelReady = AudioTranscriptionSupport.isIvritModelDirectoryReady(ivritDir)
-        ivritModelDiskBytes = AudioTranscriptionSupport.directorySizeBytes(ivritDir)
+        ivritModelDiskBytes = AudioTranscriptionSupport.ivritDirectorySizeBytes(ivritDir)
     }
 
     func downloadIvritModel(thenTranscribe url: URL? = nil) {
@@ -391,6 +391,13 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                     }
                 }
             } catch is CancellationError {
+                await MainActor.run {
+                    self.isDownloadingModel = false
+                    self.downloadTask = nil
+                    self.pendingDropURL = nil
+                    self.refreshModelStatus()
+                }
+            } catch ParakeetCoreMLTranscriber.TranscriberError.cancelled {
                 await MainActor.run {
                     self.isDownloadingModel = false
                     self.downloadTask = nil

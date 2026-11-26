@@ -391,11 +391,20 @@ enum UtilitiesFeatureTests {
                "newly active unknown mic consumers confirm after two consecutive polls")
 
         // Hebrew specialist model (ivrit.ai Core ML), language routing, RTL, VAD, BPE & hallucination filter.
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.meetingRecorderShowIndicator] as? Bool == false,
+               "meeting recording stays off-screen by default without floating overlays")
+        let indicatorSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Recorder/RecorderIndicator.swift", encoding: .utf8)) ?? ""
+        let hudSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/QuickTools/QuickToolHUD.swift", encoding: .utf8)) ?? ""
+        suite.expect(indicatorSource.contains("panel.sharingType = .none")
+               && hudSource.contains("panel.sharingType = .none"),
+               "recording indicator and HUD overlays exclude themselves from screen capture and screen sharing")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.audioTranscriptionModelChoice] as? String == TranscriptionModelChoice.auto.rawValue
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionModelChoice)
                && AudioTranscriptionSupport.ivritRequiredModelFiles.count == 17
-               && AudioTranscriptionSupport.totalExpectedIvritModelBytes > 850_000_000,
-               "ivrit.ai Hebrew model choice default and Core ML manifest are registered cleanly")
+               && AudioTranscriptionSupport.totalExpectedIvritModelBytes > 850_000_000
+               && AudioTranscriptionSupport.ivritDownloadURL(for: "config.json").absoluteString
+                   == "https://huggingface.co/eranshir/ivrit-ai-whisper-large-v3-turbo-coreml-int8/resolve/main/config.json",
+               "ivrit.ai Hebrew model choice default, Core ML manifest, and Hugging Face URL are registered cleanly")
         suite.expect(AudioTranscriptionSupport.routeModel(choice: .auto, detectedLanguage: "he", confidence: 0.9, parakeetReady: true, ivritReady: true) == .ivritHebrew
                && AudioTranscriptionSupport.routeModel(choice: .auto, detectedLanguage: "he", confidence: 0.4, parakeetReady: true, ivritReady: true) == .parakeetEnglish
                && AudioTranscriptionSupport.routeModel(choice: .auto, detectedLanguage: "en", confidence: 0.95, parakeetReady: true, ivritReady: true) == .parakeetEnglish

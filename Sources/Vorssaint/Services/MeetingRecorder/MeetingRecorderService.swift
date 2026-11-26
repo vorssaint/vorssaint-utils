@@ -148,8 +148,9 @@ final class MeetingRecorderService: ObservableObject {
         }
         refreshRecordings()
         let strings = FeatureStrings.meetingRecorder(L10n.shared.language)
+        let showOverlay = showHUD && showsOnScreenIndicator
         if result.systemCaptured || result.micCaptured {
-            if showHUD {
+            if showOverlay {
                 QuickToolHUD.show(icon: "checkmark.circle", message: strings.savedHUD)
             }
             if UserDefaults.standard.bool(forKey: DefaultsKey.meetingRecorderAutoTranscribe) {
@@ -158,12 +159,12 @@ final class MeetingRecorderService: ObservableObject {
                     systemURL: result.systemAudioURL,
                     micURL: result.micAudioURL,
                     outputDir: saveFolderURL,
-                    showHUD: showHUD
+                    showHUD: showOverlay
                 )
             }
         } else {
             errorMessage = strings.noAudioCapturedError
-            if showHUD {
+            if showOverlay {
                 QuickToolHUD.show(icon: "exclamationmark.triangle", message: strings.noAudioCapturedError)
             }
         }
@@ -187,7 +188,9 @@ final class MeetingRecorderService: ObservableObject {
         decider.noteRecordingStopped()
         refreshRecordings()
         let strings = FeatureStrings.meetingRecorder(L10n.shared.language)
-        QuickToolHUD.show(icon: "trash", message: strings.discardedHUD)
+        if showsOnScreenIndicator {
+            QuickToolHUD.show(icon: "trash", message: strings.discardedHUD)
+        }
     }
 
     private func startSession(appName: String?, pid: pid_t?, automatic: Bool) {
@@ -247,9 +250,11 @@ final class MeetingRecorderService: ObservableObject {
         startHealthWatchdog()
         showIndicatorIfEnabled()
 
-        let strings = FeatureStrings.meetingRecorder(L10n.shared.language)
-        let message = appName.map { String(format: strings.recordingAppFormat, $0) } ?? strings.recordingStartedHUD
-        QuickToolHUD.show(icon: "waveform.circle.fill", message: message)
+        if showsOnScreenIndicator {
+            let strings = FeatureStrings.meetingRecorder(L10n.shared.language)
+            let message = appName.map { String(format: strings.recordingAppFormat, $0) } ?? strings.recordingStartedHUD
+            QuickToolHUD.show(icon: "waveform.circle.fill", message: message)
+        }
     }
 
     // MARK: - Automatic Call Detection
@@ -435,8 +440,12 @@ final class MeetingRecorderService: ObservableObject {
 
     // MARK: - Floating Indicator
 
+    private var showsOnScreenIndicator: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.meetingRecorderShowIndicator)
+    }
+
     private func showIndicatorIfEnabled() {
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.meetingRecorderShowIndicator),
+        guard showsOnScreenIndicator,
               !ScreenRecorderService.shared.isRecording else { return }
         let strings = FeatureStrings.meetingRecorder(L10n.shared.language)
         let pill = RecorderIndicator(

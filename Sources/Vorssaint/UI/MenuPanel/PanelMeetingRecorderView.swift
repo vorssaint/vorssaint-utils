@@ -13,11 +13,18 @@ struct PanelMeetingRecorderView: View {
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.meetingRecorderAutoRecord) private var autoRecord = false
     @AppStorage(DefaultsKey.meetingRecorderAutoTranscribe) private var autoTranscribe = false
+    @AppStorage(DefaultsKey.audioTranscriptionModelChoice) private var modelChoiceRaw = TranscriptionModelChoice.auto.rawValue
 
     var onClose: () -> Void
 
     private var strings: MeetingRecorderFeatureStrings {
         FeatureStrings.meetingRecorder(l10n.language)
+    }
+    private var transcriptionStrings: AudioTranscriptionFeatureStrings {
+        FeatureStrings.audioTranscription(l10n.language)
+    }
+    private var modelStrings: TranscriptionModelStrings {
+        FeatureStrings.transcriptionModels(l10n.language)
     }
 
     var body: some View {
@@ -31,6 +38,7 @@ struct PanelMeetingRecorderView: View {
             service.setMeterObserving(true)
             service.refreshAudioPermission()
             service.refreshRecordings()
+            transcription.refreshModelStatus()
             permissions.refresh()
         }
         .onDisappear {
@@ -201,11 +209,90 @@ struct PanelMeetingRecorderView: View {
             }
 
             Toggle(isOn: $autoTranscribe) {
-                Text(FeatureStrings.audioTranscription(l10n.language).autoTranscribeToggle)
+                Text(transcriptionStrings.autoTranscribeToggle)
                     .font(.system(size: 11))
             }
             .toggleStyle(.switch)
             .controlSize(.mini)
+
+            Picker(modelStrings.modelChoiceLabel, selection: $modelChoiceRaw) {
+                Text(modelStrings.modelAuto).tag(TranscriptionModelChoice.auto.rawValue)
+                Text(modelStrings.modelParakeet).tag(TranscriptionModelChoice.parakeetEnglish.rawValue)
+                Text(modelStrings.modelIvrit).tag(TranscriptionModelChoice.ivritHebrew.rawValue)
+            }
+            .pickerStyle(.menu)
+            .controlSize(.mini)
+            .font(.system(size: 10.5))
+
+            if transcription.isDownloadingModel {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(String(format: transcriptionStrings.downloadingStatusFormat,
+                                    Int((transcription.downloadProgress * 100).rounded())))
+                            .font(.system(size: 10, weight: .medium))
+                            .monospacedDigit()
+                        Spacer()
+                        Button(transcriptionStrings.cancelButton) {
+                            transcription.cancelDownload()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
+                    ProgressView(value: transcription.downloadProgress)
+                        .progressViewStyle(.linear)
+                }
+            } else if modelChoiceRaw != TranscriptionModelChoice.ivritHebrew.rawValue, !transcription.modelReady {
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(transcriptionStrings.modelTitle)
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(transcriptionStrings.modelMissingStatus)
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    Button(transcriptionStrings.downloadModelButton) {
+                        transcription.downloadModel()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.mini)
+                }
+            }
+
+            if transcription.isDownloadingIvritModel {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(String(format: transcriptionStrings.downloadingStatusFormat,
+                                    Int((transcription.ivritDownloadProgress * 100).rounded())))
+                            .font(.system(size: 10, weight: .medium))
+                            .monospacedDigit()
+                        Spacer()
+                        Button(transcriptionStrings.cancelButton) {
+                            transcription.cancelIvritDownload()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
+                    ProgressView(value: transcription.ivritDownloadProgress)
+                        .progressViewStyle(.linear)
+                }
+            } else if modelChoiceRaw != TranscriptionModelChoice.parakeetEnglish.rawValue, !transcription.ivritModelReady {
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(modelStrings.ivritModelTitle)
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(modelStrings.ivritModelMissingStatus)
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    Button(transcriptionStrings.downloadModelButton) {
+                        transcription.downloadIvritModel()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.mini)
+                }
+            }
         }
         .panelCard()
     }
