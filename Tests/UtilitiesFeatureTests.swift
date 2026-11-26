@@ -256,6 +256,81 @@ enum UtilitiesFeatureTests {
                    "meeting recorder strings are populated in \(lang)")
         }
 
+        // MARK: Audio transcription (Parakeet Unified English 0.6B)
+
+        suite.expect(AudioTranscriptionSupport.requiredModelFiles.count == 18
+               && AudioTranscriptionSupport.totalExpectedModelBytes > 600_000_000,
+               "Parakeet Unified English 0.6B manifest pins all 18 Core ML model artifacts")
+        suite.expect(AudioTranscriptionSupport.isSupportedAudioURL(URL(fileURLWithPath: "/tmp/call.wav"))
+               && AudioTranscriptionSupport.isSupportedAudioURL(URL(fileURLWithPath: "/tmp/memo.M4A"))
+               && AudioTranscriptionSupport.isSupportedAudioURL(URL(fileURLWithPath: "/tmp/clip.mp4"))
+               && !AudioTranscriptionSupport.isSupportedAudioURL(URL(fileURLWithPath: "/tmp/notes.txt")),
+               "transcription drop filter accepts supported audio/video files and rejects non-media")
+
+        let sampleVocabData = Data(#"{"0":"<unk>","1":"▁Hello","2":"▁world","3":".","4":"▁0","5":".","6":"6","7":"▁billion","8":"▁next"}"#.utf8)
+        let parsedVocab = (try? AudioTranscriptionSupport.parseVocabulary(data: sampleVocabData)) ?? [:]
+        suite.expect(parsedVocab[1] == "▁Hello" && parsedVocab[6] == "6",
+               "Parakeet vocab.json parses SentencePiece token IDs cleanly")
+
+        let leftTokens = [
+            AudioTranscriptionSupport.EmittedToken(id: 1, frame: 10, probability: 0.9),
+            AudioTranscriptionSupport.EmittedToken(id: 2, frame: 160, probability: 0.9),
+            AudioTranscriptionSupport.EmittedToken(id: 3, frame: 165, probability: 0.9),
+        ]
+        let rightTokens = [
+            AudioTranscriptionSupport.EmittedToken(id: 2, frame: 161, probability: 0.95),
+            AudioTranscriptionSupport.EmittedToken(id: 3, frame: 166, probability: 0.95),
+            AudioTranscriptionSupport.EmittedToken(id: 8, frame: 190, probability: 0.95),
+        ]
+        let mergedTokens = AudioTranscriptionSupport.mergeWindowTokens(
+            existing: leftTokens,
+            incoming: rightTokens,
+            overlapStartFrame: 155,
+            overlapEndFrame: 180
+        )
+        suite.expect(mergedTokens.map(\.id) == [1, 2, 3, 8],
+               "overlapping 15s windows anchor on matching seam tokens without duplicating boundary words")
+
+        let decimalTokens = [
+            AudioTranscriptionSupport.EmittedToken(id: 1, frame: 0, probability: 0.9),
+            AudioTranscriptionSupport.EmittedToken(id: 4, frame: 5, probability: 0.9),
+            AudioTranscriptionSupport.EmittedToken(id: 5, frame: 14, probability: 0.9),
+            AudioTranscriptionSupport.EmittedToken(id: 6, frame: 15, probability: 0.9),
+            AudioTranscriptionSupport.EmittedToken(id: 7, frame: 18, probability: 0.9),
+        ]
+        let decimalSegs = AudioTranscriptionSupport.segments(from: decimalTokens, vocabulary: parsedVocab)
+        suite.expect(decimalSegs.count == 1 && decimalSegs[0].text == "Hello 0.6 billion",
+               "decimal numbers like 0.6 are not split into separate sentences")
+
+        let mergedMeeting = AudioTranscriptionSupport.mergeSpeakerSegments(
+            systemSegments: [
+                AudioTranscriptionSupport.TranscriptSegment(speaker: "Others", text: "Hi there.", startSeconds: 4.0, endSeconds: 5.5),
+            ],
+            micSegments: [
+                AudioTranscriptionSupport.TranscriptSegment(speaker: "You", text: "Hello!", startSeconds: 1.0, endSeconds: 2.0),
+                AudioTranscriptionSupport.TranscriptSegment(speaker: "You", text: "Sounds good.", startSeconds: 8.0, endSeconds: 9.0),
+            ]
+        )
+        let formattedMeeting = AudioTranscriptionSupport.formatTranscript(segments: mergedMeeting, includeTimestamps: true)
+        suite.expect(formattedMeeting == "[0:01] You: Hello!\n[0:04] Others: Hi there.\n[0:08] You: Sounds good.",
+               "dual-track meeting transcripts merge speakers chronologically with timestamps")
+
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.meetingRecorderAutoTranscribe] as? Bool == false
+               && Defaults.registeredDefaults[DefaultsKey.panelUtilityAudioTranscription] as? Bool == true
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionIncludeTimestamps] as? Bool == true
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionSaveBesideAudio] as? Bool == true
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionComputeMode] as? String == ParakeetComputeMode.auto.rawValue
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.meetingRecorderAutoTranscribe)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionComputeMode),
+               "audio transcription defaults and backup export keys are registered cleanly")
+        for lang in AppLanguage.allCases {
+            let ts = FeatureStrings.audioTranscription(lang)
+            suite.expect(!ts.title.isEmpty && !ts.hubDescription.isEmpty
+                   && !ts.dropTitle.isEmpty && !ts.autoTranscribeToggle.isEmpty
+                   && !ts.downloadModelButton.isEmpty,
+                   "audio transcription strings are populated in \(lang)")
+        }
+
         // MARK: Port manager row numbers
 
         // An integer interpolated into Text("…") is formatted for the locale, so

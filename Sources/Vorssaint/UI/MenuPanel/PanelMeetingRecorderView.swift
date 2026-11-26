@@ -9,8 +9,10 @@ import SwiftUI
 struct PanelMeetingRecorderView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = MeetingRecorderService.shared
+    @ObservedObject private var transcription = AudioTranscriptionService.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.meetingRecorderAutoRecord) private var autoRecord = false
+    @AppStorage(DefaultsKey.meetingRecorderAutoTranscribe) private var autoTranscribe = false
 
     var onClose: () -> Void
 
@@ -197,6 +199,13 @@ struct PanelMeetingRecorderView: View {
             .onChange(of: autoRecord) { _, _ in
                 service.syncWithPreferences()
             }
+
+            Toggle(isOn: $autoTranscribe) {
+                Text(FeatureStrings.audioTranscription(l10n.language).autoTranscribeToggle)
+                    .font(.system(size: 11))
+            }
+            .toggleStyle(.switch)
+            .controlSize(.mini)
         }
         .panelCard()
     }
@@ -247,6 +256,30 @@ struct PanelMeetingRecorderView: View {
                 .lineLimit(1)
             }
             Spacer(minLength: 0)
+            if service.transcriptURL(for: item) != nil {
+                Button {
+                    service.openTranscript(item)
+                } label: {
+                    Image(systemName: "doc.text")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 22, height: 22)
+                }
+                .buttonStyle(.plain)
+                .help(FeatureStrings.audioTranscription(l10n.language).openTranscriptTooltip)
+            } else {
+                Button {
+                    service.transcribe(item)
+                } label: {
+                    Image(systemName: "captions.bubble")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                }
+                .buttonStyle(.plain)
+                .disabled(transcription.isTranscribing)
+                .help(FeatureStrings.audioTranscription(l10n.language).transcribeMeetingTooltip)
+            }
             Button {
                 service.reveal(item)
             } label: {

@@ -10,6 +10,7 @@ struct MeetingRecorderSettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = MeetingRecorderService.shared
     @AppStorage(DefaultsKey.meetingRecorderAutoRecord) private var autoRecord = false
+    @AppStorage(DefaultsKey.meetingRecorderAutoTranscribe) private var autoTranscribe = false
     @AppStorage(DefaultsKey.meetingRecorderPerAppAudio) private var perAppAudio = false
     @AppStorage(DefaultsKey.meetingRecorderEchoCancellation) private var echoCancellation = true
     @AppStorage(DefaultsKey.meetingRecorderShowIndicator) private var showIndicator = true
@@ -85,6 +86,12 @@ struct MeetingRecorderSettings: View {
                             service.syncWithPreferences()
                         }
                     Text(strings.autoRecordCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle(FeatureStrings.audioTranscription(l10n.language).autoTranscribeToggle, isOn: $autoTranscribe)
+                    Text(FeatureStrings.audioTranscription(l10n.language).autoTranscribeCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

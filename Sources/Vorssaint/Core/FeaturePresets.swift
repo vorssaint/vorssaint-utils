@@ -163,6 +163,8 @@ extension AppFeature {
         case .meetingRecorder:
             return UserDefaults.standard.bool(forKey: DefaultsKey.meetingRecorderAutoRecord)
                 ? .periodic : .idle
+        case .audioTranscription:
+            return .idle
         }
     }
 }

@@ -152,6 +152,15 @@ final class MeetingRecorderService: ObservableObject {
             if showHUD {
                 QuickToolHUD.show(icon: "checkmark.circle", message: strings.savedHUD)
             }
+            if UserDefaults.standard.bool(forKey: DefaultsKey.meetingRecorderAutoTranscribe) {
+                AudioTranscriptionService.shared.transcribeMeeting(
+                    stem: result.stem,
+                    systemURL: result.systemAudioURL,
+                    micURL: result.micAudioURL,
+                    outputDir: saveFolderURL,
+                    showHUD: showHUD
+                )
+            }
         } else {
             errorMessage = strings.noAudioCapturedError
             if showHUD {
@@ -502,6 +511,31 @@ final class MeetingRecorderService: ObservableObject {
             NSWorkspace.shared.activateFileViewerSelecting(urls)
         } else {
             openSaveFolder()
+        }
+    }
+
+    func transcriptURL(for item: MeetingRecorderSupport.RecordingSummary) -> URL? {
+        let url = AudioTranscriptionSupport.meetingTranscriptFileURL(stem: item.stem, in: saveFolderURL)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    func transcribe(_ item: MeetingRecorderSupport.RecordingSummary) {
+        let dir = saveFolderURL
+        let sysURL = item.systemFileName.map { dir.appendingPathComponent($0) }
+            .flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
+        let micURL = item.micFileName.map { dir.appendingPathComponent($0) }
+            .flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
+        AudioTranscriptionService.shared.transcribeMeeting(
+            stem: item.stem,
+            systemURL: sysURL,
+            micURL: micURL,
+            outputDir: dir
+        )
+    }
+
+    func openTranscript(_ item: MeetingRecorderSupport.RecordingSummary) {
+        if let url = transcriptURL(for: item) {
+            NSWorkspace.shared.open(url)
         }
     }
 

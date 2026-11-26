@@ -800,11 +800,16 @@ enum DefaultsKey {
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
     static let panelUtilityPortManager = "panelUtilityPortManager"
     static let panelUtilityMeetingRecorder = "panelUtilityMeetingRecorder"
+    static let panelUtilityAudioTranscription = "panelUtilityAudioTranscription"
     static let meetingRecorderAutoRecord = "meetingRecorderAutoRecord"
+    static let meetingRecorderAutoTranscribe = "meetingRecorderAutoTranscribe"
     static let meetingRecorderPerAppAudio = "meetingRecorderPerAppAudio"
     static let meetingRecorderEchoCancellation = "meetingRecorderEchoCancellation"
     static let meetingRecorderShowIndicator = "meetingRecorderShowIndicator"
     static let meetingRecorderSaveFolder = "meetingRecorderSaveFolder"
+    static let audioTranscriptionIncludeTimestamps = "audioTranscriptionIncludeTimestamps"
+    static let audioTranscriptionSaveBesideAudio = "audioTranscriptionSaveBesideAudio"
+    static let audioTranscriptionComputeMode = "audioTranscriptionComputeMode"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -1955,11 +1960,16 @@ enum Defaults {
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.panelUtilityPortManager: true,
         DefaultsKey.panelUtilityMeetingRecorder: true,
+        DefaultsKey.panelUtilityAudioTranscription: true,
         DefaultsKey.meetingRecorderAutoRecord: false,
+        DefaultsKey.meetingRecorderAutoTranscribe: false,
         DefaultsKey.meetingRecorderPerAppAudio: false,
         DefaultsKey.meetingRecorderEchoCancellation: true,
         DefaultsKey.meetingRecorderShowIndicator: true,
         DefaultsKey.meetingRecorderSaveFolder: "",
+        DefaultsKey.audioTranscriptionIncludeTimestamps: true,
+        DefaultsKey.audioTranscriptionSaveBesideAudio: true,
+        DefaultsKey.audioTranscriptionComputeMode: ParakeetComputeMode.auto.rawValue,
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,

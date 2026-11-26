@@ -556,7 +556,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, meetingRecorder, portManager
+         commandBar, screenRecorder, meetingRecorder, audioTranscription, portManager
 
     var id: String { rawValue }
 
@@ -579,6 +579,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .screenshot: return .screenshot
         case .screenRecorder: return .screenRecorder
         case .meetingRecorder: return .meetingRecorder
+        case .audioTranscription: return .audioTranscription
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
@@ -602,6 +603,7 @@ struct UtilitiesSection: View {
     @State private var showWindowLayoutPanel = false
     @State private var showPortManagerPanel = false
     @State private var showMeetingRecorderPanel = false
+    @State private var showTranscriptionPanel = false
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
@@ -621,8 +623,10 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
     @AppStorage(DefaultsKey.panelUtilityMeetingRecorder) private var showMeetingRecorder = true
+    @AppStorage(DefaultsKey.panelUtilityAudioTranscription) private var showAudioTranscription = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @ObservedObject private var meetingRecorder = MeetingRecorderService.shared
+    @ObservedObject private var transcription = AudioTranscriptionService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
     @State private var draggingItem: UtilityPanelItem?
@@ -685,6 +689,11 @@ struct UtilitiesSection: View {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
                     showMeetingRecorderPanel = false
                 }
+            } else if showTranscriptionPanel {
+                PanelTranscriptionView {
+                    PanelInteractionState.shared.viewKeepsPopoverOpen = false
+                    showTranscriptionPanel = false
+                }
             } else {
                 PanelRowGroup(items: items(editing: editing), showsDragHandles: editing) { item in
                     PanelReorderableItem(item: item,
@@ -727,6 +736,7 @@ struct UtilitiesSection: View {
         if showAppUpdatesPanel { return .appUpdates }
         if showPortManagerPanel { return .portManager }
         if showMeetingRecorderPanel { return .meetingRecorder }
+        if showTranscriptionPanel { return .audioTranscription }
         return nil
     }
 
@@ -737,7 +747,7 @@ struct UtilitiesSection: View {
         showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
             || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
             || showWindowLayoutPanel || showAppUpdatesPanel || showPortManagerPanel
-            || showMeetingRecorderPanel
+            || showMeetingRecorderPanel || showTranscriptionPanel
     }
 
     /// Homebrew browsing behaves like an ordinary popover. Other hosted tools
@@ -794,6 +804,7 @@ struct UtilitiesSection: View {
         case .screenRecorder: return showScreenRecorder
         case .portManager: return showPortManager
         case .meetingRecorder: return showMeetingRecorder
+        case .audioTranscription: return showAudioTranscription
         }
     }
 
@@ -1054,6 +1065,15 @@ struct UtilitiesSection: View {
                                     ? { MeetingRecorderService.shared.stopRecording() }
                                     : nil,
                                 action: { showMeetingRecorderPanel = true })
+        case .audioTranscription:
+            UtilityActionButton(title: FeatureStrings.audioTranscription(l10n.language).title,
+                                caption: audioTranscriptionCaption,
+                                systemImage: "captions.bubble",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showAudioTranscription,
+                                captionStaysVisible: transcription.isTranscribing || transcription.isDownloadingModel,
+                                action: { showTranscriptionPanel = true })
         }
     }
 
@@ -1113,6 +1133,18 @@ struct UtilitiesSection: View {
         return meetingRecorder.isListeningForCalls ? strings.listeningCaption : strings.panelCaption
     }
 
+    private var audioTranscriptionCaption: String {
+        let strings = FeatureStrings.audioTranscription(l10n.language)
+        if transcription.isDownloadingModel {
+            return String(format: strings.downloadingStatusFormat,
+                          Int((transcription.downloadProgress * 100).rounded()))
+        }
+        if transcription.isTranscribing {
+            return String(format: strings.transcribingFormat, transcription.currentFileName ?? "")
+        }
+        return strings.panelCaption
+    }
+
     private var cameraPreviewCaption: String {
         permissions.camera == .denied
             ? "\(l10n.s.permissionRequired): \(FeatureStrings.cameraPreview(l10n.language).permName)"
@@ -1148,6 +1180,7 @@ struct UtilitiesSection: View {
         showCommandBar = true
         showPortManager = true
         showMeetingRecorder = true
+        showAudioTranscription = true
     }
 
     private func grantAccessibility() {

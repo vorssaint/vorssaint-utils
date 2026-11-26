@@ -341,6 +341,7 @@ final class FeatureRuntime: ObservableObject {
             RecentCaptureService.shared.syncWithPreferences()
         },
         .meetingRecorder: { MeetingRecorderService.shared.syncWithPreferences() },
+        .audioTranscription: { AudioTranscriptionService.shared.refreshModelStatus() },
         .cameraPreview: { CameraPreviewService.shared.syncWithPreferences() },
         .wallpaper: { WallpaperService.shared.syncWithPreferences() },
         .radialMenu: { RadialMenuService.shared.syncWithPreferences() },

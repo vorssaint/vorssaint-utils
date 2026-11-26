@@ -1210,6 +1210,7 @@ extension AppFeature {
         case .killProcess: return FeatureStrings.killProcess(language).pageTitle
         case .portManager: return FeatureStrings.portManager(language).title
         case .meetingRecorder: return FeatureStrings.meetingRecorder(language).title
+        case .audioTranscription: return FeatureStrings.audioTranscription(language).title
         case .homebrew: return s.homebrewName
         case .appUpdates: return FeatureStrings.appUpdates(language).pageTitle
         case .monitorCPU: return s.monitorShowCPU
@@ -1304,6 +1305,7 @@ extension AppFeature {
         case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).hubDescription
         case .portManager: return FeatureStrings.portManager(L10n.shared.language).hubDescription
         case .meetingRecorder: return FeatureStrings.meetingRecorder(L10n.shared.language).hubDescription
+        case .audioTranscription: return FeatureStrings.audioTranscription(L10n.shared.language).hubDescription
         case .homebrew: return hub.descHomebrew
         case .appUpdates: return FeatureStrings.appUpdates(L10n.shared.language).hubDescription
         case .monitorCPU: return hub.descMonitorCPU
