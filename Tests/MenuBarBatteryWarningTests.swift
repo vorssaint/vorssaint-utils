@@ -22,7 +22,7 @@ enum MenuBarBatteryWarningTests {
         typealias ReviewDefaults = MenuBarBatteryWarningTests.ReviewDefaults
         typealias MenuBarMetricSpacing = MenuBarBatteryWarningTests.MenuBarMetricSpacing
         typealias MenuBarMetricAppearance = MenuBarBatteryWarningTests.MenuBarMetricAppearance
-        static let blockImageCache = NSCache<NSString, NSImage>()
+        static let blockImageCache = NSCache<NSString, BlockLayers>()
         static let legacyBlockAttachmentNudge: CGFloat = 0
         static var style = MenuBarBlockStyle.dense
         static var overrideSegments: [MenuBarSegment]?
@@ -118,9 +118,16 @@ enum MenuBarBatteryWarningTests {
     }
 
     private static func imageContracts(_ suite: TestSuite, defaults: UserDefaults) {
-        func image(metrics: [MenuBarMetric] = [.battery, .batteryTemperature]) -> NSImage? {
+        /// The block's template ink and its full-color overlay, read back
+        /// from the attachments the status item would draw.
+        func image(metrics: [MenuBarMetric] = [.battery, .batteryTemperature]) -> (ink: NSImage, overlay: NSImage?, kern: CGFloat?)? {
             let attributed = Renderer.attributed(for: snapshot(), metrics: metrics)
-            return attributed.length > 0 ? (attributed.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)?.image : nil
+            var images: [NSImage] = []
+            attributed.enumerateAttribute(.attachment, in: NSRange(location: 0, length: attributed.length)) { value, _, _ in
+                if let image = (value as? NSTextAttachment)?.image { images.append(image) }
+            }
+            guard let ink = images.first, images.count <= 2 else { return nil }
+            return (ink, images.dropFirst().first, attributed.attribute(.kern, at: 0, effectiveRange: nil) as? CGFloat)
         }
         for spacing in ["standard", "compact"] {
             defaults.set(spacing, forKey: DefaultsKey.menuBarMetricSpacing)
@@ -142,21 +149,32 @@ enum MenuBarBatteryWarningTests {
                         suite.expect(false, "battery readings produce image attachments")
                         continue
                     }
-                    suite.expect(plain !== red && red !== amber && amber !== plain && recovered === plain,
+                    suite.expect(plain.ink !== red.ink && red.ink !== amber.ink && amber.ink !== plain.ink && recovered.ink === plain.ink,
                                  "warning colors have distinct cache entries and turning the warning off restores the untinted image")
-                    suite.expect(plain.size == red.size && red.size == amber.size,
+                    suite.expect(plain.ink.size == red.ink.size && red.ink.size == amber.ink.size
+                                 && red.overlay?.size == red.ink.size && amber.overlay?.size == amber.ink.size,
                                  "battery warning colors preserve block dimensions in both spacing modes")
-                    suite.expect(matchingPixels(red, color: .systemRed) > 0 && matchingPixels(amber, color: .systemOrange) > 0
-                                 && matchingPixels(plain, color: .systemRed) == 0 && matchingPixels(plain, color: .systemOrange) == 0,
-                                 "the real attributed-image path draws red and amber, then returns to the normal text color")
+                    suite.expect(plain.ink.isTemplate && red.ink.isTemplate && amber.ink.isTemplate
+                                 && plain.overlay == nil && plain.kern == nil
+                                 && red.overlay?.isTemplate == false && amber.overlay?.isTemplate == false,
+                                 "neutral ink is a template image, like the menu bar glyph, and only warnings add a full-color overlay")
+                    suite.expect(red.kern == -red.ink.size.width && amber.kern == -amber.ink.size.width,
+                                 "the overlay is kerned back exactly over the ink, so the block advances its width once")
+                    suite.expect(red.overlay.map { matchingPixels($0, color: .systemRed) } ?? 0 > 0
+                                 && amber.overlay.map { matchingPixels($0, color: .systemOrange) } ?? 0 > 0
+                                 && matchingPixels(red.ink, color: .systemRed) == 0
+                                 && matchingPixels(plain.ink, color: .systemRed) == 0 && matchingPixels(plain.ink, color: .systemOrange) == 0,
+                                 "the real attributed-image path draws red and amber in the overlay, then returns to plain ink")
                 }
             }
         }
         Renderer.overrideSegments = [.metricBlock(label: "RAM", value: "42%", minimumValue: "100%", style: .dense, pressure: .warning)]
         let memory = image()
         suite.expect(warnings(Renderer.overrideSegments!) == [.none]
-                     && memory.map { matchingPixels($0, color: .systemYellow) > 0 && matchingPixels($0, color: .systemRed) == 0 } == true,
-                     "other metric blocks retain the default warning and their existing pressure color")
+                     && memory.map { $0.ink.isTemplate && matchingPixels($0.ink, color: .systemYellow) == 0 } == true
+                     && memory?.overlay.map { !$0.isTemplate && matchingPixels($0, color: .systemYellow) > 0
+                                                && matchingPixels($0, color: .systemRed) == 0 } == true,
+                     "other metric blocks retain the default warning and draw their pressure dot in the overlay")
         Renderer.overrideSegments = nil
     }
 

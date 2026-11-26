@@ -229,8 +229,8 @@ enum MenuBarRenderer {
         "↓999Kb", "↑999Kb", "R8888B", "W8888B",
         "↓8888M", "↑8888M", "R8888M", "W8888M",
     ]
-    private static let blockImageCache: NSCache<NSString, NSImage> = {
-        let cache = NSCache<NSString, NSImage>()
+    private static let blockImageCache: NSCache<NSString, BlockLayers> = {
+        let cache = NSCache<NSString, BlockLayers>()
         cache.countLimit = 300
         // The keys embed live metric values, so continuously changing numbers
         // mint new entries all day; the byte ceiling keeps that harmless.
@@ -239,8 +239,42 @@ enum MenuBarRenderer {
     }()
 
     /// Estimated bitmap bytes of a rendered block at 2x backing scale.
-    private static func blockImageCost(_ image: NSImage) -> Int {
-        max(1, Int(image.size.width * image.size.height) * 16)
+    private static func blockImageCost(_ layers: BlockLayers) -> Int {
+        max(1, Int(layers.ink.size.width * layers.ink.size.height) * 16) * (layers.color == nil ? 1 : 2)
+    }
+
+    enum BlockLayer {
+        case ink, color
+    }
+
+    /// A block drawn the way the menu bar glyph is (BlackHoleGlyph): neutral
+    /// ink goes in a template image, so AppKit colors it for each menu bar,
+    /// dimmed on a display without focus. A template keeps only alpha, so
+    /// marks whose color carries meaning go in a full-color overlay of the
+    /// same size, made only when the block has one.
+    final class BlockLayers {
+        let ink: NSImage
+        let color: NSImage?
+        init(ink: NSImage, color: NSImage?) { self.ink = ink; self.color = color }
+    }
+
+    private static func blockLayers(size: NSSize,
+                                    hasColor: Bool,
+                                    draw: @escaping (NSRect, BlockLayer) -> Bool) -> BlockLayers {
+        let ink = NSImage(size: size, flipped: false) { draw($0, .ink) }
+        ink.isTemplate = true
+        let color = hasColor ? NSImage(size: size, flipped: false) { draw($0, .color) } : nil
+        return BlockLayers(ink: ink, color: color)
+    }
+
+    /// Neutral ink: drawn only in the template layer.
+    private static func ink(_ layer: BlockLayer, _ color: NSColor = .labelColor) -> NSColor {
+        layer == .ink ? color : .clear
+    }
+
+    /// Meaningful color: drawn only in the overlay.
+    private static func mark(_ color: NSColor, _ layer: BlockLayer) -> NSColor {
+        layer == .color ? color : .clear
     }
 
     private struct MetricItem {
@@ -712,8 +746,9 @@ enum MenuBarRenderer {
     }
 
     /// The colored attributed string for the status item. Only alert/status dots
-    /// get fixed colors; text and image-backed metric blocks use dynamic system
-    /// colors so they follow the menu bar appearance over each wallpaper.
+    /// get fixed colors; text uses dynamic system colors and image-backed
+    /// metric blocks draw neutral ink as template images (BlockLayers), so
+    /// both follow the menu bar appearance, including an inactive display.
     static func attributed(for snapshot: SystemSnapshot,
                            metrics: [MenuBarMetric],
                            allowStacked: Bool = true,
@@ -775,12 +810,11 @@ enum MenuBarRenderer {
                                          enlarged: Bool = false) -> NSAttributedString {
         let configuration = NSImage.SymbolConfiguration(pointSize: enlarged ? 13.6 : (stacked ? 8.8 : 10.8),
                                                         weight: .semibold)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [.labelColor]))
         guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
             .withSymbolConfiguration(configuration) else {
             return NSAttributedString(string: "")
         }
-        image.isTemplate = false
+        image.isTemplate = true
         let attachment = NSTextAttachment()
         attachment.image = image
         let side: CGFloat = enlarged ? 14.2 : (stacked ? 9.2 : 11.4)
@@ -794,63 +828,57 @@ enum MenuBarRenderer {
                                               style: MenuBarBlockStyle,
                                               pressure: MemoryPressure?,
                                               warning: BatteryWarning) -> NSAttributedString {
-        let image = metricBlockImage(label: label,
-                                     value: value,
-                                     minimumValue: minimumValue,
-                                     style: style,
-                                     pressure: pressure,
-                                     warning: warning)
-        let attachment = NSTextAttachment()
-        attachment.image = image
-        attachment.bounds = NSRect(x: 0,
-                                   y: (style == .readable ? -5.9 : -5.7) + legacyBlockAttachmentNudge,
-                                   width: image.size.width,
-                                   height: image.size.height)
-        return NSAttributedString(attachment: attachment)
+        let layers = metricBlockImage(label: label,
+                                      value: value,
+                                      minimumValue: minimumValue,
+                                      style: style,
+                                      pressure: pressure,
+                                      warning: warning)
+        return layeredAttachment(layers, y: (style == .readable ? -5.9 : -5.7) + legacyBlockAttachmentNudge)
+    }
+
+    /// The ink attachment with the color overlay, if any, drawn exactly on
+    /// top: a negative kern of the ink's width pulls the overlay back over
+    /// it, so the block still advances its width once.
+    private static func layeredAttachment(_ layers: BlockLayers, y: CGFloat) -> NSAttributedString {
+        let bounds = NSRect(origin: NSPoint(x: 0, y: y), size: layers.ink.size)
+        let ink = NSTextAttachment()
+        ink.image = layers.ink
+        ink.bounds = bounds
+        let result = NSMutableAttributedString(attachment: ink)
+        guard let colorImage = layers.color else { return result }
+        result.addAttribute(.kern, value: -bounds.width, range: NSRange(location: 0, length: result.length))
+        let overlay = NSTextAttachment()
+        overlay.image = colorImage
+        overlay.bounds = bounds
+        result.append(NSAttributedString(attachment: overlay))
+        return result
     }
 
     private static func usageBarBlockAttachment(label: String,
                                                 fraction: Double?,
                                                 style: MenuBarBlockStyle,
                                                 pressure: MemoryPressure?) -> NSAttributedString {
-        let image = usageBarBlockImage(label: label,
-                                       fraction: fraction,
-                                       style: style,
-                                       pressure: pressure)
-        let attachment = NSTextAttachment()
-        attachment.image = image
+        let layers = usageBarBlockImage(label: label,
+                                        fraction: fraction,
+                                        style: style,
+                                        pressure: pressure)
         // The gauge outline fills the image symmetrically, so the offset
         // centers the image itself on the status font's box (ascender
         // 11.21, descender -2.45 at 11.6pt).
-        attachment.bounds = NSRect(x: 0,
-                                   y: (style == .readable ? -6.6 : -5.6) + legacyBlockAttachmentNudge,
-                                   width: image.size.width,
-                                   height: image.size.height)
-        return NSAttributedString(attachment: attachment)
+        return layeredAttachment(layers, y: (style == .readable ? -6.6 : -5.6) + legacyBlockAttachmentNudge)
     }
 
     private static func networkBlockAttachment(down: String, up: String, style: MenuBarBlockStyle) -> NSAttributedString {
-        let image = networkBlockImage(down: down, up: up, style: style)
-        let attachment = NSTextAttachment()
-        attachment.image = image
-        attachment.bounds = NSRect(x: 0,
-                                   y: (style == .readable ? -6.1 : -5.5) + legacyBlockAttachmentNudge,
-                                   width: image.size.width,
-                                   height: image.size.height)
-        return NSAttributedString(attachment: attachment)
+        layeredAttachment(networkBlockImage(down: down, up: up, style: style),
+                          y: (style == .readable ? -6.1 : -5.5) + legacyBlockAttachmentNudge)
     }
 
     private static func diskActivityBlockAttachment(read: String,
                                                     write: String,
                                                     style: MenuBarBlockStyle) -> NSAttributedString {
-        let image = diskActivityBlockImage(read: read, write: write, style: style)
-        let attachment = NSTextAttachment()
-        attachment.image = image
-        attachment.bounds = NSRect(x: 0,
-                                   y: (style == .readable ? -6.1 : -5.5) + legacyBlockAttachmentNudge,
-                                   width: image.size.width,
-                                   height: image.size.height)
-        return NSAttributedString(attachment: attachment)
+        layeredAttachment(diskActivityBlockImage(read: read, write: write, style: style),
+                          y: (style == .readable ? -6.1 : -5.5) + legacyBlockAttachmentNudge)
     }
 
     private static func batteryBlockAttachment(percent: Int,
@@ -858,18 +886,12 @@ enum MenuBarRenderer {
                                                externalConnected: Bool,
                                                warning: BatteryWarning,
                                                style: MenuBarBlockStyle) -> NSAttributedString {
-        let image = batteryBlockImage(percent: percent,
-                                      isCharging: isCharging,
-                                      externalConnected: externalConnected,
-                                      warning: warning,
-                                      style: style)
-        let attachment = NSTextAttachment()
-        attachment.image = image
-        attachment.bounds = NSRect(x: 0,
-                                   y: (style == .readable ? -5.7 : -5.5) + legacyBlockAttachmentNudge,
-                                   width: image.size.width,
-                                   height: image.size.height)
-        return NSAttributedString(attachment: attachment)
+        let layers = batteryBlockImage(percent: percent,
+                                       isCharging: isCharging,
+                                       externalConnected: externalConnected,
+                                       warning: warning,
+                                       style: style)
+        return layeredAttachment(layers, y: (style == .readable ? -5.7 : -5.5) + legacyBlockAttachmentNudge)
     }
 
     private static func metricBlockImage(label: String,
@@ -877,7 +899,7 @@ enum MenuBarRenderer {
                                          minimumValue reservedValue: String,
                                          style: MenuBarBlockStyle,
                                          pressure: MemoryPressure?,
-                                         warning: BatteryWarning) -> NSImage {
+                                         warning: BatteryWarning) -> BlockLayers {
         // Compact spacing hugs the value's digit count (with a stability
         // floor, see MenuBarSpacingSupport) instead of the metric's absolute
         // maximum; the reserve participates in the cache key, so both modes
@@ -904,12 +926,14 @@ enum MenuBarRenderer {
         let drawnGroupWidth = dotDiameter + dotGap + valueSize.width
         let width = ceil(max(labelSize.width, reservedGroupWidth) + (style == .readable ? 2 : 0.5))
         let height: CGFloat = style == .readable ? 23 : 21
-        let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
+        let warningColor = nsColor(for: warning)
+        let layers = blockLayers(size: NSSize(width: width, height: height),
+                                 hasColor: pressure != nil || warningColor != nil) { rect, layer in
             NSColor.clear.setFill()
             rect.fill()
-            let labelAttrs = dynamicTextAttributes(font: labelFont)
-            var valueAttrs = dynamicTextAttributes(font: valueFont)
-            if let warningColor = nsColor(for: warning) { valueAttrs[.foregroundColor] = warningColor }
+            let labelAttrs = dynamicTextAttributes(font: labelFont, layer: layer)
+            var valueAttrs = dynamicTextAttributes(font: valueFont, layer: layer)
+            if let warningColor { valueAttrs[.foregroundColor] = mark(warningColor, layer) }
             (label as NSString).draw(at: NSPoint(x: (width - labelSize.width) / 2,
                                      y: style == .readable ? 12.9 : 12.0),
                                      withAttributes: labelAttrs)
@@ -919,7 +943,7 @@ enum MenuBarRenderer {
                                      y: style == .readable ? 4.1 : 3.5,
                                      width: dotDiameter,
                                      height: dotDiameter)
-                nsColor(for: pressure).setFill()
+                mark(nsColor(for: pressure), layer).setFill()
                 NSBezierPath(ovalIn: dotRect).fill()
                 valueX += dotDiameter + dotGap
             }
@@ -927,15 +951,14 @@ enum MenuBarRenderer {
                                      withAttributes: valueAttrs)
             return true
         }
-        image.isTemplate = false
-        blockImageCache.setObject(image, forKey: cacheKey, cost: blockImageCost(image))
-        return image
+        blockImageCache.setObject(layers, forKey: cacheKey, cost: blockImageCost(layers))
+        return layers
     }
 
     private static func usageBarBlockImage(label: String,
                                            fraction: Double?,
                                            style: MenuBarBlockStyle,
-                                           pressure: MemoryPressure?) -> NSImage {
+                                           pressure: MemoryPressure?) -> BlockLayers {
         let innerSteps = style == .readable ? 17 : 15
         let fillLevel = fraction.map { MenuBarUsageBarSupport.fillLevel(for: $0, steps: innerSteps) }
         let fillColorHex = fraction.map {
@@ -948,7 +971,6 @@ enum MenuBarRenderer {
 
         let size = usageBarSize(style: style, showsPressure: pressure != nil)
         let labelFont = NSFont.systemFont(ofSize: style == .readable ? 6.5 : 6.1, weight: .semibold)
-        let labelAttributes = dynamicTextAttributes(font: labelFont)
         let labelWidth: CGFloat = style == .readable ? 6.5 : 6
         let labelGap: CGFloat = 2
         let dotDiameter: CGFloat = pressure == nil ? 0 : (style == .readable ? 4.8 : 4.4)
@@ -958,10 +980,11 @@ enum MenuBarRenderer {
         let barX = labelWidth + labelGap + dotDiameter + dotGap
         let barY = (size.height - barHeight) / 2
 
-        let image = NSImage(size: size, flipped: false) { rect in
+        let layers = blockLayers(size: size, hasColor: pressure != nil || (fillLevel ?? 0) > 0) { rect, layer in
             NSColor.clear.setFill()
             rect.fill()
 
+            let labelAttributes = dynamicTextAttributes(font: labelFont, layer: layer)
             let characters = Array(label.prefix(3)).map(String.init)
             let rowHeight = (size.height - 2) / 3
             for (index, character) in characters.enumerated() {
@@ -977,7 +1000,7 @@ enum MenuBarRenderer {
                                      y: (size.height - dotDiameter) / 2,
                                      width: dotDiameter,
                                      height: dotDiameter)
-                nsColor(for: pressure).setFill()
+                mark(nsColor(for: pressure), layer).setFill()
                 NSBezierPath(ovalIn: dotRect).fill()
             }
 
@@ -986,7 +1009,7 @@ enum MenuBarRenderer {
                                      width: barWidth - 1,
                                      height: barHeight - 1)
             let outline = NSBezierPath(roundedRect: outlineRect, xRadius: 2.2, yRadius: 2.2)
-            NSColor.labelColor.setStroke()
+            ink(layer).setStroke()
             outline.lineWidth = 1.15
             outline.stroke()
 
@@ -998,10 +1021,10 @@ enum MenuBarRenderer {
                                       y: innerRect.minY,
                                       width: innerRect.width,
                                       height: fillHeight)
-                usageBarColor(hex: fillColorHex).setFill()
+                mark(usageBarColor(hex: fillColorHex), layer).setFill()
                 NSBezierPath(roundedRect: fillRect, xRadius: 1.2, yRadius: 1.2).fill()
             } else if fillLevel == nil {
-                NSColor.secondaryLabelColor.setStroke()
+                ink(layer, .secondaryLabelColor).setStroke()
                 let dash = NSBezierPath()
                 dash.move(to: NSPoint(x: innerRect.minX + 0.3, y: innerRect.midY))
                 dash.line(to: NSPoint(x: innerRect.maxX - 0.3, y: innerRect.midY))
@@ -1010,9 +1033,8 @@ enum MenuBarRenderer {
             }
             return true
         }
-        image.isTemplate = false
-        blockImageCache.setObject(image, forKey: cacheKey, cost: blockImageCost(image))
-        return image
+        blockImageCache.setObject(layers, forKey: cacheKey, cost: blockImageCost(layers))
+        return layers
     }
 
     private static func usageBarColor(hex: String) -> NSColor {
@@ -1024,7 +1046,7 @@ enum MenuBarRenderer {
                        alpha: 1)
     }
 
-    private static func networkBlockImage(down: String, up: String, style: MenuBarBlockStyle) -> NSImage {
+    private static func networkBlockImage(down: String, up: String, style: MenuBarBlockStyle) -> BlockLayers {
         let uploadFirst = UserDefaults.standard.bool(forKey: DefaultsKey.menuBarNetworkUploadFirst)
         let cacheKey = "network|\(down)|\(up)|\(style)|\(uploadFirst)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
@@ -1038,7 +1060,7 @@ enum MenuBarRenderer {
 
     private static func diskActivityBlockImage(read: String,
                                                write: String,
-                                               style: MenuBarBlockStyle) -> NSImage {
+                                               style: MenuBarBlockStyle) -> BlockLayers {
         let cacheKey = "diskActivity|\(read)|\(write)|\(style)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
@@ -1051,16 +1073,16 @@ enum MenuBarRenderer {
     private static func stackedRatesImage(lines: [String],
                                           reservedLines: [String],
                                           cacheKey: NSString,
-                                          style: MenuBarBlockStyle) -> NSImage {
+                                          style: MenuBarBlockStyle) -> BlockLayers {
         let font = NSFont.monospacedSystemFont(ofSize: networkBlockFontSize(style: style),
                                                weight: .semibold)
         let lineHeight = networkBlockLineHeight(style: style)
         let height: CGFloat = style == .readable ? 22 : 20
         let imageSize = NSSize(width: rateBlockWidth(style: style), height: height)
-        let image = NSImage(size: imageSize, flipped: false) { rect in
+        let layers = blockLayers(size: imageSize, hasColor: false) { rect, layer in
             NSColor.clear.setFill()
             rect.fill()
-            let attrs = dynamicTextAttributes(font: font)
+            let attrs = dynamicTextAttributes(font: font, layer: layer)
             let textSize = ((reservedLines.first ?? lines.first ?? "") as NSString).size(withAttributes: attrs)
             let contentHeight = lineHeight + textSize.height
             let bottomY = (imageSize.height - contentHeight) / 2
@@ -1072,9 +1094,8 @@ enum MenuBarRenderer {
             }
             return true
         }
-        image.isTemplate = false
-        blockImageCache.setObject(image, forKey: cacheKey, cost: blockImageCost(image))
-        return image
+        blockImageCache.setObject(layers, forKey: cacheKey, cost: blockImageCost(layers))
+        return layers
     }
 
     private static func rateBlockWidth(candidates: [String], style: MenuBarBlockStyle) -> CGFloat {
@@ -1089,7 +1110,7 @@ enum MenuBarRenderer {
                                           isCharging: Bool,
                                           externalConnected: Bool,
                                           warning: BatteryWarning,
-                                          style: MenuBarBlockStyle) -> NSImage {
+                                          style: MenuBarBlockStyle) -> BlockLayers {
         let clampedPercent = max(0, min(100, percent))
         let cacheKey = "battery|\(clampedPercent)|\(isCharging)|\(externalConnected)|\(warning)|\(style)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
@@ -1109,11 +1130,12 @@ enum MenuBarRenderer {
         let gap: CGFloat = style == .readable ? 5 : 4
         let height: CGFloat = style == .readable ? 22 : 20
         let imageSize = NSSize(width: ceil(symbolWidth + gap + reservedValueSize), height: height)
-        let image = NSImage(size: imageSize, flipped: false) { rect in
+        let layers = blockLayers(size: imageSize, hasColor: warningColor != nil) { rect, layer in
             NSColor.clear.setFill()
             rect.fill()
+            let symbolColor = warningColor.map { mark($0, layer) } ?? ink(layer)
             let symbolConfig = NSImage.SymbolConfiguration(pointSize: symbolPointSize, weight: .regular)
-                .applying(NSImage.SymbolConfiguration(paletteColors: [warningColor ?? .labelColor]))
+                .applying(NSImage.SymbolConfiguration(paletteColors: [symbolColor]))
             if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
                 .withSymbolConfiguration(symbolConfig) {
                 let symbolSize = symbol.size
@@ -1130,20 +1152,19 @@ enum MenuBarRenderer {
                                         height: drawSize.height)
                 symbol.draw(in: symbolRect)
             }
-            var valueAttrs = dynamicTextAttributes(font: valueFont)
-            if let warningColor { valueAttrs[.foregroundColor] = warningColor }
+            var valueAttrs = dynamicTextAttributes(font: valueFont, layer: layer)
+            if let warningColor { valueAttrs[.foregroundColor] = mark(warningColor, layer) }
             let valueY = (height - valueSize.height) / 2
             (value as NSString).draw(at: NSPoint(x: symbolWidth + gap, y: valueY),
                                      withAttributes: valueAttrs)
             return true
         }
-        image.isTemplate = false
-        blockImageCache.setObject(image, forKey: cacheKey, cost: blockImageCost(image))
-        return image
+        blockImageCache.setObject(layers, forKey: cacheKey, cost: blockImageCost(layers))
+        return layers
     }
 
-    private static func dynamicTextAttributes(font: NSFont) -> [NSAttributedString.Key: Any] {
-        [.font: font, .foregroundColor: NSColor.labelColor]
+    private static func dynamicTextAttributes(font: NSFont, layer: BlockLayer) -> [NSAttributedString.Key: Any] {
+        [.font: font, .foregroundColor: ink(layer)]
     }
 
     /// The island's low battery warning, which the menu bar reading shares.
