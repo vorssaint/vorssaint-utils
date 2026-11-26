@@ -519,7 +519,7 @@ final class WindowLayoutService: ObservableObject {
         guard hasRequiredCapability else { return nil }
         let key = WindowLayoutWindowKey(
             processID: app.processIdentifier,
-            processLaunchTime: app.launchDate?.timeIntervalSinceReferenceDate ?? 0,
+            processLaunchTime: WindowLayoutProcessStartTime(of: app.processIdentifier) ?? 0,
             windowID: windowID
         )
         return WindowLayoutTarget(window: window, key: key, frame: frame)
@@ -537,6 +537,10 @@ final class WindowLayoutService: ObservableObject {
     /// Removes histories whose process or window no longer exists. This runs
     /// only for an explicit layout action, never from a timer or input tap.
     private func pruneWindowState(keeping current: WindowLayoutWindowKey) {
+        // A fresh session has nothing to prune, and the window-server and
+        // launch-time lookups below cost more than the placement itself.
+        guard !frameHistory.isEmpty || !lastActions.isEmpty
+                || !settledFrames.isEmpty || !restoreFrames.isEmpty else { return }
         guard var activeWindows = activeWindowKeys() else { return }
         activeWindows.insert(current)
         frameHistory.removeStaleWindows(keeping: activeWindows)
@@ -556,10 +560,9 @@ final class WindowLayoutService: ObservableObject {
                   let pid = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
                   let windowID = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value
             else { continue }
-            if launchTimes[pid] == nil {
-                guard let app = NSRunningApplication(processIdentifier: pid),
-                      app.activationPolicy == .regular else { continue }
-                launchTimes[pid] = app.launchDate?.timeIntervalSinceReferenceDate ?? 0
+            if launchTimes[pid] == nil,
+               let startTime = WindowLayoutProcessStartTime(of: pid) {
+                launchTimes[pid] = startTime
             }
             guard let launchTime = launchTimes[pid] else { continue }
             keys.insert(WindowLayoutWindowKey(processID: pid,
@@ -2038,7 +2041,7 @@ final class WindowLayoutService: ObservableObject {
     private func edgeSnapWindowIsEligible(_ drag: WindowEdgeSnapDrag) -> Bool {
         guard let app = NSRunningApplication(processIdentifier: drag.key.processID),
               !app.isTerminated,
-              (app.launchDate?.timeIntervalSinceReferenceDate ?? 0) == drag.key.processLaunchTime,
+              (WindowLayoutProcessStartTime(of: drag.key.processID) ?? 0) == drag.key.processLaunchTime,
               !WindowLayoutIgnoredApps.shared.contains(bundleID: app.bundleIdentifier,
                                                        executablePath: app.executableURL?.path)
         else { return false }
