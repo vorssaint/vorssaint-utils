@@ -806,13 +806,27 @@ def main():
           + "".join(declaration("Sources/Vorssaint/Services/CommandBar/CommandBarService.swift", prefix)
                     .replace("private func", "func", 1) for prefix in [
                         "    private func adoptASCIIInputSource(",
-                        "    private func restoreSuspendedInputSource(",
-                        "    func restoreBorrowedInputSource(",
-                        "    var hasBorrowedInputSource:"])
+                        "    private func restoreSuspendedInputSource("])
+          + "}\n}\n")
+    write("InputSourceBorrow.swift", "import Foundation\n"
+          + "extension CommandBarInputSourceContract {\nfinal class Borrow {\n"
+          + "static var restoreTo: String?\n"
+          + "static var switchObservers: [UUID: (String) -> Void] = [:]\n"
+          + "".join(declaration("Sources/Vorssaint/Core/InputSourceSelection.swift", prefix)
+                    for prefix in [
+                        "    static func observeSwitches(",
+                        "    static func stopObservingSwitches(",
+                        "    static func borrow(",
+                        "    static func restoreAll(",
+                        "    private static func reportSwitch("])
           + "}\n}\n")
     write("NotchInputSource.swift", "import Foundation\n"
           + "extension CommandBarInputSourceContract {\nfinal class Island {\n"
-          + "static var shared = Island()\ntypealias InputSourceSelection = Sources\n"
+          + "static var constructed = false\nprivate static var instance = Island()\n"
+          + "static var shared: Island {\n"
+          + "get { constructed = true; return instance }\n"
+          + "set { instance = newValue }\n}\n"
+          + "typealias InputSourceSelection = Sources\n"
           + "var inputSourceID: String?\nvar ownInputSourceID: String?\n"
           + "var presented: [NotchNotice] = []\n"
           + "func show(_ notice: NotchNotice) { presented.append(notice) }\n"
