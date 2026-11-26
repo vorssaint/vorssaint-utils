@@ -556,7 +556,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager
+         commandBar, screenRecorder, portManager, keyboardTyper
 
     var id: String { rawValue }
 
@@ -582,6 +582,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
         case .portManager: return .portManager
+        case .keyboardTyper: return .keyboardTyper
         }
     }
 }
@@ -618,6 +619,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
+    @AppStorage(DefaultsKey.panelUtilityKeyboardTyper) private var showKeyboardTyper = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -782,6 +784,7 @@ struct UtilitiesSection: View {
         case .screenshot: return showScreenshot
         case .screenRecorder: return showScreenRecorder
         case .portManager: return showPortManager
+        case .keyboardTyper: return showKeyboardTyper
         }
     }
 
@@ -990,6 +993,19 @@ struct UtilitiesSection: View {
                                         ScratchpadService.shared.show()
                                     }
                                 })
+        case .keyboardTyper:
+            UtilityActionButton(title: FeatureStrings.keyboardTyper(l10n.language).pageTitle,
+                                caption: FeatureStrings.keyboardTyper(l10n.language).panelCaption,
+                                systemImage: AppFeature.keyboardTyper.symbolName,
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showKeyboardTyper,
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        KeyboardTyperService.shared.show()
+                                    }
+                                })
         case .quickLauncher:
             UtilityActionButton(title: l10n.s.launcherName,
                                 caption: l10n.s.launcherCaption,
@@ -1103,6 +1119,7 @@ struct UtilitiesSection: View {
         showQuickLauncher = true
         showCommandBar = true
         showPortManager = true
+        showKeyboardTyper = true
     }
 
     private func grantAccessibility() {

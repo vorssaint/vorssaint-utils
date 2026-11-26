@@ -590,6 +590,7 @@ enum SettingsDirectory {
                                         (.wallpaper,
                                          [FeatureStrings.wallpaper(language).pageTitle]),
                                         (.scratchpad, [FeatureStrings.scratchpad(language).pageTitle]),
+                                        (.keyboardTyper, [FeatureStrings.keyboardTyper(language).pageTitle]),
                                         (.cleaningMode, [s.cleaningMenuItem, s.cleaningKeepScreenVisibleToggle]),
                                        ]),
                 SettingsDirectoryItem(page: .screenshot,

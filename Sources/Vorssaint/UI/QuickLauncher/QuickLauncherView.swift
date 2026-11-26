@@ -517,6 +517,7 @@ struct QuickLauncherView: View {
             return recorder.isRecording ? strings.stopButton : strings.pageTitle
         case .cameraPreview: return FeatureStrings.cameraPreview(l10n.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(l10n.language).pageTitle
+        case .keyboardTyper: return FeatureStrings.keyboardTyper(l10n.language).pageTitle
         }
     }
 
@@ -539,6 +540,7 @@ struct QuickLauncherView: View {
         case .screenRecorder: return recorder.isRecording ? "stop.circle" : "record.circle"
         case .cameraPreview: return "web.camera"
         case .scratchpad: return "note.text"
+        case .keyboardTyper: return "keyboard.badge.ellipsis"
         }
     }
 
