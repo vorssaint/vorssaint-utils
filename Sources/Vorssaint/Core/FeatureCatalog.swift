@@ -42,6 +42,27 @@ enum FeatureGroup: String, CaseIterable {
     case windowsDock, mouseKeyboard, clipboardFiles, sound, energyDisplay, tools, dynamicIsland, monitor
 }
 
+/// Everything the hub knows about a feature that is description rather than
+/// behaviour: its group, its glyph, whether an update installs it, and which
+/// monitor alerts belong to it. One record per `AppFeature` case lives in
+/// `AppFeature.metadataTable`, so adding a feature means adding one row there
+/// instead of touching every table in this file.
+struct AppFeatureMetadata {
+    let group: FeatureGroup
+    let symbol: String
+    /// A glyph that follows a setting instead of a fixed name, such as the
+    /// Super key's chosen symbol.
+    var symbolFromSetting: (() -> String)?
+    /// An update leaves opt-in features uninstalled and lets the Features hub
+    /// install them. New features are opt-in on purpose.
+    var optIn = false
+    /// Shown with a beta warning and kept out of presets.
+    var beta = false
+    /// Monitor alert keys whose reading belongs to this metric feature. Only a
+    /// monitor metric carries any.
+    var monitorAlertKeys: [String] = []
+}
+
 /// System permissions surfaced by the hub's transparency portal.
 enum AppPermission: String, CaseIterable {
     case accessibility, screenRecording, fullDiskAccess, filesAndFolders, notifications,
@@ -99,125 +120,130 @@ extension AppFeature {
         )
     }
 
-    var group: FeatureGroup {
-        switch self {
-        case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit, .spacesOrder:
-            return .windowsDock
-        case .scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .scrollSpeed, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
-             .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
-            return .mouseKeyboard
-        case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
-             .diskImageInstaller:
-            return .clipboardFiles
-        case .mixer, .soundOutputSwitcher, .audioPriority, .micMute, .musicBlock:
-            return .sound
-        case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep:
-            return .energyDisplay
-        case .quickLauncher, .quickToggles, .quitApps, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
-             .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
-            return .tools
-        case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
-             .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
-             .notchMascot:
-            return .dynamicIsland
-        case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
-             .connectedDevices, .fanControl:
-            return .monitor
+    /// The description table; behaviour tables (`enabledKeys`, `permissions`,
+    /// `activeFeatures`) stay separate on purpose.
+    var metadata: AppFeatureMetadata {
+        guard let metadata = Self.metadataTable[self] else {
+            preconditionFailure("missing metadata for feature \(rawValue)")
         }
+        return metadata
     }
 
-    var symbolName: String {
-        switch self {
-        case .switcher: return "rectangle.on.rectangle"
-        case .dockPreview: return "dock.rectangle"
-        case .dockClick: return "dock.arrow.down.rectangle"
-        case .windowMaximizer: return "arrow.up.left.and.arrow.down.right"
-        case .windowLayout: return "rectangle.3.group"
-        case .autoQuit: return "xmark.rectangle"
-        case .spacesOrder: return "rectangle.split.3x1"
-        case .scrollInverter: return "arrow.up.arrow.down"
-        case .scrollHorizontal: return "arrow.triangle.swap"
-        case .scrollZoom: return "plus.magnifyingglass"
-        case .focusFollowsMouse: return "cursorarrow.and.square.on.square.dashed"
-        case .smoothScroll: return "cursorarrow.motionlines"
-        case .linearScroll: return "arrow.up.and.down.text.horizontal"
-        case .scrollSpeed: return "gauge.with.dots.needle.67percent"
-        case .mouseAcceleration: return "cursorarrow.rays"
-        case .mouseNavigation: return "arrow.left.arrow.right"
-        case .mouseButtonShortcuts: return "button.programmable"
-        case .middleClick: return "hand.tap"
-        case .keyboardDebounce: return "keyboard"
-        case .textSnippets: return "text.append"
-        case .superKey:
-            return SuperKeySource.sanitized(
-                UserDefaults.standard.string(forKey: DefaultsKey.superKeySource)
-            ).systemImage
-        case .mouseClickDebounce: return "cursorarrow.click"
-        case .quitWindowProtection: return "shield.lefthalf.filled"
-        case .clipboardHistory: return "doc.on.clipboard"
-        case .pastePlain: return "doc.plaintext"
-        case .finderCutPaste: return "scissors"
-        case .finderRename: return "pencil"
-        case .shelf: return "tray.full"
-        case .urlCleaner: return "link"
-        case .diskImageInstaller: return "externaldrive.badge.plus"
-        case .mixer: return "speaker.wave.2"
-        case .soundOutputSwitcher: return "hifispeaker"
-        case .audioPriority: return "list.number"
-        case .micMute: return "mic.slash"
-        case .musicBlock: return "music.note"
-        case .keepAwake: return "moon.zzz.fill"
-        case .brightness: return "display.2"
-        case .extraBrightness: return "sun.max.fill"
-        case .bluetoothSleep: return "wave.3.right.circle"
-        case .quickLauncher: return "wand.and.rays"
-        case .quickToggles: return "togglepower"
-        case .quitApps: return "xmark.app"
-        case .colorPicker: return "eyedropper"
-        case .screenOCR: return "text.viewfinder"
-        case .cleaningMode: return "bubbles.and.sparkles"
-        case .mediaTools: return "photo.on.rectangle.angled"
-        case .cleaner: return "sparkles"
-        case .uninstaller: return "trash"
-        case .homebrew: return "shippingbox"
-        case .appUpdates: return "arrow.down.app"
-        case .screenshot: return "camera.viewfinder"
-        case .screenRecorder: return "record.circle"
-        case .cameraPreview: return "web.camera"
-        case .wallpaper: return "photo.on.rectangle"
-        case .notchGestures: return "hand.draw"
-        case .notchTimer: return "timer"
-        case .notchAccessories: return "battery.25percent"
-        case .notchLyrics: return "quote.bubble"
-        case .notchQueue: return "list.bullet"
-        case .notchLiveEqualizer: return "waveform"
-        case .notchDownloads: return "arrow.down.circle"
-        case .notchNotifications: return "bell"
-        case .notchCalendar: return "calendar"
-        case .notchAgents: return "sparkles"
-        case .notchWatch: return "eye"
-        case .notchMascot: return "face.smiling"
-        case .notch: return "macbook"
-        case .radialMenu: return "circle.grid.cross"
-        case .scratchpad: return "note.text"
-        case .commandBar: return "command"
-        case .killProcess: return "xmark.octagon"
-        case .portManager: return "network"
-        case .monitorCPU: return "cpu"
-        case .monitorGPU: return "rectangle.connected.to.line.below"
-        case .monitorMemory: return "memorychip"
-        case .monitorNetwork: return "network"
-        case .monitorDisk: return "internaldrive"
-        case .monitorPower: return "bolt.fill"
-        case .connectedDevices: return "cable.connector"
-        case .fanControl: return "fanblades.fill"
-        }
-    }
+    /// The one row every description of a feature comes from: group, glyph,
+    /// install default, beta flag and monitor alerts. Adding a case means
+    /// adding a row here; no other table in this file has to learn about it.
+    private static let metadataTable: [AppFeature: AppFeatureMetadata] = [
+        // Windows and Dock
+        .switcher: AppFeatureMetadata(group: .windowsDock, symbol: "rectangle.on.rectangle"),
+        .dockPreview: AppFeatureMetadata(group: .windowsDock, symbol: "dock.rectangle"),
+        .dockClick: AppFeatureMetadata(group: .windowsDock, symbol: "dock.arrow.down.rectangle"),
+        .windowMaximizer: AppFeatureMetadata(group: .windowsDock, symbol: "arrow.up.left.and.arrow.down.right"),
+        .windowLayout: AppFeatureMetadata(group: .windowsDock, symbol: "rectangle.3.group"),
+        .autoQuit: AppFeatureMetadata(group: .windowsDock, symbol: "xmark.rectangle"),
+        .spacesOrder: AppFeatureMetadata(group: .windowsDock, symbol: "rectangle.split.3x1", optIn: true),
+        // Mouse and keyboard
+        .scrollInverter: AppFeatureMetadata(group: .mouseKeyboard, symbol: "arrow.up.arrow.down"),
+        .scrollHorizontal: AppFeatureMetadata(group: .mouseKeyboard, symbol: "arrow.triangle.swap", optIn: true),
+        .scrollZoom: AppFeatureMetadata(group: .mouseKeyboard, symbol: "plus.magnifyingglass", optIn: true),
+        .focusFollowsMouse: AppFeatureMetadata(group: .mouseKeyboard, symbol: "cursorarrow.and.square.on.square.dashed", optIn: true),
+        .smoothScroll: AppFeatureMetadata(group: .mouseKeyboard, symbol: "cursorarrow.motionlines"),
+        .linearScroll: AppFeatureMetadata(group: .mouseKeyboard, symbol: "arrow.up.and.down.text.horizontal", optIn: true),
+        .scrollSpeed: AppFeatureMetadata(group: .mouseKeyboard, symbol: "gauge.with.dots.needle.67percent", optIn: true),
+        .mouseAcceleration: AppFeatureMetadata(group: .mouseKeyboard, symbol: "cursorarrow.rays"),
+        .mouseNavigation: AppFeatureMetadata(group: .mouseKeyboard, symbol: "arrow.left.arrow.right"),
+        .mouseButtonShortcuts: AppFeatureMetadata(group: .mouseKeyboard, symbol: "button.programmable"),
+        .middleClick: AppFeatureMetadata(group: .mouseKeyboard, symbol: "hand.tap"),
+        .keyboardDebounce: AppFeatureMetadata(group: .mouseKeyboard, symbol: "keyboard"),
+        .textSnippets: AppFeatureMetadata(group: .mouseKeyboard, symbol: "text.append"),
+        .superKey: AppFeatureMetadata(
+            group: .mouseKeyboard, symbol: "",
+            symbolFromSetting: {
+                SuperKeySource.sanitized(
+                    UserDefaults.standard.string(forKey: DefaultsKey.superKeySource)
+                ).systemImage
+            }),
+        .quitWindowProtection: AppFeatureMetadata(group: .mouseKeyboard, symbol: "shield.lefthalf.filled"),
+        .mouseClickDebounce: AppFeatureMetadata(group: .mouseKeyboard, symbol: "cursorarrow.click"),
+        // Clipboard and files
+        .clipboardHistory: AppFeatureMetadata(group: .clipboardFiles, symbol: "doc.on.clipboard"),
+        .pastePlain: AppFeatureMetadata(group: .clipboardFiles, symbol: "doc.plaintext"),
+        .finderCutPaste: AppFeatureMetadata(group: .clipboardFiles, symbol: "scissors"),
+        .finderRename: AppFeatureMetadata(group: .clipboardFiles, symbol: "pencil"),
+        .shelf: AppFeatureMetadata(group: .clipboardFiles, symbol: "tray.full"),
+        .urlCleaner: AppFeatureMetadata(group: .clipboardFiles, symbol: "link"),
+        .diskImageInstaller: AppFeatureMetadata(group: .clipboardFiles, symbol: "externaldrive.badge.plus", optIn: true),
+        // Sound
+        .mixer: AppFeatureMetadata(group: .sound, symbol: "speaker.wave.2"),
+        .soundOutputSwitcher: AppFeatureMetadata(group: .sound, symbol: "hifispeaker"),
+        .audioPriority: AppFeatureMetadata(group: .sound, symbol: "list.number", optIn: true),
+        .micMute: AppFeatureMetadata(group: .sound, symbol: "mic.slash"),
+        .musicBlock: AppFeatureMetadata(group: .sound, symbol: "music.note"),
+        // Energy and display
+        .keepAwake: AppFeatureMetadata(group: .energyDisplay, symbol: "moon.zzz.fill"),
+        .brightness: AppFeatureMetadata(group: .energyDisplay, symbol: "display.2"),
+        .extraBrightness: AppFeatureMetadata(group: .energyDisplay, symbol: "sun.max.fill"),
+        .bluetoothSleep: AppFeatureMetadata(group: .energyDisplay, symbol: "wave.3.right.circle"),
+        // Tools
+        .quickLauncher: AppFeatureMetadata(group: .tools, symbol: "wand.and.rays"),
+        .quickToggles: AppFeatureMetadata(group: .tools, symbol: "togglepower"),
+        .quitApps: AppFeatureMetadata(group: .tools, symbol: "xmark.app", optIn: true),
+        .colorPicker: AppFeatureMetadata(group: .tools, symbol: "eyedropper"),
+        .screenOCR: AppFeatureMetadata(group: .tools, symbol: "text.viewfinder"),
+        .cleaningMode: AppFeatureMetadata(group: .tools, symbol: "bubbles.and.sparkles"),
+        .mediaTools: AppFeatureMetadata(group: .tools, symbol: "photo.on.rectangle.angled"),
+        .cleaner: AppFeatureMetadata(group: .tools, symbol: "sparkles"),
+        .uninstaller: AppFeatureMetadata(group: .tools, symbol: "trash"),
+        .homebrew: AppFeatureMetadata(group: .tools, symbol: "shippingbox"),
+        .appUpdates: AppFeatureMetadata(group: .tools, symbol: "arrow.down.app"),
+        .screenshot: AppFeatureMetadata(group: .tools, symbol: "camera.viewfinder"),
+        .cameraPreview: AppFeatureMetadata(group: .tools, symbol: "web.camera"),
+        .radialMenu: AppFeatureMetadata(group: .tools, symbol: "circle.grid.cross"),
+        .scratchpad: AppFeatureMetadata(group: .tools, symbol: "note.text"),
+        .commandBar: AppFeatureMetadata(group: .tools, symbol: "command"),
+        .screenRecorder: AppFeatureMetadata(group: .tools, symbol: "record.circle"),
+        .wallpaper: AppFeatureMetadata(group: .tools, symbol: "photo.on.rectangle", optIn: true),
+        .killProcess: AppFeatureMetadata(group: .tools, symbol: "xmark.octagon", optIn: true, beta: true),
+        .portManager: AppFeatureMetadata(group: .tools, symbol: "network", optIn: true),
+        // Dynamic Island, then its extensions
+        .notch: AppFeatureMetadata(group: .dynamicIsland, symbol: "macbook"),
+        .notchCalendar: AppFeatureMetadata(group: .dynamicIsland, symbol: "calendar"),
+        .notchNotifications: AppFeatureMetadata(group: .dynamicIsland, symbol: "bell"),
+        .notchGestures: AppFeatureMetadata(group: .dynamicIsland, symbol: "hand.draw"),
+        .notchTimer: AppFeatureMetadata(group: .dynamicIsland, symbol: "timer"),
+        .notchAccessories: AppFeatureMetadata(group: .dynamicIsland, symbol: "battery.25percent"),
+        .notchLyrics: AppFeatureMetadata(group: .dynamicIsland, symbol: "quote.bubble"),
+        .notchQueue: AppFeatureMetadata(group: .dynamicIsland, symbol: "list.bullet"),
+        .notchLiveEqualizer: AppFeatureMetadata(group: .dynamicIsland, symbol: "waveform"),
+        .notchDownloads: AppFeatureMetadata(group: .dynamicIsland, symbol: "arrow.down.circle"),
+        .notchAgents: AppFeatureMetadata(group: .dynamicIsland, symbol: "sparkles"),
+        .notchWatch: AppFeatureMetadata(group: .dynamicIsland, symbol: "eye"),
+        .notchMascot: AppFeatureMetadata(group: .dynamicIsland, symbol: "face.smiling", optIn: true),
+        // System monitor
+        .monitorCPU: AppFeatureMetadata(group: .monitor, symbol: "cpu", monitorAlertKeys: [
+            DefaultsKey.monitorAlertCPU, DefaultsKey.monitorAlertCPUTemperature,
+        ]),
+        .monitorGPU: AppFeatureMetadata(group: .monitor, symbol: "rectangle.connected.to.line.below"),
+        .monitorMemory: AppFeatureMetadata(group: .monitor, symbol: "memorychip", monitorAlertKeys: [
+            DefaultsKey.monitorAlertMemory,
+        ]),
+        .monitorNetwork: AppFeatureMetadata(group: .monitor, symbol: "network"),
+        .monitorDisk: AppFeatureMetadata(group: .monitor, symbol: "internaldrive", monitorAlertKeys: [
+            DefaultsKey.monitorAlertDisk,
+        ]),
+        .monitorPower: AppFeatureMetadata(group: .monitor, symbol: "bolt.fill", monitorAlertKeys: [
+            DefaultsKey.monitorAlertBatteryTemperature, DefaultsKey.monitorAlertBattery,
+        ]),
+        .connectedDevices: AppFeatureMetadata(group: .monitor, symbol: "cable.connector"),
+        .fanControl: AppFeatureMetadata(group: .monitor, symbol: "fanblades.fill", optIn: true, beta: true),
+    ]
+
+    var group: FeatureGroup { metadata.group }
+
+    var symbolName: String { metadata.symbolFromSetting?() ?? metadata.symbol }
 
     var availabilityKey: String { DefaultsKey.featureAvailable(rawValue) }
 
-    var isBeta: Bool { self == .fanControl || self == .killProcess }
+    var isBeta: Bool { metadata.beta }
 
     /// Availability read straight from defaults. Existing features stay
     /// available on update; explicit beta opt-ins may start unavailable.
@@ -467,34 +493,13 @@ extension AppFeature {
     /// Whether a Mac that never chose this feature has it installed. Most
     /// people updating never saved an availability, so this list IS their
     /// install: moving a feature out of it uninstalls it for all of them,
-    /// which is why a test pins it. The switch has no default on purpose, so
+    /// which is why a test pins it. `optIn` has no default on purpose, so
     /// every new feature is placed here by decision. New features belong on
     /// the opt-in side: an update should never grow the panel and Settings on
     /// its own, and the Features page and release notes are where they get
     /// installed. A feature split out of an existing one needs a migration
     /// that copies its parent's availability instead.
-    var installedByDefault: Bool {
-        switch self {
-        case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit,
-             .scrollInverter, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
-             .middleClick, .mouseClickDebounce, .keyboardDebounce, .textSnippets, .superKey,
-             .quitWindowProtection,
-             .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
-             .mixer, .soundOutputSwitcher, .micMute, .musicBlock,
-             .keepAwake, .brightness, .extraBrightness, .bluetoothSleep,
-             .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
-             .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar, .screenRecorder,
-             .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
-             .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
-             .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
-             .connectedDevices:
-            return true
-        case .focusFollowsMouse, .scrollHorizontal, .scrollZoom, .linearScroll, .scrollSpeed, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps:
-            return false
-        }
-    }
+    var installedByDefault: Bool { !metadata.optIn }
 
     /// Registered defaults keep every feature an update already had and leave
     /// opt-in features and explicit betas uninstalled.
@@ -593,14 +598,10 @@ extension AppFeature {
 
     /// Monitor alert keys and the metric feature each one belongs to. An
     /// alert only counts while its metric is available in the hub.
-    static let monitorAlertPairs: [(key: String, feature: AppFeature)] = [
-        (DefaultsKey.monitorAlertCPU, .monitorCPU),
-        (DefaultsKey.monitorAlertCPUTemperature, .monitorCPU),
-        (DefaultsKey.monitorAlertBatteryTemperature, .monitorPower),
-        (DefaultsKey.monitorAlertMemory, .monitorMemory),
-        (DefaultsKey.monitorAlertDisk, .monitorDisk),
-        (DefaultsKey.monitorAlertBattery, .monitorPower),
-    ]
+    static let monitorAlertPairs: [(key: String, feature: AppFeature)] =
+        allCases.flatMap { feature in
+            feature.metadata.monitorAlertKeys.map { (key: $0, feature: feature) }
+        }
 
     static func anyMonitorAlertEnabled(includingDisk: Bool = true,
                                        isAvailable: (AppFeature) -> Bool,
