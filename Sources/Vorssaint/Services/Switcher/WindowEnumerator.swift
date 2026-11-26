@@ -1514,11 +1514,11 @@ enum WindowEnumerator {
                                             screenFrames: screenFrames,
                                             rejectedWindowIDs: &rejectedWindowIDs,
                                             isCancelled: isCancelled)
-            if reading == .unanswered { appendUnique(window, to: &unansweredWindows) }
+            if case .unanswered = reading { appendUnique(window, to: &unansweredWindows) }
             if case .overlayCandidate(let id) = reading {
                 overlayCandidates.append((window, id, attributes))
             }
-            if reading == .userFacing, !isCancelled(), let id = AXWindowResolver.windowID(for: window) {
+            if case .userFacing = reading, !isCancelled(), let id = AXWindowResolver.windowID(for: window) {
                 record(window, attributes, id: id)
             }
             return reading
@@ -1526,7 +1526,7 @@ enum WindowEnumerator {
         if windowsResult == .success, let windows = axWindowList {
             for window in windows {
                 guard !isCancelled() else { return nil }
-                if read(window) == .userFacing {
+                if case .userFacing = read(window) {
                     appendUnique(window, to: &axWindows)
                 }
             }
@@ -1543,7 +1543,7 @@ enum WindowEnumerator {
                 // the attribute read contacts the other process to reach a
                 // window we would then drop. Rejected and timed-out windows
                 // must not be read again either.
-                if read(window) == .userFacing {
+                if case .userFacing = read(window) {
                     axWindows.append(window)
                 }
                 if attribute as String == kAXFocusedWindowAttribute as String {
