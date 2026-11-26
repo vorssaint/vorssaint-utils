@@ -11,6 +11,7 @@ enum NotchActivityTests {
         alertContracts(suite)
         lowBatteryContracts(suite)
         pomodoroContracts(suite)
+        skipContracts(suite)
         stopwatchContracts(suite)
         modePickerContracts(suite)
         rulerContracts(suite)
@@ -364,7 +365,7 @@ enum NotchActivityTests {
         var session = NotchTimerSession()
         session.start(mode: .pomodoro, minutes: 1, now: 0, configuration: config)
         suite.expect(session.duration == 600 && session.sessionNumber == 1 && !session.canStartNext,
-               "custom focus duration starts the first session and cannot be skipped while active")
+               "custom focus duration starts the first session and cannot advance before its deadline")
         session.pause(at: 100)
         session.resume(at: 1_000)
         suite.expect(session.deadline == 1_500 && session.configuration == config,
@@ -436,6 +437,66 @@ enum NotchActivityTests {
                && geometry.contentSize(for: setup).height <= geometry.contentBudget
                && geometry.contentSize(for: active).height == NotchLayout.timerRulerHeight && active.height < setup.height,
                "the Pomodoro setup fits the strip with its readouts under the ruler; running, its progress is in the top row and the island shortens")
+    }
+
+    /// Skipping ends the running phase early with the same bookkeeping as a
+    /// natural end and begins the next one; an idle session is untouched.
+    private static func skipContracts(_ suite: TestSuite) {
+        var idle = NotchTimerSession()
+        let untouched = idle
+        suite.expect(!idle.skip(at: 10) && idle == untouched,
+               "skipping an idle timer changes nothing")
+
+        var countdown = NotchTimerSession()
+        countdown.start(mode: .timer, minutes: 5, now: 0)
+        let running = countdown
+        suite.expect(!countdown.skip(at: 60) && countdown == running,
+               "only a Pomodoro has a phase to skip")
+
+        var watch = NotchTimerSession()
+        watch.start(mode: .stopwatch, minutes: 5, now: 0)
+        let elapsed = watch
+        suite.expect(!watch.skip(at: 60) && watch == elapsed,
+               "a stopwatch has no phases to skip")
+
+        let config = NotchPomodoroConfiguration(focusMinutes: 10, shortBreakMinutes: 2,
+                                              longBreakMinutes: 7, longBreakInterval: 2, totalSessions: 3)
+        var session = NotchTimerSession()
+        session.start(mode: .pomodoro, minutes: 1, now: 0, configuration: config)
+        suite.expect(session.skip(at: 60) && session.phase == .shortBreak
+               && session.duration == 120 && session.deadline == 180
+               && session.isRunning && !session.completed && session.completedFocuses == 1,
+               "skipping focus ends it early, counts it once and starts the short break")
+        suite.expect(session.skip(at: 100) && session.phase == .focus
+               && session.duration == 600 && session.deadline == 700
+               && session.completedFocuses == 1 && session.sessionNumber == 2,
+               "skipping a break returns to focus without counting the break")
+        suite.expect(session.skip(at: 200) && session.phase == .longBreak
+               && session.duration == 420 && session.completedFocuses == 2,
+               "a skipped focus follows the same long-break interval as a natural end")
+        suite.expect(session.skip(at: 300) && session.phase == .focus
+               && session.duration == 600 && session.completedFocuses == 2,
+               "skipping the long break starts the next focus")
+        suite.expect(session.skip(at: 400) && session.completed && session.cycleFinished
+               && !session.isRunning && session.canStartNext == false && session.completedFocuses == 3,
+               "skipping the final focus ends the cycle instead of inventing another break")
+        let finished = session
+        suite.expect(!session.skip(at: 500) && session == finished,
+               "a finished cycle has no phase left to skip")
+
+        var paused = NotchTimerSession()
+        paused.start(mode: .pomodoro, minutes: 1, now: 0, configuration: config)
+        paused.pause(at: 30)
+        suite.expect(paused.skip(at: 40) && paused.phase == .shortBreak && paused.isRunning
+               && paused.completedFocuses == 1,
+               "a paused phase can be skipped too")
+
+        var natural = NotchTimerSession()
+        natural.start(mode: .pomodoro, minutes: 1, now: 0, configuration: config)
+        suite.expect(natural.finishIfDue(at: 600) && natural.completedFocuses == 1,
+               "a natural end counts the focus once")
+        suite.expect(natural.skip(at: 700) && natural.phase == .shortBreak && natural.completedFocuses == 1,
+               "skipping an already finished phase starts the next without counting it again")
     }
 
     private static func stopwatchContracts(_ suite: TestSuite) {

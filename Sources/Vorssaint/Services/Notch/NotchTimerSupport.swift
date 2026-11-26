@@ -147,11 +147,28 @@ struct NotchTimerSession: Equatable {
 
     @discardableResult mutating func finishIfDue(at now: TimeInterval) -> Bool {
         guard let deadline, now.isFinite, now >= deadline else { return false }
+        finish()
+        return true
+    }
+
+    /// Ends the running Pomodoro phase before its deadline, with the same
+    /// bookkeeping as a natural end, and begins the next phase at once. The
+    /// last focus of a cycle ends the cycle instead, waiting for dismissal.
+    /// An idle session, another mode, or a finished cycle is left alone.
+    @discardableResult mutating func skip(at now: TimeInterval) -> Bool {
+        guard mode == .pomodoro, hasSession, now.isFinite else { return false }
+        let alreadyCompleted = completed
+        if !alreadyCompleted { finish() }
+        guard canStartNext else { return !alreadyCompleted }
+        startNext(at: now)
+        return true
+    }
+
+    private mutating func finish() {
         anchor = nil
         pausedReading = nil
         completed = true
         if phase == .focus { completedFocuses += 1 }
-        return true
     }
 
     mutating func pause(at now: TimeInterval) {

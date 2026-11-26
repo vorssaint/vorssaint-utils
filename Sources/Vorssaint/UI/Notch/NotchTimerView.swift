@@ -42,9 +42,16 @@ struct NotchTimerView: View {
             }
         } trailing: {
             if service.session.hasSession {
-                NotchIconButton(symbol: "xmark",
-                                title: service.session.completed ? l10n.s.supportIntroDoneButton : l10n.s.mediaCancel,
-                                action: service.cancel)
+                HStack(spacing: 2) {
+                    // A running Pomodoro gives up its phase without ending
+                    // the cycle; the service owns that transition.
+                    if service.session.mode == .pomodoro, !service.session.completed {
+                        NotchIconButton(symbol: "forward.end.fill", title: text.skip, action: service.skip)
+                    }
+                    NotchIconButton(symbol: "xmark",
+                                    title: service.session.completed ? l10n.s.supportIntroDoneButton : l10n.s.mediaCancel,
+                                    action: service.cancel)
+                }
             } else {
                 startButton
             }
