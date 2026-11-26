@@ -913,13 +913,14 @@ final class NotchService: ObservableObject {
         let accounts = NotchAgentSupport.showsCodexAccounts() ? CodexProfileLimitsService.shared.states.map(\.id) : []
         let claudeProfile = AgentUsageService.shared.claudeProfile
         let claudeAccount = claudeProfile.isDefault ? nil : claudeProfile.id
-        guard usage.loaded || !accounts.isEmpty else { return nil }
+        let antigravityQuota = UserDefaults.standard.bool(forKey: DefaultsKey.notchAgentsAntigravityQuota)
+        guard usage.loaded || !accounts.isEmpty || antigravityQuota else { return nil }
         let providers = NotchAgentSupport.pageProviders(snapshot: usage, hasCodexAccounts: !accounts.isEmpty,
                                                         hasClaudeAccount: claudeAccount != nil)
-        guard !providers.isEmpty else { return 0 }
+        guard !providers.isEmpty || antigravityQuota else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
             NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts,
-                                    claudeAccount: claudeAccount, snapshot: usage),
+                                    claudeAccount: claudeAccount, antigravityQuota: antigravityQuota, snapshot: usage),
             width: width))
     }
     var expandedGeometry: NotchGeometry {

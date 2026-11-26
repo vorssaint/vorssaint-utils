@@ -62,7 +62,11 @@ struct NotchAgentTile: Identifiable, Equatable {
     var namesDefaultAccount = false
     /// When nothing is running, the Now card lists each visible provider.
     var idleProviderCount = 0
-    var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") + (accountID.map { "." + $0 } ?? "") }
+    var antigravityQuota = false
+    var id: String {
+        if antigravityQuota { return "limits.antigravity" }
+        return card.rawValue + (provider.map { "." + $0.rawValue } ?? "") + (accountID.map { "." + $0 } ?? "")
+    }
 }
 
 enum NotchAgentSupport {
@@ -314,18 +318,27 @@ enum NotchAgentSupport {
     /// card, the usual home among them when they add it.
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
                       codexAccounts: [String] = [], claudeAccount: String? = nil,
-                      snapshot: AgentUsageSnapshot = AgentUsageSnapshot()) -> [NotchAgentTile] {
+                      antigravityQuota: Bool = false, snapshot: AgentUsageSnapshot = AgentUsageSnapshot()) -> [NotchAgentTile] {
         let activityOnly = providers == [.cursor] && !snapshot.days.contains { ($0.byProvider[.cursor]?.tokens.total ?? 0) > 0 }
-        let shown = activityOnly ? cards.filter { $0 == .live } : cards
+        let shown = cards.filter { card in
+            if card == .limits && antigravityQuota { return true }
+            if providers.isEmpty && antigravityQuota { return false }
+            return !activityOnly || card == .live
+        }
         return shown.flatMap { card -> [NotchAgentTile] in
             switch card {
-            case .limits: return providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
-                if provider == .claude, let claudeAccount {
-                    return [NotchAgentTile(card: .limits, provider: provider, accountID: claudeAccount)]
+            case .limits:
+                let quota = antigravityQuota ? [NotchAgentTile(card: .limits, provider: nil, antigravityQuota: true)] : []
+                let accounts = providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
+                    if provider == .claude, let claudeAccount {
+                        return [NotchAgentTile(card: .limits, provider: provider, accountID: claudeAccount)]
+                    }
+                    guard provider == .codex, !codexAccounts.isEmpty else {
+                        return [NotchAgentTile(card: .limits, provider: provider)]
+                    }
+                    return codexAccounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }
                 }
-                guard provider == .codex, !codexAccounts.isEmpty else { return [NotchAgentTile(card: .limits, provider: provider)] }
-                return codexAccounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }
-            }
+                return accounts + quota
             // Banked resets belong to a Codex account: the default one, which
             // the card names once others have cards.
             case .resets: return providers.contains(.codex)
