@@ -29,6 +29,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = true
     @AppStorage(DefaultsKey.notchLyricsOnline) private var lyricsOnline = false
     @AppStorage(DefaultsKey.notchBrowserCovers) private var browserCovers = false
+    @AppStorage(DefaultsKey.telemetryRefused) private var telemetryRefused = false
     @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = true
     @AppStorage(DefaultsKey.notchLiveEqualizer) private var liveEqualizer = false
     @AppStorage(DefaultsKey.notchEnabled) private var enabled = false
@@ -444,12 +445,21 @@ struct NotchSettings: View {
                 guard let choices = await NotchPreferredPlayer.loadInstalled(), !Task.isCancelled else { return }
                 preferredPlayers = choices
             }
+            let telemetry = FeatureStrings.telemetryPolicy(l10n.language)
             SettingsFeatureSwitchRow(symbol: "text.quote", title: music.enableLyrics, isOn: $lyricsEnabled, feature: .notchLyrics)
             if lyricsEnabled, AppFeature.notchLyrics.isAvailable {
-                switchRow("globe", music.online, caption: music.onlineHint, isOn: $lyricsOnline)
+                switchRow("globe", music.online,
+                          caption: telemetryRefused ? telemetry.blockedNote : music.onlineHint,
+                          isOn: Binding(get: { !telemetryRefused && lyricsOnline },
+                                        set: { if !telemetryRefused { lyricsOnline = $0 } }))
+                    .disabled(telemetryRefused)
                     .padding(.leading, settingsRowTextInset)
             }
-            switchRow("photo", music.browserCovers, caption: music.browserCoversHint, isOn: $browserCovers)
+            switchRow("photo", music.browserCovers,
+                      caption: telemetryRefused ? telemetry.blockedNote : music.browserCoversHint,
+                      isOn: Binding(get: { !telemetryRefused && browserCovers },
+                                    set: { if !telemetryRefused { browserCovers = $0 } }))
+                .disabled(telemetryRefused)
             SettingsFeatureSwitchRow(symbol: "list.bullet", title: music.enableQueue, caption: music.queueDescription,
                                      isOn: $queueEnabled, feature: .notchQueue)
             SettingsFeatureSwitchRow(symbol: "waveform", title: music.liveEqualizer,

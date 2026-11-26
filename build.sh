@@ -263,6 +263,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Media/MediaSupport.swift
         Sources/Vorssaint/Core/QuitProtectionSupport.swift
         Sources/Vorssaint/Core/QuitProtectionStrings.swift
+        Sources/Vorssaint/Core/TelemetryPolicy.swift
+        Sources/Vorssaint/Core/TelemetryPolicyStrings.swift
         Sources/Vorssaint/Core/Defaults.swift
         Sources/Vorssaint/Core/NotchStrings.swift
         Sources/Vorssaint/Core/NotchTourStrings.swift

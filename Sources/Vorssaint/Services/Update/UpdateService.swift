@@ -32,15 +32,22 @@ final class UpdateService: ObservableObject {
     /// Size the release advertises for the asset, used to bound the download.
     private var downloadExpectedBytes: Int64?
     private var refreshTimer: Timer?
+    private var launchCheckWorkItem: DispatchWorkItem?
+    private var activeCheckTask: URLSessionDataTask?
+    private var activeCheckIsManual = false
     private var notifiedVersion: String?   // last release we posted a notification for
     private var downloadSession: URLSession?
 
     private init() {}
 
     var autoCheckEnabled: Bool {
-        get { UserDefaults.standard.object(forKey: DefaultsKey.autoCheckUpdates) as? Bool ?? true }
+        get {
+            guard TelemetryPolicy.allowsAutomaticUpdateChecks() else { return false }
+            return UserDefaults.standard.object(forKey: DefaultsKey.autoCheckUpdates) as? Bool ?? true
+        }
         set {
-            UserDefaults.standard.set(newValue, forKey: DefaultsKey.autoCheckUpdates)
+            let effective = TelemetryPolicy.allowsAutomaticUpdateChecks() ? newValue : false
+            UserDefaults.standard.set(effective, forKey: DefaultsKey.autoCheckUpdates)
             configureAutomaticChecks()
         }
     }
@@ -75,10 +82,32 @@ final class UpdateService: ObservableObject {
             }
             return
         }
+        guard TelemetryPolicy.shouldStartAutomaticUpdateChecksAtLaunch() else {
+            stopAutomaticChecks()
+            return
+        }
         configureAutomaticChecks()
         if autoCheckEnabled {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+            launchCheckWorkItem?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                self?.launchCheckWorkItem = nil
                 self?.check(manual: false)
+            }
+            launchCheckWorkItem = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: work)
+        }
+    }
+
+    func stopAutomaticChecks() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
+        launchCheckWorkItem?.cancel()
+        launchCheckWorkItem = nil
+        if !activeCheckIsManual {
+            activeCheckTask?.cancel()
+            activeCheckTask = nil
+            if case .checking = state {
+                state = .idle
             }
         }
     }
@@ -86,7 +115,11 @@ final class UpdateService: ObservableObject {
     private func configureAutomaticChecks() {
         refreshTimer?.invalidate()
         refreshTimer = nil
-        guard autoCheckEnabled else { return }
+        guard TelemetryPolicy.shouldStartAutomaticUpdateChecksAtLaunch(), autoCheckEnabled else {
+            launchCheckWorkItem?.cancel()
+            launchCheckWorkItem = nil
+            return
+        }
         // Hourly (was daily). Combined with the activate / panel-open checks, a new
         // release surfaces within the hour instead of up to a day later.
         let timer = Timer(timeInterval: 60 * 60, repeats: true) { [weak self] _ in
@@ -100,6 +133,9 @@ final class UpdateService: ObservableObject {
     // MARK: - Check
 
     func check(manual: Bool) {
+        if !manual {
+            guard TelemetryPolicy.shouldStartAutomaticUpdateChecksAtLaunch(), autoCheckEnabled else { return }
+        }
         if AppInfo.isDeveloperBuild {
             // No real update target; reflect the simulation default so the
             // notification UI can be exercised locally.
@@ -127,9 +163,16 @@ final class UpdateService: ObservableObject {
         request.setValue("Vorssaint/\(AppInfo.version)", forHTTPHeaderField: "User-Agent")
         request.cachePolicy = .reloadIgnoringLocalCacheData
 
-        URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
+        activeCheckIsManual = manual
+        let task = URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
             guard let self else { return }
             DispatchQueue.main.async {
+                self.activeCheckTask = nil
+                self.activeCheckIsManual = false
+                if let urlError = error as? URLError, urlError.code == .cancelled {
+                    if case .checking = self.state { self.state = .idle }
+                    return
+                }
                 self.lastChecked = Date()
                 guard let data, error == nil else {
                     self.availableNotes = nil
@@ -186,7 +229,9 @@ final class UpdateService: ObservableObject {
                     self.state = .upToDate
                 }
             }
-        }.resume()
+        }
+        activeCheckTask = task
+        task.resume()
     }
 
     /// Re-checks only if the last check is stale — called when the app reactivates
@@ -194,7 +239,7 @@ final class UpdateService: ObservableObject {
     /// API. The hourly timer is the floor; this makes it feel immediate.
     func checkIfStale(maxAge: TimeInterval = 15 * 60) {
         if AppInfo.isDeveloperBuild { return }
-        guard autoCheckEnabled else { return }
+        guard TelemetryPolicy.shouldStartAutomaticUpdateChecksAtLaunch(), autoCheckEnabled else { return }
         switch state {
         case .checking, .downloading, .installing: return
         default: break

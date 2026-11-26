@@ -84,7 +84,8 @@ final class AppUpdatesService: ObservableObject {
     // MARK: - Lifecycle
 
     var frequency: AppUpdatesSupport.CheckFrequency {
-        AppUpdatesSupport.CheckFrequency.sanitized(
+        guard TelemetryPolicy.allowsBackgroundDataCollection() else { return .off }
+        return AppUpdatesSupport.CheckFrequency.sanitized(
             UserDefaults.standard.string(forKey: DefaultsKey.appUpdatesCheckFrequency))
     }
 
@@ -151,6 +152,7 @@ final class AppUpdatesService: ObservableObject {
     /// which alone can post a notification and re-arm the schedule.
     func check(automatic: Bool = false) {
         guard AppFeature.appUpdates.isAvailable else { return }
+        if automatic, !TelemetryPolicy.allowsBackgroundDataCollection() { return }
         if isChecking {
             automaticCheckPending = automaticCheckPending || automatic
             return
@@ -754,6 +756,7 @@ final class AppUpdatesService: ObservableObject {
     /// simply old. Otherwise reopening the panel costs nothing.
     func checkIfNeeded() {
         reloadRules()
+        guard TelemetryPolicy.allowsBackgroundDataCollection() else { return }
         guard AppUpdatesSupport.shouldRecheck(hasCheckedThisSession: hasCheckedThisSession,
                                               handoffPending: updateHandoffPending,
                                               lastCheck: lastCheck,

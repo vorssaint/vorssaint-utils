@@ -82,10 +82,11 @@ final class FeedbackService {
             throw FeedbackError.rejected
         }
 
+        let effectiveDiagnostics = TelemetryPolicy.allowsFeedbackDiagnostics() ? diagnostics : nil
         let body = try encoder.encode(FeedbackSubmission(
             kind: kind,
             message: trimmed,
-            diagnostics: diagnostics
+            diagnostics: effectiveDiagnostics
         ))
         guard body.count <= 8 * 1_024 else { throw FeedbackError.rejected }
 

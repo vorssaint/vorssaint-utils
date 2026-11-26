@@ -20,6 +20,7 @@ struct CommandBarSettings: View {
     @AppStorage(DefaultsKey.commandBarRowShortcuts) private var rowShortcutsRaw = ""
     @AppStorage(DefaultsKey.commandBarFileScopes) private var fileScopesRaw = ""
     @AppStorage(DefaultsKey.commandBarFileIgnores) private var fileIgnoresRaw = ""
+    @AppStorage(DefaultsKey.telemetryRefused) private var telemetryRefused = false
     @State private var editing: CommandBarLink?
     @State private var ignoreDraft = ""
     @State private var showsFileOptions = false
@@ -360,6 +361,11 @@ struct CommandBarSettings: View {
                 }
                 Button(text.forgetAllButton) {
                     CommandBarService.shared.forgetLearnedRanking()
+                }
+                if telemetryRefused {
+                    Text(FeatureStrings.telemetryPolicy(l10n.language).blockedNote)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             } header: {
                 Text(text.hiddenTitle)

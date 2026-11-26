@@ -8,6 +8,7 @@ struct AppUpdatesSettings: View {
     @ObservedObject private var updates = AppUpdatesService.shared
     @AppStorage(DefaultsKey.appUpdatesCheckFrequency)
     private var frequencyRaw = AppUpdatesSupport.CheckFrequency.off.rawValue
+    @AppStorage(DefaultsKey.telemetryRefused) private var telemetryRefused = false
     @AppStorage(DefaultsKey.appUpdatesNotify) private var notify = true
     @AppStorage(DefaultsKey.appUpdatesIncludeHomebrewApps) private var includeHomebrewApps = true
     @AppStorage(DefaultsKey.appUpdatesIncludeAppStore) private var includeAppStore = true
@@ -16,6 +17,7 @@ struct AppUpdatesSettings: View {
     @AppStorage(DefaultsKey.panelUtilityAppUpdates) private var showInPanel = true
 
     private var text: AppUpdateStrings { FeatureStrings.appUpdates(l10n.language) }
+    private var telemetry: TelemetryPolicyStrings { FeatureStrings.telemetryPolicy(l10n.language) }
 
     var body: some View {
         Form {
@@ -35,13 +37,19 @@ struct AppUpdatesSettings: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
+                .disabled(telemetryRefused)
+                if telemetryRefused {
+                    Text(telemetry.blockedNote)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if let next = updates.nextCheck {
                     Text(String(format: text.nextCheckFormat, nextCheckText(next)))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Toggle(text.notifyToggle, isOn: $notify)
-                    .disabled(AppUpdatesSupport.CheckFrequency.sanitized(frequencyRaw) == .off)
+                    .disabled(telemetryRefused || AppUpdatesSupport.CheckFrequency.sanitized(frequencyRaw) == .off)
                     .onChange(of: notify) { _, value in
                         guard value else { return }
                         Notifier.requestPermission()
@@ -82,8 +90,9 @@ struct AppUpdatesSettings: View {
 
     private var frequencyBinding: Binding<AppUpdatesSupport.CheckFrequency> {
         Binding {
-            AppUpdatesSupport.CheckFrequency.sanitized(frequencyRaw)
+            telemetryRefused ? .off : AppUpdatesSupport.CheckFrequency.sanitized(frequencyRaw)
         } set: { frequency in
+            guard !telemetryRefused else { return }
             frequencyRaw = frequency.rawValue
             AppUpdatesService.shared.syncWithPreferences()
             if frequency != .off, notify { Notifier.requestPermission() }

@@ -140,15 +140,18 @@ struct OnboardingView: View {
 
 private struct WelcomeStep: View {
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.telemetryRefused) private var telemetryRefused = false
+
+    private var telemetry: TelemetryPolicyStrings { FeatureStrings.telemetryPolicy(l10n.language) }
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
                 Theme.spaceGradient
-                VStack(spacing: 10) {
-                    BrandMark(width: 130)
+                VStack(spacing: 8) {
+                    BrandMark(width: 112)
                     Text(AppInfo.name)
-                        .font(.system(size: 26, weight: .bold))
+                        .font(.system(size: 24, weight: .bold))
                         .foregroundStyle(.white)
                     Text(l10n.s.obStepWelcomeBody)
                         .font(.system(size: 12))
@@ -156,11 +159,11 @@ private struct WelcomeStep: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 }
-                .padding(.top, 12)
+                .padding(.top, 8)
             }
-            .frame(height: 220)
+            .frame(height: 184)
 
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 14) {
                 Picker(l10n.s.obLanguageLabel, selection: $l10n.language) {
                     ForEach(AppLanguage.allCases) { language in
                         Text(language.displayName).tag(language)
@@ -179,9 +182,57 @@ private struct WelcomeStep: View {
                 featureRow(icon: "rectangle.on.rectangle",
                            title: l10n.s.obWelcomeBullet3Title,
                            text: l10n.s.obWelcomeBullet3Body)
+
+                telemetryRefusalCard
             }
-            .padding(24)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
         }
+    }
+
+    private var telemetryRefusalCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if telemetryRefused {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.green)
+                    Text(telemetry.refusedBadge)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
+                }
+                Text(telemetry.onboardingRefusedCaption)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        TelemetryPolicyRuntime.refuseAll()
+                    }
+                } label: {
+                    Label(telemetry.refuseButton, systemImage: "hand.raised.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                Text(telemetry.onboardingCaption)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(telemetryRefused ? Color.green.opacity(0.08) : Color.primary.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(telemetryRefused ? Color.green.opacity(0.35) : Color.primary.opacity(0.1), lineWidth: 1)
+        )
     }
 
     private func featureRow(icon: String, title: String, text: String) -> some View {

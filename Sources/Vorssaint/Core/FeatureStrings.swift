@@ -107,6 +107,10 @@ enum FeatureStrings {
     static func whatsAppDownloads(_ language: AppLanguage) -> WhatsAppDownloadStrings {
         WhatsAppDownloadStrings.localized(language)
     }
+
+    static func telemetryPolicy(_ language: AppLanguage) -> TelemetryPolicyStrings {
+        TelemetryPolicyStrings.localized(language)
+    }
 }
 
 struct MixerFeatureStrings {

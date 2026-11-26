@@ -41,6 +41,7 @@ final class HomebrewManager: ObservableObject {
     private var currentSearchKind: HomebrewPackageKind?
     private var popularityCache: [HomebrewPackageKind: PopularityCacheEntry] = [:]
     private var popularityLoads: Set<HomebrewPackageKind> = []
+    private var analyticsSessionLoaded = false
     private var activeProcess: Process?
     private var cancelRequested = false
     private var ownershipLoads: [String: [(Result<HomebrewPackage?, HomebrewOwnershipError>) -> Void]] = [:]
@@ -554,7 +555,19 @@ final class HomebrewManager: ObservableObject {
                                           finishedAt: status.finishedAt)
     }
 
+    func clearAnalyticsOnTelemetryRefusal() {
+        popularityCache.removeAll()
+        popularityLoads.removeAll()
+        isLoadingPopularity = false
+        if analyticsSessionLoaded {
+            analyticsSession.getAllTasks { tasks in
+                for task in tasks { task.cancel() }
+            }
+        }
+    }
+
     private func loadPopularityIfNeeded(kind: HomebrewPackageKind) {
+        guard TelemetryPolicy.allowsHomebrewAnalytics() else { return }
         if popularityCache[kind]?.isFresh == true {
             applyPopularityToCurrentSearch(kind: kind)
             return
@@ -563,11 +576,13 @@ final class HomebrewManager: ObservableObject {
         popularityLoads.insert(kind)
         isLoadingPopularity = true
         let url = HomebrewAnalytics.url(kind: kind)
+        analyticsSessionLoaded = true
         analyticsSession.dataTask(with: url) { [weak self] data, _, _ in
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.popularityLoads.remove(kind)
                 self.isLoadingPopularity = !self.popularityLoads.isEmpty
+                guard TelemetryPolicy.allowsHomebrewAnalytics() else { return }
                 guard let data,
                       let values = try? HomebrewAnalytics.parse(data, kind: kind) else { return }
                 self.popularityCache[kind] = PopularityCacheEntry(values: values, fetchedAt: Date())
@@ -737,7 +752,7 @@ final class HomebrewManager: ObservableObject {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: command.executable)
         process.arguments = command.arguments
-        process.environment = HomebrewEnvironment.forBrew
+        process.environment = TelemetryPolicy.brewEnvironment(HomebrewEnvironment.forBrew)
         return process
     }
 

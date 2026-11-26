@@ -629,16 +629,29 @@ struct UpdatesView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.autoCheckUpdates) private var autoCheck = true
+    @AppStorage(DefaultsKey.telemetryRefused) private var telemetryRefused = false
     @AppStorage(DefaultsKey.includeBetaUpdates) private var includeBetas = AppInfo.isBeta
     @AppStorage(DefaultsKey.showReleaseNotesBeforeUpdate) private var showReleaseNotesFirst = true
     @AppStorage(DefaultsKey.releaseNotesOnUpdate) private var showWhatsNewAfter = true
 
+    private var telemetry: TelemetryPolicyStrings { FeatureStrings.telemetryPolicy(l10n.language) }
+
     var body: some View {
         Section(l10n.s.updatesSection) {
-            Toggle(l10n.s.autoCheckToggle, isOn: $autoCheck)
-                .onChange(of: autoCheck) { _, value in
-                    UpdateService.shared.autoCheckEnabled = value
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle(l10n.s.autoCheckToggle, isOn: Binding(
+                    get: { !telemetryRefused && autoCheck },
+                    set: { value in
+                        guard !telemetryRefused else { return }
+                        autoCheck = value
+                        UpdateService.shared.autoCheckEnabled = value
+                    }
+                ))
+                .disabled(telemetryRefused)
+                if telemetryRefused {
+                    SettingsCaptionText(telemetry.blockedNote)
                 }
+            }
 
             VStack(alignment: .leading, spacing: 4) {
                 Toggle(l10n.s.includeBetaUpdatesToggle, isOn: $includeBetas)
@@ -734,11 +747,24 @@ struct UpdatesView: View {
 
 struct AboutSettings: View {
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.telemetryRefused) private var telemetryRefused = false
+
+    private var telemetry: TelemetryPolicyStrings { FeatureStrings.telemetryPolicy(l10n.language) }
 
     var body: some View {
         Form {
             Section {
                 aboutContent
+            }
+
+            Section(telemetry.settingsSection) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle(telemetry.settingsToggle, isOn: Binding(
+                        get: { telemetryRefused },
+                        set: { TelemetryPolicyRuntime.setRefused($0) }
+                    ))
+                    SettingsCaptionText(telemetry.settingsCaption)
+                }
             }
 
             UpdatesView()
