@@ -22,6 +22,7 @@ enum FanControlHardwareContract {
 
     enum TemperatureSensorSelector {
         static let minimumChipTemperature = 10.0
+        static var modelIdentifier: String? { SMCClient.current.modelIdentifier }
         static func currentPlatform() -> CPUTemperaturePlatform { .generic }
         static func isCPUTemperatureKey(_ name: String, platform: CPUTemperaturePlatform) -> Bool {
             name.hasPrefix("TC")
@@ -34,6 +35,7 @@ enum FanControlHardwareContract {
     }
 
     final class State {
+        var modelIdentifier: String?
         var values: [String: Double] = ["FNum": 2]
         var bytes: [String: [UInt8]] = [:]
         var writes: [Write] = []
@@ -113,7 +115,57 @@ enum FanControlHardwareContract {
         }
     }
 
+    private static func holdFailure(_ hardware: FanControlHardware, level: Int) -> FanControlHardwareError? {
+        do {
+            try hardware.holdCooling(level: level)
+            return nil
+        } catch {
+            return error as? FanControlHardwareError
+        }
+    }
+
+    /// Runs the production watchdog against the production SMC write policy.
+    private final class WatchdogHardware: FanControlRecoveryContract.FanControlHardware {
+        let hardware: FanControlHardware
+        init(_ hardware: FanControlHardware) { self.hardware = hardware }
+
+        override func readTemperatures() -> FanControlTemperatureSample { hardware.readTemperatures() }
+        override func coolingIsIntact() -> Bool { hardware.coolingIsIntact() }
+        override func holdCooling(level: Int) throws { try hardware.holdCooling(level: level) }
+        override func restoreAutomatic() -> Bool { hardware.restoreAutomatic() }
+    }
+
+    private static func sensorLossDuringReclaim(_ suite: TestSuite) {
+        let (hardware, state) = fresh()
+        state.values["TC0P"] = 55
+        state.values["Tg04"] = 60
+        let driver = WatchdogHardware(hardware)
+        let controller = FanControlRecoveryContract.Controller()
+        let points = [FanControlCurvePoint(temperature: 40, coolingLevel: 0),
+                      FanControlCurvePoint(temperature: 80, coolingLevel: 100)]
+        let configuration = FanControlConfiguration.curve([.init(sensor: .hottestCPU, points: points),
+                                                           .init(sensor: .hottestGPU, points: points)])
+        controller.hardware = driver
+        controller.activeConfiguration = configuration
+        let level = controller.requestedLevel(for: configuration, hardware: driver)
+        let started = level.flatMap { try? hardware.startCooling(level: $0) }
+        controller.coolingLevel = level
+        suite.expect(level == 50 && started?.count == 2 && started?.allSatisfy(\.isManuallyControlled) == true,
+                     "fresh CPU and GPU readings start the selected curve on both fans")
+
+        state.readValue = { key, _, value in key == "Tg04" ? nil : value }
+        state.bytes["F0md"] = [0]
+        state.values["F0Tg"] = 0
+        state.writes.removeAll()
+        controller.watchdogTick()
+        suite.expect(!controller.isCooling && !controller.isRecovering && !controller.ownership.marker
+                        && controller.lastStopReason == .temperatureUnavailable
+                        && state.automatic && state.writes.allSatisfy { $0.key.hasSuffix("md") && $0.value == 0 },
+                     "a missing GPU reading and a reclaimed fan restore both fans on the first tick without any manual write")
+    }
+
     static func run(_ suite: TestSuite) {
+        sensorLossDuringReclaim(suite)
         let (healthy, healthyState) = fresh()
         let started = try? healthy.startCooling(level: 50)
         suite.expect(started?.count == 2 && started?.allSatisfy(\.isManuallyControlled) == true
@@ -289,5 +341,90 @@ enum FanControlHardwareContract {
         suite.expect(operationFails { try invalidLevel.startCooling(level: 101) }
                         && invalidLevelState.writes.isEmpty,
                      "an invalid cooling level cannot begin a manual write")
+
+        let (holding, holdingState) = fresh()
+        suite.expect((try? holding.startCooling(level: 50)) != nil,
+                     "the hold fixture starts manual control")
+        holdingState.readValue = { key, _, value in key.hasSuffix("Ac") ? nil : value }
+        suite.expect((try? holding.holdCooling(level: 80)) != nil
+                        && holdingState.values["F0Tg"] == 4_880
+                        && holdingState.values["F1Tg"] == 4_880 && holding.coolingIsIntact(),
+                     "a held level is written and verified without depending on fan telemetry")
+
+        holdingState.bytes["F0md"] = [0]
+        holdingState.bytes["F1md"] = [0]
+        suite.expect(!holding.coolingIsIntact() && (try? holding.holdCooling(level: 80)) != nil
+                        && holdingState.bytes["F0md"] == [1] && holdingState.bytes["F1md"] == [1]
+                        && holding.coolingIsIntact(),
+                     "holding the same level puts back manual mode the firmware reclaimed")
+
+        let (sensing, sensingState) = fresh()
+        sensingState.modelIdentifier = "MacBookPro18,3"
+        sensingState.values["TC0P"] = 45
+        sensingState.values["Tg04"] = 0
+        sensingState.values["Tg05"] = 9.2
+        sensingState.values["Tg0C"] = 0
+        sensingState.values["Tg0D"] = 9.2
+        let sleeping = try? sensing.readOnlySnapshot()
+        suite.expect(sleeping?.gpuPoweredDown == true
+                        && sleeping?.temperatures?.contains { $0.source == .hottestGPU } == false
+                        && sleeping?.temperatures?.first { $0.source == .hottestSoC }?.celsius == 45,
+                     "a sleeping M1 Pro GPU remains distinct from measured GPU and SoC temperatures")
+        sensingState.readValue = { key, _, value in key == "Tg05" ? nil : value }
+        let failedReading = sensing.readTemperatures()
+        suite.expect(!failedReading.gpuPoweredDown
+                        && !failedReading.readings.contains { $0.source == .hottestGPU },
+                     "a GPU sensor that fails to answer still leaves the GPU source unavailable")
+        sensingState.readValue = nil
+        sensingState.values["Tg05"] = 52
+        let awake = try? sensing.snapshot(isCooling: true, endsAt: nil, stopReason: nil)
+        suite.expect(awake?.gpuPoweredDown == false
+                        && awake?.temperatures?.first { $0.source == .hottestGPU }?.celsius == 52,
+                     "an active session reports the new GPU measurement as soon as the GPU wakes")
+
+        let (alternateM1, alternateState) = fresh()
+        alternateState.modelIdentifier = "MacBookPro17,1"
+        alternateState.values["Tg1b"] = 0
+        alternateState.values["Tg4b"] = 0
+        let unavailable = alternateM1.readTemperatures()
+        let gpuCurve = FanControlCurve(sensor: .hottestGPU, points: FanControlConfiguration.defaultCurve.points)
+        suite.expect(!unavailable.gpuPoweredDown
+                        && FanControlPolicy.curveCoolingLevel(curves: [gpuCurve], temperatures: unavailable.readings,
+                                                             gpuPoweredDown: unavailable.gpuPoweredDown) == nil,
+                     "zero readings on the alternate M1 layout cannot start or sustain a GPU-only curve")
+
+        let (refused, refusedState) = fresh()
+        suite.expect((try? refused.startCooling(level: 50)) != nil,
+                     "the refused-hold fixture starts manual control")
+        refusedState.rejectWrite = { $0.key == "F0Tg" }
+        suite.expect(holdFailure(refused, level: 75) == .operationFailed && refused.coolingIsIntact(),
+                     "a refused first write is retryable when both fans still hold their previous targets")
+        refusedState.rejectWrite = { $0.key == "F1Tg" }
+        suite.expect(holdFailure(refused, level: 75) == .unsafeControlState
+                        && refusedState.values["F0Tg"] == 4_650 && refusedState.values["F1Tg"] == 3_500,
+                     "updating only the first fan requires immediate automatic recovery")
+
+        let (reclaimed, reclaimedState) = fresh()
+        suite.expect((try? reclaimed.startCooling(level: 50)) != nil,
+                     "the reclaimed-fan fixture starts manual control")
+        reclaimedState.bytes["F0md"] = [0]
+        reclaimedState.values["F0Tg"] = 0
+        reclaimedState.rejectWrite = { $0.key == "F0Tg" }
+        suite.expect(holdFailure(reclaimed, level: 50) == .unsafeControlState
+                        && reclaimedState.bytes["F0md"] == [1] && reclaimedState.values["F0Tg"] == 0,
+                     "a reclaimed fan left in manual mode at zero requires immediate automatic recovery")
+        reclaimedState.bytes["F0md"] = [0]
+        reclaimedState.rejectWrite = { $0.key == "F0md" }
+        suite.expect(holdFailure(reclaimed, level: 50) == .unsafeControlState
+                        && reclaimedState.bytes["F0md"] == [0] && reclaimedState.values["F0Tg"] == 3_500,
+                     "a matching target in automatic mode cannot validate a refused hold")
+
+        let (unverified, unverifiedState) = fresh()
+        suite.expect((try? unverified.startCooling(level: 50)) != nil,
+                     "the final-verification fixture starts manual control")
+        unverifiedState.reads = [:]
+        unverifiedState.readValue = { key, count, value in key == "F0Tg" && count > 1 ? nil : value }
+        suite.expect(holdFailure(unverified, level: 75) == .unsafeControlState,
+                     "an unreadable target after the writes requires immediate automatic recovery")
     }
 }

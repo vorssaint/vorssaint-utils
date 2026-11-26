@@ -179,12 +179,15 @@ final class StatusItemController {
             .sink { [weak self] _ in self?.updateIconAppearance() }
             .store(in: &cancellables)
 
-        MicMuteService.shared.$isMuted
+        let micMute = MicMuteService.shared
+        micMute.$isMuted.combineLatest(micMute.$warning)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.updateIconAppearance() }
+            .sink { [weak self] _ in self?.refresh() }
             .store(in: &cancellables)
 
-        KeepAwakeManager.shared.$endDate
+        let awake = KeepAwakeManager.shared
+        awake.$endDate.combineLatest(awake.$activeAutomationConditions, awake.$waitingForPower)
+            .removeDuplicates { $0 == $1 }
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.refresh() }
             .store(in: &cancellables)
@@ -347,7 +350,7 @@ final class StatusItemController {
     /// Reflects keep-awake state and an available update in the icon. Updates
     /// keep the blue attention glyph; an active session uses the chosen icon.
     /// With the mute indicator option on, a red slashed mic joins the glyph
-    /// while the microphone is muted, whatever the underlying state. The
+    /// while Mic Mute is on, whatever the underlying state. The
     /// glyph can also hide entirely while metrics render in the title (user
     /// option); the decision reads the button's actual title, so it must run
     /// AFTER refresh() writes it — refresh() calls this at its end.
@@ -562,11 +565,12 @@ final class StatusItemController {
             }
         }
 
-        let toolTip: String
+        var toolTip: String
         if manager.isActive {
             if manager.sessionTrigger == .automation {
                 toolTip = FeatureStrings.keepAwakeAutomation(L10n.shared.language)
-                    .activeStatus(for: manager.activeAutomationConditions)
+                    .activeStatus(for: manager.activeAutomationConditions,
+                                  waitingForPower: manager.waitingForPower)
             } else if let end = manager.endDate {
                 toolTip = "\(strings.statusActiveUntil) \(Self.timeFormatter.string(from: end))"
             } else {
@@ -574,6 +578,9 @@ final class StatusItemController {
             }
         } else {
             toolTip = strings.statusIdleTooltip
+        }
+        if UserDefaults.standard.bool(forKey: DefaultsKey.micMuteMenuBarIndicator), let warning = MicMuteService.shared.warning {
+            toolTip += "\n" + warning.message
         }
         if button.toolTip != toolTip {
             button.toolTip = toolTip
@@ -1028,7 +1035,7 @@ enum BlackHoleGlyph {
     }
 
     /// The given state image with a red slashed microphone beside it, shown
-    /// while the mute indicator option is on and the mic is muted. The badge
+    /// while the mute indicator option is on and Mic Mute is active. The badge
     /// is a real color, so the composite can't stay a template image; the
     /// drawing handler runs against the destination appearance, which keeps a
     /// template underlying glyph legible on both light and dark menu bars.

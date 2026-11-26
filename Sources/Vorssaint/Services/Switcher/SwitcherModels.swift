@@ -95,7 +95,7 @@ enum WindowSwitchMinimizedPlacement: String, CaseIterable {
 /// the user can still switch to the desktop/menu bar like the system switcher.
 struct SwitcherItem: Identifiable, Equatable {
     let id: String
-    let title: String
+    var title: String
     let appName: String
     /// The regular app represented by this entry. App grouping, icons, MRU,
     /// activation and quit actions use this process.

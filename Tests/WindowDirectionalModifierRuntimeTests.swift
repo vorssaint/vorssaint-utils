@@ -17,6 +17,9 @@ enum WindowDirectionalModifierRuntimeTests {
         var isActive = true
     }
     enum NSEvent { static var mouseLocation = CGPoint(x: 100, y: 400) }
+    enum ScrollInverter {
+        static func directionApplied(to event: CGEvent) -> CGEvent { event }
+    }
     enum CGEventSource {
         static var buttons: UInt32 = 0
         static var clicks: UInt32 = 0
@@ -62,10 +65,19 @@ enum WindowDirectionalModifierRuntimeTests {
         var directionalSession: WindowDirectionalSession?
         var registeredDirectionalTrigger: WindowDirectionalTrigger? = .modifiers([.control, .command])
         var directionalModifierTap: CFMachPort? = CFMachPortCreate(nil, { _, _, _, _ in }, nil, nil)
+        var directionalTap: CFMachPort?
+        var directionalTapSource: CFRunLoopSource?
+        var pointerTap: CFMachPort?
+        var pointerTapSource: CFRunLoopSource?
+        var pointerTapDemand: WindowLayoutPointerDemand = []
+        var registeredPointerDemand: WindowLayoutPointerDemand = []
+        var tapPipeline = SuperKeyTapContract.Pipeline()
+        var tapMasks: [CGEventMask] = []
+        var refuseTap = false
+        var pointerEvents: [CGEventType] = []
         var directionalTimer: Timer?
         var directionalShortcutRegistrationFailed = false
         var starts = 0
-        var activeTapStarts = 0
         var reenables = 0
         var targetSerial = 0
         var placed: [WindowLayoutAction] = []
@@ -76,13 +88,25 @@ enum WindowDirectionalModifierRuntimeTests {
             if let directionalModifierTap { CFMachPortInvalidate(directionalModifierTap) }
         }
         func isAnyMouseButtonPressed() -> Bool { CGEventSource.buttons != 0 }
-        func startDirectionalTap() -> Bool {
-            activeTapStarts += 1
-            return true
+        func createTap(tap: CGEventTapLocation, place: CGEventTapPlacement, options: CGEventTapOptions,
+                       eventsOfInterest: CGEventMask,
+                       callback: @escaping (CGEventTapProxy?, CGEventType, CGEvent, UnsafeMutableRawPointer?) -> Unmanaged<CGEvent>?,
+                       userInfo: UnsafeMutableRawPointer?) -> CFMachPort? {
+            tapMasks.append(eventsOfInterest)
+            guard !refuseTap, let port = CFMachPortCreate(nil, { _, _, _, _ in }, nil, nil) else { return nil }
+            tapPipeline.install("tap \(tapMasks.count)", .init(location: tap, placement: place, mask: eventsOfInterest)) { event in
+                guard CFMachPortIsValid(port) else { return event }
+                let result = callback(nil, event.type, event, userInfo)?.takeUnretainedValue()
+                return options == .listenOnly ? event : result
+            }
+            return port
         }
-        func stopDirectionalTap() {}
+        func handlePointerTapEvent(proxy: CGEventTapProxy?, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+            pointerEvents.append(type)
+            return Unmanaged.passUnretained(event)
+        }
         func tapEnable(tap: CFMachPort, enable: Bool) {
-            if enable { reenables += 1 }
+            if enable, tap === directionalModifierTap { reenables += 1 }
         }
         func focusedTarget(for action: WindowLayoutAction) -> WindowLayoutTarget? {
             targetSerial += 1
@@ -137,6 +161,50 @@ enum WindowDirectionalModifierRuntimeTests {
         WindowDirectionalModifierTapSupport.drain()
     }
 
+    private static func checkPointerRegistrations(_ suite: TestSuite) {
+        let host = Host()
+        let gesture = WindowLayoutPointerDemand.gesture
+        let snap = WindowLayoutPointerDemand.edgeSnap
+        let both: WindowLayoutPointerDemand = [gesture, snap]
+        host.syncPointerTap(for: [])
+        suite.expect(host.tapMasks.isEmpty, "idle layout installs no pointer tap")
+        host.syncPointerTap(for: gesture)
+        host.syncPointerTap(for: gesture)
+        let first = host.pointerTap
+        suite.expect(first != nil && host.tapMasks == [gesture.eventMask],
+                     "gesture-only input registers its own mask once")
+
+        host.refuseTap = true
+        host.syncPointerTap(for: both)
+        suite.expect(host.pointerTap === first && host.pointerTapDemand == gesture
+                && host.tapMasks.last == both.eventMask,
+                     "a refused expansion keeps the existing gesture port running")
+        host.refuseTap = false
+        host.syncPointerTap(for: both)
+        let combined = host.pointerTap
+        suite.expect(combined != nil && combined !== first && first.map { !CFMachPortIsValid($0) } == true
+                && host.registeredPointerDemand == both && host.pointerTapDemand == both,
+                     "retrying installs one combined port and retires the old one")
+        host.refuseTap = true
+        host.syncPointerTap(for: snap)
+        suite.expect(host.pointerTap === combined && host.pointerTapDemand == snap
+                && host.tapMasks.last == snap.eventMask,
+                     "a refused narrower registration stops routing the disabled gesture immediately")
+        host.refuseTap = false
+        host.syncPointerTap(for: snap)
+        suite.expect(host.pointerTap !== combined && combined.map { !CFMachPortIsValid($0) } == true
+                && host.registeredPointerDemand == snap && host.tapMasks.last == snap.eventMask,
+                     "retrying removes unneeded event types from the installed mask")
+
+        let last = host.pointerTap
+        host.syncPointerTap(for: [])
+        host.syncPointerTap(for: [])
+        suite.expect(last.map { !CFMachPortIsValid($0) } == true && host.pointerTap == nil
+                && host.pointerTapDemand.isEmpty && host.registeredPointerDemand.isEmpty
+                && host.tapMasks == [gesture.eventMask, both.eventMask, both.eventMask, snap.eventMask, snap.eventMask],
+                     "disabling both removes the last port and repeated idle syncs create nothing")
+    }
+
     static func run(_ suite: TestSuite) {
         defer {
             WindowDirectionalModifierTapSupport.jobs.removeAll()
@@ -149,9 +217,10 @@ enum WindowDirectionalModifierRuntimeTests {
             ShortcutCapture.isCapturing = false
             SessionActivity.shared.isActive = true
         }
+        checkPointerRegistrations(suite)
         let first = Host()
         start(first)
-        suite.expect(first.starts == 1 && first.activeTapStarts == 0,
+        suite.expect(first.starts == 1 && first.tapMasks.isEmpty,
                      "modifier startup uses its existing passive tap and creates no filtering tap")
         let oldOwner = first.directionalSession?.modifierOwnership
         release(first)
@@ -318,10 +387,31 @@ enum WindowDirectionalModifierRuntimeTests {
         let keyTrigger = Host()
         keyTrigger.directionalModifierHold = nil
         keyTrigger.registeredDirectionalTrigger = .key(.windowDirectionalDefault)
+        let mouseDown = CGEvent(source: nil)!
+        mouseDown.type = .leftMouseDown
+        let sideWheel = CGEvent(source: nil)!
+        sideWheel.type = .scrollWheel
+        sideWheel.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: 1)
+        var wheelShortcuts = 0
+        keyTrigger.syncPointerTap(for: .edgeSnap)
+        keyTrigger.tapPipeline.install("side wheel", .init(location: .cgSessionEventTap, placement: .headInsertEventTap,
+                                                           mask: 1 << CGEventType.scrollWheel.rawValue)) { _ in
+            wheelShortcuts += 1
+            return nil
+        }
+        keyTrigger.tapPipeline.send(sideWheel)
         keyTrigger.beginDirectionalGesture()
-        keyTrigger.directionalSession?.action = .maximize
+        keyTrigger.tapPipeline.send(sideWheel)
+        keyTrigger.tapPipeline.send(mouseDown)
+        keyTrigger.updateDirectionalGesture()
+        suite.expect(wheelShortcuts == 1 && keyTrigger.pointerEvents.isEmpty && keyTrigger.directionalSession?.action == .maximize,
+                     "a key-triggered layout takes the wheel and clicks ahead of previously installed session taps")
         keyTrigger.finishDirectionalGesture()
-        suite.expect(keyTrigger.activeTapStarts == 1 && keyTrigger.placed == [.maximize],
-                     "the existing key trigger retains its filtering tap and manual override")
+        keyTrigger.tapPipeline.send(sideWheel)
+        keyTrigger.tapPipeline.send(mouseDown)
+        suite.expect(keyTrigger.tapMasks.count == 2 && keyTrigger.placed == [.maximize]
+                && wheelShortcuts == 2 && keyTrigger.pointerEvents == [.leftMouseDown],
+                     "releasing the layout applies its override and returns each input to its previous owner")
+        keyTrigger.syncPointerTap(for: [])
     }
 }
