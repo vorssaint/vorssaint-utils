@@ -1212,6 +1212,11 @@ enum SwitcherSupport {
     /// scrim or a privacy shield owned by a service process has none of them:
     /// it is never the main window, has no title bar controls, and carries no
     /// title text (issue #4428).
+    ///
+    /// The shape alone never hides a window. Window enumeration resolves the
+    /// candidates against the app's assembled Accessibility snapshot and keeps
+    /// them when they are all the app has, so a lone borderless game or player
+    /// stays switchable.
     static func isUndescribedScreenOverlay(fillsScreen: Bool,
                                            isMain: Bool,
                                            hasWindowButtons: Bool,

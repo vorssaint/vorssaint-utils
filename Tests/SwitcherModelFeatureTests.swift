@@ -1828,8 +1828,10 @@ enum SwitcherModelFeatureTests {
                && placementCode.contains("attributes.isMain")
                && placementCode.contains("attributes.hasCloseButton")
                && placementCode.contains("title: attributes.string(.title) ?? \"\"")
+               && placementCode.contains("overlayCandidates")
+               && placementCode.contains("if axWindows.isEmpty")
                && !placementCode.contains("hasOperableControls"),
-               "window enumeration reads the overlay signals in the existing batch and leaves the decision to the shared predicate")
+               "window enumeration reads the overlay signals in the existing batch and keeps a lone candidate")
         suite.expect(SwitcherSupport.sessionSourceItem(frontmostPID: nil,
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow]) == nil,

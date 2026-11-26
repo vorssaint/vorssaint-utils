@@ -324,6 +324,30 @@ enum SwitcherAccessibilitySnapshotTests {
                         && malformed?.byID[2]?.isMinimized == false && malformed?.byID[2]?.title == "",
                      "short or mistyped optional values keep safe metadata defaults without additional reads")
 
+        // A service window that paints a watermark across the screen is an
+        // undescribed, screen-filling surface with nothing to operate. It is
+        // dropped only while the app keeps another switchable window.
+        let watermark = Window(1, attributes: [
+            kAXSubroleAttribute as String: "AXUnknown",
+            kAXTitleAttribute as String: "",
+            kAXMainAttribute as String: false
+        ])
+        let feishuWindow = Window(2, attributes: [kAXTitleAttribute as String: "Feishu"])
+        let withWatermark = snapshot([watermark, feishuWindow],
+                                     screenFrames: [CGRect(x: 0, y: 0, width: 600, height: 400)])
+        suite.expect(withWatermark?.byID[1] == nil && withWatermark?.byID[2] != nil
+                        && withWatermark?.ordered.count == 1,
+                     "a watermark overlay stays out while the app keeps an ordinary window (issue #4428)")
+        let loneBorderless = Window(1, attributes: [
+            kAXSubroleAttribute as String: "AXUnknown",
+            kAXTitleAttribute as String: "",
+            kAXMainAttribute as String: false
+        ])
+        let alone = snapshot([loneBorderless],
+                             screenFrames: [CGRect(x: 0, y: 0, width: 600, height: 400)])
+        suite.expect(alone?.byID[1] != nil && alone?.ordered.count == 1,
+                     "a lone borderless full-screen window keeps its app switchable (issue #4428)")
+
         let hung = Window(1, .unanswered)
         Reader.focused = hung
         let hungAnswer = snapshot([hung])
