@@ -1963,8 +1963,6 @@ enum ClipboardFeatureTests {
 enum ClipboardPreviewContract {
     class CommandSearchFixture {
         typealias ClipboardHistoryService = Service
-        weak var searchedClipboardHistory: Service?
-        var clipboardHistoryChanges: AnyCancellable?
         enum Mode { case search }
         enum Source { case clipboard }
         let mode = Mode.search
@@ -2315,6 +2313,7 @@ enum ClipboardPreviewContract {
     private static func overlappingSearches(_ suite: TestSuite) {
         let service = Service()
         let command = CommandSearch()
+        let source = ClipboardSource(history: service)
         let firstPanel = ClipboardHistorySearchSurface.view(UUID())
         let secondPanel = ClipboardHistorySearchSurface.view(UUID())
         let prefix = String(repeating: "x", count: ClipboardHistoryEntry.indexCharacters) + " "
@@ -2322,12 +2321,12 @@ enum ClipboardPreviewContract {
         let newest = ClipboardHistoryEntry(text: prefix + "find new")
         service.setEntries([old])
         var commandRows: [UUID] = []
-        command.observeClipboardSearch(service)
-        command.render = { [weak command] in
+        command.registerLiveSource(source)
+        command.render = { [weak source] in
             commandRows = service.filteredEntries(matching: "find", surface: .commandBar,
-                onDeferredResults: { [weak command] in command?.refreshClipboardSearch() }).map(\.id)
+                onDeferredResults: { [weak source] in source?.notifyChange() }).map(\.id)
         }
-        command.refreshClipboardSearch()
+        command.refreshLiveResults()
         service.setEntries([newest]) // cancels the original tail scan before it can notify the bar
         var abandoned = 0, surviving = 0
         _ = service.filteredEntries(matching: "find", surface: firstPanel) { abandoned += 1 }
@@ -2343,13 +2342,13 @@ enum ClipboardPreviewContract {
         let clearedBy = Date().addingTimeInterval(1)
         while !commandRows.isEmpty && Date() < clearedBy { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
         suite.expect(commandRows.isEmpty, "clearing history removes previously searchable command rows without another keystroke")
-        command.stopClipboardSearch()
+        command.stopLiveSources()
         command.isVisible = false
         var hiddenRefreshes = 0
         command.render = { hiddenRefreshes += 1 }
         service.setEntries([old])
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-        suite.expect(hiddenRefreshes == 0 && command.clipboardHistoryChanges == nil,
+        suite.expect(hiddenRefreshes == 0 && command.liveSources.isEmpty,
                      "a closed command bar releases its search and ignores later copies")
     }
 

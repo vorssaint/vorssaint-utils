@@ -153,8 +153,7 @@ enum UninstallerFlowTests {
         static let finderBundleID = "com.apple.finder"
     }
     class ServiceState {
-        weak var searchedClipboardHistory: ClipboardPreviewContract.Service?
-        var clipboardHistoryChanges: AnyCancellable?
+        lazy var liveSources = CommandBarLiveSources { [weak self] in self?.refreshResults() }
         typealias AppUninstaller = Uninstaller
         typealias AppFeature = Feature
         typealias UserDefaults = Preferences
@@ -226,13 +225,11 @@ enum UninstallerFlowTests {
             let history = ClipboardPreviewContract.Service()
             history.setEntries([ClipboardHistoryEntry(text: String(repeating: "x", count: 5000) + " previous")])
             _ = history.filteredEntries(matching: "previous", surface: .commandBar)
-            service.searchedClipboardHistory = history
-            var disconnected = false
-            service.clipboardHistoryChanges = AnyCancellable { disconnected = true }
+            service.registerLiveSource(ClipboardPreviewContract.ClipboardSource(history: history))
             service.query = "First"
-            suite.expect(disconnected && service.searchedClipboardHistory == nil
+            suite.expect(service.liveSources.isEmpty
                          && history.deferredSearchWork[.commandBar] == nil && history.filterCache[.commandBar] == nil,
-                         "typing a new uninstall query cancels the previous command-bar clipboard search and disconnects its observer")
+                         "typing a new uninstall query cancels the previous command-bar clipboard search and releases its source")
             service.beginUninstallReview(appURL: a, entryID: "a")
             suite.expect(service.mode == .uninstallReview(entryID: "a") && uninstaller.phase == .scanning,
                          "accepted selection opens its review")

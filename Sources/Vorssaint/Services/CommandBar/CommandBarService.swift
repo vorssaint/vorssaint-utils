@@ -69,7 +69,7 @@ final class CommandBarService: ObservableObject {
     @Published var query = "" {
         didSet {
             guard query != oldValue else { return }
-            stopClipboardSearch()
+            stopLiveSources()
             uninstallWarning = nil
             uninstallFinderRequestID = nil
             if mode.isUninstallFlow {
@@ -551,7 +551,7 @@ final class CommandBarService: ObservableObject {
     }
 
     func hide() {
-        stopClipboardSearch()
+        stopLiveSources()
         micMuteChanges = nil
         // Cleared first, so the island closing under the bar does not close it again.
         let presented = presentation
@@ -1493,9 +1493,9 @@ final class CommandBarService: ObservableObject {
 
     private func refreshResults() {
         guard !isTearingDown else { return }
-        if searchedClipboardHistory != nil,
-           !isEnabled(.clipboard) || mode != .search || (activeCategory != nil && activeCategory != .clipboard) {
-            stopClipboardSearch()
+        if !isEnabled(.clipboard) || mode != .search
+            || (activeCategory != nil && activeCategory != .clipboard) {
+            stopLiveSources()
         }
         if presentationLifecycle.isLoadingHome {
             rows = []
@@ -1759,39 +1759,36 @@ final class CommandBarService: ObservableObject {
             CommandBarLinks.rankingTitle(name: entry.title, query: query))
     }
 
-    private weak var searchedClipboardHistory: ClipboardHistoryService?
-    private var clipboardHistoryChanges: AnyCancellable?
-
-    private func observeClipboardSearch(_ history: ClipboardHistoryService) {
-        guard clipboardHistoryChanges == nil else { return }
-        searchedClipboardHistory = history
-        // Published entries change before didSet invalidates the result caches.
-        // Deliver on the next turn and coalesce changes from the same copy or edit.
-        clipboardHistoryChanges = history.$entries.dropFirst().map { _ in () }
-            .debounce(for: .milliseconds(15), scheduler: DispatchQueue.main)
-            .sink { [weak self] in self?.refreshClipboardSearch() }
+    /// Every live source the open bar has. One list, one debounce and one
+    /// refresh: a third asynchronous source needs no new subscription point.
+    private lazy var liveSources = CommandBarLiveSources { [weak self] in
+        self?.refreshLiveResults()
     }
 
-    private func refreshClipboardSearch() {
-        guard searchedClipboardHistory != nil, isVisible, mode == .search, isEnabled(.clipboard),
+    private func registerLiveSource(_ source: CommandBarLiveSource?) {
+        guard let source else { return }
+        liveSources.register(source)
+    }
+
+    private func refreshLiveResults() {
+        guard isVisible, mode == .search,
               activeCategory == nil || activeCategory == .clipboard else { return }
         refreshResults()
     }
 
-    private func stopClipboardSearch() {
-        clipboardHistoryChanges = nil
-        searchedClipboardHistory?.cancelSearch(on: .commandBar)
-        searchedClipboardHistory = nil
+    /// Closing the bar, changing the query or leaving search mode stops every
+    /// registered source exactly once. Late results find nothing to publish.
+    private func stopLiveSources() {
+        liveSources.stopAll()
     }
-
 
     private func clipboardRows(matching query: String, bar: CommandBarFeatureStrings,
                                limit: Int = 4) -> [CommandBarEntry] {
         guard isEnabled(.clipboard), AppFeature.clipboardHistory.isAvailable else { return [] }
-        observeClipboardSearch(ClipboardHistoryService.shared)
-        return CommandBarCatalog.clipboardEntries(matching: query, bar: bar, limit: limit,
-            onDeferredResults: { [weak self] in self?.refreshClipboardSearch() },
+        let live = CommandBarCatalog.clipboardEntries(matching: query, bar: bar, limit: limit,
             paste: { [weak self] in self?.paste($0) })
+        registerLiveSource(live.source)
+        return live.rows
     }
 
     private func searchRows(for trimmed: String) -> [CommandBarEntry] {

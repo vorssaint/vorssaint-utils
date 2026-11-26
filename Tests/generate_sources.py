@@ -779,11 +779,16 @@ def main():
           + "func setEntries(_ values: [ClipboardHistoryEntry]) { entries = values }\n"
           + "}\n}\n")
     write("ClipboardCommandBarUpdates.swift", "import Combine\nimport Foundation\nextension ClipboardPreviewContract {\n"
+          + "typealias ClipboardHistoryService = Service\n"
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarClipboardLiveSource.swift",
+                        "final class CommandBarClipboardLiveSource")
+              .replace("final class CommandBarClipboardLiveSource", "final class ClipboardSource")
           + "final class CommandSearch: CommandSearchFixture {\n"
+          + "lazy var liveSources = CommandBarLiveSources { [weak self] in self?.refreshLiveResults() }\n"
           + "".join(declaration("Sources/Vorssaint/Services/CommandBar/CommandBarService.swift", prefix)
                     .replace("private func", "func", 1) for prefix in [
-                        "    private func observeClipboardSearch(", "    private func refreshClipboardSearch(",
-                        "    private func stopClipboardSearch("])
+                        "    private func registerLiveSource(", "    private func refreshLiveResults(",
+                        "    private func stopLiveSources("])
           + "}\n}\n")
     write("ClipboardPreview.swift", "import Foundation\nimport Combine\n"
           + "extension ClipboardPreviewContract {\nfinal class Service: Fixture {\n"
@@ -1046,7 +1051,8 @@ def main():
               "    var homebrewRemovalConfirmation:", "    func removeSelectedWithHomebrew("])
           + "}\nfinal class Service: ServiceState {\n"
           + "".join(declaration(bar, prefix).replace("private func", "func", 1) for prefix in [
-              "    @Published var query", "    private func stopClipboardSearch(", "    private func beginUninstallReview(",
+              "    @Published var query", "    private func registerLiveSource(",
+              "    private func stopLiveSources(", "    private func beginUninstallReview(",
               "    private func handleUninstallKey(", "    func stepBack()",
               "    private func confirmUninstallReview(",
               "    private func finishUninstallReview()"])
