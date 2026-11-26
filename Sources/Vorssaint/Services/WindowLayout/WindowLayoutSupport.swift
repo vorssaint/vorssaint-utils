@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import CoreGraphics
+import Darwin
 import Foundation
 
 enum WindowLayoutTargetCapability: Equatable {
@@ -1063,6 +1064,19 @@ struct WindowLayoutSettledFrame: Equatable {
     var pressedAction: WindowLayoutAction? = nil
 }
 
+/// Process start time in seconds since 1970, used as the window key's process
+/// identity. It comes from the kernel directly: asking `NSRunningApplication`
+/// for the launch date goes through LaunchServices, whose synchronous round
+/// trip can hold the main thread for seconds once its per-process cache is
+/// stale (measured 1.5 s for one call). A split-second layout action must never
+/// wait on that.
+func WindowLayoutProcessStartTime(of pid: pid_t) -> TimeInterval? {
+    var info = proc_bsdinfo()
+    let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+    guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+    return TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000
+}
+
 struct WindowLayoutWindowKey: Hashable {
     let processID: pid_t
     let processLaunchTime: TimeInterval
@@ -1075,6 +1089,8 @@ struct WindowLayoutHistory {
     static let perWindowLimit = 20
 
     private var framesByWindow: [WindowLayoutWindowKey: [WindowLayoutFrame]] = [:]
+
+    var isEmpty: Bool { framesByWindow.isEmpty }
 
     mutating func record(_ frame: WindowLayoutFrame, for window: WindowLayoutWindowKey) {
         var frames = framesByWindow[window] ?? []

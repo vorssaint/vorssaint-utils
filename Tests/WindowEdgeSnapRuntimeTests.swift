@@ -64,6 +64,9 @@ enum WindowEdgeSnapRuntimeTests {
     static let windowID: CGWindowID = 7
     static let processID: pid_t = 1001
     static let launch = Date(timeIntervalSince1970: 100)
+    /// The window key's process identity now comes from the kernel, not from
+    /// `NSRunningApplication.launchDate`, so the fixture reads it the same way.
+    static var processStart: TimeInterval { WindowLayoutProcessStartTime(of: processID) ?? 0 }
 
     enum SessionActivity {
         final class State { var isActive = true }
@@ -345,7 +348,7 @@ enum WindowEdgeSnapRuntimeTests {
             guard windowExists, canBePlaced else { return nil }
             return WindowLayoutTarget(window: window,
                                       key: WindowLayoutWindowKey(processID: processID,
-                                                                 processLaunchTime: launch.timeIntervalSinceReferenceDate,
+                                                                 processLaunchTime: processStart,
                                                                  windowID: windowID),
                                       frame: WindowLayoutFrame(origin: currentFrame.origin, size: currentFrame.size))
         }
@@ -565,7 +568,7 @@ enum WindowEdgeSnapRuntimeTests {
     }
 
     private static var restoreKey: WindowLayoutWindowKey {
-        WindowLayoutWindowKey(processID: processID, processLaunchTime: launch.timeIntervalSinceReferenceDate,
+        WindowLayoutWindowKey(processID: processID, processLaunchTime: processStart,
                               windowID: windowID)
     }
 
