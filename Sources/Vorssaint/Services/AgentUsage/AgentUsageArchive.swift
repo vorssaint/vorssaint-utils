@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 8
+    private static let format = 9
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -146,6 +146,17 @@ enum AgentUsageArchive {
             body.count(entry.sources.count)
             for source in entry.sources { body.string(source) }
         }
+        body.count(store.toolCalls.count)
+        for (key, entry) in store.toolCalls {
+            body.provider(key.provider)
+            body.bytes.append(contentsOf: key.digest)
+            body.count(entry.sources.count)
+            for source in entry.sources {
+                body.string(source.path)
+                body.date(source.observation.date)
+                body.int(source.observation.kind.rawValue)
+            }
+        }
         body.count(store.limits.count)
         for limits in store.limits { body.limits(limits) }
         body.optional(store.codexPlan) { $0.string($1) }
@@ -224,6 +235,10 @@ enum AgentUsageArchive {
                 var sources: [String] = []
                 for _ in 0..<(try reader.count()) { sources.append(try reader.string()) }
                 store.records.append(.init(key: key, record: record, billable: billable, sources: sources))
+            }
+            for _ in 0..<(try reader.count()) {
+                let (key, entry) = try reader.toolCall()
+                guard store.toolCalls.updateValue(entry, forKey: key) == nil else { throw Malformed() }
             }
             for _ in 0..<(try reader.count()) { store.limits.append(try reader.limits()) }
             store.codexPlan = try reader.optional { try $0.string() }
@@ -480,6 +495,23 @@ enum AgentUsageArchive {
                 values[key] = try read(&self)
             }
             return values
+        }
+
+        mutating func toolCall() throws -> (AgentToolCall.Key, AgentToolActivity.Entry) {
+            let provider = try provider()
+            guard provider == .claude || provider == .codex else { throw Malformed() }
+            let digest = Data(try take(AgentToolCall.digestBytes))
+            let key = AgentToolCall.Key(provider: provider, digest: digest)
+            var sources: [AgentToolActivity.Source] = []
+            var paths = Set<String>()
+            for _ in 0..<(try count()) {
+                let path = try string()
+                let date = try date()
+                guard let kind = AgentToolKind(rawValue: try int()), paths.insert(path).inserted else { throw Malformed() }
+                sources.append(.init(path: path, observation: .init(date: date, kind: kind)))
+            }
+            guard !sources.isEmpty else { throw Malformed() }
+            return (key, AgentToolActivity.Entry(sources: sources))
         }
 
         mutating func provider() throws -> AgentProvider {

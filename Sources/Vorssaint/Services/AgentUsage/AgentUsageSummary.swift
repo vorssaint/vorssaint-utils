@@ -102,6 +102,7 @@ struct AgentUsageSnapshot: Equatable {
     var loaded = false
     var now = Date.distantPast
     var periods: [AgentPeriod: AgentPeriodUsage] = [:]
+    var toolCalls: [AgentPeriod: AgentToolCounts] = [:]
     /// Oldest first, ending with today.
     var days: [AgentBucket] = []
     /// Today's hours, from midnight.

@@ -5,15 +5,15 @@ import Darwin
 import Foundation
 
 /// What one log line says, reduced to the few facts the island keeps. Only
-/// usage counters, model names, times and folder names leave a line, besides
-/// the identifiers of Claude's shell commands still running, held in memory
-/// only; prompts, replies and tool output are never decoded into anything
-/// that is stored.
+/// usage counters, model names, times, folder names and categorized tool
+/// call digests leave a line. Pending Claude commands are tracked in memory.
+/// Prompts, replies and tool output are never kept.
 enum AgentLogEntry: Equatable {
     /// `key` identifies the response across duplicate lines and files.
     case usage(key: String, record: AgentUsageRecord, billable: AgentBillable)
     /// A later chunk can identify the model of an already-counted request.
     case usageModel(key: String, model: String)
+    case toolCall(AgentToolCall)
     case limits(AgentLimits)
     case plan(String, observedAt: Date)
     case turnBegan(Date)

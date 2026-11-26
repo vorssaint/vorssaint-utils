@@ -19,6 +19,7 @@ final class AgentUsageStore {
     private var cursorUsageRevisions: [String: (count: Int, revision: UInt64)] = [:]
     private var cursorUsageGeneration: UInt64 = 0
     private let summary = AgentUsageSummaryCache()
+    private var toolActivity = AgentToolActivity()
     private(set) var limits: [AgentProvider: AgentLimits] = [:]
     private(set) var codexPlan: String?
     private var codexPlanObserved = Date.distantPast
@@ -50,6 +51,7 @@ final class AgentUsageStore {
     }
 
     var live: [AgentLiveSession] { Array(turns.values) }
+    var toolActivityRevision: Int { toolActivity.revision }
 
     /// Any copy with counters resolves the missing usage for that response ID.
     func transcriptActivity(for state: AgentLogState) -> CursorTranscriptActivity {
@@ -83,6 +85,8 @@ final class AgentUsageStore {
                   cursorActivity: [CursorTranscriptActivity] = [], cursorLastActivity: Date? = nil) -> AgentUsageSnapshot {
         var result = summary.snapshot(records: records, limits: limits, live: live, plans: plans,
                                       providers: providers, now: now, calendar: calendar)
+        result.toolCalls = toolActivity.periods(providers: providers, now: now, calendar: calendar)
+        if let month = result.toolCalls[.month] { result.seen.formUnion(month.keys) }
         if providers.contains(.cursor) {
             result.cursorProjectsFound = cursorProjectsFound
             result.includeCursorActivity(cursorActivity)
@@ -100,6 +104,7 @@ final class AgentUsageStore {
     func apply(_ entries: [AgentLogEntry], file: String, provider: AgentProvider,
                tracksTurns: Bool, parent: String? = nil, modified: Date, now: Date = Date()) -> [AgentUsageEvent] {
         var events: [AgentUsageEvent] = []
+        let horizon = now.addingTimeInterval(-AgentUsageSnapshot.historyDuration)
         for entry in entries {
             switch entry {
             case .usage(let key, let record, let billable):
@@ -124,6 +129,8 @@ final class AgentUsageStore {
                 // Incremental token updates keep the same model; attribution
                 // changes instead rebuild model buckets from the records.
                 summary.invalidate()
+            case .toolCall(let call):
+                if call.observation.date >= horizon { toolActivity.add(call, source: file) }
             case .limits(let reading):
                 updateLimits(reading)
             case .plan(let plan, let date):
@@ -187,6 +194,19 @@ final class AgentUsageStore {
             }
         }
         return events
+    }
+
+    /// Missing files retract their tool observations and end their turns.
+    func forgetMissingLogs(_ files: Set<String>) -> Bool {
+        guard !files.isEmpty else { return false }
+        let removedCalls = toolActivity.forget(files: files)
+        return forgetTurns(files: files) || removedCalls
+    }
+
+    private func forgetTurns(files: Set<String>) -> Bool {
+        var changed = false
+        for file in files where forget(file: file) { changed = true }
+        return changed
     }
 
     /// A log removed while its turn ran, like a deleted chat, ends that turn
@@ -516,6 +536,7 @@ final class AgentUsageStore {
         }
 
         var records: [Record] = []
+        var toolCalls: [AgentToolCall.Key: AgentToolActivity.Entry] = [:]
         var limits: [AgentLimits] = []
         var codexPlan: String?
         var codexPlanObserved = Date.distantPast
@@ -529,7 +550,7 @@ final class AgentUsageStore {
         let kept = records.indices.filter { records[$0].provider != .opencode }.map {
             Saved.Record(key: keys[$0], record: records[$0], billable: billables[$0], sources: sources[$0])
         }
-        return Saved(records: kept,
+        return Saved(records: kept, toolCalls: toolActivity.entries,
                      limits: limits.values.sorted { $0.provider.rawValue < $1.provider.rawValue },
                      codexPlan: codexPlan, codexPlanObserved: codexPlanObserved,
                      turns: turns.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id },
@@ -539,6 +560,7 @@ final class AgentUsageStore {
     convenience init(saved: Saved) {
         self.init()
         records = saved.records.map(\.record)
+        toolActivity = AgentToolActivity(entries: saved.toolCalls)
         billables = saved.records.map(\.billable)
         sources = saved.records.map(\.sources)
         for (position, entry) in saved.records.enumerated() {
@@ -554,6 +576,7 @@ final class AgentUsageStore {
 
     /// Keeps memory bounded to the history the island can show.
     func dropRecords(before date: Date) {
+        toolActivity.drop(before: date)
         guard records.contains(where: { $0.date < date }) else { return }
         keepRecords { records[$0].date >= date }
     }
@@ -564,9 +587,14 @@ final class AgentUsageStore {
     /// notice.
     @discardableResult
     func forget(files: Set<String>) -> Bool {
-        var changed = false
-        for file in files where forget(file: file) { changed = true }
-        return forgetUsage(files: files) || changed
+        let removedCalls = toolActivity.forget(files: files)
+        return forgetUsageAndTurns(files: files) || removedCalls
+    }
+
+    @discardableResult
+    func forgetUsageAndTurns(files: Set<String>) -> Bool {
+        let removedTurns = forgetTurns(files: files)
+        return forgetUsage(files: files) || removedTurns
     }
 
     /// Rebuild a rewritten transcript's counters without losing its observed turn.
@@ -598,6 +626,7 @@ final class AgentUsageStore {
     /// Every log that gave a response or holds a turn.
     var files: Set<String> {
         Set(sources.joined()).union(turns.keys).union(waiting.keys)
+            .union(toolActivity.entries.values.lazy.flatMap(\.sources).map(\.path))
     }
 
     private func keepRecords(where keep: (Int) -> Bool) {
@@ -719,7 +748,7 @@ struct CursorTranscriptFiles {
         var removed = false
         for path in [flat.path, nested.path] where path != selected {
             if cursors.removeValue(forKey: path) != nil {
-                store.forget(files: [path])
+                store.forgetUsageAndTurns(files: [path])
                 removed = true
             }
         }
@@ -990,7 +1019,7 @@ enum AgentLogReader {
         guard let file = cursor.cursorAccess?.openFile(at: cursor.path) else {
             let hadActivity = cursor.state.cursorLastActivity != nil
             cursor.startOver(identity: 0)
-            return store.forget(files: [cursor.path]) || hadActivity
+            return store.forgetUsageAndTurns(files: [cursor.path]) || hadActivity
         }
         let coverageStart = max(horizon, now.addingTimeInterval(-AgentUsageSnapshot.historyDuration))
         var changed = cursor.dropCursorCoverage(before: coverageStart)
@@ -1051,7 +1080,7 @@ enum AgentLogReader {
         guard shouldContinue(), cursor.offset == UInt64(max(0, file.info.st_size)) else {
             // No partial replay is a valid checkpoint for a later launch.
             cursor.startOver(identity: cursor.identity)
-            return store.forget(files: [cursor.path]) || changed
+            return store.forgetUsageAndTurns(files: [cursor.path]) || changed
         }
         let sameTurn = previous.turnOpen && previous.cursorPromptCount > 0
             && previous.cursorPromptCount == cursor.state.cursorPromptCount
