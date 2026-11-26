@@ -2,12 +2,15 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ApplicationServices
+import AVFoundation
 import Foundation
 import UniformTypeIdentifiers
 
-/// Coordinates standalone drag-and-drop audio transcription and automatic
-/// post-meeting transcription using NVIDIA Parakeet Unified English 0.6B on
-/// Apple Core ML.
+/// Coordinates standalone drag-and-drop audio transcription, automatic
+/// post-meeting transcription, optional on-device summarization with a custom
+/// prompt, and system-wide voice dictation using NVIDIA Parakeet Unified
+/// English 0.6B on Apple Core ML.
 final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
     static let shared = AudioTranscriptionService()
 
@@ -17,6 +20,8 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         let sourceURL: URL
         let savedTranscriptURL: URL?
         let text: String
+        let summary: String?
+        let savedSummaryURL: URL?
         let createdAt: Date
         let durationSeconds: Double
     }
@@ -40,13 +45,61 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
     @Published private(set) var errorMessage: String?
     @Published private(set) var recentTranscripts: [RecentTranscript] = []
 
+    // Summary state
+    @Published private(set) var summaryText = ""
+    @Published private(set) var isSummarizing = false
+    @Published private(set) var summaryUsedOnDeviceLLM = false
+    @Published private(set) var lastSavedSummaryURL: URL?
+
+    // System-wide dictation state
+    @Published private(set) var isDictating = false
+    @Published private(set) var dictationLevel: Float = 0
+    @Published private(set) var dictationElapsedSeconds = 0
+    @Published private(set) var dictationShortcutRegistrationFailed = false
+
     private let engine = ParakeetCoreMLTranscriber()
+    private let dictationHotkey = QuickToolHotkey(id: 82)
+    private let dictationRecorder = AudioDictationRecorder()
     private var downloadTask: Task<Void, Never>?
     private var transcribeTask: Task<Void, Never>?
+    private var summaryTask: Task<Void, Never>?
+    private var dictationTimer: Timer?
+    private var dictationStartedAt: Date?
     private var pendingDropURL: URL?
+    private var pendingDictationAfterDownload = false
 
     private init() {
+        dictationHotkey.onPress = { [weak self] in
+            self?.toggleSystemDictation()
+        }
         refreshModelStatus()
+    }
+
+    func syncWithPreferences() {
+        refreshModelStatus()
+        let available = AppFeature.audioTranscription.isAvailable
+        let enabled = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.audioTranscriptionDictationEnabled)
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.audioTranscriptionDictationShortcut,
+                                            fallback: .voiceDictationDefault)
+        dictationShortcutRegistrationFailed = !dictationHotkey.sync(
+            enabled: enabled,
+            shortcut: shortcut,
+            storageKey: DefaultsKey.audioTranscriptionDictationShortcut
+        )
+        if !available, isDictating {
+            cancelDictation()
+        }
+    }
+
+    var summaryEnabled: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.audioTranscriptionSummaryEnabled)
+    }
+
+    var summaryPrompt: String {
+        AudioTranscriptionSupport.resolvedSummaryPrompt(
+            UserDefaults.standard.string(forKey: DefaultsKey.audioTranscriptionSummaryPrompt)
+        )
     }
 
     var modelDirectory: URL {
@@ -95,6 +148,9 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                     if let queued = self.pendingDropURL {
                         self.pendingDropURL = nil
                         self.transcribeFile(queued)
+                    } else if self.pendingDictationAfterDownload {
+                        self.pendingDictationAfterDownload = false
+                        self.startDictationCapture()
                     }
                 }
             } catch is CancellationError {
@@ -147,7 +203,10 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         }
 
         transcribeTask?.cancel()
+        summaryTask?.cancel()
         errorMessage = nil
+        summaryText = ""
+        lastSavedSummaryURL = nil
         isTranscribing = true
         progress = 0
         currentFileName = url.lastPathComponent
@@ -204,6 +263,10 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                             duration: result.audioDurationSeconds
                         )
                         QuickToolHUD.show(icon: "captions.bubble", message: strings.completedHUD)
+                        if self.summaryEnabled {
+                            let summaryDest = saveBeside ? AudioTranscriptionSupport.summaryFileURL(forAudioURL: url) : nil
+                            self.generateSummary(for: formatted, saveDestination: summaryDest)
+                        }
                     }
                 }
             } catch is CancellationError {
@@ -245,7 +308,10 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         guard systemURL != nil || micURL != nil else { return }
 
         transcribeTask?.cancel()
+        summaryTask?.cancel()
         errorMessage = nil
+        summaryText = ""
+        lastSavedSummaryURL = nil
         isTranscribing = true
         progress = 0
         currentFileName = MeetingRecorderSupport.displayLabel(fromStem: stem)
@@ -344,6 +410,10 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                         if showHUD {
                             QuickToolHUD.show(icon: "captions.bubble", message: strings.meetingTranscribedHUD)
                         }
+                        if self.summaryEnabled {
+                            let summaryDest = AudioTranscriptionSupport.meetingSummaryFileURL(stem: stem, in: outputDir)
+                            self.generateSummary(for: formatted, saveDestination: summaryDest)
+                        }
                     }
                     MeetingRecorderService.shared.refreshRecordings()
                 }
@@ -374,22 +444,322 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
     }
 
     func clearTranscript() {
+        summaryTask?.cancel()
+        summaryTask = nil
+        isSummarizing = false
         transcriptText = ""
+        summaryText = ""
+        summaryUsedOnDeviceLLM = false
         segments = []
         lastDurationSeconds = 0
         lastProcessingSeconds = 0
         lastSourceURL = nil
         lastSavedTranscriptURL = nil
+        lastSavedSummaryURL = nil
         errorMessage = nil
     }
 
     func selectRecent(_ item: RecentTranscript) {
+        summaryTask?.cancel()
+        summaryTask = nil
+        isSummarizing = false
         transcriptText = item.text
+        summaryText = item.summary ?? ""
         lastSourceURL = item.sourceURL
         lastSavedTranscriptURL = item.savedTranscriptURL
+        lastSavedSummaryURL = item.savedSummaryURL
         lastDurationSeconds = item.durationSeconds
         currentFileName = item.title
         errorMessage = nil
+    }
+
+    // MARK: - Summary Generation
+
+    func summarizeCurrentTranscript() {
+        guard !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let saveBeside = UserDefaults.standard.bool(forKey: DefaultsKey.audioTranscriptionSaveBesideAudio)
+        let saveDest: URL?
+        if let saved = lastSavedTranscriptURL {
+            saveDest = saved.deletingLastPathComponent()
+                .appendingPathComponent(
+                    saved.deletingPathExtension().lastPathComponent
+                        .replacingOccurrences(of: "-transcript", with: "") + "-summary.md"
+                )
+        } else if saveBeside, let source = lastSourceURL {
+            saveDest = AudioTranscriptionSupport.summaryFileURL(forAudioURL: source)
+        } else {
+            saveDest = nil
+        }
+        generateSummary(for: transcriptText, saveDestination: saveDest)
+    }
+
+    func resetSummaryPrompt() {
+        UserDefaults.standard.set(AudioTranscriptionSupport.defaultSummaryPrompt,
+                                  forKey: DefaultsKey.audioTranscriptionSummaryPrompt)
+    }
+
+    func copySummary() {
+        guard !summaryText.isEmpty else { return }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(summaryText, forType: .string)
+        let extras = FeatureStrings.audioTranscriptionExtras(L10n.shared.language)
+        QuickToolHUD.show(icon: "doc.on.doc", message: extras.summaryCopiedHUD)
+    }
+
+    func saveSummaryAs() {
+        guard !summaryText.isEmpty else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.plainText]
+        let defaultName = lastSourceURL.map { "\($0.deletingPathExtension().lastPathComponent)-summary.md" }
+            ?? "summary.md"
+        panel.nameFieldStringValue = defaultName
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try summaryText.write(to: url, atomically: true, encoding: .utf8)
+                lastSavedSummaryURL = url
+                let extras = FeatureStrings.audioTranscriptionExtras(L10n.shared.language)
+                QuickToolHUD.show(icon: "checkmark.circle", message: extras.summarySavedHUD)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func generateSummary(for text: String, saveDestination: URL?) {
+        summaryTask?.cancel()
+        let prompt = summaryPrompt
+        isSummarizing = true
+        summaryText = ""
+        lastSavedSummaryURL = nil
+
+        summaryTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await TranscriptSummarizer.summarize(transcript: text, prompt: prompt)
+                var savedSummaryURL: URL?
+                if let saveDestination, !result.text.isEmpty {
+                    if (try? result.text.write(to: saveDestination, atomically: true, encoding: .utf8)) != nil {
+                        savedSummaryURL = saveDestination
+                    }
+                }
+                let finalSavedURL = savedSummaryURL
+                await MainActor.run {
+                    self.isSummarizing = false
+                    self.summaryTask = nil
+                    self.summaryText = result.text
+                    self.summaryUsedOnDeviceLLM = result.usedOnDeviceLLM
+                    self.lastSavedSummaryURL = finalSavedURL
+                    if let idx = self.recentTranscripts.firstIndex(where: { $0.text == text }) {
+                        let existing = self.recentTranscripts[idx]
+                        self.recentTranscripts[idx] = RecentTranscript(
+                            id: existing.id,
+                            title: existing.title,
+                            sourceURL: existing.sourceURL,
+                            savedTranscriptURL: existing.savedTranscriptURL,
+                            text: existing.text,
+                            summary: result.text,
+                            savedSummaryURL: finalSavedURL,
+                            createdAt: existing.createdAt,
+                            durationSeconds: existing.durationSeconds
+                        )
+                    }
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    self.isSummarizing = false
+                    self.summaryTask = nil
+                }
+            } catch {
+                await MainActor.run {
+                    self.isSummarizing = false
+                    self.summaryTask = nil
+                    self.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    // MARK: - System-Wide Voice Dictation
+
+    func toggleSystemDictation() {
+        if isDictating {
+            finishDictationAndInsert()
+        } else {
+            startSystemDictation()
+        }
+    }
+
+    func startSystemDictation() {
+        guard !isDictating else { return }
+        let extras = FeatureStrings.audioTranscriptionExtras(L10n.shared.language)
+        refreshModelStatus()
+        guard modelReady else {
+            pendingDictationAfterDownload = true
+            QuickToolHUD.show(icon: "arrow.down.circle", message: extras.dictationModelMissingHUD)
+            downloadModel()
+            return
+        }
+
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            startDictationCapture()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    if granted {
+                        self.startDictationCapture()
+                    } else {
+                        self.errorMessage = extras.dictationMicDeniedError
+                        QuickToolHUD.show(icon: "mic.slash", message: extras.dictationMicDeniedError)
+                    }
+                }
+            }
+        default:
+            errorMessage = extras.dictationMicDeniedError
+            QuickToolHUD.show(icon: "mic.slash", message: extras.dictationMicDeniedError)
+        }
+    }
+
+    private func startDictationCapture() {
+        guard !isDictating else { return }
+        let extras = FeatureStrings.audioTranscriptionExtras(L10n.shared.language)
+        errorMessage = nil
+        do {
+            try dictationRecorder.start { [weak self] level in
+                DispatchQueue.main.async {
+                    self?.dictationLevel = level
+                }
+            }
+            isDictating = true
+            dictationStartedAt = Date()
+            dictationElapsedSeconds = 0
+            dictationTimer?.invalidate()
+            let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
+                guard let self, let started = self.dictationStartedAt else { return }
+                self.dictationElapsedSeconds = max(0, Int(Date().timeIntervalSince(started).rounded(.down)))
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            dictationTimer = timer
+            QuickToolHUD.show(icon: "mic.fill", message: extras.dictationListeningHUD)
+        } catch {
+            isDictating = false
+            dictationLevel = 0
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func cancelDictation() {
+        dictationTimer?.invalidate()
+        dictationTimer = nil
+        dictationStartedAt = nil
+        dictationElapsedSeconds = 0
+        dictationLevel = 0
+        isDictating = false
+        pendingDictationAfterDownload = false
+        dictationRecorder.stopAndDiscard()
+    }
+
+    private func finishDictationAndInsert() {
+        dictationTimer?.invalidate()
+        dictationTimer = nil
+        dictationStartedAt = nil
+        dictationElapsedSeconds = 0
+        dictationLevel = 0
+        isDictating = false
+
+        let samples = dictationRecorder.stop()
+        let strings = FeatureStrings.audioTranscription(L10n.shared.language)
+        let extras = FeatureStrings.audioTranscriptionExtras(L10n.shared.language)
+        guard samples.count >= Int(AudioTranscriptionSupport.sampleRate * 0.15) else {
+            QuickToolHUD.show(icon: "waveform", message: strings.noSpeechDetected)
+            return
+        }
+
+        transcribeTask?.cancel()
+        summaryTask?.cancel()
+        errorMessage = nil
+        summaryText = ""
+        lastSavedSummaryURL = nil
+        isTranscribing = true
+        progress = 0
+        currentFileName = extras.dictationTitle
+        lastSourceURL = nil
+        lastSavedTranscriptURL = nil
+
+        let dir = modelDirectory
+        let mode = computeMode
+
+        transcribeTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await self.engine.transcribe(
+                    samples: samples,
+                    modelDirectory: dir,
+                    computeMode: mode,
+                    speaker: nil
+                ) { frac in
+                    DispatchQueue.main.async {
+                        self.progress = frac
+                    }
+                }
+                let text = AudioTranscriptionSupport.formatTranscript(
+                    segments: result.segments,
+                    includeTimestamps: false
+                ).trimmingCharacters(in: .whitespacesAndNewlines)
+
+                await MainActor.run {
+                    self.isTranscribing = false
+                    self.transcribeTask = nil
+                    self.progress = 1
+                    self.segments = result.segments
+                    self.transcriptText = text
+                    self.lastDurationSeconds = result.audioDurationSeconds
+                    self.lastProcessingSeconds = result.elapsedSeconds
+                    if text.isEmpty {
+                        self.errorMessage = strings.noSpeechDetected
+                        QuickToolHUD.show(icon: "waveform", message: strings.noSpeechDetected)
+                    } else {
+                        self.recordRecent(
+                            title: extras.dictationTitle,
+                            sourceURL: URL(fileURLWithPath: "/dev/null"),
+                            savedURL: nil,
+                            text: text,
+                            duration: result.audioDurationSeconds
+                        )
+                        if AXIsProcessTrusted() {
+                            _ = TransientPaste.shared.paste(text)
+                            QuickToolHUD.show(icon: "text.cursor", message: extras.dictationInsertedHUD)
+                        } else {
+                            let pb = NSPasteboard.general
+                            pb.clearContents()
+                            pb.setString(text, forType: .string)
+                            QuickToolHUD.show(icon: "doc.on.doc", message: extras.dictationCopiedHUD)
+                        }
+                        if self.summaryEnabled {
+                            self.generateSummary(for: text, saveDestination: nil)
+                        }
+                    }
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    self.isTranscribing = false
+                    self.transcribeTask = nil
+                }
+            } catch ParakeetCoreMLTranscriber.TranscriberError.cancelled {
+                await MainActor.run {
+                    self.isTranscribing = false
+                    self.transcribeTask = nil
+                }
+            } catch {
+                await MainActor.run {
+                    self.isTranscribing = false
+                    self.transcribeTask = nil
+                    self.errorMessage = error.localizedDescription
+                }
+            }
+        }
     }
 
     func copyTranscript() {
@@ -444,6 +814,8 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
             sourceURL: sourceURL,
             savedTranscriptURL: savedURL,
             text: text,
+            summary: nil,
+            savedSummaryURL: nil,
             createdAt: Date(),
             durationSeconds: duration
         )

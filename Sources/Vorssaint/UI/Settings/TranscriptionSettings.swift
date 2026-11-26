@@ -8,15 +8,22 @@ import UniformTypeIdentifiers
 struct TranscriptionSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = AudioTranscriptionService.shared
+    @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.meetingRecorderAutoTranscribe) private var autoTranscribe = false
     @AppStorage(DefaultsKey.audioTranscriptionIncludeTimestamps) private var includeTimestamps = true
     @AppStorage(DefaultsKey.audioTranscriptionSaveBesideAudio) private var saveBesideAudio = true
     @AppStorage(DefaultsKey.audioTranscriptionComputeMode) private var computeModeRaw = ParakeetComputeMode.auto.rawValue
+    @AppStorage(DefaultsKey.audioTranscriptionSummaryEnabled) private var summaryEnabled = false
+    @AppStorage(DefaultsKey.audioTranscriptionSummaryPrompt) private var summaryPrompt = AudioTranscriptionSupport.defaultSummaryPrompt
+    @AppStorage(DefaultsKey.audioTranscriptionDictationEnabled) private var dictationEnabled = false
     @AppStorage(DefaultsKey.panelUtilityAudioTranscription) private var showInPanel = true
     @State private var isDropTargeted = false
 
     private var strings: AudioTranscriptionFeatureStrings {
         FeatureStrings.audioTranscription(l10n.language)
+    }
+    private var extras: AudioTranscriptionExtrasStrings {
+        FeatureStrings.audioTranscriptionExtras(l10n.language)
     }
 
     var body: some View {
@@ -86,6 +93,10 @@ struct TranscriptionSettings: View {
                         HStack(spacing: 8) {
                             Button(strings.copyButton) { service.copyTranscript() }
                             Button(strings.saveButton) { service.saveTranscriptAs() }
+                            Button(service.summaryText.isEmpty ? extras.summarizeButton : extras.regenerateSummaryButton) {
+                                service.summarizeCurrentTranscript()
+                            }
+                            .disabled(service.isSummarizing)
                             if service.lastSavedTranscriptURL != nil {
                                 Button(strings.revealButton) { service.revealSavedTranscript() }
                             }
@@ -94,8 +105,136 @@ struct TranscriptionSettings: View {
                         }
                     }
                 }
+
+                if service.isSummarizing {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(extras.summarizingStatus)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if !service.summaryText.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Label(extras.summaryTitle, systemImage: "text.badge.star")
+                                .font(.subheadline.weight(.semibold))
+                            Spacer()
+                            if !service.summaryUsedOnDeviceLLM {
+                                Text(extras.summaryFallbackNote)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        ScrollView {
+                            Text(service.summaryText)
+                                .font(.callout)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(minHeight: 60, maxHeight: 150)
+                        HStack(spacing: 8) {
+                            Button(extras.copySummaryButton) { service.copySummary() }
+                            Button(extras.saveSummaryButton) { service.saveSummaryAs() }
+                            Spacer()
+                            Button(extras.regenerateSummaryButton) {
+                                service.summarizeCurrentTranscript()
+                            }
+                        }
+                    }
+                }
             } header: {
                 Text(strings.title)
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle(extras.dictationToggle, isOn: $dictationEnabled)
+                        .onChange(of: dictationEnabled) { _, _ in
+                            service.syncWithPreferences()
+                        }
+                    Text(extras.dictationCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                ShortcutPreferenceRow(role: .voiceDictation,
+                                      isEnabled: dictationEnabled,
+                                      label: extras.dictationShortcutLabel) {
+                    service.syncWithPreferences()
+                }
+
+                HStack(spacing: 10) {
+                    if service.isDictating {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                        Text(String(format: extras.dictatingStatusFormat,
+                                    MeetingRecorderSupport.elapsedLabel(seconds: service.dictationElapsedSeconds)))
+                            .font(.caption)
+                            .monospacedDigit()
+                        Spacer()
+                        Button(extras.stopDictationButton) {
+                            service.toggleSystemDictation()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button(strings.cancelButton) {
+                            service.cancelDictation()
+                        }
+                    } else {
+                        Button {
+                            service.toggleSystemDictation()
+                        } label: {
+                            Label(extras.startDictationButton, systemImage: "mic.fill")
+                        }
+                        .disabled(service.isTranscribing || service.isDownloadingModel)
+                        Spacer()
+                    }
+                }
+
+                if !permissions.accessibility {
+                    Text(extras.dictationAccessibilityHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text(extras.dictationSectionHeader)
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle(extras.summaryToggle, isOn: $summaryEnabled)
+                    Text(extras.summaryCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(extras.summaryPromptLabel)
+                            .font(.callout.weight(.medium))
+                        Spacer()
+                        Button(extras.resetPromptButton) {
+                            service.resetSummaryPrompt()
+                        }
+                        .controlSize(.small)
+                        .disabled(summaryPrompt.trimmingCharacters(in: .whitespacesAndNewlines) == AudioTranscriptionSupport.defaultSummaryPrompt)
+                    }
+                    TextEditor(text: $summaryPrompt)
+                        .font(.callout)
+                        .frame(minHeight: 72, maxHeight: 120)
+                        .padding(4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.primary.opacity(0.03))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
+                        )
+                }
+            } header: {
+                Text(extras.summarySectionHeader)
             }
 
             Section {

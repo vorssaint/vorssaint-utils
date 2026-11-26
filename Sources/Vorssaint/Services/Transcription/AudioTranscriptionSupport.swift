@@ -320,4 +320,151 @@ enum AudioTranscriptionSupport {
     static func meetingTranscriptFileURL(stem: String, in directory: URL) -> URL {
         directory.appendingPathComponent("\(stem)-transcript.txt")
     }
+
+    // MARK: - Summary Support
+
+    static let defaultSummaryPrompt = "Summarize this transcript concisely with key points, decisions, and action items."
+
+    static func resolvedSummaryPrompt(_ custom: String?) -> String {
+        let trimmed = custom?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? defaultSummaryPrompt : trimmed
+    }
+
+    static func summaryFileURL(forAudioURL audioURL: URL) -> URL {
+        let dir = audioURL.deletingLastPathComponent()
+        let stem = audioURL.deletingPathExtension().lastPathComponent
+        return dir.appendingPathComponent("\(stem)-summary.md")
+    }
+
+    static func meetingSummaryFileURL(stem: String, in directory: URL) -> URL {
+        directory.appendingPathComponent("\(stem)-summary.md")
+    }
+
+    /// Splits a long transcript into bounded chunks along newline or sentence
+    /// boundaries so on-device models stay within their context window.
+    static func summaryChunks(for transcript: String, maxCharacters: Int = 8_000) -> [String] {
+        let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let limit = max(500, maxCharacters)
+        if trimmed.count <= limit { return [trimmed] }
+
+        var chunks: [String] = []
+        var current = ""
+        let lines = trimmed.components(separatedBy: .newlines)
+        for line in lines {
+            let piece = line.trimmingCharacters(in: .whitespaces)
+            guard !piece.isEmpty else { continue }
+            if !current.isEmpty, current.count + piece.count + 1 > limit {
+                chunks.append(current)
+                current = ""
+            }
+            if piece.count > limit {
+                if !current.isEmpty {
+                    chunks.append(current)
+                    current = ""
+                }
+                var start = piece.startIndex
+                while start < piece.endIndex {
+                    let end = piece.index(start, offsetBy: limit, limitedBy: piece.endIndex) ?? piece.endIndex
+                    chunks.append(String(piece[start..<end]))
+                    start = end
+                }
+            } else {
+                current = current.isEmpty ? piece : (current + "\n" + piece)
+            }
+        }
+        if !current.isEmpty { chunks.append(current) }
+        return chunks
+    }
+
+    /// Deterministic local extractive fallback used when Apple Intelligence /
+    /// FoundationModels is unavailable. Strips timestamps, scores sentences by
+    /// keyword salience and prompt cues, and preserves chronological flow.
+    static func fallbackExtractiveSummary(transcript: String, prompt: String) -> String {
+        let strippedLines = transcript
+            .components(separatedBy: .newlines)
+            .map { line -> String in
+                var text = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Strip leading [M:SS] or [H:MM:SS] timestamp prefixes if present.
+                if text.hasPrefix("["), let close = text.firstIndex(of: "]") {
+                    let after = text.index(after: close)
+                    text = String(text[after...]).trimmingCharacters(in: .whitespaces)
+                }
+                return text
+            }
+            .filter { !$0.isEmpty }
+        guard !strippedLines.isEmpty else { return "" }
+
+        var sentences: [String] = []
+        for line in strippedLines {
+            var buffer = ""
+            for ch in line {
+                buffer.append(ch)
+                if ch == "." || ch == "!" || ch == "?" {
+                    let clean = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if clean.count >= 12 { sentences.append(clean) }
+                    buffer = ""
+                }
+            }
+            let tail = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !tail.isEmpty { sentences.append(tail) }
+        }
+        if sentences.isEmpty { sentences = strippedLines }
+
+        let promptLower = resolvedSummaryPrompt(prompt).lowercased()
+        let wantsBrief = promptLower.contains("brief") || promptLower.contains("short") || promptLower.contains("tldr") || promptLower.contains("tl;dr")
+        let wantsBullets = !promptLower.contains("paragraph") && !promptLower.contains("prose")
+        let maxPoints = wantsBrief ? 3 : min(6, max(3, Int(ceil(Double(sentences.count) * 0.3))))
+
+        if sentences.count <= maxPoints {
+            return wantsBullets
+                ? sentences.map { "- \($0)" }.joined(separator: "\n")
+                : sentences.joined(separator: " ")
+        }
+
+        let stopWords: Set<String> = [
+            "the", "and", "for", "that", "this", "with", "from", "have", "were", "will",
+            "would", "could", "should", "about", "there", "their", "they", "them", "been",
+            "into", "just", "like", "your", "what", "when", "where", "which", "while",
+            "also", "very", "more", "some", "than", "then", "only", "over", "such", "make",
+            "you", "others", "yeah", "okay", "right", "well", "know", "think", "really",
+        ]
+        func words(in text: String) -> [String] {
+            text.lowercased()
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { $0.count >= 3 && !stopWords.contains($0) }
+        }
+
+        var freq: [String: Int] = [:]
+        for s in sentences {
+            for w in words(in: s) { freq[w, default: 0] += 1 }
+        }
+        let promptKeywords = Set(words(in: promptLower))
+        let actionCues = ["action", "todo", "follow up", "decide", "decided", "decision", "next", "deadline", "ship", "need to", "will "]
+
+        let scored: [(index: Int, score: Double)] = sentences.enumerated().map { idx, s in
+            let w = words(in: s)
+            guard !w.isEmpty else { return (idx, 0) }
+            let tfSum = w.reduce(0.0) { $0 + Double(freq[$1] ?? 1) }
+            var score = tfSum / sqrt(Double(w.count))
+            let lower = s.lowercased()
+            if promptKeywords.contains(where: { lower.contains($0) }) { score *= 1.2 }
+            if actionCues.contains(where: { lower.contains($0) }) { score *= 1.25 }
+            if idx == 0 || idx == sentences.count - 1 { score *= 1.15 }
+            return (idx, score)
+        }
+
+        let chosenIndices = Set(
+            scored.sorted { $0.score > $1.score }
+                .prefix(maxPoints)
+                .map(\.index)
+        )
+        let selected = sentences.enumerated()
+            .filter { chosenIndices.contains($0.offset) }
+            .map(\.element)
+
+        return wantsBullets
+            ? selected.map { "- \($0)" }.joined(separator: "\n")
+            : selected.joined(separator: " ")
+    }
 }

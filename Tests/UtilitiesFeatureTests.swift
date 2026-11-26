@@ -320,15 +320,53 @@ enum UtilitiesFeatureTests {
                && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionIncludeTimestamps] as? Bool == true
                && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionSaveBesideAudio] as? Bool == true
                && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionComputeMode] as? String == ParakeetComputeMode.auto.rawValue
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionSummaryEnabled] as? Bool == false
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionSummaryPrompt] as? String == AudioTranscriptionSupport.defaultSummaryPrompt
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionDictationEnabled] as? Bool == false
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionDictationShortcut] as? String == GlobalShortcut.voiceDictationDefault.storageValue
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.meetingRecorderAutoTranscribe)
-               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionComputeMode),
-               "audio transcription defaults and backup export keys are registered cleanly")
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionComputeMode)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionSummaryEnabled)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionSummaryPrompt)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionDictationEnabled)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionDictationShortcut),
+               "audio transcription defaults, summary, dictation, and backup export keys are registered cleanly")
+        suite.expect(AudioTranscriptionSupport.resolvedSummaryPrompt("   \n  ") == AudioTranscriptionSupport.defaultSummaryPrompt
+               && AudioTranscriptionSupport.resolvedSummaryPrompt("  List only action items.  ") == "List only action items.",
+               "custom summary prompts trim cleanly and fall back to default when blank")
+        suite.expect(AudioTranscriptionSupport.summaryFileURL(forAudioURL: URL(fileURLWithPath: "/tmp/demo.wav")).path == "/tmp/demo-summary.md"
+               && AudioTranscriptionSupport.meetingSummaryFileURL(stem: "2026-04-01_10-00-00-zoom", in: URL(fileURLWithPath: "/tmp")).path == "/tmp/2026-04-01_10-00-00-zoom-summary.md",
+               "summary output paths sit beside standalone audio and meeting recordings")
+        let sampleTranscript = """
+        [0:01] You: We decided to ship the Core ML transcription engine this Friday.
+        [0:08] Others: Sounds great, I will update the release notes and QA checklist today.
+        [0:15] You: Also remember to add the custom summary prompt field before opening the PR.
+        [0:22] Others: Agreed, action item noted for the settings screen.
+        """
+        let fallbackSummary = AudioTranscriptionSupport.fallbackExtractiveSummary(
+            transcript: sampleTranscript,
+            prompt: "Summarize key decisions and action items"
+        )
+        suite.expect(!fallbackSummary.isEmpty && !fallbackSummary.contains("[0:01]"),
+               "local extractive summary produces clean bullet output without raw timestamps")
+        let longTranscript = Array(repeating: "This is a sentence from a long meeting transcript.", count: 300).joined(separator: "\n")
+        let chunks = AudioTranscriptionSupport.summaryChunks(for: longTranscript, maxCharacters: 1_000)
+        suite.expect(chunks.count > 1 && chunks.allSatisfy { $0.count <= 1_000 },
+               "long transcripts split cleanly within bounded chunk size")
+        suite.expect(GlobalShortcutRole.voiceDictation.storageKey == DefaultsKey.audioTranscriptionDictationShortcut
+               && GlobalShortcutRole.voiceDictation.defaultShortcut == .voiceDictationDefault
+               && GlobalShortcutRole.voiceDictation.requiredEnableKeys == [DefaultsKey.audioTranscriptionDictationEnabled]
+               && GlobalShortcutRole.voiceDictation.feature == .audioTranscription,
+               "voice dictation global shortcut role wires cleanly to audioTranscription")
         for lang in AppLanguage.allCases {
             let ts = FeatureStrings.audioTranscription(lang)
+            let extras = FeatureStrings.audioTranscriptionExtras(lang)
             suite.expect(!ts.title.isEmpty && !ts.hubDescription.isEmpty
                    && !ts.dropTitle.isEmpty && !ts.autoTranscribeToggle.isEmpty
-                   && !ts.downloadModelButton.isEmpty,
-                   "audio transcription strings are populated in \(lang)")
+                   && !ts.downloadModelButton.isEmpty
+                   && !extras.summaryToggle.isEmpty && !extras.summaryPromptLabel.isEmpty
+                   && !extras.dictationToggle.isEmpty && !extras.startDictationButton.isEmpty,
+                   "audio transcription and extras strings are populated in \(lang)")
         }
 
         // MARK: Port manager row numbers

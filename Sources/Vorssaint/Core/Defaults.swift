@@ -810,6 +810,10 @@ enum DefaultsKey {
     static let audioTranscriptionIncludeTimestamps = "audioTranscriptionIncludeTimestamps"
     static let audioTranscriptionSaveBesideAudio = "audioTranscriptionSaveBesideAudio"
     static let audioTranscriptionComputeMode = "audioTranscriptionComputeMode"
+    static let audioTranscriptionSummaryEnabled = "audioTranscriptionSummaryEnabled"
+    static let audioTranscriptionSummaryPrompt = "audioTranscriptionSummaryPrompt"
+    static let audioTranscriptionDictationEnabled = "audioTranscriptionDictationEnabled"
+    static let audioTranscriptionDictationShortcut = "audioTranscriptionDictationShortcut"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -1970,6 +1974,10 @@ enum Defaults {
         DefaultsKey.audioTranscriptionIncludeTimestamps: true,
         DefaultsKey.audioTranscriptionSaveBesideAudio: true,
         DefaultsKey.audioTranscriptionComputeMode: ParakeetComputeMode.auto.rawValue,
+        DefaultsKey.audioTranscriptionSummaryEnabled: false,
+        DefaultsKey.audioTranscriptionSummaryPrompt: AudioTranscriptionSupport.defaultSummaryPrompt,
+        DefaultsKey.audioTranscriptionDictationEnabled: false,
+        DefaultsKey.audioTranscriptionDictationShortcut: GlobalShortcut.voiceDictationDefault.storageValue,
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,

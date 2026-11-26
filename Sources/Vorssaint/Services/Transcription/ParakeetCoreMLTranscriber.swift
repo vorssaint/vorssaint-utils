@@ -242,8 +242,23 @@ final class ParakeetCoreMLTranscriber: @unchecked Sendable {
                     speaker: String? = nil,
                     progress: (@Sendable (Double) -> Void)? = nil) async throws -> TranscriptionResult {
         try Task.checkCancellation()
-        let startTime = Date()
         let samples = try await Self.load16kMonoSamples(from: audioURL)
+        return try await transcribe(
+            samples: samples,
+            modelDirectory: modelDirectory,
+            computeMode: computeMode,
+            speaker: speaker,
+            progress: progress
+        )
+    }
+
+    func transcribe(samples: [Float],
+                    modelDirectory: URL = AudioTranscriptionSupport.defaultModelDirectory(),
+                    computeMode: ParakeetComputeMode = .auto,
+                    speaker: String? = nil,
+                    progress: (@Sendable (Double) -> Void)? = nil) async throws -> TranscriptionResult {
+        try Task.checkCancellation()
+        let startTime = Date()
         guard !samples.isEmpty else { throw TranscriberError.emptyAudio }
         let duration = Double(samples.count) / AudioTranscriptionSupport.sampleRate
         try Task.checkCancellation()

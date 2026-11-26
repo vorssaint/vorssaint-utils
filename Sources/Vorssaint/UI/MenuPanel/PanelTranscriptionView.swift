@@ -11,12 +11,16 @@ struct PanelTranscriptionView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = AudioTranscriptionService.shared
     @AppStorage(DefaultsKey.meetingRecorderAutoTranscribe) private var autoTranscribe = false
+    @AppStorage(DefaultsKey.audioTranscriptionSummaryEnabled) private var summaryEnabled = false
     @State private var isDropTargeted = false
 
     var onClose: () -> Void
 
     private var strings: AudioTranscriptionFeatureStrings {
         FeatureStrings.audioTranscription(l10n.language)
+    }
+    private var extras: AudioTranscriptionExtrasStrings {
+        FeatureStrings.audioTranscriptionExtras(l10n.language)
     }
 
     var body: some View {
@@ -25,6 +29,9 @@ struct PanelTranscriptionView: View {
             dropAndStatusCard
             if !service.transcriptText.isEmpty {
                 transcriptCard
+            }
+            if service.isSummarizing || !service.summaryText.isEmpty {
+                summaryCard
             }
             if !service.recentTranscripts.isEmpty {
                 recentSection
@@ -134,8 +141,52 @@ struct PanelTranscriptionView: View {
 
             Divider()
 
+            HStack(spacing: 8) {
+                if service.isDictating {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 7, height: 7)
+                    Text(String(format: extras.dictatingStatusFormat,
+                                MeetingRecorderSupport.elapsedLabel(seconds: service.dictationElapsedSeconds)))
+                        .font(.system(size: 10.5, weight: .medium))
+                        .monospacedDigit()
+                    Spacer()
+                    Button(extras.stopDictationButton) {
+                        service.toggleSystemDictation()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.mini)
+                    Button(strings.cancelButton) {
+                        service.cancelDictation()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                } else {
+                    Button {
+                        service.toggleSystemDictation()
+                    } label: {
+                        Label(extras.startDictationButton, systemImage: "mic.fill")
+                            .font(.system(size: 10.5, weight: .medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .disabled(service.isTranscribing || service.isDownloadingModel)
+                    Spacer()
+                    Text(GlobalShortcutRole.voiceDictation.savedShortcut.displayString)
+                        .font(.system(size: 9.5, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Toggle(isOn: $autoTranscribe) {
                 Text(strings.autoTranscribeToggle)
+                    .font(.system(size: 11))
+            }
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+
+            Toggle(isOn: $summaryEnabled) {
+                Text(extras.summaryToggle)
                     .font(.system(size: 11))
             }
             .toggleStyle(.switch)
@@ -217,6 +268,13 @@ struct PanelTranscriptionView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
 
+                Button(service.summaryText.isEmpty ? extras.summarizeButton : extras.regenerateSummaryButton) {
+                    service.summarizeCurrentTranscript()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+                .disabled(service.isSummarizing)
+
                 if service.lastSavedTranscriptURL != nil {
                     Button {
                         service.revealSavedTranscript()
@@ -237,6 +295,57 @@ struct PanelTranscriptionView: View {
                 .buttonStyle(.plain)
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
+            }
+        }
+        .panelCard()
+    }
+
+    private var summaryCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Label(extras.summaryTitle, systemImage: "text.badge.star")
+                    .font(.system(size: 10.5, weight: .semibold))
+                Spacer()
+                if service.isSummarizing {
+                    ProgressView()
+                        .controlSize(.mini)
+                }
+            }
+            if service.isSummarizing {
+                Text(extras.summarizingStatus)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    Text(service.summaryText)
+                        .font(.system(size: 10.5))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 120)
+
+                HStack(spacing: 6) {
+                    Button(extras.copySummaryButton) {
+                        service.copySummary()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.mini)
+
+                    Button(extras.saveSummaryButton) {
+                        service.saveSummaryAs()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+
+                    Spacer()
+
+                    Button(extras.regenerateSummaryButton) {
+                        service.summarizeCurrentTranscript()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                }
             }
         }
         .panelCard()
