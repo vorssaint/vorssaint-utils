@@ -23,8 +23,7 @@ final class MouseNavigationService: ObservableObject {
 
     @Published private(set) var isRunning = false
 
-    private var tap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    private var eventTap: EventTap?
     /// Buttons whose current press started over a pass-through app. The Up
     /// and Drag of a gesture must follow its Down: splitting the pair would
     /// leave the target app with an unmatched mouse event. Only touched from
@@ -65,7 +64,7 @@ final class MouseNavigationService: ObservableObject {
     func suspend() { stop() }
 
     private func start() {
-        guard tap == nil else {
+        guard eventTap == nil else {
             isRunning = true
             return
         }
@@ -73,28 +72,31 @@ final class MouseNavigationService: ObservableObject {
         let mask = CGEventMask(1 << CGEventType.otherMouseDown.rawValue)
             | CGEventMask(1 << CGEventType.otherMouseUp.rawValue)
             | CGEventMask(1 << CGEventType.otherMouseDragged.rawValue)
-        guard let tap = CGEvent.tapCreate(
-            tap: .cghidEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: mask,
-            callback: { _, type, event, userInfo in
-                guard let userInfo else { return Unmanaged.passUnretained(event) }
-                let service = Unmanaged<MouseNavigationService>.fromOpaque(userInfo).takeUnretainedValue()
-                return service.handle(type: type, event: event)
+        let tap = EventTap(
+            location: .cghidEventTap,
+            mask: mask,
+            onRearmRefused: { [weak self] in self?.syncWithPreferences() },
+            handler: { [weak self] type, event in
+                guard let self else { return Unmanaged.passUnretained(event) }
+                return self.handle(type: type, event: event)
             },
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else {
+            rearm: {
+                let wanted = AppFeature.mouseNavigation.isAvailable
+                    && UserDefaults.standard.bool(forKey: DefaultsKey.mouseNavigationEnabled)
+                return SessionActivitySupport.tapShouldRun(
+                    featureWanted: wanted,
+                    accessibilityGranted: AXIsProcessTrusted(),
+                    sessionIsActive: SessionActivity.shared.isActive
+                )
+            }
+        )
+        eventTap = tap
+        guard tap.install() else {
+            eventTap = nil
             webURLHandlers.removeAll()
             isRunning = false
             return
         }
-
-        self.tap = tap
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        runLoopSource = source
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
         observeWebHandlerChanges()
         // Which keys carry Back and Forward depends on the keyboard in use.
         // The Go menu answers on every click; without it the answer is asked
@@ -109,13 +111,8 @@ final class MouseNavigationService: ObservableObject {
     }
 
     private func stop() {
-        if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
-        if let runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
-        }
-        if let tap {
-            CFMachPortInvalidate(tap)
-        }
+        eventTap?.stop()
+        eventTap = nil
         if let keyboardObserver {
             DistributedNotificationCenter.default().removeObserver(keyboardObserver)
         }
@@ -128,8 +125,6 @@ final class MouseNavigationService: ObservableObject {
         webHandlerObservers.removeAll()
         MouseNavigationKeys.reset()
         webURLHandlers.removeAll()
-        tap = nil
-        runLoopSource = nil
         passThroughButtons.removeAll()
         isRunning = false
     }
@@ -163,13 +158,13 @@ final class MouseNavigationService: ObservableObject {
         let generation = webHandlerRefreshGeneration
         webHandlerRefreshWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            guard let self, self.tap != nil,
+            guard let self, self.eventTap?.isInstalled == true,
                   self.webHandlerRefreshGeneration == generation else { return }
             self.webHandlerRefreshWork = nil
             DispatchQueue.global(qos: .utility).async { [weak self] in
                 let handlers = MouseNavigationService.registeredWebURLHandlers()
                 DispatchQueue.main.async { [weak self] in
-                    guard let self, self.tap != nil,
+                    guard let self, self.eventTap?.isInstalled == true,
                           self.webHandlerRefreshGeneration == generation else { return }
                     self.webURLHandlers = handlers
                 }
@@ -180,26 +175,6 @@ final class MouseNavigationService: ObservableObject {
     }
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            let wanted = AppFeature.mouseNavigation.isAvailable
-                && UserDefaults.standard.bool(forKey: DefaultsKey.mouseNavigationEnabled)
-            let shouldRearm = SessionActivitySupport.tapShouldRun(
-                featureWanted: wanted,
-                accessibilityGranted: AXIsProcessTrusted(),
-                sessionIsActive: SessionActivity.shared.isActive
-            )
-            if shouldRearm, let tap {
-                CGEvent.tapEnable(tap: tap, enable: true)
-            } else {
-                // Invalidating the port from its own callback stack is unsafe;
-                // finish this callback fail-open, then release the tap.
-                DispatchQueue.main.async { [weak self] in
-                    self?.stop()
-                    self?.syncWithPreferences()
-                }
-            }
-            return Unmanaged.passUnretained(event)
-        }
         let buttonNumber = event.getIntegerValueField(.mouseEventButtonNumber)
         guard type == .otherMouseDown || type == .otherMouseUp || type == .otherMouseDragged,
               let direction = MouseNavigationSupport.direction(forButtonNumber: buttonNumber) else {

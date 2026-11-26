@@ -3845,7 +3845,8 @@ enum PointerInputFeatureTests {
                 .joined(separator: "\n")
             suite.expect(code.contains("SessionActivity.shared.onChange"),
                    "\(tapOwner) rebuilds its tap when the session comes back")
-            let timeoutClause = code.components(separatedBy: "tapDisabledByTimeout")
+            let timeoutClause = code
+                .components(separatedBy: code.contains("= EventTap(") ? "rearm:" : "tapDisabledByTimeout")
                 .dropFirst().first ?? ""
             var rearm = ""
             var depth = 0
@@ -3889,11 +3890,25 @@ enum PointerInputFeatureTests {
             }
             // Switching a tap off leaves the process owning it, which is what
             // the window server waits on; teardown must invalidate the port,
-            // either here or through the pointer thread that owns the source.
+            // either here, through the pointer thread that owns the source, or
+            // in the shared tap that holds it.
             suite.expect(code.contains("CFMachPortInvalidate")
-                    || code.contains("PointerTapRunLoop.remove("),
+                    || code.contains("PointerTapRunLoop.remove(")
+                    || code.contains("= EventTap("),
                    "\(tapOwner) hands its tap back rather than only disabling it")
         }
+
+        // A migrated owner leaves every disabling notice to the shared tap:
+        // the policy answers whether the feature still wants it, and a tap its
+        // owner stopped is never re-armed.
+        let eventTapSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/EventTap.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(eventTapSource.contains("tapDisabledByTimeout")
+                && eventTapSource.contains("tapDisabledByUserInput")
+                && eventTapSource.contains("CFMachPortInvalidate")
+                && eventTapSource.contains("CFRunLoopRemoveSource(CFRunLoopGetMain()"),
+               "the shared tap re-arms on the same notices and hands its port back")
 
         // The taps that filter ordinary clicks and wheel events are served by
         // a thread of their own. On the main run loop each of those events

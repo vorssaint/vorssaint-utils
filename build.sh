@@ -261,6 +261,8 @@ if (( TEST )); then
     mkdir -p "$TEST_OBJECT_DIR"
     TEST_SOURCES=(
         Sources/Vorssaint/Services/Media/MediaSupport.swift
+        Sources/Vorssaint/Services/EventTapSupport.swift
+        Sources/Vorssaint/Services/EventTap.swift
         Sources/Vorssaint/Core/QuitProtectionSupport.swift
         Sources/Vorssaint/Core/QuitProtectionStrings.swift
         Sources/Vorssaint/Core/Defaults.swift
