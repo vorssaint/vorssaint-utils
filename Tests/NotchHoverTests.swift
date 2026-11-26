@@ -133,6 +133,8 @@ enum NotchHoverTests {
         var hiddenHoverMonitors: [Any] = []
         var hoverExitMonitors: [Any] = []
         var hoverWork: DispatchWorkItem?
+        /// Set while a menu bar item occupies the resting island's footprint.
+        var statusItemOverlap = false
         var shelfDragExitWork: DispatchWorkItem?
         var captureHover: ((Bool) -> Void)?
         func updateCaptureControlsHover(wasInside: Bool) {}
@@ -462,6 +464,15 @@ enum NotchHoverTests {
             for handler in Array(NSEvent.global.values) { handler(NSEvent()) }
             suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty,
                    "the first move after the hover-opened island closed releases the pointer observers")
+        }
+        for physical in [false, true] {
+            let blocked = fixture(physical: physical)
+            blocked.statusItemOverlap = true
+            blocked.hover(true)
+            DispatchQueue.main.advance(0.30)
+            suite.expect(blocked.openings == 0 && blocked.hoverWork == nil,
+                         "a menu bar item in the island's footprint keeps a hover from opening over it")
+            leave(blocked)
         }
         for physical in [false, true] {
             for local in [false, true] {

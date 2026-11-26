@@ -81,6 +81,8 @@ enum NotchScreenEdgeClickTests {
         var hoverWork: DispatchWorkItem?
         var hoverState = NotchHoverState()
         var compactActivity: NotchCompactActivity?
+        var menuSpaceRoom: CGFloat?
+        var statusItemOverlap = false
         var openings = 0, countdownOpenings = 0
         var opened: NotchModule?
         func openCountdownEvent() { countdownOpenings += 1; expanded = true }
