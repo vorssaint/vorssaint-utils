@@ -177,6 +177,9 @@ enum ShelfFileResolutionTests {
             ShelfFileResolution.Candidate(id: UUID(),
                                           url: URL(fileURLWithPath: "/slow-volume/file-\($0).txt"))
         }
+        let providerOnMain = Flag()
+        let parked = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
         let perfFinished = DispatchSemaphore(value: 0)
         var perfResult: ShelfFileResolution.Result?
         let started = Date()
@@ -184,6 +187,11 @@ enum ShelfFileResolutionTests {
             candidates,
             on: DispatchQueue(label: "shelf-resolution-performance-test"),
             exists: { _ in
+                if Thread.isMainThread { providerOnMain.set() }
+                parked.signal()
+                // The first call parks until the main thread has answered, so
+                // a walk that ran on main would deadlock here and fail below.
+                _ = release.wait(timeout: .now() + 5)
                 usleep(2_000)
                 return true
             },
@@ -193,22 +201,26 @@ enum ShelfFileResolutionTests {
             })
         // Main must keep answering while the provider is busy, which is what a
         // button click during a network-volume check would feel like.
+        _ = parked.wait(timeout: .now() + 3)
         var mainAnswered = false
         let pinged = Date()
         DispatchQueue.main.async { mainAnswered = true }
-        let deadline = Date().addingTimeInterval(3)
+        let deadline = Date().addingTimeInterval(1)
         while !mainAnswered && Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.005))
         }
         let mainLatency = Date().timeIntervalSince(pinged)
+        for _ in 0..<count { release.signal() }
         let drained = perfFinished.wait(timeout: .now() + 5)
         let elapsed = Date().timeIntervalSince(started)
         print(String(format: "shelf resolution: %d files on a 2 ms provider took %.1f ms "
                      + "(%.2f ms each); main queue answered in %.2f ms",
                      count, elapsed * 1000, elapsed * 1000 / Double(count), mainLatency * 1000))
+        suite.expect(!providerOnMain.isSet,
+               "a slow provider never runs on the main thread")
+        suite.expect(mainAnswered,
+               "the main thread answers while a slow provider is parked")
         suite.expect(drained == .success && perfResult?.living.count == count,
                "50 files resolve once the slow provider answers")
-        suite.expect(mainLatency < elapsed / 2,
-               "the main thread answers well before a slow resolution finishes")
     }
 }
