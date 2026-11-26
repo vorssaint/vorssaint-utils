@@ -75,6 +75,14 @@ final class SwitcherWindowInventory {
     private var pendingWindowIDs: [CGWindowID: UUID] = [:]
     private var discoveriesForRefresh: [UUID: CGWindowID] = [:]
     private var unlistedFocus: (ticket: UUID, frontmostPID: pid_t, observation: UUID?)?
+    private var focusBurst = SwitcherFocusBurst()
+    private var focusBurstWork: DispatchWorkItem?
+    private var focusBurstGeneration: UInt64 = 0
+    /// A Dock click raises every window of the app and the window server
+    /// announces focus for each; this lets the burst finish before one window
+    /// is chosen (#4457). Shorter than the refresh coalescing delay, and
+    /// unnoticed for a single focus change.
+    private static let focusBurstSettle: TimeInterval = 0.08
     private var lastFocusProbe: FocusProbe?
     private var groupedSources: [pid_t: GroupedSource] = [:]
     private var discoveryWait: (tickets: Set<UUID>, isPending: () -> Bool, resume: () -> Void)?
@@ -180,6 +188,10 @@ final class SwitcherWindowInventory {
         pendingWindowIDs = [:]
         discoveriesForRefresh = [:]
         unlistedFocus = nil
+        focusBurstWork?.cancel()
+        focusBurstWork = nil
+        focusBurstGeneration &+= 1
+        focusBurst = SwitcherFocusBurst()
         lastFocusProbe = nil
         groupedSources = [:]
         discoveryWait = nil
@@ -377,7 +389,7 @@ final class SwitcherWindowInventory {
             if let item,
                let frontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
                item.pid == frontPID || item.windowOwnerPID == frontPID {
-                WindowUseTracker.shared.recordObservedFocus(windowID: windowID, pid: frontPID)
+                recordFocusBurst(windowID, pid: frontPID)
             } else if item == nil {
                 discover(windowID)
                 if let ticket = pendingWindowIDs[windowID],
@@ -396,6 +408,43 @@ final class SwitcherWindowInventory {
         case .spacesChanged, .membershipChanged:
             break
         }
+    }
+
+    /// A Dock click raises every window of the application and the window
+    /// server announces focus for each one. Recording them all would make
+    /// every window of that app the most recently used one (#4457). The burst
+    /// is held briefly and only the window that is actually in front when it
+    /// settles is recorded.
+    private func recordFocusBurst(_ windowID: CGWindowID, pid: pid_t) {
+        guard lifetime != nil else { return }
+        // Another app can take focus in the middle of a settle. Its successor
+        // decides the old batch first, so the batch is never mixed.
+        if focusBurst.pid != pid { flushFocusBurst() }
+        focusBurst.add(windowID, pid: pid)
+        scheduleFocusBurstFlush()
+    }
+
+    private func scheduleFocusBurstFlush() {
+        focusBurstWork?.cancel()
+        focusBurstGeneration &+= 1
+        let generation = focusBurstGeneration
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.focusBurstGeneration == generation,
+                  self.lifetimeLock.withLock({ self.lifetime != nil }) else { return }
+            self.focusBurstWork = nil
+            self.flushFocusBurst()
+        }
+        focusBurstWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.focusBurstSettle, execute: work)
+    }
+
+    private func flushFocusBurst() {
+        focusBurstWork?.cancel()
+        focusBurstWork = nil
+        focusBurstGeneration &+= 1
+        guard let pid = focusBurst.pid,
+              let windowID = focusBurst.resolve(frontToBack: WindowUseTracker.frontToBack().windows) else { return }
+        WindowUseTracker.shared.recordObservedFocus(windowID: windowID, pid: pid)
     }
 
     private func discover(_ windowID: CGWindowID) {
