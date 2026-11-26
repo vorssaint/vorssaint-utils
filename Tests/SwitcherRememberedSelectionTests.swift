@@ -108,6 +108,16 @@ enum SwitcherRememberedSelectionTests {
             }
             static var physicalOrder: [CGWindowID]?
             var windows: [CGWindowID] { Tracker.shared.history }
+            struct FrontToBack {
+                let windows: [CGWindowID]
+                let apps: [pid_t]
+            }
+            static func frontToBack() -> FrontToBack {
+                let items = WindowEnumerator.items
+                var seenApps = Set<pid_t>()
+                let apps = items.compactMap { seenApps.insert($0.pid).inserted ? $0.pid : nil }
+                return FrontToBack(windows: physicalOrder ?? items.compactMap(\.windowID), apps: apps)
+            }
             func frontAppFocus(for pid: pid_t, appPID: pid_t? = nil) -> WindowFocusHistory.FrontAppFocus {
                 Self.history.focusHistory.frontAppFocus(for: pid, appPID: appPID, now: SwitcherHoverSelectionTests.Queue.time)
             }

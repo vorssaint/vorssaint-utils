@@ -515,6 +515,7 @@ enum SwitcherModelFeatureTests {
         SwitcherWindowTitleTests.run(suite)
         SwitcherFullscreenScopeTests.run(suite)
         SwitcherExclusiveFullscreenTests.run(suite)
+        SwitcherFocusBurstTests.run(suite)
         SwitcherQuickCommitTests.run(suite)
         SwitcherRememberedSelectionTests.run(suite)
         ScrollingTitleMotionTests.run(suite)

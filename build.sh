@@ -561,6 +561,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Switcher/SwitcherExclusiveFullscreenWatch.swift
         Sources/Vorssaint/Services/Switcher/SpaceHopSupport.swift
         Sources/Vorssaint/Services/Switcher/WindowUseOrder.swift
+        Sources/Vorssaint/Services/Switcher/SwitcherFocusBurst.swift
         Sources/Vorssaint/Services/Switcher/WindowEnumeratorAccessibilityPrefetch.swift
         Sources/Vorssaint/Services/Metrics/MetricFormat.swift
         Sources/Vorssaint/Services/Metrics/VMStatisticsDecoder.swift
