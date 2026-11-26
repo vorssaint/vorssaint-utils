@@ -195,12 +195,16 @@ enum ScreenshotSupport {
         pointerOnDisplay && !selectionInProgress && !capturePending
     }
 
+    /// Whether the selection surface offers the whole-display action at all.
+    /// The tool decision is in `ScreenshotCapturePolicy`; this adds the
+    /// selection modes that cannot finish a whole-display confirmation.
     static func fullScreenCaptureControlIsAvailable(selectedTool: ScreenCaptureTool?,
                                                     standaloneScreenshot: Bool,
                                                     requiresDraggedRegion: Bool,
                                                     scrollingCaptureEnabled: Bool) -> Bool {
-        let isScreenshot = standaloneScreenshot || selectedTool == .screenshot
-        return isScreenshot && !requiresDraggedRegion && !scrollingCaptureEnabled
+        guard !requiresDraggedRegion, !scrollingCaptureEnabled else { return false }
+        return standaloneScreenshot
+            || ScreenshotCapturePolicy.offersFullScreenSelection(for: selectedTool)
     }
 
     static func fullScreenCaptureControlIsVisible(isAvailable: Bool,

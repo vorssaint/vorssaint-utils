@@ -104,11 +104,14 @@ final class ScreenshotSelectionController {
     fileprivate var offersScrollingCapture: Bool {
         supportsScrollingCapture && (activeTool == .screenshot || activeTool == .scrolling)
     }
+    /// A standalone selection with no chooser is only a screenshot when it
+    /// takes pixels; the notch's Watch area chooser is geometry with nothing
+    /// to capture whole, so it never gets the control.
     fileprivate var offersFullScreenCapture: Bool {
-        acceptsCaptureInput && activeMode == .image
+        acceptsCaptureInput
             && ScreenshotSupport.fullScreenCaptureControlIsAvailable(
                 selectedTool: activeTool,
-                standaloneScreenshot: screenCaptureOptions == nil,
+                standaloneScreenshot: screenCaptureOptions == nil && activeMode == .image,
                 requiresDraggedRegion: requiresDraggedRegion,
                 scrollingCaptureEnabled: scrollingCaptureEnabled)
     }

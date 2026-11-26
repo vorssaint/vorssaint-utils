@@ -1276,7 +1276,7 @@ enum ScreenshotFeatureTests {
             standaloneScreenshot: false,
             requiresDraggedRegion: false,
             scrollingCaptureEnabled: false)
-                && !ScreenshotSupport.fullScreenCaptureControlIsAvailable(
+                && ScreenshotSupport.fullScreenCaptureControlIsAvailable(
                     selectedTool: .recording,
                     standaloneScreenshot: false,
                     requiresDraggedRegion: false,
@@ -1291,7 +1291,12 @@ enum ScreenshotFeatureTests {
                     standaloneScreenshot: false,
                     requiresDraggedRegion: false,
                     scrollingCaptureEnabled: false),
-               "the unified chooser offers full screen only for screenshots")
+               "the unified chooser offers full screen for screenshots and recordings")
+        suite.expect(ScreenCaptureTool.allCases.allSatisfy {
+            ScreenshotCapturePolicy.offersFullScreenSelection(for: $0)
+                == ($0 == .screenshot || $0 == .recording)
+        } && !ScreenshotCapturePolicy.offersFullScreenSelection(for: nil),
+                     "only screenshots and recordings finish a whole display in one click")
         suite.expect(!ScreenshotSupport.fullScreenCaptureControlIsAvailable(
             selectedTool: .screenshot,
             standaloneScreenshot: false,

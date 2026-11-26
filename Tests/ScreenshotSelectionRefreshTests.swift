@@ -365,11 +365,27 @@ enum ScreenshotSelectionRefreshContract {
         } else {
             expect(false, "the full-screen control runs the screenshot capture path")
         }
-        for tool in [ScreenCaptureTool.recording, .text, .color] {
+        for tool in ScreenCaptureTool.allCases {
+            let chooser = Chooser(tool)
+            expect(chooser.offersFullScreenCapture
+                   == (tool == .screenshot || tool == .recording),
+                   "\(tool) advertises the full-screen control only where a whole display is a valid outcome")
+        }
+        let fullScreenRecording = Chooser(.recording)
+        fullScreenRecording.captureFullScreenFromControl(on: fullScreenRecording.panels[0])
+        if case .region(let region) = fullScreenRecording.outcome {
+            expect(region.windowID == nil
+                   && region.viewRect == CGRect(origin: .zero,
+                                               size: fullScreenRecording.panels[0].screenFrame.size),
+                   "the recording full-screen control takes the display as its recording region")
+        } else {
+            expect(false, "the recording full-screen control takes the display as its recording region")
+        }
+        for tool in [ScreenCaptureTool.text, .color] {
             let other = Chooser(tool)
             other.captureFullScreenFromControl(on: other.panels[0])
             expect(other.outcome == nil,
-                   "the full-screen control stays unavailable outside screenshot mode")
+                   "the full-screen control stays unavailable outside screenshot and recording modes")
         }
         let scrolling = Chooser(.screenshot)
         scrolling.scrollingCaptureEnabled = true
@@ -455,7 +471,7 @@ enum ScreenshotSelectionRefreshContract {
         hiddenHoverView.refreshFullScreenControlVisibility()
         hiddenHoverView.fullScreenControlHoverChanged(true)
         hiddenHoverView.setNotchCaptureControlsHeight(180)
-        hiddenHover.activeTool = .recording
+        hiddenHover.activeTool = .text
         hiddenHoverView.refreshFullScreenControlVisibility()
         expect(hiddenHoverView.fullScreenHost.isHidden
                 && !hiddenHoverView.fullScreenControlHovered
@@ -493,9 +509,10 @@ enum ScreenshotSelectionRefreshContract {
                 ScreenshotCaptureEngine.complete(request, displays: [1, 2])
                 await drain()
                 expect(c.acceptsCaptureInput, "successful refresh restores capture input")
-                expect(c.panels[0].overlayView.fullScreenHost.isHidden == (to != .screenshot)
+                expect(c.panels[0].overlayView.fullScreenHost.isHidden
+                       == !(to == .screenshot || to == .recording)
                         && c.panels[1].overlayView.fullScreenHost.isHidden,
-                       "a ready source restores the full-screen action only for screenshots on the pointer display")
+                       "a ready source restores the full-screen action for screenshots and recordings on the pointer display")
                 expect(
                     c.panels.allSatisfy { $0.frozenImage!.excluded.contains(11) == (to == .recording) },
                     "both displays use the selected tool visibility")
