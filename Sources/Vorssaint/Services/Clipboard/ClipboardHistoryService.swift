@@ -1384,6 +1384,27 @@ final class ClipboardHistoryService: ObservableObject {
     /// No target means the window opened over Vorssaint itself or an app
     /// without a Dock icon, where a pick is only a copy and stays silent.
     private func pasteIntoPreviousApp(_ app: NSRunningApplication?) {
+        withPreviousApp(app) { [weak self] in
+            guard let self else { return }
+            guard AXIsProcessTrusted() else {
+                if promptedForAccessibility {
+                    NSSound.beep()
+                } else {
+                    promptedForAccessibility = true
+                    Permissions.shared.requestAccessibility()
+                }
+                return
+            }
+            Self.postPasteShortcut()
+        }
+    }
+
+    /// Brings the app the panel was opened over back to the front and waits
+    /// for its activation to land before `paste` runs. Shared by a normal
+    /// paste and by a paste as plain text, which posts through the
+    /// paste-plain service instead.
+    private func withPreviousApp(_ app: NSRunningApplication?,
+                                 paste: @escaping () -> Void) {
         guard let app else { return }
         guard !app.isTerminated else {
             NSSound.beep()
@@ -1391,17 +1412,22 @@ final class ClipboardHistoryService: ObservableObject {
         }
         app.activate(options: [])
         guard ClipboardHistoryPasteTarget.acceptsSyntheticPaste(bundleID: app.bundleIdentifier) else { return }
-        guard AXIsProcessTrusted() else {
-            if promptedForAccessibility {
-                NSSound.beep()
-            } else {
-                promptedForAccessibility = true
-                Permissions.shared.requestAccessibility()
-            }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: paste)
+    }
+
+    /// Pastes one entry as plain text, keeping its formatting out of the
+    /// destination. The history stores text only, so the entry's text is
+    /// already what the paste-plain service pastes.
+    func pasteQuickEntryAsPlainText(_ entry: ClipboardHistoryEntry) {
+        guard entry.kind == .text, !entry.text.isEmpty else {
+            NSSound.beep()
             return
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-            Self.postPasteShortcut()
+        let target = pasteTargetApp
+        hideHistoryWindow()
+        pasteTargetApp = nil
+        withPreviousApp(target) {
+            PastePlainService.shared.pasteAsPlainText(entry.text)
         }
     }
 

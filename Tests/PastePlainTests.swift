@@ -191,6 +191,17 @@ enum PastePlainTests {
                      && transient.pastedText == nil && native.hotkey.registered,
                      "text still prefers the destination's native matching-style command")
 
+        // Clipboard history: the entry's own text is what goes to the
+        // destination, and the matching-style command is skipped because the
+        // clipboard holds something else.
+        let entryContent: [AppKit.NSPasteboard.PasteboardType: Data] = [.string: Data("clipboard".utf8)]
+        let entryHost = service(entryContent)
+        entryHost.hasNativeMatchStyle = true
+        entryHost.pasteAsPlainText("entry text")
+        suite.expect(transient.pastedText == "entry text" && transient.originalPastes == 0
+                     && entryHost.nativeAttempts == 0 && board.contents == entryContent,
+                     "a history entry pastes its own text as plain text without reading or rewriting the clipboard")
+
         let custom = service([.png: Data([0, 1])])
         GlobalShortcut.standardPaste = false
         custom.performPastePlain()
