@@ -539,6 +539,10 @@ final class NotchService: ObservableObject {
         NotchWatchSupport.isEnabled() && NotchWatchService.shared.isActive
     }
 
+    var hasPrinterActivity: Bool {
+        NotchPrinterSupport.isEnabled() && NotchPrinterService.shared.isActive
+    }
+
     var hasDownloadActivity: Bool {
         NotchSupport.routes(.download)
             && NotchDownloadService.shared.items.contains { $0.active && !$0.completed }
@@ -574,7 +578,8 @@ final class NotchService: ObservableObject {
     }
 
     var compactActivities: [NotchCompactActivity] {
-        NotchSupport.compactActivities(timer: hasTimerActivity, watch: hasWatchActivity, downloads: hasDownloadActivity,
+        NotchSupport.compactActivities(timer: hasTimerActivity, watch: hasWatchActivity, printer: hasPrinterActivity,
+                                      downloads: hasDownloadActivity,
                                       agents: hasAgentActivity, calendar: hasCalendarActivity,
                                       music: hasMusicActivity, keepAwake: hasKeepAwakeActivity)
     }
@@ -697,6 +702,7 @@ final class NotchService: ObservableObject {
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing(in: geometry))
         case .watch: return geometry.compactWatchGeometry(wing: watchStripWing(in: geometry))
+        case .printer: return geometry.compactPrinterGeometry(wing: printerStripWing(in: geometry))
         case .calendar:
             return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry),
                                                     paired: companion != nil)
@@ -718,6 +724,18 @@ final class NotchService: ObservableObject {
             ]).width.rounded(.up)
         let inset = provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
         return reading + inset + NotchTimerSupport.stripCameraGap
+    }
+
+    /// The wider side: the printer's mark at the left end, or the progress
+    /// at the right, with air beside the camera.
+    private func printerStripWing(in geometry: NotchGeometry) -> CGFloat {
+        let provisional = geometry.compactPrinterGeometry(wing: NotchPrinterSupport.stripWingRange.lowerBound)
+        let size = NotchTimerSupport.stripTextSize(height: provisional.compactActivityContentHeight)
+        let reading = (NotchPrinterSupport.stripReading(NotchPrinterService.shared.status) as NSString).size(withAttributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
+        ]).width.rounded(.up)
+        let inset = provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+        return max(reading, size) + inset + NotchTimerSupport.stripCameraGap
     }
 
     private func keepAwakeStripWing(in geometry: NotchGeometry) -> CGFloat {
@@ -1113,6 +1131,9 @@ final class NotchService: ObservableObject {
             return layout.calendarSurface(title: layout.calendarTitle(countdown, language: language),
                                           time: NotchCalendarSupport.timeText(countdown, locale: language.formattingLocale()),
                                           geometry: geometry, calendarLeadTime: NotchCalendarService.shared.countdownLeadTime)
+        case .printer:
+            return layout.printerSurface(reading: NotchPrinterSupport.stripReading(NotchPrinterService.shared.status),
+                                         geometry: geometry)
         case .watch:
             let watch = NotchWatchService.shared
             return layout.watchSurface(reading: watch.headline, thumbnail: watch.showsThumbnail, geometry: geometry)
@@ -1177,6 +1198,7 @@ final class NotchService: ObservableObject {
         // A watch keeps reading while the island is away, as on the lock
         // screen, and says so with a notification if it cannot show itself.
         NotchWatchService.shared.syncWithPreferences()
+        NotchPrinterService.shared.syncWithPreferences()
         // Requested file work can continue while locked, but disabling its
         // feature must still cancel it before presentation resumes.
         NotchFileToolsService.shared.syncWithPreferences()
@@ -1295,6 +1317,7 @@ final class NotchService: ObservableObject {
         NotchTimerService.shared.stop()
         NotchAccessoryService.shared.stop()
         NotchWatchService.shared.stop()
+        NotchPrinterService.shared.stop()
         let cancelCapture = captureControlsCancel
         endCaptureControls()
         cancelCapture?()
@@ -4156,6 +4179,18 @@ final class NotchService: ObservableObject {
             let watch = NotchWatchService.shared
             Publishers.CombineLatest3(watch.$state.removeDuplicates(), watch.$headline.removeDuplicates(),
                                       watch.$preview.map { $0 != nil }.removeDuplicates())
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.syncMenuSpaceMonitoring()
+                    self?.objectWillChange.send()
+                    self?.refreshPresentation()
+                }.store(in: &subscriptions)
+        }
+        if modules.contains(.printer) {
+            // A job starting or ending, and each change of its progress,
+            // which can widen the strip's reading.
+            let printer = NotchPrinterService.shared
+            printer.$connection.removeDuplicates().combineLatest(printer.$status.removeDuplicates())
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
                     self?.syncMenuSpaceMonitoring()

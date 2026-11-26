@@ -94,6 +94,7 @@ struct NotchEditorStrings {
         case .scratchpad: return scratchpadSummary
         case .agents: return agentsSummary
         case .watch: return watchSummary
+        case .printer: return FeatureStrings.notchPrinter(L10n.shared.language).summary
         }
     }
 }

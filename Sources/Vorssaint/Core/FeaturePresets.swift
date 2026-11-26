@@ -123,6 +123,8 @@ extension AppFeature {
         case .notchNotifications, .notchGestures, .notchTimer, .notchQueue, .notchDownloads: return .idle
         // It reads only while something is being watched, and stops on its own.
         case .notchWatch: return .idle
+        // One socket to Bambu Cloud with a ping every 20 seconds while it is on.
+        case .notchPrinter: return .periodic
         // A blink every few seconds and a visit every few minutes, both
         // drawn by Core Animation, with one timer waiting for the next visit.
         case .notchMascot: return .periodic
