@@ -273,8 +273,10 @@ final class ShelfService: ObservableObject {
 
     // File providers may block for seconds. Keep all drag metadata reads off
     // the main thread and bound the number of outstanding reads on slow volumes.
-    private static let dragFileQueue = DispatchQueue(label: "com.vorssaint.utils.shelf-drag-files",
-                                                     qos: .userInitiated)
+    /// The single queue every shelf file check runs on: drag preparation and
+    /// the Open/Reveal/Share actions share it, off the main thread.
+    private static let fileResolutionQueue = DispatchQueue(label: "com.vorssaint.utils.shelf-file-resolution",
+                                                           qos: .userInitiated)
 
     private var persistScheduled = false
     /// Gates persistence until the restore has landed, so an early mutation
@@ -1230,42 +1232,60 @@ final class ShelfService: ObservableObject {
     /// through its bookmark (the file may only have been moved or renamed).
     /// A healed tile is updated in place; what stays dead never joins a
     /// session, because every destination would refuse the dead URL.
+    ///
+    /// Thin, synchronous wrapper over `ShelfFileResolution` for callers that
+    /// already run off the main thread.
     func livingDragItems(in items: [Item]) -> [Item] {
-        items.compactMap { item in
-            guard case let .file(url) = item.payload else { return item }
-            if FileManager.default.fileExists(atPath: url.path) { return item }
-            guard let healed = Self.rebookedItem(item) else { return nil }
-            // The tile swap rebuilds the tiles view; deferring it keeps the
-            // rebuild away from the drag session or context menu that is
-            // being constructed around the old tile right now.
+        let resolution = ShelfFileResolution.resolve(Self.resolutionCandidates(items))
+        let applied = Self.applying(resolution, to: items)
+        // The tile swap rebuilds the tiles view; deferring it keeps the
+        // rebuild away from the drag session or menu being built around the
+        // old tile right now.
+        for healed in applied.healed {
             DispatchQueue.main.async { [weak self] in self?.replaceItem(healed) }
-            return healed
         }
+        return applied.living
+    }
+
+    private static func resolutionCandidates(_ items: [Item]) -> [ShelfFileResolution.Candidate] {
+        items.compactMap { item in
+            guard case let .file(url) = item.payload else { return nil }
+            return ShelfFileResolution.Candidate(id: item.id, url: url, bookmark: item.bookmark)
+        }
+    }
+
+    /// Puts a resolution back onto the items it came from: text and links pass
+    /// through, dead files drop out, and healed files come back under the path
+    /// their bookmark found.
+    private static func applying(_ resolution: ShelfFileResolution.Result,
+                                 to items: [Item]) -> (living: [Item], healed: [Item]) {
+        var living: [Item] = []
+        var healedItems: [Item] = []
+        for item in items {
+            guard case .file = item.payload else {
+                living.append(item)
+                continue
+            }
+            guard let file = resolution.file(for: item.id) else { continue }
+            guard file.healed else {
+                living.append(item)
+                continue
+            }
+            let healed = Item(id: item.id, payload: .file(file.url),
+                              title: file.url.lastPathComponent,
+                              icon: item.icon, isImage: item.isImage,
+                              hasContentThumbnail: item.hasContentThumbnail,
+                              bookmark: file.bookmark ?? item.bookmark)
+            living.append(healed)
+            healedItems.append(healed)
+        }
+        return (living, healedItems)
     }
 
     /// Resolves a shelf bookmark without ever mounting drives or showing UI;
     /// nil when the file is truly gone.
     private static func resolvedBookmarkPath(_ bookmark: Data) -> String? {
-        var stale = false
-        guard let url = try? URL(resolvingBookmarkData: bookmark,
-                                 options: [.withoutUI, .withoutMounting],
-                                 relativeTo: nil,
-                                 bookmarkDataIsStale: &stale) else { return nil }
-        return url.path
-    }
-
-    /// A fresh Item for a file found again through its bookmark, new name
-    /// included; nil when there is no bookmark or the file is really gone.
-    private static func rebookedItem(_ item: Item) -> Item? {
-        guard case .file = item.payload, let bookmark = item.bookmark,
-              let path = Self.resolvedBookmarkPath(bookmark),
-              FileManager.default.fileExists(atPath: path) else { return nil }
-        let resolved = URL(fileURLWithPath: path)
-        return Item(id: item.id, payload: .file(resolved),
-                    title: resolved.lastPathComponent,
-                    icon: item.icon, isImage: item.isImage,
-                    hasContentThumbnail: item.hasContentThumbnail,
-                    bookmark: (try? resolved.bookmarkData()) ?? bookmark)
+        ShelfPersistenceSupport.resolvedBookmarkPath(bookmark)
     }
 
     /// Swaps an item in place wherever it lives, top level or inside a
@@ -1301,44 +1321,72 @@ final class ShelfService: ObservableObject {
         if replace(in: &current) { items = current }
     }
 
-    /// Every grabbed payload is gone. Ghost-dragging dead URLs reads as "the
-    /// drag is broken", so the grab says why and retires the corpses the same
-    /// way a relaunch would. Files on unmounted volumes come back with their
-    /// drive, so they only sit the drag out and are kept.
-    func handleDeadDrag(_ items: [Item]) {
-        QuickToolHUD.show(icon: "tray.full", message: L10n.shared.s.shelfFileMissing)
-        let goneForever = items.filter { item in
-            guard case let .file(url) = item.payload else { return false }
-            let path = url.standardizedFileURL.path
-            guard let volumeRoot = ShelfPersistenceSupport.unmountedVolumeRoot(of: path) else {
-                return true
-            }
-            return FileManager.default.fileExists(atPath: volumeRoot)
-        }
-        guard !goneForever.isEmpty else { return }
-        removeItems(goneForever.map(\.id))
-    }
-
-    /// File actions use the current multi-selection when the clicked tile is
-    /// part of it; otherwise they stay scoped to that tile. Batches flatten to
-    /// their leaves just like an external drag.
-    func fileURLsForActions(startingAt item: Item) -> [URL] {
-        fileURLs(in: selection.contains(item.id) ? selectedItems() : [item])
-    }
+    /// The action resolution currently in flight, if any. Buttons ask the
+    /// service to resolve before acting, and a request that arrives while one
+    /// is running waits for that same answer: one flight, no parallel walks of
+    /// a slow volume, and no dropped `completion`.
+    private var pendingFileAction: DispatchWorkItem?
+    private var waitingFileActions: [([URL]) -> Void] = []
 
     /// What the panel's own buttons act on: the selection when there is one,
     /// everything otherwise, the way its trash button already reads. A grab
     /// whose files have all died says so and retires them, exactly as a dead
     /// drag does, rather than leaving a button that quietly does nothing.
-    func fileURLsForActions() -> [URL] {
-        let candidates = selectionOrEverything
-        let urls = fileURLs(in: candidates)
-        guard urls.isEmpty else { return urls }
-        let leaves = dragItems(for: candidates)
-        if leaves.contains(where: \.holdsFile) {
-            handleDeadDrag(leaves)
+    @discardableResult
+    func resolveActionFiles(_ completion: @escaping ([URL]) -> Void) -> Bool {
+        resolveActionFiles(in: selectionOrEverything, retiresMissing: true, completion: completion)
+    }
+
+    /// A tile menu or context action scoped to the clicked tile: the current
+    /// multi-selection when that tile is part of it, otherwise just the tile.
+    /// Batches flatten to their leaves just like an external drag.
+    @discardableResult
+    func resolveActionFiles(startingAt item: Item,
+                            completion: @escaping ([URL]) -> Void) -> Bool {
+        let candidates = selection.contains(item.id) ? selectedItems() : [item]
+        return resolveActionFiles(in: candidates, retiresMissing: false, completion: completion)
+    }
+
+    private func resolveActionFiles(in candidates: [Item], retiresMissing: Bool,
+                                    completion: @escaping ([URL]) -> Void) -> Bool {
+        guard pendingFileAction == nil else {
+            // The answer already on its way is this request's answer too.
+            waitingFileActions.append(completion)
+            return true
         }
-        return []
+        let leaves = dragItems(for: candidates)
+        let holdsFiles = leaves.contains(where: \.holdsFile)
+        let work = ShelfFileResolution.resolve(Self.resolutionCandidates(leaves),
+                                               on: Self.fileResolutionQueue) { [weak self] resolution in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.pendingFileAction = nil
+                let waiting = self.waitingFileActions
+                self.waitingFileActions = []
+                let applied = Self.applying(resolution, to: leaves)
+                if !resolution.cancelled, resolution.livingURLs.isEmpty, retiresMissing, holdsFiles {
+                    self.retireMissing(resolution)
+                }
+                completion(resolution.livingURLs)
+                for waiter in waiting { waiter(resolution.livingURLs) }
+                // Healed tiles catch up after the caller has opened, revealed
+                // or shared the file, so no rebuild lands under a menu.
+                guard !resolution.cancelled else { return }
+                for healed in applied.healed {
+                    DispatchQueue.main.async { self.replaceItem(healed) }
+                }
+            }
+        }
+        pendingFileAction = work
+        return true
+    }
+
+    /// Files on unmounted volumes come back with their drive, so they only
+    /// sit the action out and are kept.
+    private func retireMissing(_ resolution: ShelfFileResolution.Result) {
+        QuickToolHUD.show(icon: "tray.full", message: L10n.shared.s.shelfFileMissing)
+        guard !resolution.missingIDs.isEmpty else { return }
+        removeItems(resolution.missingIDs)
     }
 
     /// Whether those same candidates hold a file at all. It never touches the
@@ -1350,15 +1398,6 @@ final class ShelfService: ObservableObject {
 
     private var selectionOrEverything: [Item] {
         selection.isEmpty ? items : selectedItems()
-    }
-
-    private func fileURLs(in candidates: [Item]) -> [URL] {
-        // Actions heal moved files the same way a drag does: Open or Reveal
-        // on a renamed file should find it, not shrug.
-        livingDragItems(in: dragItems(for: candidates)).compactMap { entry in
-            guard case let .file(url) = entry.payload else { return nil }
-            return url
-        }
     }
 
     struct PreparedDrag {
@@ -1375,52 +1414,35 @@ final class ShelfService: ObservableObject {
             completion(PreparedDrag(living: items))
             return nil
         }
+        // Lets the resolution notice a cancelled gesture even while it is busy
+        // walking a slow volume; the work item itself stays owned by the caller.
+        final class Cancellation {
+            weak var work: DispatchWorkItem?
+            var isCancelled: Bool { work?.isCancelled ?? true }
+        }
+        let cancellation = Cancellation()
         let work = DispatchWorkItem {
-            let prepared = Self.readDragFiles(items)
+            let prepared = Self.readDragFiles(items) { cancellation.isCancelled }
             DispatchQueue.main.async { completion(prepared) }
         }
-        Self.dragFileQueue.async(execute: work)
+        cancellation.work = work
+        Self.fileResolutionQueue.async(execute: work)
         return work
     }
 
-    private static func readDragFiles(_ items: [Item]) -> PreparedDrag {
+    private static func readDragFiles(_ items: [Item],
+                                      isCancelled: () -> Bool = { false }) -> PreparedDrag {
+        let resolution = ShelfFileResolution.resolve(Self.resolutionCandidates(items),
+                                                     wantsPackageContent: true,
+                                                     isCancelled: isCancelled)
+        guard !resolution.cancelled else { return PreparedDrag() }
+        let applied = Self.applying(resolution, to: items)
         var prepared = PreparedDrag()
-        var packageFlags: [URL: Bool] = [:]
-        for item in items {
-            guard case let .file(url) = item.payload else {
-                prepared.living.append(item)
-                continue
-            }
-            var living = item
-            var file = url
-            do {
-                guard try url.checkResourceIsReachable() else { continue }
-            } catch {
-                if let healed = rebookedItem(item), case let .file(recovered) = healed.payload {
-                    living = healed
-                    file = recovered
-                    prepared.replacements.append((item, healed))
-                } else {
-                    let error = error as NSError
-                    let missing = error.domain == NSCocoaErrorDomain
-                        && (error.code == NSFileReadNoSuchFileError || error.code == NSFileNoSuchFileError)
-                    let volume = ShelfPersistenceSupport.unmountedVolumeRoot(of: url.path)
-                    if missing && (volume.map { FileManager.default.fileExists(atPath: $0) } ?? true) {
-                        prepared.missingIDs.append(item.id)
-                    }
-                    continue
-                }
-            }
-            prepared.living.append(living)
-            if !prepared.containsPackageContent {
-                prepared.containsPackageContent = ShelfInteractionSupport.isInsidePackage(file) { ancestor in
-                    if let flag = packageFlags[ancestor] { return flag }
-                    // Unknown ancestry is copy-only. A later gesture retries it.
-                    let flag = (try? ancestor.resourceValues(forKeys: [.isPackageKey]).isPackage) ?? true
-                    packageFlags[ancestor] = flag
-                    return flag
-                }
-            }
+        prepared.living = applied.living
+        prepared.missingIDs = resolution.missingIDs
+        prepared.containsPackageContent = resolution.containsPackageContent
+        prepared.replacements = applied.healed.compactMap { healed in
+            items.first { $0.id == healed.id }.map { (original: $0, healed: healed) }
         }
         return prepared
     }

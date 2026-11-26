@@ -260,9 +260,14 @@ struct ShelfView: View {
     }
 
     private func shareAction() {
-        let urls = shelf.fileURLsForActions()
-        guard !urls.isEmpty else { return }
-        shareAnchor.present(urls)
+        // The share sheet needs the living files, and resolving them is disk
+        // work: the service does it off the main thread and ignores a repeat
+        // request while the first one is still resolving.
+        let anchor = shareAnchor
+        shelf.resolveActionFiles { urls in
+            guard !urls.isEmpty else { return }
+            anchor.present(urls)
+        }
     }
 
     private func trashAction() {

@@ -341,6 +341,10 @@ final class ShelfTileView: NSView, NSDraggingSource {
     private var pendingDragEvent: NSEvent?
     private var pendingDragID: UUID?
     private var dragPreparation: DispatchWorkItem?
+    /// URLs the open context menu acts on, resolved before it was built.
+    private var actionURLs: [URL] = []
+    /// True while this tile waits for its context menu's files to resolve.
+    private var menuRequests = ShelfContextMenuRequests<NSEvent>()
     private var didDrag = false
     private var draggedIDs: [UUID] = []
     private var isDropTargeted = false
@@ -567,14 +571,39 @@ final class ShelfTileView: NSView, NSDraggingSource {
         return hit is NSButton ? hit : self
     }
 
-    override func menu(for event: NSEvent) -> NSMenu? {
+    override func rightMouseDown(with event: NSEvent) {
+        presentContextMenu(with: event)
+    }
+
+    // AppKit would build the menu from this and block on the disk doing it.
+    // The menu is resolved and popped up by presentContextMenu instead.
+    override func menu(for event: NSEvent) -> NSMenu? { nil }
+
+    /// The right-click menu acts on files the shelf resolves off the main
+    /// thread. A click that arrives while that runs is remembered and gets the
+    /// menu of that resolution, so it never disappears and two menus can never
+    /// race each other.
+    private func presentContextMenu(with event: NSEvent) {
         ShelfService.shared.noteInteraction()
-        let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
         // A tooltip already showing (or about to show, from a hover just
         // before the right-click) has no reason to stick around once a
         // context menu covers the same corner of the tile it anchors to.
         ShelfTooltipPopover.shared.hide()
+        guard menuRequests.begin(event) else { return }
+        let started = ShelfService.shared.resolveActionFiles(startingAt: item) { [weak self] urls in
+            guard let self else { return }
+            guard let menuEvent = self.menuRequests.finish(windowIsOpen: self.window != nil) else { return }
+            self.actionURLs = urls
+            NSMenu.popUpContextMenu(self.makeMenu(urls: urls), with: menuEvent, for: self)
+        }
+        if !started {
+            // The service never refuses while it holds a request, but drop the
+            // pending click rather than leave the tile waiting forever.
+            _ = menuRequests.finish(windowIsOpen: false)
+        }
+    }
 
+    private func makeMenu(urls: [URL]) -> NSMenu {
         let strings = L10n.shared.s
         let menu = NSMenu()
         let pin = NSMenuItem(title: isPinned ? strings.shelfActionUnpin : strings.shelfActionPin,
@@ -636,6 +665,10 @@ final class ShelfTileView: NSView, NSDraggingSource {
     }
 
     override func mouseDown(with event: NSEvent) {
+        if event.modifierFlags.contains(.control) {
+            presentContextMenu(with: event)
+            return
+        }
         ShelfService.shared.noteInteraction()
         window?.makeKey()
         ShelfTooltipPopover.shared.hide()
@@ -679,31 +712,28 @@ final class ShelfTileView: NSView, NSDraggingSource {
     }
 
     @objc private func openFiles() {
-        for url in ShelfService.shared.fileURLsForActions(startingAt: item) {
+        for url in actionURLs {
             NSWorkspace.shared.open(url)
         }
     }
 
     @objc private func openFilesWithApplication(_ sender: NSMenuItem) {
-        guard let applicationURL = sender.representedObject as? URL else { return }
-        let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
-        guard !urls.isEmpty else { return }
+        guard let applicationURL = sender.representedObject as? URL,
+              !actionURLs.isEmpty else { return }
         let configuration = NSWorkspace.OpenConfiguration()
-        NSWorkspace.shared.open(urls,
+        NSWorkspace.shared.open(actionURLs,
                                 withApplicationAt: applicationURL,
                                 configuration: configuration)
     }
 
     @objc private func editImage() {
-        guard let url = ShelfInteractionSupport.editableImage(
-            in: ShelfService.shared.fileURLsForActions(startingAt: item)) else { return }
+        guard let url = ShelfInteractionSupport.editableImage(in: actionURLs) else { return }
         ScreenshotService.shared.editImage(at: url)
     }
 
     @objc private func revealFiles() {
-        let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
-        guard !urls.isEmpty else { return }
-        NSWorkspace.shared.activateFileViewerSelecting(urls)
+        guard !actionURLs.isEmpty else { return }
+        NSWorkspace.shared.activateFileViewerSelecting(actionURLs)
     }
 
     private func commonApplications(for urls: [URL]) -> [URL] {

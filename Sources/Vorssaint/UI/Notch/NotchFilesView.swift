@@ -198,15 +198,22 @@ struct NotchFilesView: View {
         HStack(spacing: 6) {
             if AppFeature.mediaTools.isAvailable {
                 NotchIconButton(symbol: "wand.and.stars", title: l10n.s.mediaName) {
-                    actionInputs = shelf.fileURLsForActions()
-                    supportedTools = MediaTool.allCases.filter { NotchFileToolsSupport.accepts(actionInputs, for: $0) }
-                    showingActions = !actionInputs.isEmpty
+                    // Resolution touches the disk; ask the shelf for it off
+                    // the main thread and ignore a second click meanwhile.
+                    shelf.resolveActionFiles { urls in
+                        actionInputs = urls
+                        supportedTools = MediaTool.allCases.filter { NotchFileToolsSupport.accepts(urls, for: $0) }
+                        showingActions = !urls.isEmpty
+                    }
                 }
                 .disabled(!shelf.hasFilesForActions || !archives.canAcceptMediaDrop)
                 .popover(isPresented: $showingActions) { fileActions.padding(14).frame(width: 270) }
             }
             NotchIconButton(symbol: "square.and.arrow.up", title: l10n.s.shelfActionShare) {
-                shareAnchor.present(shelf.fileURLsForActions())
+                shelf.resolveActionFiles { urls in
+                    guard !urls.isEmpty else { return }
+                    shareAnchor.present(urls)
+                }
             }
             .background(ShelfSharePickerAnchor(anchor: shareAnchor))
             .disabled(!shelf.hasFilesForActions)
