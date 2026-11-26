@@ -56,6 +56,21 @@ final class NotchTimerService: ObservableObject {
         NotchService.shared.reactMascot(.ready)
     }
 
+    /// Gives up the running Pomodoro phase: it ends with the count and notice
+    /// a natural end would give it, and the next phase starts at once. A
+    /// finished cycle stays finished, and an idle session is untouched.
+    func skip() {
+        guard !suspended, NotchTimerSupport.isEnabled() else { return }
+        guard session.mode == .pomodoro, session.hasSession else { return }
+        let phase = session.phase
+        let wasCompleted = session.completed
+        guard session.skip(at: now) else { return }
+        alert.stop()
+        if !wasCompleted { announceFinished(phase: phase) }
+        scheduleCompletion()
+        NotchService.shared.reactMascot(.ready)
+    }
+
     func cancel() {
         alert.stop()
         completionTask?.cancel(); completionTask = nil
@@ -76,17 +91,24 @@ final class NotchTimerService: ObservableObject {
 
     private func finishIfDue() {
         guard session.finishIfDue(at: now) else { return }
+        announceFinished(phase: session.phase)
+    }
+
+    /// The one way a phase ends, whether its deadline arrived or it was
+    /// skipped. A phase that hands over to another starts no alarm; one
+    /// that leaves the session finished rings as a natural end always has.
+    private func announceFinished(phase: NotchTimerPhase) {
         alert.stop()
         // The notice takes the strip it watched from.
         NotchService.shared.endMascotCountdown(retreating: false)
         let text = FeatureStrings.notchActivities(L10n.shared.language)
-        let reaction = NotchMascotSupport.timerReaction(finishing: session.phase)
+        let reaction = NotchMascotSupport.timerReaction(finishing: phase)
         NotchService.shared.show(NotchNotice(event: .timer,
             title: session.cycleFinished ? text.pomodoroFinished : text.finished,
-            detail: text.phase(session.phase), symbol: "timer", mascot: reaction))
+            detail: text.phase(phase), symbol: "timer", mascot: reaction))
         // It takes the news in the notice, or where it is when the notice cannot show.
         NotchService.shared.reactMascot(reaction)
-        alert.start(enabled: NotchTimerSupport.isSoundEnabled())
+        if !session.isRunning { alert.start(enabled: NotchTimerSupport.isSoundEnabled()) }
     }
 
     private func scheduleCompletion() {
