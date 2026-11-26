@@ -24,6 +24,14 @@ enum TranscriptionModelChoice: String, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
 }
 
+/// Global shortcut trigger behavior for system-wide voice dictation.
+enum DictationTriggerMode: String, CaseIterable, Identifiable, Sendable {
+    case toggle
+    case holdToTalk
+
+    var id: String { rawValue }
+}
+
 /// Pure manifest, token-merging, SentencePiece detokenization, and transcript
 /// formatting helpers for NVIDIA Parakeet Unified English 0.6B (Core ML).
 /// Kept free of AppKit and CoreML so unit tests pin every edge case.
@@ -673,6 +681,69 @@ enum AudioTranscriptionSupport {
             let grow = (1.5 - len) / 2
             return (startSec: max(0, r.startSec - grow), endSec: min(duration, r.endSec + grow))
         }
+    }
+
+    struct SpeechChunk: Equatable, Sendable {
+        let startSec: Double
+        let endSec: Double
+    }
+
+    /// Splits an audio clip into bounded VAD speech chunks (each <= `maxChunkSeconds`)
+    /// so bilingual ("Heblish") recordings can probe language and route each speech
+    /// segment independently to the best local engine.
+    static func languageRoutingChunks(in samples: [Float],
+                                      sampleRate: Double = sampleRate,
+                                      maxChunkSeconds: Double = 28.0) -> [SpeechChunk] {
+        guard !samples.isEmpty, sampleRate > 0 else { return [] }
+        let duration = Double(samples.count) / sampleRate
+        let regions = speechRegions(in: samples, sampleRate: sampleRate)
+        let sourceRegions: [(startSec: Double, endSec: Double)] = regions.isEmpty
+            ? [(startSec: 0, endSec: duration)]
+            : regions
+
+        let cap = max(4.0, maxChunkSeconds)
+        var chunks: [SpeechChunk] = []
+        for region in sourceRegions {
+            var cursor = region.startSec
+            while cursor < region.endSec - 0.15 {
+                let end = min(region.endSec, cursor + cap)
+                chunks.append(SpeechChunk(startSec: cursor, endSec: end))
+                cursor = end
+            }
+        }
+        if chunks.isEmpty {
+            chunks.append(SpeechChunk(startSec: 0, endSec: duration))
+        }
+        return chunks
+    }
+
+    /// Shifts segment timestamps forward by `offsetSeconds` so per-chunk
+    /// transcripts align accurately with the original recording timeline.
+    static func shiftSegments(_ segments: [TranscriptSegment], by offsetSeconds: Double) -> [TranscriptSegment] {
+        guard abs(offsetSeconds) > 0.0001 else { return segments }
+        return segments.map { seg in
+            TranscriptSegment(
+                speaker: seg.speaker,
+                text: seg.text,
+                startSeconds: seg.startSeconds + offsetSeconds,
+                endSeconds: seg.endSeconds + offsetSeconds
+            )
+        }
+    }
+
+    /// Summarizes per-segment detected language codes across a recording:
+    /// returns `"mixed"` when both Hebrew and English segments were detected.
+    static func summarizeDetectedLanguages(_ codes: [String]) -> String? {
+        let normalized = Set(codes.compactMap { raw -> String? in
+            let code = String(raw.prefix(2)).lowercased()
+            if code == "he" || code == "iw" { return "he" }
+            if code == "en" { return "en" }
+            return nil
+        })
+        if normalized.contains("he") && normalized.contains("en") { return "mixed" }
+        if normalized.contains("he") { return "he" }
+        if normalized.contains("en") { return "en" }
+        return nil
     }
 
     struct HallucinationCandidate: Equatable, Sendable {

@@ -12,7 +12,9 @@ struct PanelTranscriptionView: View {
     @ObservedObject private var service = AudioTranscriptionService.shared
     @AppStorage(DefaultsKey.meetingRecorderAutoTranscribe) private var autoTranscribe = false
     @AppStorage(DefaultsKey.audioTranscriptionSummaryEnabled) private var summaryEnabled = false
+    @AppStorage(DefaultsKey.audioTranscriptionSummaryProvider) private var summaryProviderRaw = SummaryInferenceProvider.auto.rawValue
     @AppStorage(DefaultsKey.audioTranscriptionModelChoice) private var modelChoiceRaw = TranscriptionModelChoice.auto.rawValue
+    @AppStorage(DefaultsKey.audioTranscriptionDictationMode) private var dictationModeRaw = DictationTriggerMode.toggle.rawValue
     @State private var isDropTargeted = false
 
     var onClose: () -> Void
@@ -25,6 +27,9 @@ struct PanelTranscriptionView: View {
     }
     private var modelStrings: TranscriptionModelStrings {
         FeatureStrings.transcriptionModels(l10n.language)
+    }
+    private var providerStrings: SummaryProviderStrings {
+        FeatureStrings.summaryProviders(l10n.language)
     }
 
     var body: some View {
@@ -226,6 +231,14 @@ struct PanelTranscriptionView: View {
                 }
             }
 
+            Picker(providerStrings.dictationModeLabel, selection: $dictationModeRaw) {
+                Text(providerStrings.dictationModeToggle).tag(DictationTriggerMode.toggle.rawValue)
+                Text(providerStrings.dictationModeHold).tag(DictationTriggerMode.holdToTalk.rawValue)
+            }
+            .pickerStyle(.menu)
+            .controlSize(.mini)
+            .font(.system(size: 10.5))
+
             Toggle(isOn: $autoTranscribe) {
                 Text(strings.autoTranscribeToggle)
                     .font(.system(size: 11))
@@ -239,6 +252,18 @@ struct PanelTranscriptionView: View {
             }
             .toggleStyle(.switch)
             .controlSize(.mini)
+
+            Picker(providerStrings.summaryProviderLabel, selection: $summaryProviderRaw) {
+                Text(providerStrings.summaryProviderAuto).tag(SummaryInferenceProvider.auto.rawValue)
+                Text(providerStrings.summaryProviderClaude).tag(SummaryInferenceProvider.claude.rawValue)
+                Text(providerStrings.summaryProviderCodex).tag(SummaryInferenceProvider.codex.rawValue)
+                Text(providerStrings.summaryProviderGemini).tag(SummaryInferenceProvider.gemini.rawValue)
+                Text(providerStrings.summaryProviderOllama).tag(SummaryInferenceProvider.ollama.rawValue)
+                Text(providerStrings.summaryProviderApple).tag(SummaryInferenceProvider.appleIntelligence.rawValue)
+            }
+            .pickerStyle(.menu)
+            .controlSize(.mini)
+            .font(.system(size: 10.5))
         }
         .panelCard()
     }
@@ -360,6 +385,11 @@ struct PanelTranscriptionView: View {
                 if service.isSummarizing {
                     ProgressView()
                         .controlSize(.mini)
+                } else if let providerName = service.summaryProviderName {
+                    Text(providerName)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
             if service.isSummarizing {

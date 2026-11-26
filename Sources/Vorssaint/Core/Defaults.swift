@@ -814,8 +814,12 @@ enum DefaultsKey {
     static let audioTranscriptionModelChoice = "audioTranscriptionModelChoice"
     static let audioTranscriptionSummaryEnabled = "audioTranscriptionSummaryEnabled"
     static let audioTranscriptionSummaryPrompt = "audioTranscriptionSummaryPrompt"
+    static let audioTranscriptionSummaryProvider = "audioTranscriptionSummaryProvider"
+    static let audioTranscriptionSummaryModel = "audioTranscriptionSummaryModel"
+    static let audioTranscriptionSummaryProviderUpdateChecks = "audioTranscriptionSummaryProviderUpdateChecks"
     static let audioTranscriptionDictationEnabled = "audioTranscriptionDictationEnabled"
     static let audioTranscriptionDictationShortcut = "audioTranscriptionDictationShortcut"
+    static let audioTranscriptionDictationMode = "audioTranscriptionDictationMode"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -1980,8 +1984,12 @@ enum Defaults {
         DefaultsKey.audioTranscriptionModelChoice: TranscriptionModelChoice.auto.rawValue,
         DefaultsKey.audioTranscriptionSummaryEnabled: false,
         DefaultsKey.audioTranscriptionSummaryPrompt: AudioTranscriptionSupport.defaultSummaryPrompt,
+        DefaultsKey.audioTranscriptionSummaryProvider: SummaryInferenceProvider.auto.rawValue,
+        DefaultsKey.audioTranscriptionSummaryModel: "",
+        DefaultsKey.audioTranscriptionSummaryProviderUpdateChecks: true,
         DefaultsKey.audioTranscriptionDictationEnabled: false,
         DefaultsKey.audioTranscriptionDictationShortcut: GlobalShortcut.voiceDictationDefault.storageValue,
+        DefaultsKey.audioTranscriptionDictationMode: DictationTriggerMode.toggle.rawValue,
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,

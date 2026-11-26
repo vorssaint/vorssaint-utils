@@ -6,40 +6,176 @@ import Foundation
 import FoundationModels
 #endif
 
-/// On-device transcript summarizer. Uses Apple's on-device FoundationModels
-/// framework when available on macOS 26+ to follow the user's custom summary
-/// prompt, and falls back seamlessly to local deterministic extractive
-/// summarization on earlier macOS versions or when Apple Intelligence is off.
+/// Multi-provider local transcript summarizer. Uses the user's configured
+/// local CLI subscription (Claude Code, Codex, Gemini CLI), local Ollama,
+/// Apple's on-device FoundationModels (macOS 26+), and deterministic local
+/// extractive fallback when no generative provider is available.
 enum TranscriptSummarizer {
     struct SummaryResult: Equatable, Sendable {
         let text: String
         let usedOnDeviceLLM: Bool
+        let providerDisplayName: String?
     }
 
-    static func summarize(transcript: String, prompt: String) async throws -> SummaryResult {
+    static func summarize(transcript: String,
+                          prompt: String,
+                          provider: SummaryInferenceProvider = .auto,
+                          model: String? = nil) async throws -> SummaryResult {
         try Task.checkCancellation()
         let cleaned = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else {
-            return SummaryResult(text: "", usedOnDeviceLLM: false)
+            return SummaryResult(text: "", usedOnDeviceLLM: false, providerDisplayName: nil)
         }
         let instructions = AudioTranscriptionSupport.resolvedSummaryPrompt(prompt)
+        let selectedModel = model?.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        #if canImport(FoundationModels)
-        if #available(macOS 26.0, *) {
-            if let llmText = try await summarizeWithFoundationModels(
+        switch provider {
+        case .auto:
+            let probed = await SummaryProviderManager.probeAllProviders()
+            let availableCLIs = Set(
+                [SummaryInferenceProvider.claude, .codex, .gemini].filter { probed[$0]?.isReady == true }
+            )
+            let ollamaReady = probed[.ollama]?.isReady == true
+            let order = SummaryProviderSupport.autoResolutionOrder(
+                availableCLIProviders: availableCLIs,
+                ollamaReady: ollamaReady
+            )
+            for candidate in order {
+                try Task.checkCancellation()
+                if let result = try await tryProvider(
+                    candidate,
+                    probed: probed[candidate],
+                    model: nil,
+                    transcript: cleaned,
+                    instructions: instructions,
+                    throwOnError: false
+                ) {
+                    return result
+                }
+            }
+            return extractiveFallback(transcript: cleaned, instructions: instructions)
+
+        case .claude, .codex, .gemini, .ollama:
+            let state = await SummaryProviderManager.probeSingleProvider(provider)
+            if let result = try await tryProvider(
+                provider,
+                probed: state,
+                model: selectedModel,
+                transcript: cleaned,
+                instructions: instructions,
+                throwOnError: true
+            ) {
+                return result
+            }
+            throw SummaryProviderManager.InvocationError.providerUnavailable(
+                SummaryProviderSupport.descriptor(for: provider).displayName
+            )
+
+        case .appleIntelligence:
+            if let llmText = try await summarizeWithAppleIntelligence(
                 transcript: cleaned,
                 instructions: instructions
             ) {
-                return SummaryResult(text: llmText, usedOnDeviceLLM: true)
+                return SummaryResult(
+                    text: llmText,
+                    usedOnDeviceLLM: true,
+                    providerDisplayName: SummaryProviderSupport.descriptor(for: .appleIntelligence).displayName
+                )
             }
+            return extractiveFallback(transcript: cleaned, instructions: instructions)
         }
-        #endif
+    }
 
+    private static func tryProvider(_ provider: SummaryInferenceProvider,
+                                    probed: SummaryProviderManager.ProviderState?,
+                                    model: String?,
+                                    transcript: String,
+                                    instructions: String,
+                                    throwOnError: Bool) async throws -> SummaryResult? {
+        let displayName = SummaryProviderSupport.descriptor(for: provider).displayName
+        switch provider {
+        case .claude, .codex, .gemini:
+            guard let path = probed?.executablePath else {
+                if throwOnError {
+                    throw SummaryProviderManager.InvocationError.providerUnavailable(displayName)
+                }
+                return nil
+            }
+            do {
+                let text = try await SummaryProviderManager.summarizeWithCLI(
+                    provider: provider,
+                    executablePath: path,
+                    model: model,
+                    transcript: transcript,
+                    instructions: instructions
+                )
+                return SummaryResult(text: text, usedOnDeviceLLM: true, providerDisplayName: displayName)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                if throwOnError { throw error }
+                return nil
+            }
+
+        case .ollama:
+            let resolvedModel: String
+            if let m = model, !m.isEmpty {
+                resolvedModel = m
+            } else if let first = probed?.models.first(where: { !$0.id.isEmpty })?.id {
+                resolvedModel = first
+            } else {
+                if throwOnError {
+                    throw SummaryProviderManager.InvocationError.providerUnavailable(displayName)
+                }
+                return nil
+            }
+            do {
+                let text = try await SummaryProviderManager.summarizeWithOllama(
+                    model: resolvedModel,
+                    transcript: transcript,
+                    instructions: instructions
+                )
+                return SummaryResult(text: text, usedOnDeviceLLM: true, providerDisplayName: "\(displayName) (\(resolvedModel))")
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                if throwOnError { throw error }
+                return nil
+            }
+
+        case .appleIntelligence:
+            if let llmText = try await summarizeWithAppleIntelligence(
+                transcript: transcript,
+                instructions: instructions
+            ) {
+                return SummaryResult(text: llmText, usedOnDeviceLLM: true, providerDisplayName: displayName)
+            }
+            return nil
+
+        case .auto:
+            return nil
+        }
+    }
+
+    private static func extractiveFallback(transcript: String, instructions: String) -> SummaryResult {
         let fallback = AudioTranscriptionSupport.fallbackExtractiveSummary(
-            transcript: cleaned,
+            transcript: transcript,
             prompt: instructions
         )
-        return SummaryResult(text: fallback, usedOnDeviceLLM: false)
+        return SummaryResult(text: fallback, usedOnDeviceLLM: false, providerDisplayName: nil)
+    }
+
+    private static func summarizeWithAppleIntelligence(transcript: String,
+                                                       instructions: String) async throws -> String? {
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, *) {
+            return try await summarizeWithFoundationModels(
+                transcript: transcript,
+                instructions: instructions
+            )
+        }
+        #endif
+        return nil
     }
 
     #if canImport(FoundationModels)

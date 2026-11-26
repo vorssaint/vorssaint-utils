@@ -343,6 +343,18 @@ struct PanelMeetingRecorderView: View {
                 .lineLimit(1)
             }
             Spacer(minLength: 0)
+            if service.summaryURL(for: item) != nil {
+                Button {
+                    service.openSummary(item)
+                } label: {
+                    Image(systemName: "text.badge.star")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 22, height: 22)
+                }
+                .buttonStyle(.plain)
+                .help(FeatureStrings.summaryProviders(l10n.language).openSummaryTooltip)
+            }
             if service.transcriptURL(for: item) != nil {
                 Button {
                     service.openTranscript(item)

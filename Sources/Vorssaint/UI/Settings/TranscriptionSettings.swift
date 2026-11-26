@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 struct TranscriptionSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = AudioTranscriptionService.shared
+    @ObservedObject private var summaryProviders = SummaryProviderManager.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.meetingRecorderAutoTranscribe) private var autoTranscribe = false
     @AppStorage(DefaultsKey.audioTranscriptionIncludeTimestamps) private var includeTimestamps = true
@@ -16,7 +17,11 @@ struct TranscriptionSettings: View {
     @AppStorage(DefaultsKey.audioTranscriptionModelChoice) private var modelChoiceRaw = TranscriptionModelChoice.auto.rawValue
     @AppStorage(DefaultsKey.audioTranscriptionSummaryEnabled) private var summaryEnabled = false
     @AppStorage(DefaultsKey.audioTranscriptionSummaryPrompt) private var summaryPrompt = AudioTranscriptionSupport.defaultSummaryPrompt
+    @AppStorage(DefaultsKey.audioTranscriptionSummaryProvider) private var summaryProviderRaw = SummaryInferenceProvider.auto.rawValue
+    @AppStorage(DefaultsKey.audioTranscriptionSummaryModel) private var summaryModel = ""
+    @AppStorage(DefaultsKey.audioTranscriptionSummaryProviderUpdateChecks) private var providerUpdateChecks = true
     @AppStorage(DefaultsKey.audioTranscriptionDictationEnabled) private var dictationEnabled = false
+    @AppStorage(DefaultsKey.audioTranscriptionDictationMode) private var dictationModeRaw = DictationTriggerMode.toggle.rawValue
     @AppStorage(DefaultsKey.panelUtilityAudioTranscription) private var showInPanel = true
     @State private var isDropTargeted = false
 
@@ -28,6 +33,9 @@ struct TranscriptionSettings: View {
     }
     private var modelStrings: TranscriptionModelStrings {
         FeatureStrings.transcriptionModels(l10n.language)
+    }
+    private var providerStrings: SummaryProviderStrings {
+        FeatureStrings.summaryProviders(l10n.language)
     }
 
     var body: some View {
@@ -133,7 +141,11 @@ struct TranscriptionSettings: View {
                             Label(extras.summaryTitle, systemImage: "text.badge.star")
                                 .font(.subheadline.weight(.semibold))
                             Spacer()
-                            if !service.summaryUsedOnDeviceLLM {
+                            if let providerName = service.summaryProviderName {
+                                Text(String(format: providerStrings.summaryGeneratedWithFormat, providerName))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            } else if !service.summaryUsedOnDeviceLLM {
                                 Text(extras.summaryFallbackNote)
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
@@ -254,6 +266,13 @@ struct TranscriptionSettings: View {
                     service.syncWithPreferences()
                 }
 
+                Picker(providerStrings.dictationModeLabel, selection: $dictationModeRaw) {
+                    Text(providerStrings.dictationModeToggle).tag(DictationTriggerMode.toggle.rawValue)
+                    Text(providerStrings.dictationModeHold).tag(DictationTriggerMode.holdToTalk.rawValue)
+                }
+                .pickerStyle(.menu)
+                .disabled(!dictationEnabled)
+
                 HStack(spacing: 10) {
                     if service.isDictating {
                         Circle()
@@ -299,6 +318,35 @@ struct TranscriptionSettings: View {
                         .foregroundStyle(.secondary)
                 }
 
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker(providerStrings.summaryProviderLabel, selection: $summaryProviderRaw) {
+                        Text(providerStrings.summaryProviderAuto).tag(SummaryInferenceProvider.auto.rawValue)
+                        Text(providerStrings.summaryProviderClaude).tag(SummaryInferenceProvider.claude.rawValue)
+                        Text(providerStrings.summaryProviderCodex).tag(SummaryInferenceProvider.codex.rawValue)
+                        Text(providerStrings.summaryProviderGemini).tag(SummaryInferenceProvider.gemini.rawValue)
+                        Text(providerStrings.summaryProviderOllama).tag(SummaryInferenceProvider.ollama.rawValue)
+                        Text(providerStrings.summaryProviderApple).tag(SummaryInferenceProvider.appleIntelligence.rawValue)
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: summaryProviderRaw) { _, _ in
+                        summaryModel = ""
+                    }
+                    Text(providerStrings.summaryProviderCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let activeProvider = SummaryInferenceProvider(rawValue: summaryProviderRaw),
+                   !summaryProviders.modelOptions(for: activeProvider).isEmpty {
+                    let options = summaryProviders.modelOptions(for: activeProvider)
+                    Picker(providerStrings.summaryModelLabel, selection: $summaryModel) {
+                        ForEach(options) { option in
+                            Text(option.label).tag(option.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Text(extras.summaryPromptLabel)
@@ -323,6 +371,34 @@ struct TranscriptionSettings: View {
                                 .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
                         )
                 }
+
+                Toggle(providerStrings.checkUpdatesToggle, isOn: $providerUpdateChecks)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Button(providerStrings.refreshProvidersButton) {
+                            summaryProviders.refreshProviders(checkUpdates: false)
+                        }
+                        .controlSize(.small)
+                        .disabled(summaryProviders.isRefreshing)
+
+                        Button(providerStrings.checkUpdatesButton) {
+                            summaryProviders.refreshProviders(checkUpdates: true)
+                        }
+                        .controlSize(.small)
+                        .disabled(summaryProviders.isRefreshing || summaryProviders.isCheckingUpdates)
+
+                        if summaryProviders.isRefreshing || summaryProviders.isCheckingUpdates {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Spacer()
+                    }
+
+                    ForEach(SummaryInferenceProvider.managedProviders) { provider in
+                        providerRow(provider)
+                    }
+                }
             } header: {
                 Text(extras.summarySectionHeader)
             }
@@ -342,7 +418,72 @@ struct TranscriptionSettings: View {
         .formStyle(.grouped)
         .onAppear {
             service.refreshModelStatus()
+            summaryProviders.refreshProviders(checkUpdates: false)
         }
+    }
+
+    private func providerRow(_ provider: SummaryInferenceProvider) -> some View {
+        let state = summaryProviders.state(for: provider)
+        return HStack(spacing: 8) {
+            Circle()
+                .fill(state.isReady ? Color.green : Color.secondary.opacity(0.35))
+                .frame(width: 7, height: 7)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(providerDisplayName(provider))
+                    .font(.callout.weight(.medium))
+                Text(providerStatusText(state))
+                    .font(.caption)
+                    .foregroundStyle(state.updateError != nil ? .red : .secondary)
+            }
+            Spacer()
+            if state.isUpdating {
+                HStack(spacing: 4) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(providerStrings.updatingStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else if state.hasUpdateAvailable, state.canUpdate {
+                Button(providerStrings.updateButton) {
+                    summaryProviders.updateProvider(provider)
+                }
+                .controlSize(.small)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func providerDisplayName(_ provider: SummaryInferenceProvider) -> String {
+        switch provider {
+        case .auto: return providerStrings.summaryProviderAuto
+        case .claude: return providerStrings.summaryProviderClaude
+        case .codex: return providerStrings.summaryProviderCodex
+        case .gemini: return providerStrings.summaryProviderGemini
+        case .ollama: return providerStrings.summaryProviderOllama
+        case .appleIntelligence: return providerStrings.summaryProviderApple
+        }
+    }
+
+    private func providerStatusText(_ state: SummaryProviderManager.ProviderState) -> String {
+        if let err = state.updateError {
+            return err
+        }
+        if state.hasUpdateAvailable, let latest = state.latestVersion {
+            let base = state.installedVersion.map { String(format: providerStrings.providerReadyFormat, $0) }
+                ?? providerStrings.providerReadyNoVersion
+            return "\(base) · \(String(format: providerStrings.providerUpdateAvailableFormat, latest))"
+        }
+        if state.isReady {
+            if let v = state.installedVersion {
+                return String(format: providerStrings.providerReadyFormat, v)
+            }
+            return providerStrings.providerReadyNoVersion
+        }
+        if state.provider == .ollama, state.executablePath != nil {
+            return providerStrings.providerNotRunning
+        }
+        return providerStrings.providerNotInstalled
     }
 
     private var modelStatusSubtitle: String {
@@ -371,6 +512,7 @@ struct TranscriptionSettings: View {
 
     private var detectedLanguageLabel: String? {
         switch service.lastDetectedLanguageCode {
+        case "mixed": return providerStrings.languageMixed
         case "he": return modelStrings.languageHebrew
         case "en": return modelStrings.languageEnglish
         default: return nil

@@ -530,6 +530,11 @@ final class MeetingRecorderService: ObservableObject {
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
+    func summaryURL(for item: MeetingRecorderSupport.RecordingSummary) -> URL? {
+        let url = AudioTranscriptionSupport.meetingSummaryFileURL(stem: item.stem, in: saveFolderURL)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
     func transcribe(_ item: MeetingRecorderSupport.RecordingSummary) {
         let dir = saveFolderURL
         let sysURL = item.systemFileName.map { dir.appendingPathComponent($0) }
@@ -546,6 +551,12 @@ final class MeetingRecorderService: ObservableObject {
 
     func openTranscript(_ item: MeetingRecorderSupport.RecordingSummary) {
         if let url = transcriptURL(for: item) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func openSummary(_ item: MeetingRecorderSupport.RecordingSummary) {
+        if let url = summaryURL(for: item) {
             NSWorkspace.shared.open(url)
         }
     }

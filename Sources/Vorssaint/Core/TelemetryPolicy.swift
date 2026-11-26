@@ -57,6 +57,7 @@ enum TelemetryPolicy {
         defaults.set(false, forKey: DefaultsKey.notchLyricsOnline)
         defaults.set(false, forKey: DefaultsKey.notchBrowserCovers)
         defaults.set(false, forKey: DefaultsKey.notchAgentsPriceUpdates)
+        defaults.set(false, forKey: DefaultsKey.audioTranscriptionSummaryProviderUpdateChecks)
         CommandBarLearning.forgetAll(in: defaults)
         defaults.removeObject(forKey: DefaultsKey.commandBarQueryHabitKey)
     }

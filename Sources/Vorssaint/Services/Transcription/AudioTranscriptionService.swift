@@ -57,6 +57,7 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
     @Published private(set) var summaryText = ""
     @Published private(set) var isSummarizing = false
     @Published private(set) var summaryUsedOnDeviceLLM = false
+    @Published private(set) var summaryProviderName: String?
     @Published private(set) var lastSavedSummaryURL: URL?
 
     // System-wide dictation state
@@ -75,12 +76,16 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
     private var summaryTask: Task<Void, Never>?
     private var dictationTimer: Timer?
     private var dictationStartedAt: Date?
+    private var holdDictationActive = false
     private var pendingDropURL: URL?
     private var pendingDictationAfterDownload = false
 
     private init() {
         dictationHotkey.onPress = { [weak self] in
-            self?.toggleSystemDictation()
+            self?.handleDictationHotkeyPressed()
+        }
+        dictationHotkey.onRelease = { [weak self] in
+            self?.handleDictationHotkeyReleased()
         }
         refreshModelStatus()
     }
@@ -110,6 +115,20 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         AudioTranscriptionSupport.resolvedSummaryPrompt(
             UserDefaults.standard.string(forKey: DefaultsKey.audioTranscriptionSummaryPrompt)
         )
+    }
+
+    var summaryProvider: SummaryInferenceProvider {
+        let raw = UserDefaults.standard.string(forKey: DefaultsKey.audioTranscriptionSummaryProvider) ?? ""
+        return SummaryInferenceProvider(rawValue: raw) ?? .auto
+    }
+
+    var summaryModel: String {
+        UserDefaults.standard.string(forKey: DefaultsKey.audioTranscriptionSummaryModel) ?? ""
+    }
+
+    var dictationTriggerMode: DictationTriggerMode {
+        let raw = UserDefaults.standard.string(forKey: DefaultsKey.audioTranscriptionDictationMode) ?? ""
+        return DictationTriggerMode(rawValue: raw) ?? .toggle
     }
 
     var modelDirectory: URL {
@@ -224,9 +243,10 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         refreshModelStatus()
     }
 
-    /// Runs language detection (when in `.auto` mode with both models
-    /// installed) and routes audio samples to Parakeet Unified 0.6B (English)
-    /// or ivrit.ai Whisper Large v3 Turbo (Hebrew).
+    /// Runs per-segment language detection (when in `.auto` mode with both
+    /// models installed) so bilingual ("Heblish") calls switch seamlessly
+    /// between Parakeet Unified 0.6B (English) and ivrit.ai Whisper Large v3
+    /// Turbo (Hebrew) on each speech region.
     private func transcribeRoutedSamples(_ samples: [Float],
                                          choice: TranscriptionModelChoice,
                                          computeMode: ParakeetComputeMode,
@@ -238,30 +258,104 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         let parakeetOK = AudioTranscriptionSupport.isModelDirectoryReady(parakeetDir)
         let ivritOK = AudioTranscriptionSupport.isIvritModelDirectoryReady(ivritDir)
 
-        var detectedCode: String?
-        var detectedConfidence: Double = 0
-
         if choice == .auto, parakeetOK, ivritOK {
-            let probe = await detectSpokenLanguage(
-                samples: samples,
-                parakeetDir: parakeetDir,
-                ivritDir: ivritDir,
-                computeMode: computeMode
+            let wallStart = Date()
+            let sr = AudioTranscriptionSupport.sampleRate
+            let totalDuration = Double(samples.count) / sr
+            let chunks = AudioTranscriptionSupport.languageRoutingChunks(in: samples)
+            guard !chunks.isEmpty else {
+                return (
+                    ParakeetCoreMLTranscriber.TranscriptionResult(
+                        segments: [],
+                        audioDurationSeconds: totalDuration,
+                        elapsedSeconds: Date().timeIntervalSince(wallStart)
+                    ),
+                    nil
+                )
+            }
+
+            var allSegments: [AudioTranscriptionSupport.TranscriptSegment] = []
+            var detectedCodes: [String] = []
+
+            for (index, chunk) in chunks.enumerated() {
+                try Task.checkCancellation()
+                let lo = max(0, Int(chunk.startSec * sr))
+                let hi = min(samples.count, Int(chunk.endSec * sr))
+                guard hi - lo >= Int(sr * 0.2) else { continue }
+                let slice = Array(samples[lo..<hi])
+
+                let probe = await detectSpokenLanguage(
+                    samples: slice,
+                    parakeetDir: parakeetDir,
+                    ivritDir: ivritDir,
+                    computeMode: computeMode
+                )
+                let resolved = AudioTranscriptionSupport.routeModel(
+                    choice: .auto,
+                    detectedLanguage: probe?.code,
+                    confidence: probe?.confidence ?? 0,
+                    parakeetReady: parakeetOK,
+                    ivritReady: ivritOK
+                )
+
+                let chunkCount = Double(max(1, chunks.count))
+                let baseFrac = Double(index) / chunkCount
+                let chunkProgress: (@Sendable (Double) -> Void)? = progress.map { cb in
+                    { @Sendable frac in cb(min(1.0, baseFrac + frac / chunkCount)) }
+                }
+
+                let chunkResult: ParakeetCoreMLTranscriber.TranscriptionResult
+                let usedCode: String
+                switch resolved {
+                case .ivritHebrew:
+                    chunkResult = try await ivritEngine.transcribe(
+                        samples: slice,
+                        modelDirectory: ivritDir,
+                        computeMode: computeMode,
+                        languageTokenID: AudioTranscriptionSupport.whisperHebrewToken,
+                        speaker: speaker,
+                        progress: chunkProgress
+                    )
+                    usedCode = "he"
+                case .parakeetEnglish, nil:
+                    chunkResult = try await engine.transcribe(
+                        samples: slice,
+                        modelDirectory: parakeetDir,
+                        computeMode: computeMode,
+                        speaker: speaker,
+                        progress: chunkProgress
+                    )
+                    usedCode = "en"
+                }
+
+                if !chunkResult.segments.isEmpty {
+                    let shifted = AudioTranscriptionSupport.shiftSegments(chunkResult.segments, by: chunk.startSec)
+                    allSegments.append(contentsOf: shifted)
+                    detectedCodes.append(usedCode)
+                }
+            }
+
+            allSegments.sort { $0.startSeconds < $1.startSeconds }
+            let summaryLang = AudioTranscriptionSupport.summarizeDetectedLanguages(detectedCodes)
+            return (
+                ParakeetCoreMLTranscriber.TranscriptionResult(
+                    segments: allSegments,
+                    audioDurationSeconds: totalDuration,
+                    elapsedSeconds: Date().timeIntervalSince(wallStart)
+                ),
+                summaryLang
             )
-            detectedCode = probe?.code
-            detectedConfidence = probe?.confidence ?? 0
-        } else if choice == .ivritHebrew {
-            detectedCode = "he"
-            detectedConfidence = 1.0
-        } else if choice == .parakeetEnglish {
-            detectedCode = "en"
-            detectedConfidence = 1.0
         }
 
+        let detectedCode: String? = switch choice {
+        case .ivritHebrew: "he"
+        case .parakeetEnglish: "en"
+        case .auto: nil
+        }
         let resolved = AudioTranscriptionSupport.routeModel(
             choice: choice,
             detectedLanguage: detectedCode,
-            confidence: detectedConfidence,
+            confidence: detectedCode == nil ? 0 : 1.0,
             parakeetReady: parakeetOK,
             ivritReady: ivritOK
         )
@@ -586,7 +680,7 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                 var micSegments: [AudioTranscriptionSupport.TranscriptSegment] = []
                 var sysSegments: [AudioTranscriptionSupport.TranscriptSegment] = []
                 var maxDuration: Double = 0
-                var detectedLang: String?
+                var detectedCodes: [String] = []
 
                 if let micURL {
                     let baseTracks = completedTracks
@@ -603,7 +697,13 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                     }
                     micSegments = routed.result.segments
                     maxDuration = max(maxDuration, routed.result.audioDurationSeconds)
-                    detectedLang = routed.detectedLanguage ?? detectedLang
+                    if let lang = routed.detectedLanguage {
+                        if lang == "mixed" {
+                            detectedCodes.append(contentsOf: ["en", "he"])
+                        } else {
+                            detectedCodes.append(lang)
+                        }
+                    }
                     completedTracks += 1
                 }
 
@@ -622,7 +722,13 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                     }
                     sysSegments = routed.result.segments
                     maxDuration = max(maxDuration, routed.result.audioDurationSeconds)
-                    detectedLang = routed.detectedLanguage ?? detectedLang
+                    if let lang = routed.detectedLanguage {
+                        if lang == "mixed" {
+                            detectedCodes.append(contentsOf: ["en", "he"])
+                        } else {
+                            detectedCodes.append(lang)
+                        }
+                    }
                     completedTracks += 1
                 }
 
@@ -645,7 +751,7 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
 
                 let finalSavedURL = savedURL
                 let finalDuration = maxDuration
-                let finalDetectedLang = detectedLang
+                let finalDetectedLang = AudioTranscriptionSupport.summarizeDetectedLanguages(detectedCodes)
                 let elapsed = Date().timeIntervalSince(wallStart)
                 await MainActor.run {
                     self.isTranscribing = false
@@ -710,6 +816,7 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         transcriptText = ""
         summaryText = ""
         summaryUsedOnDeviceLLM = false
+        summaryProviderName = nil
         segments = []
         lastDurationSeconds = 0
         lastProcessingSeconds = 0
@@ -789,14 +896,22 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
     private func generateSummary(for text: String, saveDestination: URL?) {
         summaryTask?.cancel()
         let prompt = summaryPrompt
+        let provider = summaryProvider
+        let model = summaryModel
         isSummarizing = true
         summaryText = ""
+        summaryProviderName = nil
         lastSavedSummaryURL = nil
 
         summaryTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let result = try await TranscriptSummarizer.summarize(transcript: text, prompt: prompt)
+                let result = try await TranscriptSummarizer.summarize(
+                    transcript: text,
+                    prompt: prompt,
+                    provider: provider,
+                    model: model
+                )
                 var savedSummaryURL: URL?
                 if let saveDestination, !result.text.isEmpty {
                     if (try? result.text.write(to: saveDestination, atomically: true, encoding: .utf8)) != nil {
@@ -809,6 +924,7 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                     self.summaryTask = nil
                     self.summaryText = result.text
                     self.summaryUsedOnDeviceLLM = result.usedOnDeviceLLM
+                    self.summaryProviderName = result.providerDisplayName
                     self.lastSavedSummaryURL = finalSavedURL
                     if let idx = self.recentTranscripts.firstIndex(where: { $0.text == text }) {
                         let existing = self.recentTranscripts[idx]
@@ -823,6 +939,9 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                             createdAt: existing.createdAt,
                             durationSeconds: existing.durationSeconds
                         )
+                    }
+                    if finalSavedURL != nil {
+                        MeetingRecorderService.shared.refreshRecordings()
                     }
                 }
             } catch is CancellationError {
@@ -841,6 +960,25 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
     }
 
     // MARK: - System-Wide Voice Dictation
+
+    private func handleDictationHotkeyPressed() {
+        switch dictationTriggerMode {
+        case .toggle:
+            toggleSystemDictation()
+        case .holdToTalk:
+            guard !isDictating else { return }
+            holdDictationActive = true
+            startSystemDictation()
+        }
+    }
+
+    private func handleDictationHotkeyReleased() {
+        guard dictationTriggerMode == .holdToTalk, holdDictationActive else { return }
+        holdDictationActive = false
+        if isDictating {
+            finishDictationAndInsert()
+        }
+    }
 
     func toggleSystemDictation() {
         if isDictating {
@@ -906,9 +1044,13 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
             }
             RunLoop.main.add(timer, forMode: .common)
             dictationTimer = timer
-            QuickToolHUD.show(icon: "mic.fill", message: extras.dictationListeningHUD)
+            let hudMessage = dictationTriggerMode == .holdToTalk
+                ? FeatureStrings.summaryProviders(L10n.shared.language).dictationHoldListeningHUD
+                : extras.dictationListeningHUD
+            QuickToolHUD.show(icon: "mic.fill", message: hudMessage)
         } catch {
             isDictating = false
+            holdDictationActive = false
             dictationLevel = 0
             errorMessage = error.localizedDescription
         }
@@ -921,6 +1063,7 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         dictationElapsedSeconds = 0
         dictationLevel = 0
         isDictating = false
+        holdDictationActive = false
         pendingDictationAfterDownload = false
         dictationRecorder.stopAndDiscard()
     }

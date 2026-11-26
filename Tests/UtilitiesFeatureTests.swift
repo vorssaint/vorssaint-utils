@@ -433,17 +433,95 @@ enum UtilitiesFeatureTests {
         suite.expect(vadRegions.count == 1 && vadRegions[0].startSec > 1.0 && vadRegions[0].endSec < 5.0,
                "energy VAD isolates active speech regions from surrounding silence")
 
+        // Per-segment bilingual ("Heblish") chunking, timestamp shifting, and mixed-language summarization.
+        var bilingualSamples = [Float](repeating: 0, count: 16_000 * 10)
+        for i in (16_000 * 1)..<(16_000 * 3) { bilingualSamples[i] = 0.25 * sin(Float(i) * 0.1) }
+        for i in (16_000 * 6)..<(16_000 * 8) { bilingualSamples[i] = 0.25 * sin(Float(i) * 0.12) }
+        let routingChunks = AudioTranscriptionSupport.languageRoutingChunks(in: bilingualSamples)
+        suite.expect(routingChunks.count == 2
+               && routingChunks[0].endSec < routingChunks[1].startSec,
+               "per-segment language routing splits separated bilingual utterances into distinct chunks")
+        let shiftedSegs = AudioTranscriptionSupport.shiftSegments([
+            .init(speaker: "You", text: "שלום", startSeconds: 0.5, endSeconds: 1.5),
+        ], by: 10.0)
+        suite.expect(shiftedSegs.count == 1
+               && abs(shiftedSegs[0].startSeconds - 10.5) < 0.001
+               && abs(shiftedSegs[0].endSeconds - 11.5) < 0.001,
+               "segment timestamp shifting aligns chunk outputs with the original audio timeline")
+        suite.expect(AudioTranscriptionSupport.summarizeDetectedLanguages(["en", "he"]) == "mixed"
+               && AudioTranscriptionSupport.summarizeDetectedLanguages(["he", "he"]) == "he"
+               && AudioTranscriptionSupport.summarizeDetectedLanguages(["en"]) == "en"
+               && AudioTranscriptionSupport.summarizeDetectedLanguages([]) == nil,
+               "detected language summarization identifies mixed English & Hebrew recordings")
+
+        // Hold-to-talk dictation trigger mode & Carbon hotkey release support.
+        let hotkeySource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/QuickTools/QuickToolHotkey.swift", encoding: .utf8)) ?? ""
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.audioTranscriptionDictationMode] as? String == DictationTriggerMode.toggle.rawValue
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionDictationMode)
+               && hotkeySource.contains("kEventHotKeyReleased")
+               && hotkeySource.contains("onRelease"),
+               "hold-to-talk dictation trigger mode and hotkey key-up dispatch are registered")
+
+        // Meeting Recorder one-click summary access.
+        let meetingPanelSource = (try? String(contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/PanelMeetingRecorderView.swift", encoding: .utf8)) ?? ""
+        suite.expect(meetingPanelSource.contains("service.summaryURL(for: item)")
+               && meetingPanelSource.contains("service.openSummary(item)"),
+               "Meeting Recorder panel rows expose one-click summary opening when a summary exists")
+
+        // Local CLI subscription summary providers & update management.
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.audioTranscriptionSummaryProvider] as? String == SummaryInferenceProvider.auto.rawValue
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionSummaryProviderUpdateChecks] as? Bool == true
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionSummaryProvider)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionSummaryModel),
+               "summary inference provider defaults are registered and included in settings backup")
+        suite.expect(SummaryProviderSupport.parseSemanticVersion(from: "2.1.332 (Claude Code)") == "2.1.332"
+               && SummaryProviderSupport.parseSemanticVersion(from: "codex-cli 0.172.0") == "0.172.0"
+               && SummaryProviderSupport.isVersion("2.2.0", newerThan: "2.1.332")
+               && !SummaryProviderSupport.isVersion("2.1.332", newerThan: "2.1.332"),
+               "summary provider semantic version parsing and update comparisons work accurately")
+        suite.expect(SummaryProviderSupport.detectInstallMethod(provider: .claude, executablePath: "/Users/me/.local/bin/claude") == .claudeNative
+               && SummaryProviderSupport.detectInstallMethod(provider: .gemini, executablePath: "/Users/me/.bun/bin/gemini") == .bun
+               && SummaryProviderSupport.detectInstallMethod(provider: .ollama, executablePath: "/opt/homebrew/bin/ollama") == .homebrew,
+               "summary provider install method detection picks the matching updater per binary path")
+        let claudeUpdate = SummaryProviderSupport.updateCommand(for: .claude, executablePath: "/Users/me/.local/bin/claude")
+        let geminiUpdate = SummaryProviderSupport.updateCommand(for: .gemini, executablePath: "/Users/me/.bun/bin/gemini") { tool in
+            tool == "bun" ? "/Users/me/.bun/bin/bun" : nil
+        }
+        suite.expect(claudeUpdate?.arguments == ["update"]
+               && geminiUpdate?.arguments == ["add", "-g", "@google/gemini-cli@latest"],
+               "summary provider update commands match native and package-manager installs")
+        let claudeSummary = SummaryProviderSupport.summaryCommand(for: .claude, executablePath: "/usr/local/bin/claude", model: "sonnet", transcript: "Hello", instructions: "Summarize")
+        let codexSummary = SummaryProviderSupport.summaryCommand(for: .codex, executablePath: "/usr/local/bin/codex", model: "gpt-5.4-mini", transcript: "Hello", instructions: "Summarize", codexOutputFile: "/tmp/out.txt")
+        let geminiSummary = SummaryProviderSupport.summaryCommand(for: .gemini, executablePath: "/usr/local/bin/gemini", model: "gemini-2.5-flash", transcript: "Hello", instructions: "Summarize")
+        suite.expect(claudeSummary?.arguments.contains("--no-session-persistence") == true
+               && claudeSummary?.arguments.contains("--tools") == true
+               && codexSummary?.arguments.contains("--ephemeral") == true
+               && codexSummary?.arguments.contains("-o") == true
+               && geminiSummary?.arguments.contains("-p") == true,
+               "headless summary CLI commands disable persistence/tools and pass transcripts via stdin")
+        suite.expect(SummaryProviderSupport.autoResolutionOrder(availableCLIProviders: [.codex, .gemini], ollamaReady: true)
+                   == [.codex, .gemini, .ollama, .appleIntelligence],
+               "auto summary provider cascade prefers installed CLI subscriptions, then Ollama, then Apple Intelligence")
+        let ollamaJSON = #"{"models":[{"name":"qwen2.5:7b"},{"name":"gemma3:4b"}]}"#.data(using: .utf8)!
+        suite.expect(SummaryProviderSupport.parseOllamaModels(data: ollamaJSON).map(\.id) == ["gemma3:4b", "qwen2.5:7b"],
+               "Ollama tag parser returns sorted local model options")
+        let npmJSON = #"{"name":"@openai/codex","version":"0.175.0"}"#.data(using: .utf8)!
+        suite.expect(SummaryProviderSupport.parseNpmLatestVersion(data: npmJSON) == "0.175.0",
+               "npm latest registry parser extracts CLI update version cleanly")
+
         for lang in AppLanguage.allCases {
             let ts = FeatureStrings.audioTranscription(lang)
             let extras = FeatureStrings.audioTranscriptionExtras(lang)
             let models = FeatureStrings.transcriptionModels(lang)
+            let providers = FeatureStrings.summaryProviders(lang)
             suite.expect(!ts.title.isEmpty && !ts.hubDescription.isEmpty
                    && !ts.dropTitle.isEmpty && !ts.autoTranscribeToggle.isEmpty
                    && !ts.downloadModelButton.isEmpty
                    && !extras.summaryToggle.isEmpty && !extras.summaryPromptLabel.isEmpty
                    && !extras.dictationToggle.isEmpty && !extras.startDictationButton.isEmpty
-                   && !models.modelAuto.isEmpty && !models.ivritModelTitle.isEmpty,
-                   "audio transcription, extras, and model strings are populated in \(lang)")
+                   && !models.modelAuto.isEmpty && !models.ivritModelTitle.isEmpty
+                   && !providers.dictationModeHold.isEmpty && !providers.summaryProviderClaude.isEmpty && !providers.openSummaryTooltip.isEmpty,
+                   "audio transcription, extras, model, and summary provider strings are populated in \(lang)")
         }
 
         // MARK: Port manager row numbers

@@ -435,6 +435,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/AudioTranscriptionStrings.swift
         Sources/Vorssaint/Core/AudioTranscriptionExtrasStrings.swift
         Sources/Vorssaint/Core/TranscriptionModelStrings.swift
+        Sources/Vorssaint/Core/SummaryProviderStrings.swift
         Sources/Vorssaint/Core/WhatsAppDownloadStrings.swift
         Sources/Vorssaint/Core/WhatsAppOrganizerStrings.swift
         Sources/Vorssaint/Core/ReleaseNotes.swift
@@ -580,6 +581,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/PortManager/PortManagerSupport.swift
         Sources/Vorssaint/Services/MeetingRecorder/MeetingRecorderSupport.swift
         Sources/Vorssaint/Services/Transcription/AudioTranscriptionSupport.swift
+        Sources/Vorssaint/Services/Transcription/SummaryProviderSupport.swift
         Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift
         Sources/Vorssaint/Services/Metrics/NetworkSampler.swift
         Sources/Vorssaint/Services/Metrics/NetworkAddressService.swift

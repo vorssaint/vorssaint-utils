@@ -95,6 +95,7 @@ enum LocalizationTests {
                 ("shelfDelivery", { ShelfPromiseDeliveryStrings.localized($0) }),
                 ("audioTranscriptionExtras", { AudioTranscriptionExtrasStrings.localized($0) }),
                 ("transcriptionModels", { TranscriptionModelStrings.localized($0) }),
+                ("summaryProviders", { SummaryProviderStrings.localized($0) }),
                 ("telemetryPolicy", { TelemetryPolicyStrings.localized($0) }),
             ]
             for (name, factory) in factories + additional {
