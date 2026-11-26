@@ -19,6 +19,7 @@ struct CameraPreviewFeatureStrings {
 extension FeatureStrings {
     static func cameraPreview(_ language: AppLanguage) -> CameraPreviewFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -49,6 +50,18 @@ extension CameraPreviewFeatureStrings {
         noCameraMessage: "No camera detected",
         permName: "Camera",
         permExplain: "Shows your camera only in the preview window, so you can check how you look before a call. Nothing is recorded or leaves your Mac."
+    )
+
+    static let sv = CameraPreviewFeatureStrings(
+        pageTitle: "Kameraförhandsvisning",
+        hubDescription: "Öppnar en flytande spegel med din kamera",
+        panelCaption: "Kontrollera hur du ser ut före ett samtal",
+        openButton: "Öppna förhandsgranskning",
+        cameraMenuLabel: "Kamera",
+        deniedMessage: "Kameraåtkomst för Vorssaint är avstängd i Systeminställningar.",
+        noCameraMessage: "Ingen kamera upptäckt",
+        permName: "Kamera",
+        permExplain: "Visar din kamera endast i förhandsgranskningsfönstret, så att du kan kontrollera hur du ser ut före ett samtal. Ingenting spelas in eller lämnar din Mac."
     )
 
     static let ptBR = CameraPreviewFeatureStrings(

@@ -77,6 +77,7 @@ struct SnippetFeatureStrings {
 extension FeatureStrings {
     static func snippets(_ language: AppLanguage) -> SnippetFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -300,6 +301,74 @@ extension SnippetFeatureStrings {
         soundCaption: "A short system sound plays each time a typed trigger expands.",
         soundPickerLabel: "Sound",
         soundUnavailable: "Sound unavailable"
+    )
+
+    static let sv = SnippetFeatureStrings(
+        pageTitle: "Textsnuttar",
+        hubDescription: "Korta utlösare expanderas till fullständig text",
+        enable: "Expandera snuttar medan du skriver",
+        enableCaption: "Skriv en utlösare var som helst så ersätts den med sin text. Allt stannar på den här datorn.",
+        addButton: "Lägg till snutt",
+        newTitle: "Ny snutt",
+        editTitle: "Redigera snutt",
+        nameLabel: "Namn",
+        namePlaceholder: "Personlig e-post",
+        triggerLabel: "Utlösare",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Text",
+        replacementPlaceholder: "myemail@example.com",
+        expansionLabel: "Expandera",
+        expansionImmediate: "Direkt",
+        expansionDelimiter: "Efter blanksteg, tabb eller Retur",
+        variablesHint: "Variabler: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "De ersätts med datumet, tiden och den kopierade texten när expansionen sker.",
+        emptyList: "Inga snuttar än. Lägg till den första.",
+        duplicateTrigger: "En annan snutt använder redan den här utlösaren.",
+        triggerTooShort: "Utlösaren måste innehålla minst två tecken.",
+        deleteButton: "Ta bort",
+        saveButton: "Spara",
+        manageButton: "Hantera snuttar",
+        ignoreCaseLabel: "Ignorera stora och små bokstäver",
+        libraryTitle: "Snabbmeny för snuttar",
+        libraryToggle: "Öppna snuttar från en meny",
+        libraryCaption: "Kortkommandot öppnar en sökbar meny. När du väljer en snutt skrivs den där markören finns.",
+        librarySearchPlaceholder: "Sök bland snuttar",
+        libraryNoResults: "Ingen snutt matchar sökningen.",
+        libraryEmpty: "Inget att visa än. Lägg till snuttar eller slå på ”Visa i snabbmenyn” för dem du använder mest.",
+        libraryFooterHint: "↩ infogar · Esc stänger",
+        folderLabel: "Mapp",
+        folderPlaceholder: "Arbete",
+        showInLibraryLabel: "Visa i snabbmenyn",
+        variablesFormatCaption: "Ett format efter ett kolon styr hur de visas, till exempel {{date:yyyy-MM-dd}}. Delen -tz(...) anger tidszonen, till exempel {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Ett format efter ett kolon styr hur de visas, till exempel {{date:yyyy-MM-dd}}, eller använd datum-/tidsknappen ovan. Delen -tz(...) anger tidszonen, till exempel {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Infoga datum/tid",
+        dateTimeEditButton: "Redigera datum/tid",
+        dateTimeTypeLabel: "Typ",
+        dateTimeKindDate: "Datum",
+        dateTimeKindTime: "Tid",
+        dateTimeKindDateTime: "Datum och tid",
+        dateTimeStyleLabel: "Stil",
+        dateTimeStyleShort: "Kort",
+        dateTimeStyleMedium: "Medel",
+        dateTimeStyleLong: "Lång",
+        dateTimeStyleFull: "Fullständig",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Anpassad",
+        dateTimeStyleLocaleNote: "En namngiven stil sparar det format som datorns region använder just nu.",
+        dateTimeTimezoneLabel: "Tidszon",
+        dateTimeTimezoneDeviceDefault: "Enhetens standard",
+        dateTimeTimezoneValid: "Giltig tidszon",
+        dateTimeTimezoneInvalid: "Okänd tidszon",
+        dateTimeTimezoneClear: "Rensa tidszon",
+        dateTimeTimezoneSearchPlaceholder: "Sök tidszoner",
+        dateTimePatternLabel: "Mönster",
+        dateTimePreviewLabel: "Förhandsvisning",
+        dateTimeConfirmInsert: "Infoga",
+        dateTimeConfirmUpdate: "Uppdatera",
+        soundToggle: "Spela ett ljud när en skriven utlösare expanderas",
+        soundCaption: "Ett kort systemljud spelas upp varje gång en skriven utlösare expanderas.",
+        soundPickerLabel: "Ljud",
+        soundUnavailable: "Ljudet är inte tillgängligt"
     )
 
     static let ptBR = SnippetFeatureStrings(

@@ -48,6 +48,7 @@ struct QuickToggleFeatureStrings {
 extension FeatureStrings {
     static func quickToggles(_ language: AppLanguage) -> QuickToggleFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -105,6 +106,45 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "Start the screen saver",
         screenSaverCaption: "Starts right away, on every display.",
         actionFailed: "Could not complete."
+    )
+
+    static let sv = QuickToggleFeatureStrings(
+        pageTitle: "Snabbväxlar",
+        hubDescription: "Åtgärder med ett klick som mörkt läge och papperskorgen",
+        panelCaption: "Systemåtgärder med ett klick i menyraden och i snabbpanelen.",
+        darkModeToDark: "Växla till mörkt läge",
+        darkModeToLight: "Växla till ljusläge",
+        darkModeCaption: "Ändrar utseendet på hela systemet.",
+        emptyTrashTitle: "Töm papperskorgen",
+        emptyTrashCaption: "Tar bort allt från papperskorgen.",
+        emptyTrashConfirmTitle: "Töm papperskorgen?",
+        emptyTrashConfirmMessage: "Alla objekt i papperskorgen kommer att tas bort. Detta kan inte ångras.",
+        emptyTrashConfirmButton: "Töm papperskorgen",
+        quitAllTitle: "Avsluta alla appar",
+        quitOthersTitle: "Avsluta alla appar utom den främsta",
+        quitAppsHeader: "Öppna appar",
+        quitAppsQuitAll: "Avsluta alla",
+        quitAppsQuitAllExcept: "Avsluta alla utom %@",
+        quitAppsQuitOne: "Avsluta %@",
+        quitAppsFrontBadge: "Främst",
+        quitAppsKeptBadge: "Behålls",
+        quitAppsEmpty: "Inga andra appar är öppna.",
+        exceptionsTitle: "Appar som behålls",
+        exceptionsCaption: "Avsluta alla låter dessa appar fortsätta köras. Finder, Vorssaint och Telefon behålls alltid. Du kan ändå avsluta en behållen app från dess egen rad.",
+        ejectTitle: "Mata ut alla diskar",
+        ejectCaption: "Mata ut alla externa diskar på ett säkert sätt.",
+        hiddenFilesShow: "Visa dolda filer",
+        hiddenFilesHide: "Dölj dolda filer",
+        desktopIconsHide: "Dölj skrivbordsikoner",
+        desktopIconsShow: "Visa skrivbordsikoner",
+        finderRestartCaption: "Finder startar om för att tillämpa den.",
+        lockScreenTitle: "Lås skärmen",
+        lockScreenCaption: "Ber om att lösenordet ska komma tillbaka.",
+        displayOffTitle: "Stäng av displayen",
+        displayOffCaption: "Mac fortsätter att köras med skärmen avstängd.",
+        screenSaverTitle: "Starta skärmsläckaren",
+        screenSaverCaption: "Börjar direkt, på varje skärm.",
+        actionFailed: "Kunde inte slutföra."
     )
 
     static let ptBR = QuickToggleFeatureStrings(
