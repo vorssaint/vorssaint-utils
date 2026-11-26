@@ -330,7 +330,7 @@ enum AgentUsageArchiveTests {
         let layouts: [(name: String, stored: [String], written: [String])] = [
             ("AgentUsageArchive.Contents", labels(contents), ["providers", "store", "cursors"]),
             ("AgentUsageStore", labels(first),
-             ["records", "billables", "sources", "index", "cursorCopies", "cursorUsageRevisions", "cursorUsageGeneration",
+             ["records", "billables", "sources", "index", "transcriptCopies",
               "summary", "limits", "codexPlan", "codexPlanObserved", "turns", "waiting", "registered", "settled", "replies", "reportsTransitions"]),
             ("AgentUsageStore.Saved", labels(sample),
              ["records", "limits", "codexPlan", "codexPlanObserved", "turns", "waiting"]),

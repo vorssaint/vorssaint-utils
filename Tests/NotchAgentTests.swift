@@ -12,6 +12,7 @@ enum NotchAgentTests {
         suite.expect(shipped != nil, "the price list that ships with the app is valid")
         AgentPricing.install(shipped ?? .empty)
         defer { AgentPricing.install(previous) }
+        AgentProviderDescriptorTests.run(suite)
         priceList(suite, shipped: shipped ?? .empty)
         pricing(suite)
         claudeParsing(suite)

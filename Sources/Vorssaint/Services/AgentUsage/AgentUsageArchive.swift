@@ -94,10 +94,10 @@ enum AgentUsageArchive {
         }
         guard shouldContinue() else { return nil }
         let store = AgentUsageStore(saved: contents.store)
-        // The archive holds one selected reading for copies of a Cursor reply.
-        // On replay verified open turns still get the reader's prefix check.
+        // The archive holds one selected reading for copies of a transcript
+        // response. On replay verified open turns still get the reader's prefix check.
         let sharedTranscripts = Set(contents.store.records.lazy
-            .filter { $0.record.provider == .cursor && $0.key.hasPrefix("cursor-transcript:") && $0.sources.count > 1 }
+            .filter { AgentUsageKey($0.key).isTranscript && $0.sources.count > 1 }
             .flatMap(\.sources))
         var gone = store.files.subtracting(cursors.keys)
         let sharing = store.files(sharingWith: gone).subtracting(gone).subtracting(sharedTranscripts)
