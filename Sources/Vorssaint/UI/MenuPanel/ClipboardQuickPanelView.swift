@@ -724,6 +724,10 @@ private struct QuickEntryView: View, Equatable {
         Button(text.copy) {
             history.copyOnlyQuickEntry(entry)
         }
+        Button(text.pasteAsPlainText) {
+            history.pasteQuickEntryAsPlainText(entry)
+        }
+        .disabled(entry.kind != .text)
         Divider()
         Button(entry.isPinned ? text.unpin : text.pin) {
             history.togglePin(entry)

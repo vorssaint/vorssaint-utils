@@ -38,9 +38,29 @@ final class PastePlainService: ObservableObject {
     }
 
     func performPastePlain() {
-        // Without Accessibility the synthesized ⌘V can never be posted: say so
-        // (system prompt once, a beep after) instead of silently swallowing the
-        // shortcut, which reads as "the feature does nothing" (issue #186).
+        guard ensureAccessibility() else { return }
+        // Promised content renders when read, so a busy source app would hold
+        // the main thread here; the lane answers back on main when it can.
+        GeneralPasteboardAccess.shared.async({ Self.plainText(from: .general) }) { [weak self] plain in
+            self?.pastePlain(plain?.isEmpty == false ? plain : nil)
+        }
+    }
+
+    /// Clipboard history: pastes the chosen entry's text as plain text into
+    /// the app the panel was opened over. Shares the shortcut's transient
+    /// write, so the clipboard keeps what the user had, and only the entry's
+    /// text reaches the destination.
+    func pasteAsPlainText(_ text: String) {
+        guard ensureAccessibility() else { return }
+        // The matching-style item is deliberately not pressed: it would paste
+        // the clipboard, which does not hold this entry.
+        pasteTransiently(text)
+    }
+
+    /// Without Accessibility the synthesized ⌘V can never be posted: say so
+    /// (system prompt once, a beep after) instead of silently swallowing the
+    /// paste, which reads as "the feature does nothing" (issue #186).
+    private func ensureAccessibility() -> Bool {
         guard AXIsProcessTrusted() else {
             if promptedForAccessibility {
                 NSSound.beep()
@@ -48,13 +68,9 @@ final class PastePlainService: ObservableObject {
                 promptedForAccessibility = true
                 Permissions.shared.requestAccessibility()
             }
-            return
+            return false
         }
-        // Promised content renders when read, so a busy source app would hold
-        // the main thread here; the lane answers back on main when it can.
-        GeneralPasteboardAccess.shared.async({ Self.plainText(from: .general) }) { [weak self] plain in
-            self?.pastePlain(plain?.isEmpty == false ? plain : nil)
-        }
+        return true
     }
 
     private func pastePlain(_ plain: String?) {
@@ -67,7 +83,10 @@ final class PastePlainService: ObservableObject {
         // press. The strip-and-restore dance below stays as the fallback
         // for every app without that command.
         if plain != nil, pressNativeMatchStyleItem() { return }
+        pasteTransiently(plain)
+    }
 
+    private func pasteTransiently(_ plain: String?) {
         var releaseHotkey = false
         let willPostShortcut = { [weak self] in
             guard let self else { return }

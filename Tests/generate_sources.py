@@ -908,8 +908,10 @@ def main():
               + "}\n")
     write("QuickPaste.swift", "import Foundation\n"
           + "extension ClipboardFeatureTests.QuickPasteHost {\n"
-          + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift",
-                        "    private func pasteIntoPreviousApp(").replace("private func", "func", 1)
+          + "".join(declaration("Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift",
+                               prefix).replace("private func", "func", 1)
+                    for prefix in ["    private func pasteIntoPreviousApp(",
+                                   "    private func withPreviousApp("])
           + "}\n")
     write("ClipboardPanelPlacement.swift", "import AppKit\n"
           + "extension ClipboardFeatureTests.PanelPlacementHost {\n"
@@ -926,7 +928,9 @@ def main():
     write("PastePlain.swift", "import AppKit\nimport UniformTypeIdentifiers\n"
           + "extension PastePlainTests {\nfinal class Service: Fixture {\n"
           + "".join(declaration(paste_plain, prefix).replace("private func", "func", 1)
-                    for prefix in ["    func performPastePlain()", "    private func pastePlain(",
+                    for prefix in ["    func performPastePlain()", "    func pasteAsPlainText(",
+                                   "    private func ensureAccessibility(",
+                                   "    private func pastePlain(", "    private func pasteTransiently(",
                                    "    static func plainText("])
           + "}\n}\nextension PastePlainTests.OriginalPasteHost {\n"
           + declaration("Sources/Vorssaint/Services/TransientPaste.swift", "    func pasteCurrentContents(")
