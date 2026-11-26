@@ -254,7 +254,7 @@ private struct NotchAntigravityQuotaCard: View {
         let current = AgentAntigravityQuota.current(windows, now: now)
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
-                NotchAgentCardHeader(title: AgentAntigravityQuota.title, symbol: AgentAntigravityQuota.symbol, tint: tint)
+                NotchAgentCardHeader(title: text.antigravityQuotaTitle, symbol: NotchAgentCard.limits.symbol, tint: tint)
                 if current.isEmpty {
                     Text(checking && !preview ? text.loading : text.antigravityQuotaUnavailable)
                         .font(.system(size: 10.5))

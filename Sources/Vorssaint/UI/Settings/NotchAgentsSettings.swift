@@ -53,7 +53,7 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
             providerRow(.cursor, isOn: $cursor)
-            switchRow(AgentAntigravityQuota.symbol, AgentAntigravityQuota.title, isOn: $antigravityQuota)
+            switchRow(NotchAgentCard.limits.symbol, text.antigravityQuotaTitle, isOn: $antigravityQuota)
             if claude { ClaudeAccountSettings() }
             if codex { CodexAccountsSettings() }
 

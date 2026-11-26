@@ -6,9 +6,6 @@ import Foundation
 
 /// The signed-in Antigravity CLI reports account quotas through /usage.
 enum AgentAntigravityQuota {
-    static let title = "Antigravity · Gemini"
-    static let symbol = "gauge.with.dots.needle.33percent"
-
     private static let queue = DispatchQueue(label: "com.vorssaint.antigravity-quota", qos: .utility)
     private static let arguments = ["--output-format", "json", "--print=/usage"]
 

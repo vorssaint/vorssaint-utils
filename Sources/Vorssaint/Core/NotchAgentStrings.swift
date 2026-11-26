@@ -25,6 +25,7 @@ struct NotchAgentStrings {
     let waitingForLimits: String
     let noSession: String
     let antigravityQuotaUnavailable: String
+    var antigravityQuotaTitle: String { "Antigravity · Gemini" }
     let apiValue: String
     let tokensFormat: String
     let cachedFormat: String
