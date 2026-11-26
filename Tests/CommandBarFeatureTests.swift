@@ -1905,6 +1905,24 @@ enum CommandBarFeatureTests {
             suite.expect(completion.query == input, "Tab cannot replace the field from the actions list")
         }
 
+        // A product of two catalog units lands on a derived catalog unit when
+        // the dimensions and scale match, so a derived symbol is composed from
+        // the catalog rather than read from a side table.
+        if let watt = CommandBarUnitCatalog.unit(byID: "w"),
+           let second = CommandBarUnitCatalog.unit(byID: "s"),
+           let hour = CommandBarUnitCatalog.unit(byID: "h"),
+           let kilowatt = CommandBarUnitCatalog.unit(byID: "kw") {
+            suite.expect(CommandBarExpressions.productUnit(watt, second).id == "j",
+                         "a watt times a second resolves to the joule")
+            suite.expect(CommandBarExpressions.productUnit(watt, hour).id == "wh"
+                         && CommandBarExpressions.productUnit(watt, hour).symbol == "Wh",
+                         "a watt times an hour resolves to the watt-hour and composes Wh")
+            suite.expect(CommandBarExpressions.productUnit(kilowatt, hour).id == "kwh",
+                         "a kilowatt times an hour resolves to the kilowatt-hour")
+        } else {
+            suite.expect(false, "the catalog carries the units a derived product needs")
+        }
+
         // MARK: Command bar emoji
 
         suite.expect(CommandBarEmoji.emoji.count > 1_000, "the searchable Unicode emoji set is there")

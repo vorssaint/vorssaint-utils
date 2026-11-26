@@ -197,13 +197,6 @@ enum CommandBarUnitCatalog {
         "in3": unit(byID: "in")!, "ft3": unit(byID: "ft")!, "yd3": unit(byID: "yd")!,
     ]
 
-    /// Ways a derived unit is written that plain symbol composition would
-    /// not produce: "l/100km" carries its 100, "w|h" reads as Wh.
-    /// The key is the unit ids sorted, joined with "|".
-    static let derivedSymbols: [String: String] = [
-        "km|l": "km/L", "l|km": "L/100km", "w|h": "Wh", "kw|h": "kWh",
-    ]
-
     // MARK: - Lookup
 
     private static let byID: [String: Unit] = {
