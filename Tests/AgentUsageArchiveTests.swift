@@ -344,8 +344,10 @@ enum AgentUsageArchiveTests {
             ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt", "estimatedResetsAt"]),
             ("AgentLiveSession", labels(sampleTurn),
              ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost"]),
+            // Antigravity's secure access and normalized session are reconstructed from the path.
             ("AgentLogCursor", labels(cursor),
-             ["path", "provider", "cursorAccess", "parent", "openCode", "offset", "identity", "pending", "discarding",
+             ["path", "provider", "cursorAccess", "antigravityAccess", "antigravitySession",
+              "parent", "openCode", "offset", "identity", "pending", "discarding",
               "state", "cursorPromptFingerprint", "cursorPrefix", "coverageStore", "cachedCoverage", "needsUsageReplay",
               "modified", "restarted", "codexParentLog", "codexParentSearch", "fingerprinted"]),
             ("AgentLogCursor.Saved", labels(cursor.saved),
