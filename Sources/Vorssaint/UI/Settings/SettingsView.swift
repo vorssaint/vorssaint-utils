@@ -604,6 +604,7 @@ struct SettingsView: View {
         case .uninstaller: UninstallerView()
         case .killProcess: KillProcessView()
         case .portManager: PortManagerView()
+        case .meetingRecorder: MeetingRecorderSettings()
         case .urlCleaner: URLCleanerSettings()
         case .cleaner: CleanerSettings()
         case .homebrew: HomebrewSettings()

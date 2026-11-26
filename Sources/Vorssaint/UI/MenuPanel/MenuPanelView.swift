@@ -556,7 +556,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager
+         commandBar, screenRecorder, meetingRecorder, portManager
 
     var id: String { rawValue }
 
@@ -578,6 +578,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .colorPicker: return .colorPicker
         case .screenshot: return .screenshot
         case .screenRecorder: return .screenRecorder
+        case .meetingRecorder: return .meetingRecorder
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
@@ -600,6 +601,7 @@ struct UtilitiesSection: View {
     @State private var showRecentCapturesPanel = false
     @State private var showWindowLayoutPanel = false
     @State private var showPortManagerPanel = false
+    @State private var showMeetingRecorderPanel = false
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
@@ -618,7 +620,9 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
+    @AppStorage(DefaultsKey.panelUtilityMeetingRecorder) private var showMeetingRecorder = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
+    @ObservedObject private var meetingRecorder = MeetingRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
     @State private var draggingItem: UtilityPanelItem?
@@ -676,6 +680,11 @@ struct UtilitiesSection: View {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
                     showPortManagerPanel = false
                 }
+            } else if showMeetingRecorderPanel {
+                PanelMeetingRecorderView {
+                    PanelInteractionState.shared.viewKeepsPopoverOpen = false
+                    showMeetingRecorderPanel = false
+                }
             } else {
                 PanelRowGroup(items: items(editing: editing), showsDragHandles: editing) { item in
                     PanelReorderableItem(item: item,
@@ -717,6 +726,7 @@ struct UtilitiesSection: View {
         if showWindowLayoutPanel { return .windowLayout }
         if showAppUpdatesPanel { return .appUpdates }
         if showPortManagerPanel { return .portManager }
+        if showMeetingRecorderPanel { return .meetingRecorder }
         return nil
     }
 
@@ -727,6 +737,7 @@ struct UtilitiesSection: View {
         showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
             || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
             || showWindowLayoutPanel || showAppUpdatesPanel || showPortManagerPanel
+            || showMeetingRecorderPanel
     }
 
     /// Homebrew browsing behaves like an ordinary popover. Other hosted tools
@@ -782,6 +793,7 @@ struct UtilitiesSection: View {
         case .screenshot: return showScreenshot
         case .screenRecorder: return showScreenRecorder
         case .portManager: return showPortManager
+        case .meetingRecorder: return showMeetingRecorder
         }
     }
 
@@ -1026,6 +1038,22 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showPortManager,
                                 action: { showPortManagerPanel = true })
+        case .meetingRecorder:
+            UtilityActionButton(title: meetingRecorderTitle,
+                                caption: meetingRecorderCaption,
+                                systemImage: meetingRecorder.isRecording ? "stop.circle" : "waveform.circle",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showMeetingRecorder,
+                                captionStaysVisible: meetingRecorder.isRecording || meetingRecorder.isListeningForCalls,
+                                accessoryTitle: meetingRecorder.isRecording
+                                    ? FeatureStrings.meetingRecorder(l10n.language).stopButton
+                                    : nil,
+                                accessorySystemImage: "stop.fill",
+                                accessoryAction: meetingRecorder.isRecording
+                                    ? { MeetingRecorderService.shared.stopRecording() }
+                                    : nil,
+                                action: { showMeetingRecorderPanel = true })
         }
     }
 
@@ -1069,6 +1097,22 @@ struct UtilitiesSection: View {
             : "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)"
     }
 
+    private var meetingRecorderTitle: String {
+        FeatureStrings.meetingRecorder(l10n.language).title
+    }
+
+    private var meetingRecorderCaption: String {
+        let strings = FeatureStrings.meetingRecorder(l10n.language)
+        if meetingRecorder.isRecording {
+            let elapsed = MeetingRecorderSupport.elapsedLabel(seconds: meetingRecorder.elapsedSeconds)
+            if let app = meetingRecorder.detectedAppName {
+                return "\(app) · \(elapsed)"
+            }
+            return elapsed
+        }
+        return meetingRecorder.isListeningForCalls ? strings.listeningCaption : strings.panelCaption
+    }
+
     private var cameraPreviewCaption: String {
         permissions.camera == .denied
             ? "\(l10n.s.permissionRequired): \(FeatureStrings.cameraPreview(l10n.language).permName)"
@@ -1103,6 +1147,7 @@ struct UtilitiesSection: View {
         showQuickLauncher = true
         showCommandBar = true
         showPortManager = true
+        showMeetingRecorder = true
     }
 
     private func grantAccessibility() {

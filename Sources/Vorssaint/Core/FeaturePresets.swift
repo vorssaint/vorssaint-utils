@@ -160,6 +160,9 @@ extension AppFeature {
             return AppUpdatesSupport.CheckFrequency.sanitized(
                 UserDefaults.standard.string(forKey: DefaultsKey.appUpdatesCheckFrequency)) == .off
                 ? .idle : .periodic
+        case .meetingRecorder:
+            return UserDefaults.standard.bool(forKey: DefaultsKey.meetingRecorderAutoRecord)
+                ? .periodic : .idle
         }
     }
 }

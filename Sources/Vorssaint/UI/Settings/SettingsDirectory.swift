@@ -549,6 +549,13 @@ enum SettingsDirectory {
                                       title: FeatureStrings.portManager(language).title,
                                       icon: "network",
                                       keywords: ["port", "ports", "listening", "socket", "PID", "kill port"]),
+                SettingsDirectoryItem(page: .meetingRecorder,
+                                      title: FeatureStrings.meetingRecorder(language).title,
+                                      icon: "waveform.circle",
+                                      keywords: [FeatureStrings.meetingRecorder(language).autoRecordToggle,
+                                                 FeatureStrings.meetingRecorder(language).perAppToggle,
+                                                 FeatureStrings.meetingRecorder(language).echoCancelToggle,
+                                                 "meeting", "call", "wav", "audio", "recorder"]),
             ]),
             (categories.utilities, [
                 SettingsDirectoryItem(page: .notch,

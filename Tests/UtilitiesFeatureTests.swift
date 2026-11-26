@@ -115,6 +115,115 @@ enum UtilitiesFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityPortManager] as? Bool == true,
                "the port manager panel row ships visible like its siblings and travels in backups")
 
+        // MARK: Meeting recorder (Stalkrr-style backend + Vorssaint policy)
+
+        var decider = MeetingAutoRecordDecider(ownPID: 999, gracePolls: 3)
+        let ownConsumer = MeetingMicConsumer(pid: 999, bundleID: "us.zoom.xos")
+        let siriConsumer = MeetingMicConsumer(pid: 42, bundleID: "com.apple.corespeechd")
+        let zoomConsumer = MeetingMicConsumer(pid: 500, bundleID: "us.zoom.xos")
+        let unknownConsumer = MeetingMicConsumer(pid: 600, bundleID: "com.example.voiceapp")
+        suite.expect(decider.tick(consumers: [ownConsumer, siriConsumer, unknownConsumer]) == .none,
+               "auto-record ignores own pid, denied speech daemons, and unknown non-call apps")
+        suite.expect(decider.tick(consumers: [zoomConsumer]) == .begin(trigger: zoomConsumer),
+               "a known call app opening the mic starts recording immediately")
+        suite.expect(decider.tick(consumers: []) == .none
+               && decider.tick(consumers: []) == .none,
+               "brief mic releases inside the grace window do not split a meeting")
+        suite.expect(decider.tick(consumers: [zoomConsumer]) == .none,
+               "the call app reclaiming the mic resets the quiet grace counter")
+        suite.expect(decider.tick(consumers: []) == .none
+               && decider.tick(consumers: []) == .none
+               && decider.tick(consumers: []) == .stop,
+               "three consecutive quiet polls end an auto-started meeting cleanly")
+        suite.expect(decider.tick(consumers: [zoomConsumer]) == .begin(trigger: zoomConsumer),
+               "a later call starts a fresh recording")
+        decider.noteRecordingStopped()
+        suite.expect(decider.tick(consumers: [zoomConsumer]) == .none
+               && decider.tick(consumers: [zoomConsumer]) == .none,
+               "manual stop suppresses re-triggering while the same call is still active")
+        suite.expect(decider.tick(consumers: []) == .none
+               && decider.tick(consumers: []) == .none
+               && decider.tick(consumers: []) == .none
+               && decider.tick(consumers: [zoomConsumer]) == .begin(trigger: zoomConsumer),
+               "suppression clears only after a full quiet grace so the next call records")
+
+        var health = MeetingStreamHealth(kickAfter: 2, wedgedAfter: 4, neverStartedAfter: 4)
+        suite.expect(health.observe(bytes: 0) == .pending
+               && health.observe(bytes: 1024) == .ok
+               && health.observe(bytes: 1024) == .quiet
+               && health.observe(bytes: 1024) == .stalled
+               && health.observe(bytes: 1024) == .quiet
+               && health.observe(bytes: 1024) == .wedged
+               && health.isWedged,
+               "stream health kicks once on stall and flags wedged only after sustained flat bytes")
+        suite.expect(health.observe(bytes: 2048) == .ok && !health.isWedged,
+               "resumed byte growth clears the wedged state")
+
+        var deadHealth = MeetingStreamHealth(kickAfter: 2, wedgedAfter: 4, neverStartedAfter: 3)
+        suite.expect(deadHealth.observe(bytes: 0) == .pending
+               && deadHealth.observe(bytes: 0) == .pending
+               && deadHealth.observe(bytes: 0) == .pending
+               && deadHealth.observe(bytes: 0) == .neverStarted
+               && deadHealth.isWedged,
+               "a stream that never writes any bytes reports neverStarted once")
+
+        let levels = MeetingLevelHistory(capacity: 16)
+        levels.ingest(peak: 0.4, frames: 2400, sampleRate: 48_000)
+        levels.ingest(peak: 0.8, frames: 2400, sampleRate: 48_000)
+        let snap = levels.snapshot(4)
+        suite.expect(snap.count == 4 && snap[0] == 0 && snap[1] == 0
+               && abs(snap[2] - 0.4) < 0.0001 && abs(snap[3] - 0.8) < 0.0001,
+               "level history left-pads young histories and preserves oldest-first block peaks")
+
+        let refDate = Date(timeIntervalSince1970: 1_764_168_000)
+        let stem = MeetingRecorderSupport.sessionStem(date: refDate, appName: "Microsoft Teams",
+                                                      timeZone: TimeZone(secondsFromGMT: 0)!)
+        suite.expect(stem.hasSuffix("-Microsoft-Teams") && !stem.contains(" "),
+               "meeting stems sanitize app names into clean filesystem paths")
+        suite.expect(MeetingRecorderSupport.elapsedLabel(seconds: 65) == "1:05"
+               && MeetingRecorderSupport.elapsedLabel(seconds: 3661) == "1:01:01",
+               "elapsed timer formats minutes and hours cleanly")
+        suite.expect(MeetingRecorderSupport.isMicSilent(peakDb: -80)
+               && !MeetingRecorderSupport.isMicSilent(peakDb: -40),
+               "silent mic threshold distinguishes dead silence from speech")
+        let scanned = MeetingRecorderSupport.scanRecordings(
+            fileNames: [
+                "2026-11-26_10-00-00-Zoom-system.wav",
+                "2026-11-26_10-00-00-Zoom-mic.wav",
+                "2026-11-26_11-00-00-Slack-mic.wav",
+                "2026-11-26_12-00-00-Active-system.wav",
+                "notes.txt",
+            ],
+            sizes: [
+                "2026-11-26_10-00-00-Zoom-system.wav": 1000,
+                "2026-11-26_10-00-00-Zoom-mic.wav": 500,
+                "2026-11-26_11-00-00-Slack-mic.wav": 300,
+            ],
+            dates: [
+                "2026-11-26_10-00-00-Zoom-system.wav": refDate,
+                "2026-11-26_10-00-00-Zoom-mic.wav": refDate,
+                "2026-11-26_11-00-00-Slack-mic.wav": refDate.addingTimeInterval(3600),
+            ],
+            excludingStem: "2026-11-26_12-00-00-Active"
+        )
+        suite.expect(scanned.count == 2
+               && scanned[0].label == "Slack" && !scanned[0].hasSystemTrack && scanned[0].hasMicTrack
+               && scanned[1].label == "Zoom" && scanned[1].hasSystemTrack && scanned[1].hasMicTrack
+               && scanned[1].totalBytes == 1500,
+               "recording scanner pairs system/mic WAV tracks newest-first and hides active sessions")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.meetingRecorderAutoRecord] as? Bool == false
+               && Defaults.registeredDefaults[DefaultsKey.meetingRecorderEchoCancellation] as? Bool == true
+               && Defaults.registeredDefaults[DefaultsKey.panelUtilityMeetingRecorder] as? Bool == true
+               && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.meetingRecorderSaveFolder)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.meetingRecorderAutoRecord),
+               "meeting recorder defaults and backup classification keep folder paths machine-local")
+        for lang in AppLanguage.allCases {
+            let ms = FeatureStrings.meetingRecorder(lang)
+            suite.expect(!ms.title.isEmpty && !ms.hubDescription.isEmpty
+                   && !ms.autoRecordToggle.isEmpty && !ms.startButton.isEmpty,
+                   "meeting recorder strings are populated in \(lang)")
+        }
+
         // MARK: Port manager row numbers
 
         // An integer interpolated into Text("…") is formatted for the locale, so
