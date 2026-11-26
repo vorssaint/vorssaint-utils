@@ -465,6 +465,32 @@ enum ShelfFeatureTests {
                                               distance: ShelfEdgeDragSupport.retreatDistance),
                "the shipped retreat distance comfortably covers the peeking panel's own on-screen strip")
 
+        // MARK: Shelf tile click (#4433)
+
+        func tileClick(_ clickCount: Int, isBatch: Bool = false,
+                       holdsFile: Bool = false, extending: Bool = false) -> ShelfTileClickAction {
+            ShelfInteractionSupport.tileClickAction(clickCount: clickCount,
+                                                    isBatch: isBatch,
+                                                    holdsFile: holdsFile,
+                                                    extendingSelection: extending)
+        }
+        suite.expect(tileClick(1, holdsFile: true) == .toggleSelection,
+               "one click on a file tile only selects it")
+        suite.expect(tileClick(2, holdsFile: true) == .openFiles,
+               "a double click on a file tile opens the file")
+        suite.expect(tileClick(2, holdsFile: true, extending: true) == .extendSelection,
+               "shift keeps a double click a selection gesture")
+        suite.expect(tileClick(2) == .toggleSelection,
+               "a link keeps its own double click behaviour, with no file to open")
+        suite.expect(tileClick(2, isBatch: true, holdsFile: true) == .toggleBatchExpansion,
+               "a pile still expands on a double click instead of opening its files")
+        suite.expect(tileClick(1, isBatch: true) == .toggleSelection,
+               "one click on a pile still selects it")
+        suite.expect(tileClick(1, isBatch: true, extending: true) == .extendSelection,
+               "shift still extends a pile's selection on one click")
+        suite.expect(tileClick(3, holdsFile: true) == .openFiles,
+               "a third click opens too, since it arrives with a larger click count")
+
         // MARK: Shelf dock drag support
 
         suite.expect(ShelfDockDragSupport.dwell == 0.15, "dock drag dwell is 150ms")

@@ -656,12 +656,22 @@ final class ShelfTileView: NSView, NSDraggingSource {
 
     override func mouseUp(with event: NSEvent) {
         cancelDragPreparation()
+        // The second click of a drag must not act; the drag guard covers the
+        // whole gesture, including the release that ends it.
         guard !didDrag else { return }
-        if item.isBatch, event.clickCount >= 2 {
+        switch ShelfInteractionSupport.tileClickAction(
+            clickCount: event.clickCount,
+            isBatch: item.isBatch,
+            holdsFile: item.holdsFile,
+            extendingSelection: event.modifierFlags.contains(.shift)
+        ) {
+        case .openFiles:
+            openFiles()
+        case .toggleBatchExpansion:
             ShelfService.shared.toggleBatchExpansion(item.id)
-        } else if event.modifierFlags.contains(.shift) {
+        case .extendSelection:
             ShelfService.shared.extendSelection(to: item.id)
-        } else {
+        case .toggleSelection:
             ShelfService.shared.toggleSelection(item.id)
         }
     }
