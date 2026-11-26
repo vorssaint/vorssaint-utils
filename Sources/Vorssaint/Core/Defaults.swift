@@ -811,6 +811,7 @@ enum DefaultsKey {
     static let audioTranscriptionIncludeTimestamps = "audioTranscriptionIncludeTimestamps"
     static let audioTranscriptionSaveBesideAudio = "audioTranscriptionSaveBesideAudio"
     static let audioTranscriptionComputeMode = "audioTranscriptionComputeMode"
+    static let audioTranscriptionModelChoice = "audioTranscriptionModelChoice"
     static let audioTranscriptionSummaryEnabled = "audioTranscriptionSummaryEnabled"
     static let audioTranscriptionSummaryPrompt = "audioTranscriptionSummaryPrompt"
     static let audioTranscriptionDictationEnabled = "audioTranscriptionDictationEnabled"
@@ -1976,6 +1977,7 @@ enum Defaults {
         DefaultsKey.audioTranscriptionIncludeTimestamps: true,
         DefaultsKey.audioTranscriptionSaveBesideAudio: true,
         DefaultsKey.audioTranscriptionComputeMode: ParakeetComputeMode.auto.rawValue,
+        DefaultsKey.audioTranscriptionModelChoice: TranscriptionModelChoice.auto.rawValue,
         DefaultsKey.audioTranscriptionSummaryEnabled: false,
         DefaultsKey.audioTranscriptionSummaryPrompt: AudioTranscriptionSupport.defaultSummaryPrompt,
         DefaultsKey.audioTranscriptionDictationEnabled: false,

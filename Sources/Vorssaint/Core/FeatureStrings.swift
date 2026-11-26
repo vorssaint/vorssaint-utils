@@ -112,6 +112,10 @@ enum FeatureStrings {
         AudioTranscriptionExtrasStrings.localized(language)
     }
 
+    static func transcriptionModels(_ language: AppLanguage) -> TranscriptionModelStrings {
+        TranscriptionModelStrings.localized(language)
+    }
+
     static func telemetryPolicy(_ language: AppLanguage) -> TelemetryPolicyStrings {
         TelemetryPolicyStrings.localized(language)
     }

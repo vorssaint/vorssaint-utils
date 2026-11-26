@@ -12,6 +12,7 @@ struct PanelTranscriptionView: View {
     @ObservedObject private var service = AudioTranscriptionService.shared
     @AppStorage(DefaultsKey.meetingRecorderAutoTranscribe) private var autoTranscribe = false
     @AppStorage(DefaultsKey.audioTranscriptionSummaryEnabled) private var summaryEnabled = false
+    @AppStorage(DefaultsKey.audioTranscriptionModelChoice) private var modelChoiceRaw = TranscriptionModelChoice.auto.rawValue
     @State private var isDropTargeted = false
 
     var onClose: () -> Void
@@ -21,6 +22,9 @@ struct PanelTranscriptionView: View {
     }
     private var extras: AudioTranscriptionExtrasStrings {
         FeatureStrings.audioTranscriptionExtras(l10n.language)
+    }
+    private var modelStrings: TranscriptionModelStrings {
+        FeatureStrings.transcriptionModels(l10n.language)
     }
 
     var body: some View {
@@ -178,6 +182,50 @@ struct PanelTranscriptionView: View {
                 }
             }
 
+            Picker(modelStrings.modelChoiceLabel, selection: $modelChoiceRaw) {
+                Text(modelStrings.modelAuto).tag(TranscriptionModelChoice.auto.rawValue)
+                Text(modelStrings.modelParakeet).tag(TranscriptionModelChoice.parakeetEnglish.rawValue)
+                Text(modelStrings.modelIvrit).tag(TranscriptionModelChoice.ivritHebrew.rawValue)
+            }
+            .pickerStyle(.menu)
+            .controlSize(.mini)
+            .font(.system(size: 10.5))
+
+            if service.isDownloadingIvritModel {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(String(format: strings.downloadingStatusFormat,
+                                    Int((service.ivritDownloadProgress * 100).rounded())))
+                            .font(.system(size: 10.5, weight: .medium))
+                            .monospacedDigit()
+                        Spacer()
+                        Button(strings.cancelButton) {
+                            service.cancelIvritDownload()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
+                    ProgressView(value: service.ivritDownloadProgress)
+                        .progressViewStyle(.linear)
+                }
+            } else if modelChoiceRaw == TranscriptionModelChoice.ivritHebrew.rawValue, !service.ivritModelReady {
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(modelStrings.ivritModelTitle)
+                            .font(.system(size: 10.5, weight: .semibold))
+                        Text(modelStrings.ivritModelMissingStatus)
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    Button(strings.downloadModelButton) {
+                        service.downloadIvritModel()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.mini)
+                }
+            }
+
             Toggle(isOn: $autoTranscribe) {
                 Text(strings.autoTranscribeToggle)
                     .font(.system(size: 11))
@@ -247,11 +295,14 @@ struct PanelTranscriptionView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            let isRTL = AudioTranscriptionSupport.isPredominantlyHebrew(service.transcriptText)
             ScrollView {
                 Text(service.transcriptText)
                     .font(.system(size: 10.5))
                     .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(isRTL ? .trailing : .leading)
+                    .frame(maxWidth: .infinity, alignment: isRTL ? .trailing : .leading)
+                    .environment(\.layoutDirection, isRTL ? .rightToLeft : .leftToRight)
             }
             .frame(maxHeight: 150)
 
@@ -316,11 +367,14 @@ struct PanelTranscriptionView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             } else {
+                let summaryRTL = AudioTranscriptionSupport.isPredominantlyHebrew(service.summaryText)
                 ScrollView {
                     Text(service.summaryText)
                         .font(.system(size: 10.5))
                         .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .multilineTextAlignment(summaryRTL ? .trailing : .leading)
+                        .frame(maxWidth: .infinity, alignment: summaryRTL ? .trailing : .leading)
+                        .environment(\.layoutDirection, summaryRTL ? .rightToLeft : .leftToRight)
                 }
                 .frame(maxHeight: 120)
 

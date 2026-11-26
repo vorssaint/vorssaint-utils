@@ -5,6 +5,7 @@ import AppKit
 import ApplicationServices
 import AVFoundation
 import Foundation
+import NaturalLanguage
 import UniformTypeIdentifiers
 
 /// Coordinates standalone drag-and-drop audio transcription, automatic
@@ -33,6 +34,13 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
     @Published private(set) var downloadBytesDone: Int64 = 0
     @Published private(set) var downloadBytesTotal: Int64 = AudioTranscriptionSupport.totalExpectedModelBytes
 
+    // Hebrew specialist model (ivrit.ai Whisper Large v3 Turbo Core ML)
+    @Published private(set) var ivritModelReady = false
+    @Published private(set) var ivritModelDiskBytes: Int64 = 0
+    @Published private(set) var isDownloadingIvritModel = false
+    @Published private(set) var ivritDownloadProgress: Double = 0
+    @Published private(set) var lastDetectedLanguageCode: String?
+
     @Published private(set) var isTranscribing = false
     @Published private(set) var progress: Double = 0
     @Published private(set) var currentFileName: String?
@@ -58,9 +66,11 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
     @Published private(set) var dictationShortcutRegistrationFailed = false
 
     private let engine = ParakeetCoreMLTranscriber()
+    private let ivritEngine = WhisperCoreMLTranscriber()
     private let dictationHotkey = QuickToolHotkey(id: 82)
     private let dictationRecorder = AudioDictationRecorder()
     private var downloadTask: Task<Void, Never>?
+    private var ivritDownloadTask: Task<Void, Never>?
     private var transcribeTask: Task<Void, Never>?
     private var summaryTask: Task<Void, Never>?
     private var dictationTimer: Timer?
@@ -106,15 +116,242 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         AudioTranscriptionSupport.defaultModelDirectory()
     }
 
+    var ivritModelDirectory: URL {
+        AudioTranscriptionSupport.defaultIvritModelDirectory()
+    }
+
     var computeMode: ParakeetComputeMode {
         let raw = UserDefaults.standard.string(forKey: DefaultsKey.audioTranscriptionComputeMode) ?? ""
         return ParakeetComputeMode(rawValue: raw) ?? .auto
+    }
+
+    var modelChoice: TranscriptionModelChoice {
+        let raw = UserDefaults.standard.string(forKey: DefaultsKey.audioTranscriptionModelChoice) ?? ""
+        return TranscriptionModelChoice(rawValue: raw) ?? .auto
+    }
+
+    var activeModelReady: Bool {
+        switch modelChoice {
+        case .parakeetEnglish: return modelReady
+        case .ivritHebrew: return ivritModelReady
+        case .auto: return modelReady || ivritModelReady
+        }
+    }
+
+    var isDownloadingActiveModel: Bool {
+        isDownloadingModel || isDownloadingIvritModel
     }
 
     func refreshModelStatus() {
         let dir = modelDirectory
         modelReady = AudioTranscriptionSupport.isModelDirectoryReady(dir)
         modelDiskBytes = AudioTranscriptionSupport.directorySizeBytes(dir)
+        let ivritDir = ivritModelDirectory
+        ivritModelReady = AudioTranscriptionSupport.isIvritModelDirectoryReady(ivritDir)
+        ivritModelDiskBytes = AudioTranscriptionSupport.directorySizeBytes(ivritDir)
+    }
+
+    func downloadIvritModel(thenTranscribe url: URL? = nil) {
+        if let url { pendingDropURL = url }
+        guard !isDownloadingIvritModel else { return }
+        errorMessage = nil
+        isDownloadingIvritModel = true
+        ivritDownloadProgress = 0
+
+        let dir = ivritModelDirectory
+        ivritDownloadTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await WhisperCoreMLTranscriber.downloadModel(to: dir) { frac, _, _ in
+                    DispatchQueue.main.async {
+                        self.ivritDownloadProgress = frac
+                    }
+                }
+                await MainActor.run {
+                    self.isDownloadingIvritModel = false
+                    self.ivritDownloadTask = nil
+                    self.refreshModelStatus()
+                    let mStrings = FeatureStrings.transcriptionModels(L10n.shared.language)
+                    QuickToolHUD.show(icon: "checkmark.circle", message: mStrings.ivritModelReadyHUD)
+                    if let queued = self.pendingDropURL {
+                        self.pendingDropURL = nil
+                        self.transcribeFile(queued)
+                    } else if self.pendingDictationAfterDownload {
+                        self.pendingDictationAfterDownload = false
+                        self.startDictationCapture()
+                    }
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    self.isDownloadingIvritModel = false
+                    self.ivritDownloadTask = nil
+                    self.pendingDropURL = nil
+                    self.refreshModelStatus()
+                }
+            } catch WhisperCoreMLTranscriber.TranscriberError.cancelled {
+                await MainActor.run {
+                    self.isDownloadingIvritModel = false
+                    self.ivritDownloadTask = nil
+                    self.pendingDropURL = nil
+                    self.refreshModelStatus()
+                }
+            } catch {
+                await MainActor.run {
+                    self.isDownloadingIvritModel = false
+                    self.ivritDownloadTask = nil
+                    self.pendingDropURL = nil
+                    self.errorMessage = error.localizedDescription
+                    self.refreshModelStatus()
+                }
+            }
+        }
+    }
+
+    func cancelIvritDownload() {
+        ivritDownloadTask?.cancel()
+        ivritDownloadTask = nil
+        pendingDropURL = nil
+        pendingDictationAfterDownload = false
+        isDownloadingIvritModel = false
+        refreshModelStatus()
+    }
+
+    func deleteIvritModel() {
+        cancelIvritDownload()
+        cancelTranscription()
+        ivritEngine.evictCache()
+        try? FileManager.default.removeItem(at: ivritModelDirectory)
+        refreshModelStatus()
+    }
+
+    /// Runs language detection (when in `.auto` mode with both models
+    /// installed) and routes audio samples to Parakeet Unified 0.6B (English)
+    /// or ivrit.ai Whisper Large v3 Turbo (Hebrew).
+    private func transcribeRoutedSamples(_ samples: [Float],
+                                         choice: TranscriptionModelChoice,
+                                         computeMode: ParakeetComputeMode,
+                                         speaker: String?,
+                                         progress: (@Sendable (Double) -> Void)?) async throws
+        -> (result: ParakeetCoreMLTranscriber.TranscriptionResult, detectedLanguage: String?) {
+        let parakeetDir = modelDirectory
+        let ivritDir = ivritModelDirectory
+        let parakeetOK = AudioTranscriptionSupport.isModelDirectoryReady(parakeetDir)
+        let ivritOK = AudioTranscriptionSupport.isIvritModelDirectoryReady(ivritDir)
+
+        var detectedCode: String?
+        var detectedConfidence: Double = 0
+
+        if choice == .auto, parakeetOK, ivritOK {
+            let probe = await detectSpokenLanguage(
+                samples: samples,
+                parakeetDir: parakeetDir,
+                ivritDir: ivritDir,
+                computeMode: computeMode
+            )
+            detectedCode = probe?.code
+            detectedConfidence = probe?.confidence ?? 0
+        } else if choice == .ivritHebrew {
+            detectedCode = "he"
+            detectedConfidence = 1.0
+        } else if choice == .parakeetEnglish {
+            detectedCode = "en"
+            detectedConfidence = 1.0
+        }
+
+        let resolved = AudioTranscriptionSupport.routeModel(
+            choice: choice,
+            detectedLanguage: detectedCode,
+            confidence: detectedConfidence,
+            parakeetReady: parakeetOK,
+            ivritReady: ivritOK
+        )
+
+        switch resolved {
+        case .ivritHebrew:
+            let res = try await ivritEngine.transcribe(
+                samples: samples,
+                modelDirectory: ivritDir,
+                computeMode: computeMode,
+                languageTokenID: AudioTranscriptionSupport.whisperHebrewToken,
+                speaker: speaker,
+                progress: progress
+            )
+            return (res, detectedCode ?? "he")
+        case .parakeetEnglish:
+            let res = try await engine.transcribe(
+                samples: samples,
+                modelDirectory: parakeetDir,
+                computeMode: computeMode,
+                speaker: speaker,
+                progress: progress
+            )
+            return (res, detectedCode ?? "en")
+        case nil:
+            throw choice == .ivritHebrew
+                ? WhisperCoreMLTranscriber.TranscriberError.modelNotDownloaded
+                : ParakeetCoreMLTranscriber.TranscriberError.modelNotDownloaded
+        }
+    }
+
+    /// Two-signal on-device language detector for bilingual English/Hebrew
+    /// workflows: combines Whisper's acoustic language probability with a fast
+    /// Parakeet English plausibility check (protecting against fine-tune head
+    /// bias on English clips).
+    private func detectSpokenLanguage(samples: [Float],
+                                      parakeetDir: URL,
+                                      ivritDir: URL,
+                                      computeMode: ParakeetComputeMode) async -> (code: String, confidence: Double)? {
+        let regions = AudioTranscriptionSupport.speechRegions(in: samples)
+        let sr = AudioTranscriptionSupport.sampleRate
+        let probeSlice: [Float]
+        if let longest = regions.max(by: { ($0.endSec - $0.startSec) < ($1.endSec - $1.startSec) }) {
+            let lo = max(0, Int(longest.startSec * sr))
+            let hi = min(samples.count, min(lo + Int(15 * sr), Int(longest.endSec * sr)))
+            probeSlice = hi > lo ? Array(samples[lo..<hi]) : Array(samples.prefix(Int(15 * sr)))
+        } else {
+            probeSlice = Array(samples.prefix(Int(15 * sr)))
+        }
+        guard probeSlice.count >= Int(sr * 0.4) else { return nil }
+
+        let whisperProbe = try? await ivritEngine.detectLanguage(
+            samples: probeSlice,
+            modelDirectory: ivritDir,
+            computeMode: computeMode
+        )
+
+        if let whisperProbe, whisperProbe.englishProbability >= 0.55 {
+            return ("en", whisperProbe.englishProbability)
+        }
+
+        // Because a Hebrew-specialized Whisper fine-tune can lean toward `he`
+        // even on clean English speech, verify English plausibility via a fast
+        // (~0.09 s) Parakeet probe + NLLanguageRecognizer before routing to `he`.
+        if let parakeetRes = try? await engine.transcribe(
+            samples: probeSlice,
+            modelDirectory: parakeetDir,
+            computeMode: computeMode,
+            speaker: nil,
+            progress: nil
+        ) {
+            let text = AudioTranscriptionSupport.formatTranscript(
+                segments: parakeetRes.segments,
+                includeTimestamps: false
+            )
+            let words = text.split(whereSeparator: { !$0.isLetter })
+            if words.count >= 4 {
+                let recognizer = NLLanguageRecognizer()
+                recognizer.processString(text)
+                let enHyp = recognizer.languageHypotheses(withMaximum: 3)[.english] ?? 0
+                if enHyp >= 0.85, (whisperProbe?.hebrewProbability ?? 0) < 0.85 {
+                    return ("en", enHyp)
+                }
+            }
+        }
+
+        if let whisperProbe {
+            return (whisperProbe.topLanguageCode, whisperProbe.topConfidence)
+        }
+        return nil
     }
 
     // MARK: - Model Lifecycle
@@ -197,8 +434,12 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
             return
         }
         refreshModelStatus()
-        if !modelReady {
-            downloadModel(thenTranscribe: url)
+        if !activeModelReady {
+            if modelChoice == .ivritHebrew {
+                downloadIvritModel(thenTranscribe: url)
+            } else {
+                downloadModel(thenTranscribe: url)
+            }
             return
         }
 
@@ -207,13 +448,14 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         errorMessage = nil
         summaryText = ""
         lastSavedSummaryURL = nil
+        lastDetectedLanguageCode = nil
         isTranscribing = true
         progress = 0
         currentFileName = url.lastPathComponent
         lastSourceURL = url
         lastSavedTranscriptURL = nil
 
-        let dir = modelDirectory
+        let choice = modelChoice
         let mode = computeMode
         let includeTimestamps = UserDefaults.standard.bool(forKey: DefaultsKey.audioTranscriptionIncludeTimestamps)
         let saveBeside = UserDefaults.standard.bool(forKey: DefaultsKey.audioTranscriptionSaveBesideAudio)
@@ -221,9 +463,10 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         transcribeTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let result = try await self.engine.transcribe(
-                    audioURL: url,
-                    modelDirectory: dir,
+                let samples = try await ParakeetCoreMLTranscriber.load16kMonoSamples(from: url)
+                let routed = try await self.transcribeRoutedSamples(
+                    samples,
+                    choice: choice,
                     computeMode: mode,
                     speaker: nil
                 ) { frac in
@@ -231,6 +474,7 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                         self.progress = frac
                     }
                 }
+                let result = routed.result
                 let formatted = AudioTranscriptionSupport.formatTranscript(
                     segments: result.segments,
                     includeTimestamps: includeTimestamps
@@ -249,6 +493,7 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                     self.progress = 1
                     self.segments = result.segments
                     self.transcriptText = formatted
+                    self.lastDetectedLanguageCode = routed.detectedLanguage
                     self.lastDurationSeconds = result.audioDurationSeconds
                     self.lastProcessingSeconds = result.elapsedSeconds
                     self.lastSavedTranscriptURL = finalSavedURL
@@ -298,7 +543,7 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                            showHUD: Bool = true) {
         let strings = FeatureStrings.audioTranscription(L10n.shared.language)
         refreshModelStatus()
-        guard modelReady else {
+        guard activeModelReady else {
             errorMessage = strings.modelRequiredForAutoError
             if showHUD {
                 QuickToolHUD.show(icon: "exclamationmark.triangle", message: strings.modelRequiredForAutoError)
@@ -312,13 +557,14 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         errorMessage = nil
         summaryText = ""
         lastSavedSummaryURL = nil
+        lastDetectedLanguageCode = nil
         isTranscribing = true
         progress = 0
         currentFileName = MeetingRecorderSupport.displayLabel(fromStem: stem)
         lastSourceURL = micURL ?? systemURL
         lastSavedTranscriptURL = nil
 
-        let dir = modelDirectory
+        let choice = modelChoice
         let mode = computeMode
         let includeTimestamps = UserDefaults.standard.bool(forKey: DefaultsKey.audioTranscriptionIncludeTimestamps)
         let micLabel = strings.speakerYou
@@ -333,12 +579,14 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                 var micSegments: [AudioTranscriptionSupport.TranscriptSegment] = []
                 var sysSegments: [AudioTranscriptionSupport.TranscriptSegment] = []
                 var maxDuration: Double = 0
+                var detectedLang: String?
 
                 if let micURL {
                     let baseTracks = completedTracks
-                    let res = try await self.engine.transcribe(
-                        audioURL: micURL,
-                        modelDirectory: dir,
+                    let samples = try await ParakeetCoreMLTranscriber.load16kMonoSamples(from: micURL)
+                    let routed = try await self.transcribeRoutedSamples(
+                        samples,
+                        choice: choice,
                         computeMode: mode,
                         speaker: systemURL != nil ? micLabel : nil
                     ) { frac in
@@ -346,16 +594,18 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                             self.progress = (Double(baseTracks) + frac) / Double(max(1, trackCount))
                         }
                     }
-                    micSegments = res.segments
-                    maxDuration = max(maxDuration, res.audioDurationSeconds)
+                    micSegments = routed.result.segments
+                    maxDuration = max(maxDuration, routed.result.audioDurationSeconds)
+                    detectedLang = routed.detectedLanguage ?? detectedLang
                     completedTracks += 1
                 }
 
                 if let systemURL {
                     let baseTracks = completedTracks
-                    let res = try await self.engine.transcribe(
-                        audioURL: systemURL,
-                        modelDirectory: dir,
+                    let samples = try await ParakeetCoreMLTranscriber.load16kMonoSamples(from: systemURL)
+                    let routed = try await self.transcribeRoutedSamples(
+                        samples,
+                        choice: choice,
                         computeMode: mode,
                         speaker: micURL != nil ? systemLabel : nil
                     ) { frac in
@@ -363,8 +613,9 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                             self.progress = (Double(baseTracks) + frac) / Double(max(1, trackCount))
                         }
                     }
-                    sysSegments = res.segments
-                    maxDuration = max(maxDuration, res.audioDurationSeconds)
+                    sysSegments = routed.result.segments
+                    maxDuration = max(maxDuration, routed.result.audioDurationSeconds)
+                    detectedLang = routed.detectedLanguage ?? detectedLang
                     completedTracks += 1
                 }
 
@@ -387,6 +638,7 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
 
                 let finalSavedURL = savedURL
                 let finalDuration = maxDuration
+                let finalDetectedLang = detectedLang
                 let elapsed = Date().timeIntervalSince(wallStart)
                 await MainActor.run {
                     self.isTranscribing = false
@@ -394,6 +646,7 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                     self.progress = 1
                     self.segments = merged
                     self.transcriptText = formatted
+                    self.lastDetectedLanguageCode = finalDetectedLang
                     self.lastDurationSeconds = finalDuration
                     self.lastProcessingSeconds = elapsed
                     self.lastSavedTranscriptURL = finalSavedURL
@@ -594,10 +847,14 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         guard !isDictating else { return }
         let extras = FeatureStrings.audioTranscriptionExtras(L10n.shared.language)
         refreshModelStatus()
-        guard modelReady else {
+        guard activeModelReady else {
             pendingDictationAfterDownload = true
             QuickToolHUD.show(icon: "arrow.down.circle", message: extras.dictationModelMissingHUD)
-            downloadModel()
+            if modelChoice == .ivritHebrew {
+                downloadIvritModel()
+            } else {
+                downloadModel()
+            }
             return
         }
 
@@ -688,15 +945,15 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
         lastSourceURL = nil
         lastSavedTranscriptURL = nil
 
-        let dir = modelDirectory
+        let choice = modelChoice
         let mode = computeMode
 
         transcribeTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let result = try await self.engine.transcribe(
-                    samples: samples,
-                    modelDirectory: dir,
+                let routed = try await self.transcribeRoutedSamples(
+                    samples,
+                    choice: choice,
                     computeMode: mode,
                     speaker: nil
                 ) { frac in
@@ -704,6 +961,7 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                         self.progress = frac
                     }
                 }
+                let result = routed.result
                 let text = AudioTranscriptionSupport.formatTranscript(
                     segments: result.segments,
                     includeTimestamps: false
@@ -715,6 +973,7 @@ final class AudioTranscriptionService: ObservableObject, @unchecked Sendable {
                     self.progress = 1
                     self.segments = result.segments
                     self.transcriptText = text
+                    self.lastDetectedLanguageCode = routed.detectedLanguage
                     self.lastDurationSeconds = result.audioDurationSeconds
                     self.lastProcessingSeconds = result.elapsedSeconds
                     if text.isEmpty {

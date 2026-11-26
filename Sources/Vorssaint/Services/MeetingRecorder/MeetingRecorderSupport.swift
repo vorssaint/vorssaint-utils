@@ -10,7 +10,7 @@ struct MeetingMicConsumer: Equatable, Sendable {
     let bundleID: String
 }
 
-/// Pure Stalkrr-style meeting detection, auto-record state machine, stream
+/// Pure meeting detection, auto-record state machine, stream
 /// liveness watchdog, level ring buffer, and recording-folder helpers. Kept
 /// free of AppKit and AVFoundation so unit tests pin every edge case.
 enum MeetingRecorderSupport {
@@ -25,11 +25,19 @@ enum MeetingRecorderSupport {
         "com.hnc.Discord",
         "com.google.Chrome",
         "com.apple.Safari",
+        "com.apple.SafariTechnologyPreview",
         "company.thebrowser.Browser",
+        "company.thebrowser.dia",
         "org.mozilla.firefox",
         "com.brave.Browser",
         "com.webex.meetingmanager",
         "com.microsoft.edgemac",
+        "app.zen-browser.zen",
+        "com.vivaldi.Vivaldi",
+        "com.operasoftware.Opera",
+        "com.kagi.kagimacOS",
+        "org.chromium.Chromium",
+        "io.island.Island",
         "net.whatsapp.WhatsApp",
         "com.apple.Phone",
         "com.apple.Telephony",
@@ -51,11 +59,19 @@ enum MeetingRecorderSupport {
         "com.hnc.Discord": "Discord",
         "com.google.Chrome": "Chrome",
         "com.apple.Safari": "Safari",
+        "com.apple.SafariTechnologyPreview": "Safari",
         "company.thebrowser.Browser": "Arc",
+        "company.thebrowser.dia": "Dia",
         "org.mozilla.firefox": "Firefox",
         "com.brave.Browser": "Brave",
         "com.webex.meetingmanager": "Webex",
         "com.microsoft.edgemac": "Edge",
+        "app.zen-browser.zen": "Zen",
+        "com.vivaldi.Vivaldi": "Vivaldi",
+        "com.operasoftware.Opera": "Opera",
+        "com.kagi.kagimacOS": "Orion",
+        "org.chromium.Chromium": "Chromium",
+        "io.island.Island": "Island",
         "net.whatsapp.WhatsApp": "WhatsApp",
         "com.apple.Phone": "Phone",
         "com.apple.Telephony": "Phone",
@@ -66,6 +82,76 @@ enum MeetingRecorderSupport {
         "ru.keepcoder.Telegram": "Telegram",
         "org.telegram.desktop": "Telegram",
     ]
+
+    /// Normalizes browser and Electron helper subprocess bundle IDs (such as
+    /// `com.google.Chrome.helper`, `com.google.Chrome.helper.renderer`,
+    /// `com.apple.WebKit.GPU`, `org.mozilla.plugincontainer`, `us.zoom.*`) to
+    /// their parent app bundle ID so web calls like WhatsApp Web or Google Meet
+    /// in Chrome are recognized reliably.
+    static func normalizedCallBundleID(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
+        let lower = trimmed.lowercased()
+
+        if lower.hasPrefix("com.google.chrome") { return "com.google.Chrome" }
+        if lower.hasPrefix("com.apple.webkit") { return "com.apple.Safari" }
+        if lower.hasPrefix("com.apple.safaritechnologypreview") { return "com.apple.SafariTechnologyPreview" }
+        if lower.hasPrefix("org.mozilla.firefox") || lower == "org.mozilla.plugincontainer" {
+            return "org.mozilla.firefox"
+        }
+        if lower.hasPrefix("company.thebrowser.browser") { return "company.thebrowser.Browser" }
+        if lower.hasPrefix("company.thebrowser.dia") { return "company.thebrowser.dia" }
+        if lower.hasPrefix("com.brave.browser") { return "com.brave.Browser" }
+        if lower.hasPrefix("com.microsoft.edgemac") { return "com.microsoft.edgemac" }
+        if lower.hasPrefix("app.zen-browser.zen") { return "app.zen-browser.zen" }
+        if lower.hasPrefix("com.vivaldi.vivaldi") { return "com.vivaldi.Vivaldi" }
+        if lower.hasPrefix("com.operasoftware.opera") { return "com.operasoftware.Opera" }
+        if lower.hasPrefix("org.chromium.chromium") { return "org.chromium.Chromium" }
+        if lower.hasPrefix("io.island.island") { return "io.island.Island" }
+        if lower.hasPrefix("us.zoom.") { return "us.zoom.xos" }
+        if lower.hasPrefix("com.microsoft.teams2") { return "com.microsoft.teams2" }
+        if lower.hasPrefix("com.tinyspeck.slackmacgap") { return "com.tinyspeck.slackmacgap" }
+        if lower.hasPrefix("com.hnc.discord") { return "com.hnc.Discord" }
+        if lower.hasPrefix("net.whatsapp.whatsapp") { return "net.whatsapp.WhatsApp" }
+
+        for suffix in [".helper.renderer", ".helper.audio", ".helper.gpu", ".helper.plugin",
+                       ".helper", ".webcontent"] {
+            if lower.hasSuffix(suffix) {
+                return String(trimmed.dropLast(suffix.count))
+            }
+        }
+        return trimmed
+    }
+
+    static func isKnownCallBundleID(_ bundleID: String,
+                                    knownCallApps: Set<String> = knownCallBundleIDs) -> Bool {
+        if knownCallApps.contains(bundleID) { return true }
+        let normalized = normalizedCallBundleID(bundleID)
+        return knownCallApps.contains(normalized)
+    }
+
+    /// Refines a browser call label when an active browser window title
+    /// clearly names a web call surface (e.g. WhatsApp Web or Google Meet).
+    static func browserCallLabel(baseName: String, windowTitles: [String]) -> String {
+        let hints: [(needle: String, label: String)] = [
+            ("whatsapp", "WhatsApp"),
+            ("google meet", "Google Meet"),
+            ("meet - ", "Google Meet"),
+            ("zoom", "Zoom"),
+            ("microsoft teams", "Teams"),
+            ("huddle", "Slack Huddle"),
+            ("discord", "Discord"),
+            ("messenger", "Messenger"),
+            ("webex", "Webex"),
+        ]
+        for title in windowTitles {
+            let lower = title.lowercased()
+            for hint in hints where lower.contains(hint.needle) {
+                return "\(hint.label) (\(baseName))"
+            }
+        }
+        return baseName
+    }
 
     /// Never treat Vorssaint itself, always-on audio utilities, or macOS
     /// speech/Siri daemons as an active meeting.
@@ -86,7 +172,10 @@ enum MeetingRecorderSupport {
 
     static func displayName(for consumer: MeetingMicConsumer,
                             localizedAppName: String? = nil) -> String {
-        if let known = callAppDisplayNames[consumer.bundleID] { return known }
+        let normalized = normalizedCallBundleID(consumer.bundleID)
+        if let known = callAppDisplayNames[consumer.bundleID] ?? callAppDisplayNames[normalized] {
+            return known
+        }
         if let localizedAppName, !localizedAppName.isEmpty { return localizedAppName }
         return consumer.bundleID == "(unknown)" ? "Meeting" : consumer.bundleID
     }
@@ -313,13 +402,14 @@ enum MeetingRecorderSupport {
     }
 }
 
-/// Auto-record state machine adapted from Stalkrr's `AutoRecordDecider`.
+/// Auto-record state machine for automatic call detection.
 /// Keys solely off per-process Core Audio mic consumers excluding our own PID
 /// and denied system daemons, with quiet-grace stop smoothing and post-manual-
 /// stop suppression so an ongoing call never re-triggers.
 struct MeetingAutoRecordDecider: Sendable {
     enum Phase: Equatable, Sendable {
         case idle
+        case pending(trigger: MeetingMicConsumer, ticks: Int)
         case active(trigger: MeetingMicConsumer, quietTicks: Int)
         case suppressed(quietTicks: Int)
     }
@@ -335,33 +425,91 @@ struct MeetingAutoRecordDecider: Sendable {
     private let ownPID: pid_t
     private let knownCallApps: Set<String>
     private let denyList: Set<String>
+    private let confirmPolls: Int
     private let gracePolls: Int
+    private let anyAppMode: Bool
+    private var baselinePIDs: Set<pid_t> = []
+    private var sawFirstTick = false
 
     init(ownPID: pid_t,
          knownCallApps: Set<String> = MeetingRecorderSupport.knownCallBundleIDs,
          denyList: Set<String> = MeetingRecorderSupport.defaultDenyList,
-         gracePolls: Int = 3) {
+         confirmPolls: Int = 2,
+         gracePolls: Int = 3,
+         anyAppMode: Bool = true) {
         self.ownPID = ownPID
         self.knownCallApps = knownCallApps
         self.denyList = denyList
+        self.confirmPolls = max(1, confirmPolls)
         self.gracePolls = max(1, gracePolls)
+        self.anyAppMode = anyAppMode
     }
 
     mutating func tick(consumers: [MeetingMicConsumer]) -> Action {
-        let knownPresent = consumers.first { consumer in
-            consumer.pid != ownPID
-                && !denyList.contains(consumer.bundleID)
-                && knownCallApps.contains(consumer.bundleID)
+        let external = consumers.filter { consumer in
+            guard consumer.pid != ownPID else { return false }
+            let normalized = MeetingRecorderSupport.normalizedCallBundleID(consumer.bundleID)
+            return !denyList.contains(consumer.bundleID) && !denyList.contains(normalized)
+        }
+        // Startup baseline: unknown apps already holding the mic at
+        // launch (always-on utilities) are ignored until they release once;
+        // known call apps and browser helpers are never baselined.
+        if !sawFirstTick {
+            sawFirstTick = true
+            baselinePIDs = Set(
+                external
+                    .filter { !MeetingRecorderSupport.isKnownCallBundleID($0.bundleID, knownCallApps: knownCallApps) }
+                    .map(\.pid)
+            )
+        } else {
+            baselinePIDs.formIntersection(Set(external.map(\.pid)))
+        }
+
+        var relevant = external.filter { !baselinePIDs.contains($0.pid) }
+        if !anyAppMode {
+            relevant = relevant.filter {
+                MeetingRecorderSupport.isKnownCallBundleID($0.bundleID, knownCallApps: knownCallApps)
+            }
+        }
+        let knownPresent = relevant.first {
+            MeetingRecorderSupport.isKnownCallBundleID($0.bundleID, knownCallApps: knownCallApps)
         }
 
         switch phase {
         case .idle:
-            guard let trigger = knownPresent else { return .none }
-            phase = .active(trigger: trigger, quietTicks: 0)
-            return .begin(trigger: trigger)
+            if let trigger = knownPresent {
+                phase = .active(trigger: trigger, quietTicks: 0)
+                return .begin(trigger: trigger)
+            }
+            if anyAppMode, let candidate = relevant.first {
+                if confirmPolls <= 1 {
+                    phase = .active(trigger: candidate, quietTicks: 0)
+                    return .begin(trigger: candidate)
+                }
+                phase = .pending(trigger: candidate, ticks: 1)
+            }
+            return .none
+
+        case .pending(let candidate, let ticks):
+            if let trigger = knownPresent {
+                phase = .active(trigger: trigger, quietTicks: 0)
+                return .begin(trigger: trigger)
+            }
+            let stillThere = relevant.contains { same($0, as: candidate) }
+            guard stillThere else {
+                phase = .idle
+                return .none
+            }
+            let nextTicks = ticks + 1
+            if nextTicks >= confirmPolls {
+                phase = .active(trigger: candidate, quietTicks: 0)
+                return .begin(trigger: candidate)
+            }
+            phase = .pending(trigger: candidate, ticks: nextTicks)
+            return .none
 
         case .active(let trigger, let quiet):
-            if knownPresent == nil {
+            if relevant.isEmpty {
                 let nextQuiet = quiet + 1
                 if nextQuiet >= gracePolls {
                     phase = .idle
@@ -374,7 +522,7 @@ struct MeetingAutoRecordDecider: Sendable {
             return .none
 
         case .suppressed(let quiet):
-            if knownPresent == nil {
+            if relevant.isEmpty {
                 let nextQuiet = quiet + 1
                 phase = nextQuiet >= gracePolls ? .idle : .suppressed(quietTicks: nextQuiet)
             } else {
@@ -382,6 +530,10 @@ struct MeetingAutoRecordDecider: Sendable {
             }
             return .none
         }
+    }
+
+    private func same(_ lhs: MeetingMicConsumer, as rhs: MeetingMicConsumer) -> Bool {
+        rhs.bundleID == "(unknown)" ? lhs.pid == rhs.pid : lhs.bundleID == rhs.bundleID
     }
 
     /// Manual stop or failed start: stay quiet until the current call ends.
@@ -392,11 +544,12 @@ struct MeetingAutoRecordDecider: Sendable {
     /// Resets suppression and active state when auto-record is toggled off.
     mutating func reset() {
         phase = .idle
+        baselinePIDs.removeAll()
+        sawFirstTick = false
     }
 }
 
-/// Per-stream capture-health watchdog driven by persisted bytes on disk
-/// (adapted from Stalkrr's `StreamHealth`).
+/// Per-stream capture-health watchdog driven by persisted bytes on disk.
 struct MeetingStreamHealth: Sendable {
     enum Verdict: Equatable, Sendable {
         case ok, pending, neverStarted, stalled, wedged, quiet

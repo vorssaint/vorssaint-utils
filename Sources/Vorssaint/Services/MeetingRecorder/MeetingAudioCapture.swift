@@ -271,9 +271,39 @@ enum MeetingCoreAudio {
             guard scalar(proc, address(kAudioProcessPropertyIsRunningInput), default: UInt32(0)) != 0 else {
                 return nil
             }
-            let pid: pid_t = scalar(proc, address(kAudioProcessPropertyPID), default: pid_t(-1))
-            let bundle = string(proc, address(kAudioProcessPropertyBundleID)) ?? "(unknown)"
-            return MeetingMicConsumer(pid: pid, bundleID: bundle)
+            let rawPID: pid_t = scalar(proc, address(kAudioProcessPropertyPID), default: pid_t(-1))
+            let rawBundle = string(proc, address(kAudioProcessPropertyBundleID)) ?? "(unknown)"
+
+            // Browser WebRTC calls (e.g. WhatsApp Web or Google Meet in Chrome)
+            // capture audio from a helper subprocess (`com.google.Chrome.helper`,
+            // `com.apple.WebKit.GPU`, etc.). Resolve its responsible regular app
+            // so both call detection and per-app tap grouping target the browser.
+            if rawPID > 0,
+               let ownerPID = ResponsibleProcess.regularAppOwnerPid(of: rawPID),
+               let ownerBundle = NSRunningApplication(processIdentifier: ownerPID)?.bundleIdentifier,
+               !ownerBundle.isEmpty {
+                return MeetingMicConsumer(pid: ownerPID, bundleID: ownerBundle)
+            }
+
+            let normalized = MeetingRecorderSupport.normalizedCallBundleID(rawBundle)
+            return MeetingMicConsumer(pid: rawPID, bundleID: normalized.isEmpty ? rawBundle : normalized)
+        }
+    }
+
+    /// Reads visible window titles for `pid` so browser calls can show a more
+    /// specific label like "WhatsApp (Chrome)" or "Google Meet (Chrome)".
+    static func windowTitles(forPID pid: pid_t) -> [String] {
+        guard pid > 0,
+              let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID)
+                as? [[String: Any]] else {
+            return []
+        }
+        return list.compactMap { info in
+            guard let owner = info[kCGWindowOwnerPID as String] as? pid_t, owner == pid,
+                  let title = info[kCGWindowName as String] as? String, !title.isEmpty else {
+                return nil
+            }
+            return title
         }
     }
 }

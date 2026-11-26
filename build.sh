@@ -434,6 +434,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/MeetingRecorderStrings.swift
         Sources/Vorssaint/Core/AudioTranscriptionStrings.swift
         Sources/Vorssaint/Core/AudioTranscriptionExtrasStrings.swift
+        Sources/Vorssaint/Core/TranscriptionModelStrings.swift
         Sources/Vorssaint/Core/WhatsAppDownloadStrings.swift
         Sources/Vorssaint/Core/WhatsAppOrganizerStrings.swift
         Sources/Vorssaint/Core/ReleaseNotes.swift

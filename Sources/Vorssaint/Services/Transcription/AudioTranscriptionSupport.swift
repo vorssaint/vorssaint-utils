@@ -3,11 +3,23 @@
 
 import Foundation
 
-/// Compute-unit preference for Parakeet Unified English 0.6B Core ML inference.
+/// Compute-unit preference for Core ML transcription inference.
 enum ParakeetComputeMode: String, CaseIterable, Identifiable, Sendable {
     case auto
     case cpuAndGPU
     case cpuOnly
+
+    var id: String { rawValue }
+}
+
+/// Model routing preference for local Core ML transcription & dictation.
+/// `auto` probes the spoken language on each recording and
+/// routes English to Parakeet Unified 0.6B and Hebrew to ivrit.ai Whisper
+/// Large v3 Turbo.
+enum TranscriptionModelChoice: String, CaseIterable, Identifiable, Sendable {
+    case auto
+    case parakeetEnglish
+    case ivritHebrew
 
     var id: String { rawValue }
 }
@@ -466,5 +478,282 @@ enum AudioTranscriptionSupport {
         return wantsBullets
             ? selected.map { "- \($0)" }.joined(separator: "\n")
             : selected.joined(separator: " ")
+    }
+
+    // MARK: - Hebrew Specialist Model (ivrit.ai Whisper Large v3 Turbo Core ML)
+
+    static let ivritModelDisplayName = "ivrit.ai Whisper Large v3 Turbo (Hebrew)"
+    static let ivritModelRepoID = "eranshir/ivrit-ai-whisper-large-v3-turbo-coreml-int8"
+    static let ivritModelFolderName = "ivrit-ai-whisper-large-v3-turbo-coreml-int8"
+    static let whisperWindowSamples = 480_000 // 30 s @ 16 kHz
+    static let whisperMaxTokens = 448
+    static let whisperVocabSize = 51_866
+    static let whisperEOTToken = 50_257
+    static let whisperSOTToken = 50_258
+    static let whisperEnglishToken = 50_259
+    static let whisperHebrewToken = 50_279
+    static let whisperTranscribeToken = 50_360
+    static let whisperNoTimestampsToken = 50_364
+    static let whisperFirstTimestampToken = 50_365
+    static let whisperLanguageTokenRange = 50_259..<50_359
+
+    /// Exact verified files for `eranshir/ivrit-ai-whisper-large-v3-turbo-coreml-int8`
+    /// (~896 MB total: MelSpectrogram + 8-bit AudioEncoder + 8.5-bit KV-cached TextDecoder + vocab/config).
+    static let ivritRequiredModelFiles: [ModelFileSpec] = [
+        ModelFileSpec(relativePath: "config.json", expectedBytes: 1_230),
+        ModelFileSpec(relativePath: "vocab.json", expectedBytes: 1_036_558),
+        ModelFileSpec(relativePath: "MelSpectrogram.mlmodelc/analytics/coremldata.bin", expectedBytes: 243),
+        ModelFileSpec(relativePath: "MelSpectrogram.mlmodelc/coremldata.bin", expectedBytes: 390),
+        ModelFileSpec(relativePath: "MelSpectrogram.mlmodelc/metadata.json", expectedBytes: 1_949),
+        ModelFileSpec(relativePath: "MelSpectrogram.mlmodelc/model.mil", expectedBytes: 10_143),
+        ModelFileSpec(relativePath: "MelSpectrogram.mlmodelc/weights/weight.bin", expectedBytes: 373_376),
+        ModelFileSpec(relativePath: "AudioEncoder.mlmodelc/analytics/coremldata.bin", expectedBytes: 243),
+        ModelFileSpec(relativePath: "AudioEncoder.mlmodelc/coremldata.bin", expectedBytes: 409),
+        ModelFileSpec(relativePath: "AudioEncoder.mlmodelc/metadata.json", expectedBytes: 2_020),
+        ModelFileSpec(relativePath: "AudioEncoder.mlmodelc/model.mil", expectedBytes: 9_791_975),
+        ModelFileSpec(relativePath: "AudioEncoder.mlmodelc/weights/weight.bin", expectedBytes: 639_533_824),
+        ModelFileSpec(relativePath: "TextDecoder.mlmodelc/analytics/coremldata.bin", expectedBytes: 243),
+        ModelFileSpec(relativePath: "TextDecoder.mlmodelc/coremldata.bin", expectedBytes: 694),
+        ModelFileSpec(relativePath: "TextDecoder.mlmodelc/metadata.json", expectedBytes: 4_951),
+        ModelFileSpec(relativePath: "TextDecoder.mlmodelc/model.mil", expectedBytes: 141_703),
+        ModelFileSpec(relativePath: "TextDecoder.mlmodelc/weights/weight.bin", expectedBytes: 245_652_212),
+    ]
+
+    static let totalExpectedIvritModelBytes: Int64 = ivritRequiredModelFiles.reduce(0) { $0 + $1.expectedBytes }
+
+    static func ivritDownloadURL(for relativePath: String) -> URL {
+        URL(string: "https://huggingface.co/\(ivritModelRepoID)/resolve/main/\(relativePath)")!
+    }
+
+    static func defaultIvritModelDirectory(
+        appSupportDirectory: URL? = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+    ) -> URL {
+        let base = appSupportDirectory ?? FileManager.default.homeDirectoryForCurrentUser
+        return base
+            .appendingPathComponent("Vorssaint", isDirectory: true)
+            .appendingPathComponent("Models", isDirectory: true)
+            .appendingPathComponent(ivritModelFolderName, isDirectory: true)
+    }
+
+    static func isIvritModelDirectoryReady(_ directory: URL) -> Bool {
+        let fm = FileManager.default
+        for spec in ivritRequiredModelFiles {
+            let fileURL = directory.appendingPathComponent(spec.relativePath)
+            guard let attrs = try? fm.attributesOfItem(atPath: fileURL.path),
+                  let size = attrs[.size] as? Int64,
+                  size > 0 else {
+                return false
+            }
+            if spec.expectedBytes > 10_000, size < (spec.expectedBytes * 9) / 10 {
+                return false
+            }
+        }
+        return true
+    }
+
+    // MARK: - Language Routing & Hebrew Detection
+
+    enum ResolvedEngine: Equatable, Sendable {
+        case parakeetEnglish
+        case ivritHebrew
+    }
+
+    /// Routes one recording to the best installed local model using
+    /// confidence-gated specialist routing: Hebrew with confidence
+    /// >= 0.6 goes to ivrit.ai Whisper Large v3 Turbo; English goes to Parakeet
+    /// Unified 0.6B; falls back gracefully when only one model is installed.
+    static func routeModel(choice: TranscriptionModelChoice,
+                           detectedLanguage: String?,
+                           confidence: Double,
+                           parakeetReady: Bool,
+                           ivritReady: Bool) -> ResolvedEngine? {
+        switch choice {
+        case .parakeetEnglish:
+            return parakeetReady ? .parakeetEnglish : nil
+        case .ivritHebrew:
+            return ivritReady ? .ivritHebrew : nil
+        case .auto:
+            let code = detectedLanguage.map { String($0.prefix(2)).lowercased() }
+            let isHebrew = (code == "he" || code == "iw") && confidence >= 0.6
+            if isHebrew {
+                if ivritReady { return .ivritHebrew }
+                if parakeetReady { return .parakeetEnglish }
+                return nil
+            }
+            if parakeetReady { return .parakeetEnglish }
+            if ivritReady { return .ivritHebrew }
+            return nil
+        }
+    }
+
+    /// Mila-style RTL detection: true when `text` has more Hebrew letters
+    /// (U+0590..U+05FF) than Latin letters (A-Z / a-z), so quoted English brand
+    /// names embedded in a Hebrew sentence do not flip RTL layout.
+    static func isPredominantlyHebrew(_ text: String) -> Bool {
+        var hebrew = 0
+        var latin = 0
+        for scalar in text.unicodeScalars {
+            let v = scalar.value
+            if v >= 0x0590 && v <= 0x05FF {
+                hebrew += 1
+            } else if (v >= 0x0041 && v <= 0x005A) || (v >= 0x0061 && v <= 0x007A) {
+                latin += 1
+            }
+        }
+        return hebrew > latin
+    }
+
+    /// Recall-first energy VAD over 16 kHz mono samples so long
+    /// silences are skipped before Whisper decoding (faster + prevents silence
+    /// hallucinations).
+    static func speechRegions(in samples: [Float], sampleRate: Double = sampleRate) -> [(startSec: Double, endSec: Double)] {
+        let frame = Int(sampleRate * 0.02)
+        guard samples.count >= frame * 10 else {
+            return samples.isEmpty ? [] : [(0, Double(samples.count) / sampleRate)]
+        }
+        var levels: [Float] = []
+        levels.reserveCapacity(samples.count / frame)
+        var i = 0
+        while i + frame <= samples.count {
+            var sum: Float = 0
+            for s in samples[i..<(i + frame)] { sum += s * s }
+            levels.append(10 * log10(sum / Float(frame) + 1e-12))
+            i += frame
+        }
+        let sorted = levels.sorted()
+        let floor = sorted[max(0, sorted.count * 15 / 100)]
+        let threshold = min(max(floor + 7, -58), -33)
+
+        let frameSec = Double(frame) / sampleRate
+        let pad = 0.35
+        let mergeGap = 0.9
+        let minLen = 0.25
+        var regions: [(startSec: Double, endSec: Double)] = []
+        var runStart: Int?
+
+        func closeRun(endFrame: Int) {
+            guard let s = runStart else { return }
+            runStart = nil
+            let start = Double(s) * frameSec
+            let end = Double(endFrame) * frameSec
+            guard end - start >= minLen else { return }
+            let padded = (startSec: max(0, start - pad),
+                          endSec: min(Double(samples.count) / sampleRate, end + pad))
+            if let last = regions.last, padded.startSec - last.endSec < mergeGap {
+                regions[regions.count - 1].endSec = padded.endSec
+            } else {
+                regions.append(padded)
+            }
+        }
+
+        for (idx, level) in levels.enumerated() {
+            if level > threshold {
+                if runStart == nil { runStart = idx }
+            } else {
+                closeRun(endFrame: idx)
+            }
+        }
+        closeRun(endFrame: levels.count)
+        let duration = Double(samples.count) / sampleRate
+        return regions.map { r in
+            let len = r.endSec - r.startSec
+            guard len < 1.5 else { return r }
+            let grow = (1.5 - len) / 2
+            return (startSec: max(0, r.startSec - grow), endSec: min(duration, r.endSec + grow))
+        }
+    }
+
+    struct HallucinationCandidate: Equatable, Sendable {
+        let text: String
+        let startSec: Double
+        let endSec: Double
+        let avgProb: Double
+    }
+
+    /// Whisper hallucination filter: drops low-confidence noise
+    /// decodes, classic Hebrew/English YouTube subtitle artifacts, low-density
+    /// stretched lines, and 3+ consecutive duplicate loops.
+    static func filterHallucinations(_ candidates: [HallucinationCandidate]) -> [HallucinationCandidate] {
+        let junkExact: Set<String> = [
+            "thankyou", "thankyouverymuch", "thanks", "thanksforwatching", "thankyouforwatching",
+            "תודה", "תודהרבה", "תודהשצפיתם", "תודהשצפיתן",
+            "спасибо", "спасибозапросмотр",
+        ]
+        let junkPrefixes = ["subsby", "subtitlesby", "translatedby", "כתוביותעלידי"]
+        func norm(_ s: String) -> String {
+            s.lowercased().filter { $0.isLetter || $0.isNumber }
+        }
+        func isKnownJunk(_ key: String) -> Bool {
+            junkExact.contains(key) || junkPrefixes.contains { key.hasPrefix($0) }
+        }
+
+        let dense = candidates.filter { c in
+            let dur = c.endSec - c.startSec
+            return !(dur > 8 && Double(norm(c.text).count) / dur < 1.0)
+        }
+        var out: [HallucinationCandidate] = []
+        var i = 0
+        while i < dense.count {
+            let key = norm(dense[i].text)
+            var j = i + 1
+            while j < dense.count, norm(dense[j].text) == key { j += 1 }
+            let run = dense[i..<j]
+            let avgP = run.reduce(0.0) { $0 + $1.avgProb } / Double(run.count)
+            if key.isEmpty || avgP < 0.45 {
+                // Low-confidence noise decode — drop.
+            } else if run.count >= 3 {
+                if avgP >= 0.8, let first = run.first { out.append(first) }
+            } else if isKnownJunk(key),
+                      avgP < 0.8 || run.contains(where: { $0.endSec - $0.startSec > 4 }) {
+                // Classic subtitle-artifact filler — drop.
+            } else {
+                out.append(contentsOf: run)
+            }
+            i = j
+        }
+        return out
+    }
+
+    /// Reversible GPT-2 byte-level BPE decoder table (maps Whisper `vocab.json`
+    /// Unicode code points back to raw UTF-8 bytes so multi-byte Hebrew letters
+    /// decode cleanly across token boundaries).
+    static let gpt2UnicodeToByte: [Character: UInt8] = {
+        var bytes: [UInt8] = Array(33...126) + Array(161...172) + Array(174...255)
+        var codePoints: [UInt32] = bytes.map { UInt32($0) }
+        var extra: UInt32 = 0
+        for b in UInt16(0)...UInt16(255) {
+            let byte = UInt8(b)
+            if !bytes.contains(byte) {
+                bytes.append(byte)
+                codePoints.append(256 + extra)
+                extra += 1
+            }
+        }
+        var map: [Character: UInt8] = [:]
+        for (byte, cp) in zip(bytes, codePoints) {
+            if let scalar = UnicodeScalar(cp) {
+                map[Character(scalar)] = byte
+            }
+        }
+        return map
+    }()
+
+    /// Decodes a sequence of Whisper text token IDs using `vocab` (id → GPT-2
+    /// byte-BPE string) into clean UTF-8 text (including Hebrew and English).
+    static func decodeWhisperTokens(_ tokenIDs: [Int], vocab: [Int: String]) -> String {
+        var rawBytes: [UInt8] = []
+        rawBytes.reserveCapacity(tokenIDs.count * 4)
+        for id in tokenIDs {
+            guard id >= 0, id < whisperEOTToken, let token = vocab[id] else { continue }
+            for ch in token {
+                if let byte = gpt2UnicodeToByte[ch] {
+                    rawBytes.append(byte)
+                } else {
+                    rawBytes.append(contentsOf: String(ch).utf8)
+                }
+            }
+        }
+        return String(decoding: rawBytes, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

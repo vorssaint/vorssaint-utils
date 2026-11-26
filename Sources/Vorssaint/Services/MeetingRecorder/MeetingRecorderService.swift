@@ -4,7 +4,7 @@
 import AppKit
 import Foundation
 
-/// Coordinates Stalkrr-style dual-track meeting recording (system audio +
+/// Coordinates dual-track meeting recording (system audio +
 /// microphone into separate WAVs), automatic call detection, capture-health
 /// watchdogs, and Vorssaint's floating recording pill.
 final class MeetingRecorderService: ObservableObject {
@@ -289,7 +289,9 @@ final class MeetingRecorderService: ObservableObject {
         case .begin(let trigger):
             guard !isRecording else { return }
             let localized = NSRunningApplication(processIdentifier: trigger.pid)?.localizedName
-            let label = MeetingRecorderSupport.displayName(for: trigger, localizedAppName: localized)
+            let baseLabel = MeetingRecorderSupport.displayName(for: trigger, localizedAppName: localized)
+            let titles = MeetingCoreAudio.windowTitles(forPID: trigger.pid)
+            let label = MeetingRecorderSupport.browserCallLabel(baseName: baseLabel, windowTitles: titles)
             startSession(appName: label, pid: trigger.pid, automatic: true)
         case .stop:
             guard MeetingRecorderSupport.shouldApplyDetectorStop(

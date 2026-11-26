@@ -4,7 +4,7 @@
 import SwiftUI
 
 /// Inline Vorssaint menu panel surface for Meeting Recorder: live dual-track
-/// controls, Stalkrr-style call auto-recording toggle, audio level bars, and
+/// controls, automatic call-recording toggle, audio level bars, and
 /// recent saved recordings.
 struct PanelMeetingRecorderView: View {
     @ObservedObject private var l10n = L10n.shared

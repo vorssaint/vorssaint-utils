@@ -13,6 +13,7 @@ struct TranscriptionSettings: View {
     @AppStorage(DefaultsKey.audioTranscriptionIncludeTimestamps) private var includeTimestamps = true
     @AppStorage(DefaultsKey.audioTranscriptionSaveBesideAudio) private var saveBesideAudio = true
     @AppStorage(DefaultsKey.audioTranscriptionComputeMode) private var computeModeRaw = ParakeetComputeMode.auto.rawValue
+    @AppStorage(DefaultsKey.audioTranscriptionModelChoice) private var modelChoiceRaw = TranscriptionModelChoice.auto.rawValue
     @AppStorage(DefaultsKey.audioTranscriptionSummaryEnabled) private var summaryEnabled = false
     @AppStorage(DefaultsKey.audioTranscriptionSummaryPrompt) private var summaryPrompt = AudioTranscriptionSupport.defaultSummaryPrompt
     @AppStorage(DefaultsKey.audioTranscriptionDictationEnabled) private var dictationEnabled = false
@@ -24,6 +25,9 @@ struct TranscriptionSettings: View {
     }
     private var extras: AudioTranscriptionExtrasStrings {
         FeatureStrings.audioTranscriptionExtras(l10n.language)
+    }
+    private var modelStrings: TranscriptionModelStrings {
+        FeatureStrings.transcriptionModels(l10n.language)
     }
 
     var body: some View {
@@ -82,12 +86,20 @@ struct TranscriptionSettings: View {
                 }
 
                 if !service.transcriptText.isEmpty {
+                    let isRTL = AudioTranscriptionSupport.isPredominantlyHebrew(service.transcriptText)
                     VStack(alignment: .leading, spacing: 8) {
+                        if let detected = detectedLanguageLabel {
+                            Text(String(format: modelStrings.detectedLanguageFormat, detected))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                         ScrollView {
                             Text(service.transcriptText)
                                 .font(.callout)
                                 .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .multilineTextAlignment(isRTL ? .trailing : .leading)
+                                .frame(maxWidth: .infinity, alignment: isRTL ? .trailing : .leading)
+                                .environment(\.layoutDirection, isRTL ? .rightToLeft : .leftToRight)
                         }
                         .frame(minHeight: 80, maxHeight: 180)
                         HStack(spacing: 8) {
@@ -115,6 +127,7 @@ struct TranscriptionSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 } else if !service.summaryText.isEmpty {
+                    let summaryRTL = AudioTranscriptionSupport.isPredominantlyHebrew(service.summaryText)
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Label(extras.summaryTitle, systemImage: "text.badge.star")
@@ -130,7 +143,9 @@ struct TranscriptionSettings: View {
                             Text(service.summaryText)
                                 .font(.callout)
                                 .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .multilineTextAlignment(summaryRTL ? .trailing : .leading)
+                                .frame(maxWidth: .infinity, alignment: summaryRTL ? .trailing : .leading)
+                                .environment(\.layoutDirection, summaryRTL ? .rightToLeft : .leftToRight)
                         }
                         .frame(minHeight: 60, maxHeight: 150)
                         HStack(spacing: 8) {
@@ -238,6 +253,17 @@ struct TranscriptionSettings: View {
             }
 
             Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker(modelStrings.modelChoiceLabel, selection: $modelChoiceRaw) {
+                        Text(modelStrings.modelAuto).tag(TranscriptionModelChoice.auto.rawValue)
+                        Text(modelStrings.modelParakeet).tag(TranscriptionModelChoice.parakeetEnglish.rawValue)
+                        Text(modelStrings.modelIvrit).tag(TranscriptionModelChoice.ivritHebrew.rawValue)
+                    }
+                    Text(modelStrings.modelAutoCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(strings.modelTitle)
@@ -263,6 +289,33 @@ struct TranscriptionSettings: View {
                 if service.isDownloadingModel {
                     ProgressView(value: service.downloadProgress)
                 }
+
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(modelStrings.ivritModelTitle)
+                        Text(ivritModelStatusSubtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if service.isDownloadingIvritModel {
+                        Button(strings.cancelButton) {
+                            service.cancelIvritDownload()
+                        }
+                    } else if service.ivritModelReady {
+                        Button(strings.deleteModelButton, role: .destructive) {
+                            service.deleteIvritModel()
+                        }
+                    } else {
+                        Button(strings.downloadModelButton) {
+                            service.downloadIvritModel()
+                        }
+                    }
+                }
+                if service.isDownloadingIvritModel {
+                    ProgressView(value: service.ivritDownloadProgress)
+                }
+
                 Picker(strings.computeLabel, selection: $computeModeRaw) {
                     Text(strings.computeAuto).tag(ParakeetComputeMode.auto.rawValue)
                     Text(strings.computeGPU).tag(ParakeetComputeMode.cpuAndGPU.rawValue)
@@ -300,6 +353,26 @@ struct TranscriptionSettings: View {
             return "\(strings.modelReadyStatus) · \(size)"
         }
         return strings.modelMissingStatus
+    }
+
+    private var ivritModelStatusSubtitle: String {
+        if service.isDownloadingIvritModel {
+            return String(format: strings.downloadingStatusFormat,
+                          Int((service.ivritDownloadProgress * 100).rounded()))
+        }
+        if service.ivritModelReady {
+            let size = ByteCountFormatter.string(fromByteCount: service.ivritModelDiskBytes, countStyle: .file)
+            return "\(strings.modelReadyStatus) · \(size)"
+        }
+        return modelStrings.ivritModelMissingStatus
+    }
+
+    private var detectedLanguageLabel: String? {
+        switch service.lastDetectedLanguageCode {
+        case "he": return modelStrings.languageHebrew
+        case "en": return modelStrings.languageEnglish
+        default: return nil
+        }
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {

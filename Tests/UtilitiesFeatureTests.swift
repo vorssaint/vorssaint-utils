@@ -115,7 +115,7 @@ enum UtilitiesFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityPortManager] as? Bool == true,
                "the port manager panel row ships visible like its siblings and travels in backups")
 
-        // MARK: Meeting recorder (Stalkrr-style backend + Vorssaint policy)
+        // MARK: Meeting recorder (dual-track capture + auto-record policy)
 
         var decider = MeetingAutoRecordDecider(ownPID: 999, gracePolls: 3)
         let ownConsumer = MeetingMicConsumer(pid: 999, bundleID: "us.zoom.xos")
@@ -358,15 +358,83 @@ enum UtilitiesFeatureTests {
                && GlobalShortcutRole.voiceDictation.requiredEnableKeys == [DefaultsKey.audioTranscriptionDictationEnabled]
                && GlobalShortcutRole.voiceDictation.feature == .audioTranscription,
                "voice dictation global shortcut role wires cleanly to audioTranscription")
+
+        // Chrome/browser helper call detection & startup baseline tests.
+        suite.expect(MeetingRecorderSupport.normalizedCallBundleID("com.google.Chrome.helper") == "com.google.Chrome"
+               && MeetingRecorderSupport.normalizedCallBundleID("com.google.Chrome.helper.renderer") == "com.google.Chrome"
+               && MeetingRecorderSupport.normalizedCallBundleID("com.apple.WebKit.GPU") == "com.apple.Safari"
+               && MeetingRecorderSupport.normalizedCallBundleID("org.mozilla.plugincontainer") == "org.mozilla.firefox"
+               && MeetingRecorderSupport.normalizedCallBundleID("us.zoom.caphost") == "us.zoom.xos"
+               && MeetingRecorderSupport.isKnownCallBundleID("com.google.Chrome.helper"),
+               "browser and conferencing helper bundle IDs normalize to their owning call app")
+        suite.expect(MeetingRecorderSupport.browserCallLabel(
+            baseName: "Chrome",
+            windowTitles: ["(1) WhatsApp - Google Chrome"]
+        ) == "WhatsApp (Chrome)"
+               && MeetingRecorderSupport.browserCallLabel(
+                   baseName: "Chrome",
+                   windowTitles: ["Meet - abc-defg-hij - Google Chrome"]
+               ) == "Google Meet (Chrome)",
+               "browser call labels refine WhatsApp Web and Google Meet window titles")
+        var chromeHelperDecider = MeetingAutoRecordDecider(ownPID: 999, confirmPolls: 2, gracePolls: 2)
+        let chromeHelper = MeetingMicConsumer(pid: 512, bundleID: "com.google.Chrome.helper")
+        suite.expect(chromeHelperDecider.tick(consumers: [chromeHelper]) == .begin(trigger: chromeHelper),
+               "WhatsApp Web / browser helper mic consumers trigger auto-recording immediately")
+        var baselineDecider = MeetingAutoRecordDecider(ownPID: 999, confirmPolls: 2, gracePolls: 2)
+        let alwaysOnUtility = MeetingMicConsumer(pid: 101, bundleID: "com.example.utility")
+        let newCallApp = MeetingMicConsumer(pid: 202, bundleID: "com.example.customcall")
+        suite.expect(baselineDecider.tick(consumers: [alwaysOnUtility]) == .none
+               && baselineDecider.tick(consumers: [alwaysOnUtility]) == .none,
+               "unknown always-on mic consumers present at startup are baselined away")
+        suite.expect(baselineDecider.tick(consumers: [alwaysOnUtility, newCallApp]) == .none
+               && baselineDecider.tick(consumers: [alwaysOnUtility, newCallApp]) == .begin(trigger: newCallApp),
+               "newly active unknown mic consumers confirm after two consecutive polls")
+
+        // Hebrew specialist model (ivrit.ai Core ML), language routing, RTL, VAD, BPE & hallucination filter.
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.audioTranscriptionModelChoice] as? String == TranscriptionModelChoice.auto.rawValue
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionModelChoice)
+               && AudioTranscriptionSupport.ivritRequiredModelFiles.count == 17
+               && AudioTranscriptionSupport.totalExpectedIvritModelBytes > 850_000_000,
+               "ivrit.ai Hebrew model choice default and Core ML manifest are registered cleanly")
+        suite.expect(AudioTranscriptionSupport.routeModel(choice: .auto, detectedLanguage: "he", confidence: 0.9, parakeetReady: true, ivritReady: true) == .ivritHebrew
+               && AudioTranscriptionSupport.routeModel(choice: .auto, detectedLanguage: "he", confidence: 0.4, parakeetReady: true, ivritReady: true) == .parakeetEnglish
+               && AudioTranscriptionSupport.routeModel(choice: .auto, detectedLanguage: "en", confidence: 0.95, parakeetReady: true, ivritReady: true) == .parakeetEnglish
+               && AudioTranscriptionSupport.routeModel(choice: .auto, detectedLanguage: "he", confidence: 0.95, parakeetReady: true, ivritReady: false) == .parakeetEnglish
+               && AudioTranscriptionSupport.routeModel(choice: .ivritHebrew, detectedLanguage: "en", confidence: 1.0, parakeetReady: true, ivritReady: true) == .ivritHebrew,
+               "confidence-gated auto language routing picks ivrit.ai for Hebrew and Parakeet for English")
+        suite.expect(AudioTranscriptionSupport.isPredominantlyHebrew("שלום עולם אמרתי Cursor")
+               && !AudioTranscriptionSupport.isPredominantlyHebrew("Hello world"),
+               "Hebrew RTL detection identifies predominantly Hebrew text even with embedded English words")
+        let hebrewWord = "שלום"
+        let hebrewBytes = Array(hebrewWord.utf8)
+        let byteToUnicode = Dictionary(uniqueKeysWithValues: AudioTranscriptionSupport.gpt2UnicodeToByte.map { ($1, $0) })
+        let bpeToken = String(hebrewBytes.compactMap { byteToUnicode[$0] })
+        suite.expect(AudioTranscriptionSupport.decodeWhisperTokens([42], vocab: [42: bpeToken]) == hebrewWord,
+               "Whisper GPT-2 byte-BPE decoder round-trips multi-byte Hebrew UTF-8 cleanly")
+        let filteredHallucinations = AudioTranscriptionSupport.filterHallucinations([
+            .init(text: "תודה רבה", startSec: 0, endSec: 25, avgProb: 0.9),
+            .init(text: "Thank you.", startSec: 0, endSec: 12, avgProb: 0.7),
+            .init(text: "שלום, מה נשמע היום?", startSec: 1, endSec: 3, avgProb: 0.92),
+        ])
+        suite.expect(filteredHallucinations.count == 1 && filteredHallucinations[0].text == "שלום, מה נשמע היום?",
+               "Whisper hallucination filter drops stretched Hebrew/English noise filler and keeps genuine speech")
+        var vadSamples = [Float](repeating: 0, count: 16_000 * 6)
+        for i in (16_000 * 2)..<(16_000 * 4) { vadSamples[i] = 0.25 * sin(Float(i) * 0.1) }
+        let vadRegions = AudioTranscriptionSupport.speechRegions(in: vadSamples)
+        suite.expect(vadRegions.count == 1 && vadRegions[0].startSec > 1.0 && vadRegions[0].endSec < 5.0,
+               "energy VAD isolates active speech regions from surrounding silence")
+
         for lang in AppLanguage.allCases {
             let ts = FeatureStrings.audioTranscription(lang)
             let extras = FeatureStrings.audioTranscriptionExtras(lang)
+            let models = FeatureStrings.transcriptionModels(lang)
             suite.expect(!ts.title.isEmpty && !ts.hubDescription.isEmpty
                    && !ts.dropTitle.isEmpty && !ts.autoTranscribeToggle.isEmpty
                    && !ts.downloadModelButton.isEmpty
                    && !extras.summaryToggle.isEmpty && !extras.summaryPromptLabel.isEmpty
-                   && !extras.dictationToggle.isEmpty && !extras.startDictationButton.isEmpty,
-                   "audio transcription and extras strings are populated in \(lang)")
+                   && !extras.dictationToggle.isEmpty && !extras.startDictationButton.isEmpty
+                   && !models.modelAuto.isEmpty && !models.ivritModelTitle.isEmpty,
+                   "audio transcription, extras, and model strings are populated in \(lang)")
         }
 
         // MARK: Port manager row numbers
