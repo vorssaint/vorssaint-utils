@@ -8,8 +8,11 @@ struct NotchLyricsView: View {
     @ObservedObject private var service = NotchLyricsService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchLyricsOnline) private var online = false
+    @AppStorage(DefaultsKey.telemetryRefused) private var telemetryRefused = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var text: NotchMusicExtrasStrings { FeatureStrings.notchMusicExtras(l10n.language) }
+    private var telemetry: TelemetryPolicyStrings { FeatureStrings.telemetryPolicy(l10n.language) }
+    private var effectiveOnline: Bool { !telemetryRefused && online }
 
     // The verses sit on the island itself, as a player's own lyrics do, and
     // a song without them says so like the island's other empty pages.
@@ -86,6 +89,7 @@ struct NotchLyricsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onChange(of: online) { update() }
+        .onChange(of: telemetryRefused) { update() }
     }
 
     private func update() { service.update(playback: playback, visible: true) }
@@ -93,12 +97,15 @@ struct NotchLyricsView: View {
     /// An import that read no timed lines fails even with online lookup off,
     /// so the failure stays above the disclosure the next step needs.
     private var emptyMessage: String {
-        let reason: String? = service.state == .failed ? text.failed : online ? text.unavailable : nil
-        return [reason, online ? nil : text.onlineHint].compactMap { $0 }.joined(separator: "\n")
+        let reason: String? = service.state == .failed ? text.failed : effectiveOnline ? text.unavailable : nil
+        let hint: String? = telemetryRefused ? telemetry.blockedNote : (effectiveOnline ? nil : text.onlineHint)
+        return [reason, hint].compactMap { $0 }.joined(separator: "\n")
     }
 
     @ViewBuilder private var nextStep: some View {
-        if online {
+        if telemetryRefused {
+            EmptyView()
+        } else if effectiveOnline {
             NotchPillButton(title: text.retry, prominent: true, action: service.retry)
         } else {
             NotchPillButton(title: text.online, prominent: true) { online = true }

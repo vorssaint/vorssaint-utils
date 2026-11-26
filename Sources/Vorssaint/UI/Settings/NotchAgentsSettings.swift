@@ -26,6 +26,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsLimitThreshold) private var limitThreshold = NotchAgentSupport.defaultLimitThreshold
     @AppStorage(DefaultsKey.notchAgentsDailyBudget) private var dailyBudget = 0.0
     @AppStorage(DefaultsKey.notchAgentsPriceUpdates) private var priceUpdates = true
+    @AppStorage(DefaultsKey.telemetryRefused) private var telemetryRefused = false
     @State private var dragging: NotchAgentCard?
     @State private var roots: [AgentProvider: Bool] = [:]
     @State private var claudeApp: URL?
@@ -135,8 +136,16 @@ struct NotchAgentsSettingsControls: View {
             }
             Text(text.valueNote).font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            SettingsRow(symbol: "arrow.triangle.2.circlepath", title: text.priceUpdates, caption: priceCaption) {
-                Toggle(text.priceUpdates, isOn: $priceUpdates).labelsHidden().toggleStyle(.switch)
+            let telemetry = FeatureStrings.telemetryPolicy(l10n.language)
+            SettingsRow(symbol: "arrow.triangle.2.circlepath", title: text.priceUpdates,
+                        caption: telemetryRefused ? telemetry.blockedNote : priceCaption) {
+                Toggle(text.priceUpdates, isOn: Binding(
+                    get: { !telemetryRefused && priceUpdates },
+                    set: { if !telemetryRefused { priceUpdates = $0 } }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .disabled(telemetryRefused)
             }
 
             if claude {

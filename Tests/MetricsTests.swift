@@ -258,6 +258,7 @@ struct MetricsTests {
                 WallpaperThumbnailTests.run(suite)
             }),
             ("emoji", { CommandBarEmojiContract.run(suite) }),
+            ("telemetry", { TelemetryPolicyTests.run(suite) }),
         ]
         var selected = Set<String>()
         var listOnly = false

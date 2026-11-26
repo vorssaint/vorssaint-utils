@@ -263,6 +263,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Media/MediaSupport.swift
         Sources/Vorssaint/Core/QuitProtectionSupport.swift
         Sources/Vorssaint/Core/QuitProtectionStrings.swift
+        Sources/Vorssaint/Core/TelemetryPolicy.swift
+        Sources/Vorssaint/Core/TelemetryPolicyStrings.swift
         Sources/Vorssaint/Core/Defaults.swift
         Sources/Vorssaint/Core/NotchStrings.swift
         Sources/Vorssaint/Core/NotchTourStrings.swift
@@ -429,6 +431,11 @@ if (( TEST )); then
         Sources/Vorssaint/Core/FeatureStrings.swift
         Sources/Vorssaint/Core/KillProcessStrings.swift
         Sources/Vorssaint/Core/PortManagerStrings.swift
+        Sources/Vorssaint/Core/MeetingRecorderStrings.swift
+        Sources/Vorssaint/Core/AudioTranscriptionStrings.swift
+        Sources/Vorssaint/Core/AudioTranscriptionExtrasStrings.swift
+        Sources/Vorssaint/Core/TranscriptionModelStrings.swift
+        Sources/Vorssaint/Core/SummaryProviderStrings.swift
         Sources/Vorssaint/Core/WhatsAppDownloadStrings.swift
         Sources/Vorssaint/Core/WhatsAppOrganizerStrings.swift
         Sources/Vorssaint/Core/ReleaseNotes.swift
@@ -572,6 +579,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/DetachedProcess.swift
         Sources/Vorssaint/Services/ShellSupport.swift
         Sources/Vorssaint/Services/PortManager/PortManagerSupport.swift
+        Sources/Vorssaint/Services/MeetingRecorder/MeetingRecorderSupport.swift
+        Sources/Vorssaint/Services/Transcription/AudioTranscriptionSupport.swift
+        Sources/Vorssaint/Services/Transcription/SummaryProviderSupport.swift
         Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift
         Sources/Vorssaint/Services/Metrics/NetworkSampler.swift
         Sources/Vorssaint/Services/Metrics/NetworkAddressService.swift

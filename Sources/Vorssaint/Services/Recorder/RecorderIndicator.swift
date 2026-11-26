@@ -67,6 +67,7 @@ final class RecorderIndicator {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.level = .statusBar
+        panel.sharingType = .none
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary,

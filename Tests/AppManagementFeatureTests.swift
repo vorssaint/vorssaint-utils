@@ -276,12 +276,11 @@ enum AppManagementFeatureTests {
         suite.expect(abs(ExtraBrightnessSupport.boostFactor(level: 0.5, maxEDR: 2.66, reference: panel600) - 1.24) < 0.0001,
                "half level applies half the panel bonus")
         suite.expect(ExtraBrightnessSupport.renderFactor(level: 1, currentEDR: 1.0, potentialEDR: 16.0,
-                                                   reference: panel600)
-               == ExtraBrightnessSupport.engagementFactor,
-               "before the panel engages, the overlay shows only the small engagement boost")
-        suite.expect(abs(ExtraBrightnessSupport.renderFactor(level: 0.1, currentEDR: 1.0, potentialEDR: 16.0,
-                                                       reference: panel600) - 1.048) < 0.0001,
-               "the engagement nudge never exceeds the level's own target")
+                                                   reference: panel600) == 1.0,
+               "before the panel engages headroom, the gamma table stays neutral so highlights never clip")
+        suite.expect(ExtraBrightnessSupport.renderFactor(level: 0.1, currentEDR: 1.0, potentialEDR: 16.0,
+                                                   reference: panel600) == 1.0,
+               "partial levels also stay neutral until EDR headroom is engaged")
         suite.expect(abs(ExtraBrightnessSupport.renderFactor(level: 1, currentEDR: 2.66, potentialEDR: 16.0,
                                                        reference: panel600) - 1.48) < 0.0001,
                "with the reference headroom engaged the full level renders the full bonus")
@@ -336,86 +335,188 @@ enum AppManagementFeatureTests {
                "tiny downward gaps snap to the target instead of hovering")
         suite.expect(ExtraBrightnessSupport.rampedFactor(previous: 1.48, target: 1.48) == 1.48,
                "a settled factor stays put")
-        suite.expect(ExtraBrightnessSupport.gracedTarget(instantaneous: 1.10, previous: 1.48,
-                                                   engaged: false, disengagedTicks: 1) == 1.48
-               && ExtraBrightnessSupport.gracedTarget(instantaneous: 1.10, previous: 1.48,
-                                                      engaged: false,
-                                                      disengagedTicks: ExtraBrightnessSupport.dropoutGraceTicks) == 1.48,
-               "a grant that just vanished keeps the previous factor through the grace window")
-        suite.expect(ExtraBrightnessSupport.gracedTarget(instantaneous: 1.10, previous: 1.48,
-                                                   engaged: false,
-                                                   disengagedTicks: ExtraBrightnessSupport.dropoutGraceTicks + 1) == 1.10,
-               "a dropout that outlives the grace window is believed")
-        suite.expect(ExtraBrightnessSupport.gracedTarget(instantaneous: 1.40, previous: 1.48,
-                                                   engaged: true, disengagedTicks: 0) == 1.40,
-               "an engaged reading is always taken at face value")
-        suite.expect(ExtraBrightnessSupport.gracedTarget(instantaneous: 1.10, previous: 1.0,
-                                                   engaged: false, disengagedTicks: 1) == 1.10,
-               "grace never lifts a factor that had no boost to protect")
-        suite.expect(ExtraBrightnessSupport.canReuseSpaceWindows(
-                   sameDisplay: true, inOwnSpace: false, overlayOnActiveSpace: true, triggerOnActiveSpace: true),
-               "fullscreen handoff keeps the live overlay pair when both windows followed")
-        suite.expect(!ExtraBrightnessSupport.canReuseSpaceWindows(
-                   sameDisplay: false, inOwnSpace: false, overlayOnActiveSpace: true, triggerOnActiveSpace: true)
-               && !ExtraBrightnessSupport.canReuseSpaceWindows(
-                   sameDisplay: true, inOwnSpace: false, overlayOnActiveSpace: false, triggerOnActiveSpace: true)
-               && !ExtraBrightnessSupport.canReuseSpaceWindows(
-                   sameDisplay: true, inOwnSpace: false, overlayOnActiveSpace: true, triggerOnActiveSpace: false),
-               "display changes and incomplete Space handoffs still rebuild the overlay pair")
-        // AppKit never reports windows of the overlay's own Space as on the
-        // active Space; rebuilding on that blinked the boost on every switch.
-        suite.expect(ExtraBrightnessSupport.canReuseSpaceWindows(
-                   sameDisplay: true, inOwnSpace: true, overlayOnActiveSpace: false, triggerOnActiveSpace: false),
-               "the overlay's own Space keeps the live windows across desktop switches")
-        suite.expect(!ExtraBrightnessSupport.canReuseSpaceWindows(
-                   sameDisplay: false, inOwnSpace: true, overlayOnActiveSpace: false, triggerOnActiveSpace: false),
-               "a different display still rebuilds the overlay in its own Space")
-        for ebScreen in [CGRect(x: 0, y: 0, width: 1512, height: 982),
-                         CGRect(x: 0, y: 0, width: 1728, height: 1117),
-                         CGRect(x: -1800, y: 140, width: 1800, height: 1169)] {
-            let ebFrames = ExtraBrightnessSupport.overlayFrames(for: ebScreen)
-            let ebArea = ebFrames.reduce(CGFloat(0)) { $0 + $1.width * $1.height }
-            let ebOverlap = ebFrames.indices.contains { first in
-                ebFrames.indices.contains { second in
-                    first < second && !ebFrames[first].intersection(ebFrames[second]).isEmpty
-                }
-            }
-            suite.expect(ebFrames.reduce(CGRect.null) { $0.union($1) } == ebScreen
-                   && ebArea == ebScreen.width * ebScreen.height && !ebOverlap
-                   && ebFrames.allSatisfy { $0 == $0.integral },
-                   "the extra brightness overlay windows tile \(ebScreen) on whole points")
-            // AppKit reports a window above the main menu whose frame contains
-            // the screen's safe area (the screen below the camera housing) as a
-            // full screen window. A generous 64 pt housing covers every notch.
-            let ebSafeArea = CGRect(x: ebScreen.minX, y: ebScreen.minY,
-                                    width: ebScreen.width, height: ebScreen.height - 64)
-            suite.expect(!ebFrames.contains { $0.contains(ebSafeArea) },
-                   "no extra brightness overlay window reads as a full screen window on \(ebScreen)")
+        suite.expect(ExtraBrightnessSupport.canReuseTriggerWindow(
+                   sameDisplay: true, inOwnSpace: false, triggerOnActiveSpace: true),
+               "fullscreen handoff keeps the live trigger window when it followed")
+        suite.expect(!ExtraBrightnessSupport.canReuseTriggerWindow(
+                   sameDisplay: false, inOwnSpace: false, triggerOnActiveSpace: true)
+               && !ExtraBrightnessSupport.canReuseTriggerWindow(
+                   sameDisplay: true, inOwnSpace: false, triggerOnActiveSpace: false),
+               "display changes and missing Space handoffs still rebuild the trigger window")
+        // AppKit never reports windows of the trigger's own Space as on the
+        // active Space; rebuilding on that blinked the EDR trigger on every switch.
+        suite.expect(ExtraBrightnessSupport.canReuseTriggerWindow(
+                   sameDisplay: true, inOwnSpace: true, triggerOnActiveSpace: false),
+               "the trigger's own Space keeps the live window across desktop switches")
+        suite.expect(!ExtraBrightnessSupport.canReuseTriggerWindow(
+                   sameDisplay: false, inOwnSpace: true, triggerOnActiveSpace: false),
+               "a different display still rebuilds the trigger in its own Space")
+        let linearRamp: [CGGammaValue] = (0..<1024).map { CGGammaValue($0) / 1023.0 }
+        let baselineTable = ExtraBrightnessSupport.GammaTable(red: linearRamp, green: linearRamp, blue: linearRamp)
+        suite.expect(ExtraBrightnessSupport.isUsableGammaBaseline(baselineTable),
+               "a normal 1024-sample 0...1 linear ramp is accepted as a gamma baseline")
+        let boostedTable = ExtraBrightnessSupport.scaledGammaTable(baselineTable, factor: 1.48)
+        let slightlyAboveSDR = ExtraBrightnessSupport.scaledGammaTable(baselineTable, factor: 1.04)
+        suite.expect(!ExtraBrightnessSupport.isUsableGammaBaseline(boostedTable)
+               && !ExtraBrightnessSupport.isUsableGammaBaseline(slightlyAboveSDR),
+               "an already-boosted or > 1.0 gamma table is rejected so it can never be double-boosted or clipped on restore")
+        let zeroRamp = [CGGammaValue](repeating: 0, count: 1024)
+        suite.expect(!ExtraBrightnessSupport.isUsableGammaBaseline(
+                   .init(red: zeroRamp, green: zeroRamp, blue: zeroRamp))
+               && !ExtraBrightnessSupport.isUsableGammaBaseline(.init(red: [], green: [], blue: []))
+               && !ExtraBrightnessSupport.isUsableGammaBaseline(.init(red: linearRamp, green: [0, 1], blue: linearRamp))
+               && !ExtraBrightnessSupport.isUsableGammaBaseline(.init(red: [-0.1, 1.0], green: [0, 1], blue: [0, 1]))
+               && !ExtraBrightnessSupport.isUsableGammaBaseline(.init(red: [0, .nan], green: [0, 1], blue: [0, 1])),
+               "empty, mismatched, all-zero, negative, and non-finite tables are rejected as baselines")
+        suite.expect(ExtraBrightnessSupport.scaledGammaChannel(linearRamp, factor: 1.0) == linearRamp
+               && ExtraBrightnessSupport.scaledGammaChannel(linearRamp, factor: 0.9) == linearRamp
+               && ExtraBrightnessSupport.scaledGammaChannel(linearRamp, factor: .nan) == linearRamp,
+               "neutral and invalid factors return the baseline channel bit-exact")
+        let scaled = ExtraBrightnessSupport.scaledGammaChannel(linearRamp, factor: 1.48)
+        suite.expect(scaled.count == linearRamp.count
+               && scaled[0] == 0
+               && abs(scaled[512] - linearRamp[512] * 1.48) < 0.0001
+               && abs(scaled[1023] - 1.48) < 0.0001,
+               "boost factors scale every native gamma sample linearly while keeping black at zero")
+        let boostWrite = ExtraBrightnessSupport.boostTransferTable(from: baselineTable, factor: 1.48)
+        suite.expect(boostWrite.sampleCount == ExtraBrightnessSupport.boostTableSampleLimit
+               && boostWrite.red.first == 0
+               && abs((boostWrite.red.last ?? 0) - 1.48) < 0.0001
+               && abs(boostWrite.red[128] - (128.0 / 255.0) * 1.48) < 0.0001,
+               "boost transfer tables resample a 1024-sample baseline to 256 entries so CoreGraphics preserves values above 1.0")
+        suite.expect(ExtraBrightnessSupport.gammaTableMatches(baselineTable, expected: baselineTable),
+               "identical native transfer tables verify cleanly across all samples")
+        var perturbedSample = linearRamp
+        perturbedSample[317] += 0.02
+        suite.expect(!ExtraBrightnessSupport.gammaTableMatches(
+                   .init(red: perturbedSample, green: linearRamp, blue: linearRamp),
+                   expected: baselineTable),
+               "verification checks every native sample, not just midpoint and endpoint")
+        let truncated256 = ExtraBrightnessSupport.GammaTable(
+            red: Array(linearRamp.prefix(256)),
+            green: Array(linearRamp.prefix(256)),
+            blue: Array(linearRamp.prefix(256)))
+        suite.expect(!ExtraBrightnessSupport.gammaTableMatches(truncated256, expected: baselineTable),
+               "a truncated 256-sample table never verifies against a 1024-sample baseline")
+        suite.expect(!ExtraBrightnessSupport.gammaTableDrifted(
+                   baseline: baselineTable, observed: boostedTable, factor: 1.48),
+               "a matching scaled transfer table reports no drift")
+        suite.expect(ExtraBrightnessSupport.gammaTableDrifted(
+                   baseline: baselineTable, observed: baselineTable, factor: 1.48),
+               "a display LUT reset back to SDR 1.0 is detected as drift")
+        suite.expect(ExtraBrightnessSupport.gammaTableDrifted(
+                   baseline: baselineTable,
+                   observed: .init(red: boostedTable.red, green: boostedTable.green, blue: linearRamp),
+                   factor: 1.48),
+               "drift on a single color channel is detected")
+        var bentMid = boostedTable.red
+        bentMid[512] = linearRamp[512]
+        suite.expect(ExtraBrightnessSupport.gammaTableDrifted(
+                   baseline: baselineTable,
+                   observed: .init(red: bentMid, green: boostedTable.green, blue: boostedTable.blue),
+                   factor: 1.48),
+               "a midpoint curve change with an unchanged endpoint is detected as drift")
+        suite.expect(ExtraBrightnessSupport.gammaTableDrifted(
+                   baseline: baselineTable, observed: truncated256, factor: 1.48),
+               "a sample count mismatch is treated as drift")
+        let firstStepBoosted = ExtraBrightnessSupport.expectedBoostedNativeTable(from: baselineTable, factor: 1.03)
+        suite.expect(!ExtraBrightnessSupport.canClearPendingRestore(
+                   baseline: baselineTable, appliedFactor: 1.03, observed: firstStepBoosted),
+               "a surviving 1.03 first-step boost cannot clear a pending restore or be captured as a clean baseline")
+        suite.expect(ExtraBrightnessSupport.canClearPendingRestore(
+                   baseline: baselineTable, appliedFactor: 1.03, observed: baselineTable),
+               "readback matching the clean baseline clears a pending restore once the old 1.03 boost is gone")
+        let nonlinearCurve: [CGGammaValue] = (0..<1024).map { CGGammaValue(0.92 * pow(Double($0) / 1023.0, 0.25)) }
+        let nonlinearBaseline = ExtraBrightnessSupport.GammaTable(
+            red: nonlinearCurve, green: nonlinearCurve, blue: nonlinearCurve)
+        let nonlinearWrittenNative = ExtraBrightnessSupport.expectedBoostedNativeTable(
+            from: nonlinearBaseline, factor: 1.03)
+        suite.expect(!ExtraBrightnessSupport.gammaTableDrifted(
+                   baseline: nonlinearBaseline, observed: nonlinearWrittenNative, factor: 1.03),
+               "a nonlinear calibrated curve matches its 1024 -> 256 -> 1024 boost round-trip without false drift")
+        suite.expect(!ExtraBrightnessSupport.canClearPendingRestore(
+                   baseline: nonlinearBaseline, appliedFactor: 1.03, observed: nonlinearWrittenNative)
+               && !ExtraBrightnessSupport.canAdoptProfileBaseline(
+                   previousBaseline: nonlinearBaseline, appliedFactor: 1.03, observed: nonlinearWrittenNative),
+               "a surviving 1.03 boost on a nonlinear curve is never mistaken for a clean baseline or new profile")
+        let warmGreen = linearRamp.map { $0 * 0.94 }
+        let warmBlue = linearRamp.map { $0 * 0.88 }
+        let newProfileTable = ExtraBrightnessSupport.GammaTable(red: linearRamp, green: warmGreen, blue: warmBlue)
+        suite.expect(ExtraBrightnessSupport.canAdoptProfileBaseline(
+                   previousBaseline: baselineTable, appliedFactor: 1.48, observed: newProfileTable),
+               "a different clean profile curve is adopted once readback no longer carries the old boost")
+        suite.expect(!ExtraBrightnessSupport.canAdoptProfileBaseline(
+                   previousBaseline: baselineTable, appliedFactor: 1.03, observed: firstStepBoosted),
+               "profile invalidation never adopts a table still carrying this service's boost")
+        suite.expect(ExtraBrightnessSupport.pendingRestoreAction(
+                   baseline: baselineTable, appliedFactor: 1.48, observed: newProfileTable) == .clearWithoutWrite,
+               "a pending restore inspects live readback first and does not overwrite a newly loaded clean profile")
+        suite.expect(ExtraBrightnessSupport.pendingRestoreAction(
+                   baseline: baselineTable, appliedFactor: 1.03, observed: firstStepBoosted) == .replayBaseline
+               && ExtraBrightnessSupport.pendingRestoreAction(
+                   baseline: baselineTable, appliedFactor: 1.03, observed: nil) == .replayBaseline,
+               "a pending restore replays the saved baseline while the old boost survives or readback is unavailable")
+        suite.expect(ExtraBrightnessSupport.pendingRestoreRetryDelay(attempt: 0) == 0.25
+               && ExtraBrightnessSupport.pendingRestoreRetryDelay(attempt: 1) == 0.5
+               && ExtraBrightnessSupport.pendingRestoreRetryDelay(attempt: 99)
+                   == ExtraBrightnessSupport.pendingRestoreRetryDelays.last,
+               "off-state restore retries back off smoothly and stay bounded without stopping")
+        suite.expect(ExtraBrightnessSupport.observedBoostActive(baseline: baselineTable, observed: firstStepBoosted)
+               && !ExtraBrightnessSupport.observedBoostActive(baseline: baselineTable, observed: baselineTable),
+               "observed boost tracking distinguishes a boosted live LUT from a neutral reset")
+        suite.expect(ExtraBrightnessSupport.gammaAction(targetFactor: 1.0, appliedFactor: 1.0,
+                                                        currentEDR: 2.66, drifted: true) == .noop,
+               "a neutral target when nothing is applied never writes the gamma table")
+        suite.expect(ExtraBrightnessSupport.gammaAction(targetFactor: 1.0, appliedFactor: 1.48,
+                                                        currentEDR: 2.66, drifted: false) == .restore,
+               "dropping to neutral restores the captured baseline gamma table")
+        suite.expect(ExtraBrightnessSupport.gammaAction(targetFactor: 1.48, appliedFactor: 1.48,
+                                                        currentEDR: 2.66, drifted: false) == .noop,
+               "a settled boost with no drift avoids redundant gamma writes")
+        suite.expect(ExtraBrightnessSupport.gammaAction(targetFactor: 1.48, appliedFactor: 1.48,
+                                                        currentEDR: 2.66, drifted: true) == .apply(1.48),
+               "detected drift re-applies the settled boost factor while headroom is engaged")
+        suite.expect(ExtraBrightnessSupport.gammaAction(targetFactor: 1.30, appliedFactor: 1.0,
+                                                        currentEDR: 2.66, drifted: false) == .apply(1.30),
+               "a new boost factor writes the scaled gamma table")
+        suite.expect(ExtraBrightnessSupport.gammaAction(targetFactor: 1.58, appliedFactor: 1.58,
+                                                        currentEDR: 1.0, drifted: true) == .restore
+               && ExtraBrightnessSupport.gammaAction(targetFactor: 1.58, appliedFactor: 1.58,
+                                                     currentEDR: 1.04, drifted: true) == .restore,
+               "no boosted table is ever applied when EDR headroom is at or below the threshold even on drift")
+        let highPeakRamp = linearRamp.map { $0 * 1.04 }
+        let highPeakBaseline = ExtraBrightnessSupport.GammaTable(
+            red: highPeakRamp, green: highPeakRamp, blue: highPeakRamp)
+        let highPeakDecision = ExtraBrightnessSupport.effectiveGammaAction(
+            level: 1.0, currentEDR: 1.06, potentialEDR: 16.0, reference: panel600,
+            previousFactor: 1.0, appliedFactor: 1.0,
+            baselinePeak: Double(ExtraBrightnessSupport.gammaTablePeak(highPeakBaseline)),
+            immediate: true, drifted: false)
+        if case .apply(let cappedFactor) = highPeakDecision.action {
+            let writtenPeak = Double(ExtraBrightnessSupport.gammaTablePeak(
+                ExtraBrightnessSupport.boostTransferTable(from: highPeakBaseline, factor: cappedFactor)))
+            suite.expect(writtenPeak <= 1.0601 && abs(cappedFactor - (1.06 / 1.04)) < 0.0001,
+                   "headroom capping accounts for the baseline peak so no written sample exceeds current EDR")
+        } else {
+            suite.expect(false,
+                   "headroom capping accounts for the baseline peak so no written sample exceeds current EDR")
         }
-        var ebFactor = 1.48
-        var ebLow = 0
-        for ebEngaged in [true, false, false, false, true, true] {
-            ebLow = ebEngaged ? 0 : ebLow + 1
-            let ebTarget = ExtraBrightnessSupport.gracedTarget(instantaneous: ebEngaged ? 1.48 : 1.10,
-                                                               previous: ebFactor,
-                                                               engaged: ebEngaged, disengagedTicks: ebLow)
-            ebFactor = ExtraBrightnessSupport.rampedFactor(previous: ebFactor, target: ebTarget)
-            suite.expect(ebFactor == 1.48,
-                   "a fullscreen transition blackout leaves the boost visually untouched")
-        }
-        var ebDrop = 1.48
-        var ebDropLow = 0
-        var ebBiggestStep = 0.0
-        for _ in 0..<12 {
-            ebDropLow += 1
-            let ebTarget = ExtraBrightnessSupport.gracedTarget(instantaneous: 1.10, previous: ebDrop,
-                                                               engaged: false, disengagedTicks: ebDropLow)
-            let ebNext = ExtraBrightnessSupport.rampedFactor(previous: ebDrop, target: ebTarget)
-            ebBiggestStep = max(ebBiggestStep, ebDrop - ebNext)
-            ebDrop = ebNext
-        }
-        suite.expect(ebDrop >= 1.10 && ebDrop < 1.13 && ebBiggestStep < 0.0951,
-               "a real revocation ramps the boost down over seconds without one visible slam")
+        let noHeadroomFirstTick = ExtraBrightnessSupport.effectiveGammaAction(
+            level: 1.0, currentEDR: 1.0, potentialEDR: 16.0, reference: panel500,
+            previousFactor: 1.58, appliedFactor: 1.58, immediate: false, drifted: true)
+        suite.expect(noHeadroomFirstTick.nextFactor == 1.0 && noHeadroomFirstTick.action == .restore,
+               "composed decision restores immediately on the first low-headroom tick even if drifted")
+        let noHeadroomLaterTick = ExtraBrightnessSupport.effectiveGammaAction(
+            level: 1.0, currentEDR: 1.0, potentialEDR: 16.0, reference: panel500,
+            previousFactor: 1.58, appliedFactor: 1.0, immediate: false, drifted: false)
+        suite.expect(noHeadroomLaterTick.nextFactor == 1.0 && noHeadroomLaterTick.action == .noop,
+               "composed decision stays noop once restored while EDR headroom remains at 1.0")
+        let headroomDropped = ExtraBrightnessSupport.effectiveGammaAction(
+            level: 1.0, currentEDR: 1.20, potentialEDR: 16.0, reference: panel600,
+            previousFactor: 1.48, appliedFactor: 1.48, immediate: false, drifted: false)
+        suite.expect(abs(headroomDropped.nextFactor - 1.20) < 0.0001
+               && headroomDropped.action == .apply(headroomDropped.nextFactor),
+               "composed decision immediately caps the written factor at current headroom so whites never clip")
         var ebWobble = 1.48
         var ebWobbleStep = 0.0
         for tick in 0..<20 {

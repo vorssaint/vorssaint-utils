@@ -10,6 +10,7 @@ import Foundation
 final class QuickToolHotkey {
     private static var instances: [UInt32: QuickToolHotkey] = [:]
     private static var sharedHandler: EventHandlerRef?
+    private static var sharedReleaseHandler: EventHandlerRef?
 
     private let hotKeyID: UInt32
     private var hotKeyRef: EventHotKeyRef?
@@ -18,6 +19,7 @@ final class QuickToolHotkey {
     /// hears about this hotkey coming and going.
     private var claimedKey: String?
     var onPress: (() -> Void)?
+    var onRelease: (() -> Void)?
     var isRegistered: Bool { hotKeyRef != nil }
 
     init(id: UInt32) {
@@ -76,8 +78,8 @@ final class QuickToolHotkey {
 
     private static func installSharedHandlerIfNeeded() {
         guard sharedHandler == nil else { return }
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
-                                 eventKind: UInt32(kEventHotKeyPressed))
+        var pressSpec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
+                                      eventKind: UInt32(kEventHotKeyPressed))
         InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ -> OSStatus in
             var id = EventHotKeyID()
             if let event {
@@ -90,6 +92,22 @@ final class QuickToolHotkey {
             else { return OSStatus(eventNotHandledErr) }
             DispatchQueue.main.async { instance.onPress?() }
             return noErr
-        }, 1, &spec, nil, &sharedHandler)
+        }, 1, &pressSpec, nil, &sharedHandler)
+
+        var releaseSpec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
+                                        eventKind: UInt32(kEventHotKeyReleased))
+        InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ -> OSStatus in
+            var id = EventHotKeyID()
+            if let event {
+                GetEventParameter(event, EventParamName(kEventParamDirectObject),
+                                  EventParamType(typeEventHotKeyID), nil,
+                                  MemoryLayout<EventHotKeyID>.size, nil, &id)
+            }
+            guard id.signature == 0x5655_5154,
+                  let instance = QuickToolHotkey.instances[id.id]
+            else { return OSStatus(eventNotHandledErr) }
+            DispatchQueue.main.async { instance.onRelease?() }
+            return noErr
+        }, 1, &releaseSpec, nil, &sharedReleaseHandler)
     }
 }

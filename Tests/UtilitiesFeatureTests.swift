@@ -115,6 +115,415 @@ enum UtilitiesFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityPortManager] as? Bool == true,
                "the port manager panel row ships visible like its siblings and travels in backups")
 
+        // MARK: Meeting recorder (dual-track capture + auto-record policy)
+
+        var decider = MeetingAutoRecordDecider(ownPID: 999, gracePolls: 3)
+        let ownConsumer = MeetingMicConsumer(pid: 999, bundleID: "us.zoom.xos")
+        let siriConsumer = MeetingMicConsumer(pid: 42, bundleID: "com.apple.corespeechd")
+        let zoomConsumer = MeetingMicConsumer(pid: 500, bundleID: "us.zoom.xos")
+        let unknownConsumer = MeetingMicConsumer(pid: 600, bundleID: "com.example.voiceapp")
+        suite.expect(decider.tick(consumers: [ownConsumer, siriConsumer, unknownConsumer]) == .none,
+               "auto-record ignores own pid, denied speech daemons, and unknown non-call apps")
+        suite.expect(decider.tick(consumers: [zoomConsumer]) == .begin(trigger: zoomConsumer),
+               "a known call app opening the mic starts recording immediately")
+        suite.expect(decider.tick(consumers: []) == .none
+               && decider.tick(consumers: []) == .none,
+               "brief mic releases inside the grace window do not split a meeting")
+        suite.expect(decider.tick(consumers: [zoomConsumer]) == .none,
+               "the call app reclaiming the mic resets the quiet grace counter")
+        suite.expect(decider.tick(consumers: []) == .none
+               && decider.tick(consumers: []) == .none
+               && decider.tick(consumers: []) == .stop,
+               "three consecutive quiet polls end an auto-started meeting cleanly")
+        suite.expect(decider.tick(consumers: [zoomConsumer]) == .begin(trigger: zoomConsumer),
+               "a later call starts a fresh recording")
+        decider.noteRecordingStopped()
+        suite.expect(decider.tick(consumers: [zoomConsumer]) == .none
+               && decider.tick(consumers: [zoomConsumer]) == .none,
+               "manual stop suppresses re-triggering while the same call is still active")
+        suite.expect(decider.tick(consumers: []) == .none
+               && decider.tick(consumers: []) == .none
+               && decider.tick(consumers: []) == .none
+               && decider.tick(consumers: [zoomConsumer]) == .begin(trigger: zoomConsumer),
+               "suppression clears only after a full quiet grace so the next call records")
+
+        var health = MeetingStreamHealth(kickAfter: 2, wedgedAfter: 4, neverStartedAfter: 4)
+        suite.expect(health.observe(bytes: 0) == .pending
+               && health.observe(bytes: 1024) == .ok
+               && health.observe(bytes: 1024) == .quiet
+               && health.observe(bytes: 1024) == .stalled
+               && health.observe(bytes: 1024) == .quiet
+               && health.observe(bytes: 1024) == .wedged
+               && health.isWedged,
+               "stream health kicks once on stall and flags wedged only after sustained flat bytes")
+        suite.expect(health.observe(bytes: 2048) == .ok && !health.isWedged,
+               "resumed byte growth clears the wedged state")
+
+        var deadHealth = MeetingStreamHealth(kickAfter: 2, wedgedAfter: 4, neverStartedAfter: 3)
+        suite.expect(deadHealth.observe(bytes: 4096) == .pending
+               && deadHealth.observe(bytes: 4096) == .pending
+               && deadHealth.observe(bytes: 4096) == .stalled
+               && deadHealth.observe(bytes: 4096) == .neverStarted
+               && deadHealth.isWedged,
+               "a stream stuck before its first byte increase gets one kick attempt before reporting neverStarted")
+
+        suite.expect(MeetingRecorderSupport.shouldApplyDetectorStop(isRecording: true, sessionIsAutomatic: true)
+               && !MeetingRecorderSupport.shouldApplyDetectorStop(isRecording: true, sessionIsAutomatic: false)
+               && !MeetingRecorderSupport.shouldApplyDetectorStop(isRecording: false, sessionIsAutomatic: true),
+               "detector stop events end only auto-started sessions, never manual recordings")
+
+        suite.expect(MeetingRecorderSupport.silenceGapFrames(activeElapsedSeconds: 1.0, writtenFrames: 47_000,
+                                                             incomingFrames: 512, sampleRate: 48_000) == 0,
+               "normal audio callback jitter below 150 ms inserts no silence gap")
+        suite.expect(MeetingRecorderSupport.silenceGapFrames(activeElapsedSeconds: 5.0, writtenFrames: 48_000,
+                                                             incomingFrames: 480, sampleRate: 48_000) == 191_520,
+               "idle tap gaps insert exact silence frames to keep system audio aligned with the mic track")
+
+        let levels = MeetingLevelHistory(capacity: 16)
+        levels.ingest(peak: 0.4, frames: 2400, sampleRate: 48_000)
+        levels.ingest(peak: 0.8, frames: 2400, sampleRate: 48_000)
+        let snap = levels.snapshot(4)
+        suite.expect(snap.count == 4 && snap[0] == 0 && snap[1] == 0
+               && abs(snap[2] - 0.4) < 0.0001 && abs(snap[3] - 0.8) < 0.0001,
+               "level history left-pads young histories and preserves oldest-first block peaks")
+
+        let refDate = Date(timeIntervalSince1970: 1_764_168_000)
+        let stem = MeetingRecorderSupport.sessionStem(date: refDate, appName: "Microsoft Teams",
+                                                      timeZone: TimeZone(secondsFromGMT: 0)!)
+        suite.expect(stem.hasSuffix("-Microsoft-Teams") && !stem.contains(" "),
+               "meeting stems sanitize app names into clean filesystem paths")
+        suite.expect(MeetingRecorderSupport.uniqueSessionStem(
+            baseStem: stem,
+            existingFileNames: ["\(stem.lowercased())-mic.wav", "\(stem)-2-system.wav"]
+        ) == "\(stem)-3",
+               "duplicate session stems avoid case-variant collisions so existing WAVs are never overwritten")
+        suite.expect(MeetingRecorderSupport.uniqueSessionStem(
+            baseStem: "2026-11-26_10-00-00-σ",
+            fileExists: { $0 == "2026-11-26_10-00-00-σ-mic.wav" }
+        ) == "2026-11-26_10-00-00-σ-2",
+               "filesystem collision check avoids APFS Unicode-equivalent overwrites")
+        suite.expect(MeetingRecorderSupport.isRecorderStem("2026-11-26_10-00-00")
+               && MeetingRecorderSupport.isRecorderStem("2026-11-26_10-00-00-Zoom")
+               && MeetingRecorderSupport.isRecorderStem("2026-11-26_10-00-00-会議")
+               && !MeetingRecorderSupport.isRecorderStem("podcast")
+               && !MeetingRecorderSupport.isRecorderStem("2026-11-26_10-00-00-"),
+               "recorder stem check matches recorder-generated timestamp names including Unicode app labels")
+        suite.expect(MeetingRecorderSupport.elapsedLabel(seconds: 65) == "1:05"
+               && MeetingRecorderSupport.elapsedLabel(seconds: 3661) == "1:01:01",
+               "elapsed timer formats minutes and hours cleanly")
+        suite.expect(MeetingRecorderSupport.isMicSilent(peakDb: -80)
+               && !MeetingRecorderSupport.isMicSilent(peakDb: -40),
+               "silent mic threshold distinguishes dead silence from speech")
+        let scanned = MeetingRecorderSupport.scanRecordings(
+            fileNames: [
+                "2026-11-26_10-00-00-Zoom-system.wav",
+                "2026-11-26_10-00-00-Zoom-mic.wav",
+                "2026-11-26_11-00-00-Slack-mic.wav",
+                "2026-11-26_12-00-00-Active-system.wav",
+                "podcast-mic.wav",
+                "notes.txt",
+            ],
+            sizes: [
+                "2026-11-26_10-00-00-Zoom-system.wav": 1000,
+                "2026-11-26_10-00-00-Zoom-mic.wav": 500,
+                "2026-11-26_11-00-00-Slack-mic.wav": 300,
+                "podcast-mic.wav": 9999,
+            ],
+            dates: [
+                "2026-11-26_10-00-00-Zoom-system.wav": refDate,
+                "2026-11-26_10-00-00-Zoom-mic.wav": refDate,
+                "2026-11-26_11-00-00-Slack-mic.wav": refDate.addingTimeInterval(3600),
+                "podcast-mic.wav": refDate.addingTimeInterval(7200),
+            ],
+            excludingStem: "2026-11-26_12-00-00-Active"
+        )
+        suite.expect(scanned.count == 2
+               && scanned[0].label == "Slack" && !scanned[0].hasSystemTrack && scanned[0].hasMicTrack
+               && scanned[1].label == "Zoom" && scanned[1].hasSystemTrack && scanned[1].hasMicTrack
+               && scanned[1].totalBytes == 1500,
+               "recording scanner pairs recorder-generated tracks newest-first, ignores unrelated WAVs, and hides active sessions")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.meetingRecorderAutoRecord] as? Bool == false
+               && Defaults.registeredDefaults[DefaultsKey.meetingRecorderEchoCancellation] as? Bool == true
+               && Defaults.registeredDefaults[DefaultsKey.panelUtilityMeetingRecorder] as? Bool == true
+               && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.meetingRecorderSaveFolder)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.meetingRecorderAutoRecord),
+               "meeting recorder defaults and backup classification keep folder paths machine-local")
+        for lang in AppLanguage.allCases {
+            let ms = FeatureStrings.meetingRecorder(lang)
+            suite.expect(!ms.title.isEmpty && !ms.hubDescription.isEmpty
+                   && !ms.autoRecordToggle.isEmpty && !ms.startButton.isEmpty
+                   && !ms.noAudioCapturedError.isEmpty,
+                   "meeting recorder strings are populated in \(lang)")
+        }
+
+        // MARK: Audio transcription (Parakeet Unified English 0.6B)
+
+        suite.expect(AudioTranscriptionSupport.requiredModelFiles.count == 18
+               && AudioTranscriptionSupport.totalExpectedModelBytes > 600_000_000,
+               "Parakeet Unified English 0.6B manifest pins all 18 Core ML model artifacts")
+        suite.expect(AudioTranscriptionSupport.isSupportedAudioURL(URL(fileURLWithPath: "/tmp/call.wav"))
+               && AudioTranscriptionSupport.isSupportedAudioURL(URL(fileURLWithPath: "/tmp/memo.M4A"))
+               && AudioTranscriptionSupport.isSupportedAudioURL(URL(fileURLWithPath: "/tmp/clip.mp4"))
+               && !AudioTranscriptionSupport.isSupportedAudioURL(URL(fileURLWithPath: "/tmp/notes.txt")),
+               "transcription drop filter accepts supported audio/video files and rejects non-media")
+
+        let sampleVocabData = Data(#"{"0":"<unk>","1":"▁Hello","2":"▁world","3":".","4":"▁0","5":".","6":"6","7":"▁billion","8":"▁next"}"#.utf8)
+        let parsedVocab = (try? AudioTranscriptionSupport.parseVocabulary(data: sampleVocabData)) ?? [:]
+        suite.expect(parsedVocab[1] == "▁Hello" && parsedVocab[6] == "6",
+               "Parakeet vocab.json parses SentencePiece token IDs cleanly")
+
+        let leftTokens = [
+            AudioTranscriptionSupport.EmittedToken(id: 1, frame: 10, probability: 0.9),
+            AudioTranscriptionSupport.EmittedToken(id: 2, frame: 160, probability: 0.9),
+            AudioTranscriptionSupport.EmittedToken(id: 3, frame: 165, probability: 0.9),
+        ]
+        let rightTokens = [
+            AudioTranscriptionSupport.EmittedToken(id: 2, frame: 161, probability: 0.95),
+            AudioTranscriptionSupport.EmittedToken(id: 3, frame: 166, probability: 0.95),
+            AudioTranscriptionSupport.EmittedToken(id: 8, frame: 190, probability: 0.95),
+        ]
+        let mergedTokens = AudioTranscriptionSupport.mergeWindowTokens(
+            existing: leftTokens,
+            incoming: rightTokens,
+            overlapStartFrame: 155,
+            overlapEndFrame: 180
+        )
+        suite.expect(mergedTokens.map(\.id) == [1, 2, 3, 8],
+               "overlapping 15s windows anchor on matching seam tokens without duplicating boundary words")
+
+        let decimalTokens = [
+            AudioTranscriptionSupport.EmittedToken(id: 1, frame: 0, probability: 0.9),
+            AudioTranscriptionSupport.EmittedToken(id: 4, frame: 5, probability: 0.9),
+            AudioTranscriptionSupport.EmittedToken(id: 5, frame: 14, probability: 0.9),
+            AudioTranscriptionSupport.EmittedToken(id: 6, frame: 15, probability: 0.9),
+            AudioTranscriptionSupport.EmittedToken(id: 7, frame: 18, probability: 0.9),
+        ]
+        let decimalSegs = AudioTranscriptionSupport.segments(from: decimalTokens, vocabulary: parsedVocab)
+        suite.expect(decimalSegs.count == 1 && decimalSegs[0].text == "Hello 0.6 billion",
+               "decimal numbers like 0.6 are not split into separate sentences")
+
+        let mergedMeeting = AudioTranscriptionSupport.mergeSpeakerSegments(
+            systemSegments: [
+                AudioTranscriptionSupport.TranscriptSegment(speaker: "Others", text: "Hi there.", startSeconds: 4.0, endSeconds: 5.5),
+            ],
+            micSegments: [
+                AudioTranscriptionSupport.TranscriptSegment(speaker: "You", text: "Hello!", startSeconds: 1.0, endSeconds: 2.0),
+                AudioTranscriptionSupport.TranscriptSegment(speaker: "You", text: "Sounds good.", startSeconds: 8.0, endSeconds: 9.0),
+            ]
+        )
+        let formattedMeeting = AudioTranscriptionSupport.formatTranscript(segments: mergedMeeting, includeTimestamps: true)
+        suite.expect(formattedMeeting == "[0:01] You: Hello!\n[0:04] Others: Hi there.\n[0:08] You: Sounds good.",
+               "dual-track meeting transcripts merge speakers chronologically with timestamps")
+
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.meetingRecorderAutoTranscribe] as? Bool == false
+               && Defaults.registeredDefaults[DefaultsKey.panelUtilityAudioTranscription] as? Bool == true
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionIncludeTimestamps] as? Bool == true
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionSaveBesideAudio] as? Bool == true
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionComputeMode] as? String == ParakeetComputeMode.auto.rawValue
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionSummaryEnabled] as? Bool == false
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionSummaryPrompt] as? String == AudioTranscriptionSupport.defaultSummaryPrompt
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionDictationEnabled] as? Bool == false
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionDictationShortcut] as? String == GlobalShortcut.voiceDictationDefault.storageValue
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.meetingRecorderAutoTranscribe)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionComputeMode)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionSummaryEnabled)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionSummaryPrompt)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionDictationEnabled)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionDictationShortcut),
+               "audio transcription defaults, summary, dictation, and backup export keys are registered cleanly")
+        suite.expect(AudioTranscriptionSupport.resolvedSummaryPrompt("   \n  ") == AudioTranscriptionSupport.defaultSummaryPrompt
+               && AudioTranscriptionSupport.resolvedSummaryPrompt("  List only action items.  ") == "List only action items.",
+               "custom summary prompts trim cleanly and fall back to default when blank")
+        suite.expect(AudioTranscriptionSupport.summaryFileURL(forAudioURL: URL(fileURLWithPath: "/tmp/demo.wav")).path == "/tmp/demo-summary.md"
+               && AudioTranscriptionSupport.meetingSummaryFileURL(stem: "2026-04-01_10-00-00-zoom", in: URL(fileURLWithPath: "/tmp")).path == "/tmp/2026-04-01_10-00-00-zoom-summary.md",
+               "summary output paths sit beside standalone audio and meeting recordings")
+        let sampleTranscript = """
+        [0:01] You: We decided to ship the Core ML transcription engine this Friday.
+        [0:08] Others: Sounds great, I will update the release notes and QA checklist today.
+        [0:15] You: Also remember to add the custom summary prompt field before opening the PR.
+        [0:22] Others: Agreed, action item noted for the settings screen.
+        """
+        let fallbackSummary = AudioTranscriptionSupport.fallbackExtractiveSummary(
+            transcript: sampleTranscript,
+            prompt: "Summarize key decisions and action items"
+        )
+        suite.expect(!fallbackSummary.isEmpty && !fallbackSummary.contains("[0:01]"),
+               "local extractive summary produces clean bullet output without raw timestamps")
+        let longTranscript = Array(repeating: "This is a sentence from a long meeting transcript.", count: 300).joined(separator: "\n")
+        let chunks = AudioTranscriptionSupport.summaryChunks(for: longTranscript, maxCharacters: 1_000)
+        suite.expect(chunks.count > 1 && chunks.allSatisfy { $0.count <= 1_000 },
+               "long transcripts split cleanly within bounded chunk size")
+        suite.expect(GlobalShortcutRole.voiceDictation.storageKey == DefaultsKey.audioTranscriptionDictationShortcut
+               && GlobalShortcutRole.voiceDictation.defaultShortcut == .voiceDictationDefault
+               && GlobalShortcutRole.voiceDictation.requiredEnableKeys == [DefaultsKey.audioTranscriptionDictationEnabled]
+               && GlobalShortcutRole.voiceDictation.feature == .audioTranscription,
+               "voice dictation global shortcut role wires cleanly to audioTranscription")
+
+        // Chrome/browser helper call detection & startup baseline tests.
+        suite.expect(MeetingRecorderSupport.normalizedCallBundleID("com.google.Chrome.helper") == "com.google.Chrome"
+               && MeetingRecorderSupport.normalizedCallBundleID("com.google.Chrome.helper.renderer") == "com.google.Chrome"
+               && MeetingRecorderSupport.normalizedCallBundleID("com.apple.WebKit.GPU") == "com.apple.Safari"
+               && MeetingRecorderSupport.normalizedCallBundleID("org.mozilla.plugincontainer") == "org.mozilla.firefox"
+               && MeetingRecorderSupport.normalizedCallBundleID("us.zoom.caphost") == "us.zoom.xos"
+               && MeetingRecorderSupport.isKnownCallBundleID("com.google.Chrome.helper"),
+               "browser and conferencing helper bundle IDs normalize to their owning call app")
+        suite.expect(MeetingRecorderSupport.browserCallLabel(
+            baseName: "Chrome",
+            windowTitles: ["(1) WhatsApp - Google Chrome"]
+        ) == "WhatsApp (Chrome)"
+               && MeetingRecorderSupport.browserCallLabel(
+                   baseName: "Chrome",
+                   windowTitles: ["Meet - abc-defg-hij - Google Chrome"]
+               ) == "Google Meet (Chrome)",
+               "browser call labels refine WhatsApp Web and Google Meet window titles")
+        var chromeHelperDecider = MeetingAutoRecordDecider(ownPID: 999, confirmPolls: 2, gracePolls: 2)
+        let chromeHelper = MeetingMicConsumer(pid: 512, bundleID: "com.google.Chrome.helper")
+        suite.expect(chromeHelperDecider.tick(consumers: [chromeHelper]) == .begin(trigger: chromeHelper),
+               "WhatsApp Web / browser helper mic consumers trigger auto-recording immediately")
+        var baselineDecider = MeetingAutoRecordDecider(ownPID: 999, confirmPolls: 2, gracePolls: 2)
+        let alwaysOnUtility = MeetingMicConsumer(pid: 101, bundleID: "com.example.utility")
+        let newCallApp = MeetingMicConsumer(pid: 202, bundleID: "com.example.customcall")
+        suite.expect(baselineDecider.tick(consumers: [alwaysOnUtility]) == .none
+               && baselineDecider.tick(consumers: [alwaysOnUtility]) == .none,
+               "unknown always-on mic consumers present at startup are baselined away")
+        suite.expect(baselineDecider.tick(consumers: [alwaysOnUtility, newCallApp]) == .none
+               && baselineDecider.tick(consumers: [alwaysOnUtility, newCallApp]) == .begin(trigger: newCallApp),
+               "newly active unknown mic consumers confirm after two consecutive polls")
+
+        // Hebrew specialist model (ivrit.ai Core ML), language routing, RTL, VAD, BPE & hallucination filter.
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.meetingRecorderShowIndicator] as? Bool == false,
+               "meeting recording stays off-screen by default without floating overlays")
+        let indicatorSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Recorder/RecorderIndicator.swift", encoding: .utf8)) ?? ""
+        let hudSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/QuickTools/QuickToolHUD.swift", encoding: .utf8)) ?? ""
+        suite.expect(indicatorSource.contains("panel.sharingType = .none")
+               && hudSource.contains("panel.sharingType = .none"),
+               "recording indicator and HUD overlays exclude themselves from screen capture and screen sharing")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.audioTranscriptionModelChoice] as? String == TranscriptionModelChoice.auto.rawValue
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionModelChoice)
+               && AudioTranscriptionSupport.ivritRequiredModelFiles.count == 17
+               && AudioTranscriptionSupport.totalExpectedIvritModelBytes > 850_000_000
+               && AudioTranscriptionSupport.ivritDownloadURL(for: "config.json").absoluteString
+                   == "https://huggingface.co/eranshir/ivrit-ai-whisper-large-v3-turbo-coreml-int8/resolve/main/config.json",
+               "ivrit.ai Hebrew model choice default, Core ML manifest, and Hugging Face URL are registered cleanly")
+        suite.expect(AudioTranscriptionSupport.routeModel(choice: .auto, detectedLanguage: "he", confidence: 0.9, parakeetReady: true, ivritReady: true) == .ivritHebrew
+               && AudioTranscriptionSupport.routeModel(choice: .auto, detectedLanguage: "he", confidence: 0.4, parakeetReady: true, ivritReady: true) == .parakeetEnglish
+               && AudioTranscriptionSupport.routeModel(choice: .auto, detectedLanguage: "en", confidence: 0.95, parakeetReady: true, ivritReady: true) == .parakeetEnglish
+               && AudioTranscriptionSupport.routeModel(choice: .auto, detectedLanguage: "he", confidence: 0.95, parakeetReady: true, ivritReady: false) == .parakeetEnglish
+               && AudioTranscriptionSupport.routeModel(choice: .ivritHebrew, detectedLanguage: "en", confidence: 1.0, parakeetReady: true, ivritReady: true) == .ivritHebrew,
+               "confidence-gated auto language routing picks ivrit.ai for Hebrew and Parakeet for English")
+        suite.expect(AudioTranscriptionSupport.isPredominantlyHebrew("שלום עולם אמרתי Cursor")
+               && !AudioTranscriptionSupport.isPredominantlyHebrew("Hello world"),
+               "Hebrew RTL detection identifies predominantly Hebrew text even with embedded English words")
+        let hebrewWord = "שלום"
+        let hebrewBytes = Array(hebrewWord.utf8)
+        let byteToUnicode = Dictionary(uniqueKeysWithValues: AudioTranscriptionSupport.gpt2UnicodeToByte.map { ($1, $0) })
+        let bpeToken = String(hebrewBytes.compactMap { byteToUnicode[$0] })
+        suite.expect(AudioTranscriptionSupport.decodeWhisperTokens([42], vocab: [42: bpeToken]) == hebrewWord,
+               "Whisper GPT-2 byte-BPE decoder round-trips multi-byte Hebrew UTF-8 cleanly")
+        let filteredHallucinations = AudioTranscriptionSupport.filterHallucinations([
+            .init(text: "תודה רבה", startSec: 0, endSec: 25, avgProb: 0.9),
+            .init(text: "Thank you.", startSec: 0, endSec: 12, avgProb: 0.7),
+            .init(text: "שלום, מה נשמע היום?", startSec: 1, endSec: 3, avgProb: 0.92),
+        ])
+        suite.expect(filteredHallucinations.count == 1 && filteredHallucinations[0].text == "שלום, מה נשמע היום?",
+               "Whisper hallucination filter drops stretched Hebrew/English noise filler and keeps genuine speech")
+        var vadSamples = [Float](repeating: 0, count: 16_000 * 6)
+        for i in (16_000 * 2)..<(16_000 * 4) { vadSamples[i] = 0.25 * sin(Float(i) * 0.1) }
+        let vadRegions = AudioTranscriptionSupport.speechRegions(in: vadSamples)
+        suite.expect(vadRegions.count == 1 && vadRegions[0].startSec > 1.0 && vadRegions[0].endSec < 5.0,
+               "energy VAD isolates active speech regions from surrounding silence")
+
+        // Per-segment bilingual ("Heblish") chunking, timestamp shifting, and mixed-language summarization.
+        var bilingualSamples = [Float](repeating: 0, count: 16_000 * 10)
+        for i in (16_000 * 1)..<(16_000 * 3) { bilingualSamples[i] = 0.25 * sin(Float(i) * 0.1) }
+        for i in (16_000 * 6)..<(16_000 * 8) { bilingualSamples[i] = 0.25 * sin(Float(i) * 0.12) }
+        let routingChunks = AudioTranscriptionSupport.languageRoutingChunks(in: bilingualSamples)
+        suite.expect(routingChunks.count == 2
+               && routingChunks[0].endSec < routingChunks[1].startSec,
+               "per-segment language routing splits separated bilingual utterances into distinct chunks")
+        let shiftedSegs = AudioTranscriptionSupport.shiftSegments([
+            .init(speaker: "You", text: "שלום", startSeconds: 0.5, endSeconds: 1.5),
+        ], by: 10.0)
+        suite.expect(shiftedSegs.count == 1
+               && abs(shiftedSegs[0].startSeconds - 10.5) < 0.001
+               && abs(shiftedSegs[0].endSeconds - 11.5) < 0.001,
+               "segment timestamp shifting aligns chunk outputs with the original audio timeline")
+        suite.expect(AudioTranscriptionSupport.summarizeDetectedLanguages(["en", "he"]) == "mixed"
+               && AudioTranscriptionSupport.summarizeDetectedLanguages(["he", "he"]) == "he"
+               && AudioTranscriptionSupport.summarizeDetectedLanguages(["en"]) == "en"
+               && AudioTranscriptionSupport.summarizeDetectedLanguages([]) == nil,
+               "detected language summarization identifies mixed English & Hebrew recordings")
+
+        // Hold-to-talk dictation trigger mode & Carbon hotkey release support.
+        let hotkeySource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/QuickTools/QuickToolHotkey.swift", encoding: .utf8)) ?? ""
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.audioTranscriptionDictationMode] as? String == DictationTriggerMode.toggle.rawValue
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionDictationMode)
+               && hotkeySource.contains("kEventHotKeyReleased")
+               && hotkeySource.contains("onRelease"),
+               "hold-to-talk dictation trigger mode and hotkey key-up dispatch are registered")
+
+        // Meeting Recorder one-click summary access.
+        let meetingPanelSource = (try? String(contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/PanelMeetingRecorderView.swift", encoding: .utf8)) ?? ""
+        suite.expect(meetingPanelSource.contains("service.summaryURL(for: item)")
+               && meetingPanelSource.contains("service.openSummary(item)"),
+               "Meeting Recorder panel rows expose one-click summary opening when a summary exists")
+
+        // Local CLI subscription summary providers & update management.
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.audioTranscriptionSummaryProvider] as? String == SummaryInferenceProvider.auto.rawValue
+               && Defaults.registeredDefaults[DefaultsKey.audioTranscriptionSummaryProviderUpdateChecks] as? Bool == true
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionSummaryProvider)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.audioTranscriptionSummaryModel),
+               "summary inference provider defaults are registered and included in settings backup")
+        suite.expect(SummaryProviderSupport.parseSemanticVersion(from: "2.1.332 (Claude Code)") == "2.1.332"
+               && SummaryProviderSupport.parseSemanticVersion(from: "codex-cli 0.172.0") == "0.172.0"
+               && SummaryProviderSupport.isVersion("2.2.0", newerThan: "2.1.332")
+               && !SummaryProviderSupport.isVersion("2.1.332", newerThan: "2.1.332"),
+               "summary provider semantic version parsing and update comparisons work accurately")
+        suite.expect(SummaryProviderSupport.detectInstallMethod(provider: .claude, executablePath: "/Users/me/.local/bin/claude") == .claudeNative
+               && SummaryProviderSupport.detectInstallMethod(provider: .gemini, executablePath: "/Users/me/.bun/bin/gemini") == .bun
+               && SummaryProviderSupport.detectInstallMethod(provider: .ollama, executablePath: "/opt/homebrew/bin/ollama") == .homebrew,
+               "summary provider install method detection picks the matching updater per binary path")
+        let claudeUpdate = SummaryProviderSupport.updateCommand(for: .claude, executablePath: "/Users/me/.local/bin/claude")
+        let geminiUpdate = SummaryProviderSupport.updateCommand(for: .gemini, executablePath: "/Users/me/.bun/bin/gemini") { tool in
+            tool == "bun" ? "/Users/me/.bun/bin/bun" : nil
+        }
+        suite.expect(claudeUpdate?.arguments == ["update"]
+               && geminiUpdate?.arguments == ["add", "-g", "@google/gemini-cli@latest"],
+               "summary provider update commands match native and package-manager installs")
+        let claudeSummary = SummaryProviderSupport.summaryCommand(for: .claude, executablePath: "/usr/local/bin/claude", model: "sonnet", transcript: "Hello", instructions: "Summarize")
+        let codexSummary = SummaryProviderSupport.summaryCommand(for: .codex, executablePath: "/usr/local/bin/codex", model: "gpt-5.4-mini", transcript: "Hello", instructions: "Summarize", codexOutputFile: "/tmp/out.txt")
+        let geminiSummary = SummaryProviderSupport.summaryCommand(for: .gemini, executablePath: "/usr/local/bin/gemini", model: "gemini-2.5-flash", transcript: "Hello", instructions: "Summarize")
+        suite.expect(claudeSummary?.arguments.contains("--no-session-persistence") == true
+               && claudeSummary?.arguments.contains("--tools") == true
+               && codexSummary?.arguments.contains("--ephemeral") == true
+               && codexSummary?.arguments.contains("-o") == true
+               && geminiSummary?.arguments.contains("-p") == true,
+               "headless summary CLI commands disable persistence/tools and pass transcripts via stdin")
+        suite.expect(SummaryProviderSupport.autoResolutionOrder(availableCLIProviders: [.codex, .gemini], ollamaReady: true)
+                   == [.codex, .gemini, .ollama, .appleIntelligence],
+               "auto summary provider cascade prefers installed CLI subscriptions, then Ollama, then Apple Intelligence")
+        let ollamaJSON = #"{"models":[{"name":"qwen2.5:7b"},{"name":"gemma3:4b"}]}"#.data(using: .utf8)!
+        suite.expect(SummaryProviderSupport.parseOllamaModels(data: ollamaJSON).map(\.id) == ["gemma3:4b", "qwen2.5:7b"],
+               "Ollama tag parser returns sorted local model options")
+        let npmJSON = #"{"name":"@openai/codex","version":"0.175.0"}"#.data(using: .utf8)!
+        suite.expect(SummaryProviderSupport.parseNpmLatestVersion(data: npmJSON) == "0.175.0",
+               "npm latest registry parser extracts CLI update version cleanly")
+
+        for lang in AppLanguage.allCases {
+            let ts = FeatureStrings.audioTranscription(lang)
+            let extras = FeatureStrings.audioTranscriptionExtras(lang)
+            let models = FeatureStrings.transcriptionModels(lang)
+            let providers = FeatureStrings.summaryProviders(lang)
+            suite.expect(!ts.title.isEmpty && !ts.hubDescription.isEmpty
+                   && !ts.dropTitle.isEmpty && !ts.autoTranscribeToggle.isEmpty
+                   && !ts.downloadModelButton.isEmpty
+                   && !extras.summaryToggle.isEmpty && !extras.summaryPromptLabel.isEmpty
+                   && !extras.dictationToggle.isEmpty && !extras.startDictationButton.isEmpty
+                   && !models.modelAuto.isEmpty && !models.ivritModelTitle.isEmpty
+                   && !providers.dictationModeHold.isEmpty && !providers.summaryProviderClaude.isEmpty && !providers.openSummaryTooltip.isEmpty,
+                   "audio transcription, extras, model, and summary provider strings are populated in \(lang)")
+        }
+
         // MARK: Port manager row numbers
 
         // An integer interpolated into Text("…") is formatted for the locale, so

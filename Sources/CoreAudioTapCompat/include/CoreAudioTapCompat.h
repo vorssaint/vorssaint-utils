@@ -58,6 +58,19 @@ static inline NSUUID * _Nullable VorssaintCreatePrivateTap(
     return uuid;
 }
 
+/// Runs `block` inside an Objective-C `@try/@catch` and returns the exception
+/// description if one was raised (for example `AVAudioEngine.inputNode`
+/// throwing an NSException mid device-switch TOCTOU). Returns `nil` on success.
+static inline NSString * _Nullable VorssaintCatchNSException(void (NS_NOESCAPE ^block)(void))
+    NS_SWIFT_NAME(catchNSException(_:)) {
+    @try {
+        block();
+        return nil;
+    } @catch (NSException *exception) {
+        return exception.description ?: exception.name;
+    }
+}
+
 NS_ASSUME_NONNULL_END
 
 #endif

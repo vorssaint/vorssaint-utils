@@ -52,6 +52,7 @@ enum DefaultsKey {
     static let showCountdown = "showCountdownInMenuBar"
     static let statusItemPlacementGeneration = "statusItemPlacementGeneration"
     static let hasOnboarded = "hasOnboarded"
+    static let telemetryRefused = "telemetryRefused"
     static let sleepDisabledFlag = "vorssDisabledSleep"   // internal guard for pmset disablesleep
     static let dimmedDisplaySavedBrightness = "vorssDimmedDisplaySavedBrightness" // internal guard for closed-lid screen dimming recovery
     static let scrollInverterEnabled = "scrollInverterEnabled"
@@ -799,6 +800,26 @@ enum DefaultsKey {
     static let recorderSharingEnabled = "recorderSharingEnabled"
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
     static let panelUtilityPortManager = "panelUtilityPortManager"
+    static let panelUtilityMeetingRecorder = "panelUtilityMeetingRecorder"
+    static let panelUtilityAudioTranscription = "panelUtilityAudioTranscription"
+    static let meetingRecorderAutoRecord = "meetingRecorderAutoRecord"
+    static let meetingRecorderAutoTranscribe = "meetingRecorderAutoTranscribe"
+    static let meetingRecorderPerAppAudio = "meetingRecorderPerAppAudio"
+    static let meetingRecorderEchoCancellation = "meetingRecorderEchoCancellation"
+    static let meetingRecorderShowIndicator = "meetingRecorderShowIndicator"
+    static let meetingRecorderSaveFolder = "meetingRecorderSaveFolder"
+    static let audioTranscriptionIncludeTimestamps = "audioTranscriptionIncludeTimestamps"
+    static let audioTranscriptionSaveBesideAudio = "audioTranscriptionSaveBesideAudio"
+    static let audioTranscriptionComputeMode = "audioTranscriptionComputeMode"
+    static let audioTranscriptionModelChoice = "audioTranscriptionModelChoice"
+    static let audioTranscriptionSummaryEnabled = "audioTranscriptionSummaryEnabled"
+    static let audioTranscriptionSummaryPrompt = "audioTranscriptionSummaryPrompt"
+    static let audioTranscriptionSummaryProvider = "audioTranscriptionSummaryProvider"
+    static let audioTranscriptionSummaryModel = "audioTranscriptionSummaryModel"
+    static let audioTranscriptionSummaryProviderUpdateChecks = "audioTranscriptionSummaryProviderUpdateChecks"
+    static let audioTranscriptionDictationEnabled = "audioTranscriptionDictationEnabled"
+    static let audioTranscriptionDictationShortcut = "audioTranscriptionDictationShortcut"
+    static let audioTranscriptionDictationMode = "audioTranscriptionDictationMode"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -1367,6 +1388,7 @@ enum Defaults {
         DefaultsKey.previewSize: "normal",
         DefaultsKey.switcherPreviewSize: "normal",
         DefaultsKey.autoCheckUpdates: true,
+        DefaultsKey.telemetryRefused: false,
         DefaultsKey.includeBetaUpdates: false,
         DefaultsKey.releaseNotesOnUpdate: true,
         DefaultsKey.showReleaseNotesBeforeUpdate: true,
@@ -1948,6 +1970,26 @@ enum Defaults {
         DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.panelUtilityPortManager: true,
+        DefaultsKey.panelUtilityMeetingRecorder: true,
+        DefaultsKey.panelUtilityAudioTranscription: true,
+        DefaultsKey.meetingRecorderAutoRecord: false,
+        DefaultsKey.meetingRecorderAutoTranscribe: false,
+        DefaultsKey.meetingRecorderPerAppAudio: false,
+        DefaultsKey.meetingRecorderEchoCancellation: true,
+        DefaultsKey.meetingRecorderShowIndicator: false,
+        DefaultsKey.meetingRecorderSaveFolder: "",
+        DefaultsKey.audioTranscriptionIncludeTimestamps: true,
+        DefaultsKey.audioTranscriptionSaveBesideAudio: true,
+        DefaultsKey.audioTranscriptionComputeMode: ParakeetComputeMode.auto.rawValue,
+        DefaultsKey.audioTranscriptionModelChoice: TranscriptionModelChoice.auto.rawValue,
+        DefaultsKey.audioTranscriptionSummaryEnabled: false,
+        DefaultsKey.audioTranscriptionSummaryPrompt: AudioTranscriptionSupport.defaultSummaryPrompt,
+        DefaultsKey.audioTranscriptionSummaryProvider: SummaryInferenceProvider.auto.rawValue,
+        DefaultsKey.audioTranscriptionSummaryModel: "",
+        DefaultsKey.audioTranscriptionSummaryProviderUpdateChecks: true,
+        DefaultsKey.audioTranscriptionDictationEnabled: false,
+        DefaultsKey.audioTranscriptionDictationShortcut: GlobalShortcut.voiceDictationDefault.storageValue,
+        DefaultsKey.audioTranscriptionDictationMode: DictationTriggerMode.toggle.rawValue,
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,
@@ -2381,10 +2423,10 @@ enum Defaults {
     }
 
     /// The "show the desktop app without windows" toggle became one choice of
-    /// the windowless apps picker. Only an explicit off has to travel: the
-    /// picker ships on the same choice the toggle shipped on, so a setup that
-    /// never touched it keeps the switcher it already had. Clearing the old
-    /// toggle is what makes this run once and never fight a later choice.
+    /// the windowless apps picker. Only an explicit off had to travel; a setup
+    /// that never touched it leaves the picker unset so it follows the current
+    /// default. Clearing the old toggle is what makes this run once and never
+    /// fight a later choice.
     static func migrateSwitcherWindowlessFinder(in defaults: UserDefaults) {
         let showsWindowlessFinder = defaults.bool(forKey: DefaultsKey.switcherShowWindowlessFinder)
         guard !showsWindowlessFinder else { return }

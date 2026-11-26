@@ -190,6 +190,7 @@ enum SettingsBackupSupport {
         DefaultsKey.wallpaperOwnBookmarks,
         DefaultsKey.wallpaperExcludedOwnPaths,
         DefaultsKey.recorderSaveFolder,
+        DefaultsKey.meetingRecorderSaveFolder,
         DefaultsKey.screenshotSaveFolder,
         DefaultsKey.musicBlockReplacementPath,
         // A local watermark file is authority on this Mac, not portable data.

@@ -236,6 +236,7 @@ enum QuickToolHUD {
 
     private static func configure(_ panel: NSPanel) {
         panel.level = .statusBar
+        panel.sharingType = .none
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true

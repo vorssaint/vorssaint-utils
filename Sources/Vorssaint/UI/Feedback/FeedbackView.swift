@@ -7,6 +7,7 @@ struct FeedbackView: View {
     let onClose: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.telemetryRefused) private var telemetryRefused = false
     @State private var kind: FeedbackKind
     @State private var message = ""
     @State private var includeDiagnostics = false
@@ -14,14 +15,15 @@ struct FeedbackView: View {
     @State private var wasSent = false
     @State private var errorMessage: String?
 
-    private let diagnostics = FeedbackDiagnostics.current()
-
     init(initialKind: FeedbackKind = .bug, onClose: @escaping () -> Void) {
         _kind = State(initialValue: initialKind)
         self.onClose = onClose
     }
 
     private var strings: FeedbackStrings { FeatureStrings.feedback(l10n.language) }
+    private var telemetry: TelemetryPolicyStrings { FeatureStrings.telemetryPolicy(l10n.language) }
+    private var diagnosticsAllowed: Bool { !telemetryRefused }
+    private var effectiveIncludeDiagnostics: Bool { diagnosticsAllowed && includeDiagnostics }
     private var count: Int { message.utf16.count }
     private var canSend: Bool {
         let trimmedCount = message.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count
@@ -95,8 +97,12 @@ struct FeedbackView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 5) {
-                        Toggle(strings.includeDiagnostics, isOn: $includeDiagnostics)
-                        Text(strings.includeDiagnosticsCaption)
+                        Toggle(strings.includeDiagnostics, isOn: Binding(
+                            get: { effectiveIncludeDiagnostics },
+                            set: { includeDiagnostics = diagnosticsAllowed ? $0 : false }
+                        ))
+                        .disabled(!diagnosticsAllowed)
+                        Text(diagnosticsAllowed ? strings.includeDiagnosticsCaption : telemetry.blockedNote)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -105,9 +111,9 @@ struct FeedbackView: View {
                         Label(strings.whatSentTitle, systemImage: "eye")
                             .font(.headline)
                         Label(strings.whatSentBasic, systemImage: "text.alignleft")
-                        if includeDiagnostics {
+                        if effectiveIncludeDiagnostics {
                             Label(strings.whatSentDiagnostics, systemImage: "info.circle")
-                            diagnosticsPreview
+                            diagnosticsPreview(FeedbackDiagnostics.current())
                                 .padding(.leading, 26)
                         }
                         Divider()
@@ -163,9 +169,12 @@ struct FeedbackView: View {
             }
             if errorMessage != nil { errorMessage = nil }
         }
+        .onChange(of: telemetryRefused) { _, refused in
+            if refused { includeDiagnostics = false }
+        }
     }
 
-    private var diagnosticsPreview: some View {
+    private func diagnosticsPreview(_ diagnostics: FeedbackDiagnostics) -> some View {
         Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 5) {
             diagnosticRow("Vorssaint", "\(diagnostics.appVersion) (\(diagnostics.appBuild))")
             diagnosticRow("macOS", diagnostics.macOS)
@@ -215,7 +224,7 @@ struct FeedbackView: View {
                 try await FeedbackService.shared.submit(
                     kind: kind,
                     message: message,
-                    diagnostics: includeDiagnostics ? diagnostics : nil
+                    diagnostics: effectiveIncludeDiagnostics ? FeedbackDiagnostics.current() : nil
                 )
                 wasSent = true
                 message = ""

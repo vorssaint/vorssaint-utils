@@ -2,13 +2,13 @@
 "NSAppleEventsUsageDescription" = "O Vorssaint usa a Automação para mover arquivos, enviar itens ao Lixo, abrir comandos solicitados e controlar a reprodução nos seus apps de mídia.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "O Vorssaint usa o áudio de cada app para ajustar o volume no mixer, para mover as barras de música da Dynamic Island e para incluir o som do Mac nas gravações de tela que você iniciar. Nada sai do seu Mac.";
+"NSAudioCaptureUsageDescription" = "O Vorssaint usa o áudio de cada app para ajustar o volume no mixer, para mover as barras de música da Dynamic Island e para incluir o som do Mac nas gravações de tela ou reuniões que você iniciar (incluindo gravações automáticas opcionais de reuniões). Nada sai do seu Mac.";
 
 /* macOS Bluetooth permission prompt. */
 "NSBluetoothAlwaysUsageDescription" = "O Vorssaint usa o Bluetooth apenas para ler a bateria dos periféricos conectados. Nada sai do seu Mac.";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "O Vorssaint grava seu microfone apenas quando você o ativa em uma gravação de tela. O áudio fica no seu Mac, a menos que você escolha criar um link temporário.";
+"NSMicrophoneUsageDescription" = "O Vorssaint grava seu microfone apenas quando você o ativa em uma gravação de tela ou reunião (incluindo gravações automáticas opcionais de reuniões). O áudio fica no seu Mac, a menos que você escolha criar um link temporário.";
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "O Vorssaint mostra sua câmera apenas na janela de prévia que você abre, para conferir como você está antes de uma chamada. Nada é gravado nem sai do seu Mac.";
