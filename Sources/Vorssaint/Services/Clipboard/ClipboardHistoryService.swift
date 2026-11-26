@@ -1766,11 +1766,14 @@ enum ClipboardImageStore {
     /// Decoded thumbnails retained between panel uses. Visible rows retain
     /// their own images; an evicted preview is decoded again from disk when
     /// needed. The cache itself enforces the budget: 32 MiB and at most 120
-    /// entries, least recently used first.
-    private static let thumbnails = ThumbnailCache<String, NSImage>(
-        byteBudget: 32 * 1024 * 1024,
-        countLimit: 120
-    )
+    /// entries, least recently used first, and gives half of it back on memory
+    /// pressure.
+    private static let thumbnails: ThumbnailCache<String, NSImage> = {
+        let cache = ThumbnailCache<String, NSImage>(byteBudget: 32 * 1024 * 1024,
+                                                    countLimit: 120)
+        cache.monitorMemoryPressure()
+        return cache
+    }()
 
     static var directory: URL? {
         PrivateFileStore.containerURL?

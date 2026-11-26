@@ -114,6 +114,9 @@ final class ThumbnailCache<Key: Hashable, Value: AnyObject>: @unchecked Sendable
     private var entries: [Key: Entry] = [:]
     private var storedCost = 0
     private var clock: UInt64 = 0
+    /// Held by the cache, so the subscription lives exactly as long as the
+    /// owner's cache does. Each cache has its own; nothing is global.
+    private var pressureMonitor: MemoryPressureMonitor?
     /// Decodes two at a time at most: a burst of new rows must not hold dozens
     /// of full-size images in memory at once, nor saturate every core.
     private let decodeQueue: OperationQueue = {
@@ -130,6 +133,41 @@ final class ThumbnailCache<Key: Hashable, Value: AnyObject>: @unchecked Sendable
         self.eviction = eviction
     }
 
+    /// The owner opts its instance in. Called once at setup: the monitor is
+    /// retained by this cache, so it stops when the cache goes away.
+    func monitorMemoryPressure() {
+        guard pressureMonitor == nil else { return }
+        pressureMonitor = MemoryPressureMonitor { [weak self] level in
+            self?.handleMemoryPressure(level)
+        }
+    }
+
+    /// Warning returns half of the budget, critical all of it. The policy is a
+    /// plain function so it can be exercised without triggering system pressure.
+    func handleMemoryPressure(_ level: MemoryPressureLevel) {
+        switch level {
+        case .warning:
+            trim(toFraction: 0.5)
+        case .critical:
+            removeAll()
+        }
+    }
+
+    /// Drops least recently used entries until the retained bytes fit
+    /// `fraction` of the byte budget. A single oversized entry is dropped too,
+    /// unlike steady-state eviction: returning memory matters more here.
+    func trim(toFraction fraction: Double) {
+        let target = Int(Double(byteBudget) * min(max(fraction, 0), 1))
+        lock.withLock {
+            while storedCost > target, !entries.isEmpty {
+                guard let victim = entries.min(by: { $0.value.stamp < $1.value.stamp })?.key,
+                      let removed = entries.removeValue(forKey: victim)
+                else { break }
+                storedCost -= removed.cost
+            }
+        }
+    }
+
     /// Bytes currently accounted. Exposed so the bound can be asserted rather
     /// than assumed.
     var cost: Int { lock.withLock { storedCost } }
@@ -141,15 +179,15 @@ final class ThumbnailCache<Key: Hashable, Value: AnyObject>: @unchecked Sendable
     var costs: [Key: Int] { lock.withLock { entries.mapValues(\.cost) } }
 
     /// A synchronous lookup that only touches the lock and the dictionary:
-    /// a hit never decodes, and a miss never blocks on a decode.
+    /// a hit never decodes, and a miss never blocks on a decode. Every hit is
+    /// recorded, so a pressure trim drops the least recently used entries for
+    /// caller-driven caches too.
     func value(for key: Key) -> Value? {
         lock.withLock {
             guard var entry = entries[key] else { return nil }
-            if eviction == .automatic {
-                clock += 1
-                entry.stamp = clock
-                entries[key] = entry
-            }
+            clock += 1
+            entry.stamp = clock
+            entries[key] = entry
             return entry.value
         }
     }
@@ -232,5 +270,35 @@ final class ThumbnailCache<Key: Hashable, Value: AnyObject>: @unchecked Sendable
 
         var isCancelled: Bool { lock.withLock { cancelled } }
         func cancel() { lock.withLock { cancelled = true } }
+    }
+}
+
+enum MemoryPressureLevel {
+    case warning
+    case critical
+}
+
+/// A memory-pressure subscription with an explicit lifetime: whoever creates it
+/// keeps it, and releasing it cancels the source. Not a singleton, so a cache
+/// only gives memory back while its own feature is alive. The source runs on its
+/// own serial queue, and every change it makes goes through the cache's lock.
+final class MemoryPressureMonitor {
+    private let source: DispatchSourceMemoryPressure
+
+    init(queue: DispatchQueue = DispatchQueue(label: "com.vorssaint.utils.memory-pressure",
+                                              qos: .utility),
+         handler: @escaping (MemoryPressureLevel) -> Void) {
+        let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical],
+                                                             queue: queue)
+        self.source = source
+        source.setEventHandler { [weak source] in
+            guard let source else { return }
+            handler(source.data.contains(.critical) ? .critical : .warning)
+        }
+        source.resume()
+    }
+
+    deinit {
+        source.cancel()
     }
 }

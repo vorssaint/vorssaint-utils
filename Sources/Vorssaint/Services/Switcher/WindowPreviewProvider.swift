@@ -35,24 +35,14 @@ final class WindowPreviewProvider {
     private var warmTask: Task<Void, Never>?
     private var activationToken: NSObjectProtocol?
     private var pendingWarmPid: pid_t?
-    private var pressureSource: DispatchSourceMemoryPressure?
 
     init() {
         // Thumbnails are pure convenience; when the system runs out of memory
-        // they are the first thing this app sheds. They re-capture on the next
-        // invocation (Stage Manager parked windows fall back to app icons
-        // until their window becomes active again).
-        let source = DispatchSource.makeMemoryPressureSource(eventMask: .critical, queue: .main)
-        source.setEventHandler { [weak self] in
-            self?.cache.removeAll()
-            self?.lastTouched.removeAll()
-        }
-        source.resume()
-        pressureSource = source
-    }
-
-    deinit {
-        pressureSource?.cancel()
+        // they are the first thing this app sheds. The cache keeps this
+        // subscription for its own lifetime: warning returns half its budget,
+        // critical all of it. They re-capture on the next invocation (Stage
+        // Manager parked windows fall back to app icons until active again).
+        cache.monitorMemoryPressure()
     }
 
     func cachedPreview(for windowID: CGWindowID) -> CGImage? {

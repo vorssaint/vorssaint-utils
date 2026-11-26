@@ -16,6 +16,7 @@ enum ThumbnailCacheTests {
         hitsDoNotDecode(suite)
         byteBudgetEvictsLeastRecentlyUsed(suite)
         callerDrivenEvictionLeavesTheChoiceToTheOwner(suite)
+        memoryPressureReturnsMemoryAndTheCacheRecovers(suite)
         asyncMissDecodesOnceAndThenHits(suite)
         benchmark(suite)
     }
@@ -64,6 +65,41 @@ enum ThumbnailCacheTests {
         suite.expect(cache.costs == ["a": 80, "b": 80], "costs are exposed for the owner's policy")
         cache.removeValue(for: "a")
         suite.expect(cache.cost == 80, "removing an entry releases its bytes")
+    }
+
+    private static func memoryPressureReturnsMemoryAndTheCacheRecovers(_ suite: TestSuite) {
+        let cache = ThumbnailCache<String, Box>(byteBudget: 1000)
+        var boxes: [Box] = []
+        for index in 0..<10 {
+            let box = Box()
+            boxes.append(box)
+            cache.insert(box, cost: 100, for: "key-\(index)")
+        }
+        suite.expect(cache.cost == 1000 && cache.count == 10, "the fixture fills the budget")
+
+        cache.handleMemoryPressure(.warning)
+        suite.expect(cache.cost <= 500, "warning leaves at most half of the byte budget")
+        suite.expect(cache.count == 5, "warning drops the least recently used half")
+        suite.expect(cache.value(for: "key-0") == nil, "the oldest entry was returned to the system")
+        suite.expect(cache.value(for: "key-9") === boxes[9], "the newest entry survives the trim")
+
+        cache.handleMemoryPressure(.critical)
+        suite.expect(cache.cost == 0 && cache.count == 0, "critical returns everything")
+        let fresh = Box()
+        cache.insert(fresh, cost: 200, for: "fresh")
+        suite.expect(cache.value(for: "fresh") === fresh && cache.cost == 200,
+                     "the cache keeps working and fills again after pressure")
+
+        // The caller-driven cache follows its own eviction policy in steady
+        // state but still trims by recency when the system asks for memory.
+        let manual = ThumbnailCache<String, Box>(byteBudget: 1000, eviction: .callerDriven)
+        for key in ["a", "b", "c", "d"] { manual.insert(Box(), cost: 100, for: key) }
+        _ = manual.value(for: "a") // touch: the least recently used are now b, c, d
+        manual.trim(toFraction: 0.2)
+        suite.expect(manual.cost <= 200, "trim(toFraction:) enforces an arbitrary target")
+        suite.expect(manual.value(for: "b") == nil && manual.value(for: "c") == nil,
+                     "the caller-driven cache trims the least recently used entries first")
+        suite.expect(manual.contains("a") && manual.contains("d"), "recent entries stay")
     }
 
     private static func asyncMissDecodesOnceAndThenHits(_ suite: TestSuite) {
