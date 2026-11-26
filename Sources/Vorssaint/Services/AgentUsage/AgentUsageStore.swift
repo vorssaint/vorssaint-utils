@@ -98,14 +98,15 @@ final class AgentUsageStore {
     /// `parent` is the log whose turn a subagent's responses count toward.
     @discardableResult
     func apply(_ entries: [AgentLogEntry], file: String, provider: AgentProvider,
-               tracksTurns: Bool, parent: String? = nil, modified: Date, now: Date = Date()) -> [AgentUsageEvent] {
+               tracksTurns: Bool, parent: String? = nil, modified: Date, now: Date = Date(),
+               notifyFinish: Bool = true) -> [AgentUsageEvent] {
         var events: [AgentUsageEvent] = []
         for entry in entries {
             switch entry {
             case .usage(let key, let record, let billable):
-                // Copilot's session totals and Cursor's occasional metered replies
-                // do not describe a complete live turn.
-                let historyOnly = provider == .copilot || (provider == .cursor && key.hasPrefix("cursor-transcript:"))
+                // Session totals and partially metered transcripts describe history.
+                let historyOnly = provider == .copilot || provider == .antigravity
+                    || (provider == .cursor && key.hasPrefix("cursor-transcript:"))
                 let turn = historyOnly ? nil : tracksTurns ? file : parent
                 add(record, billable: billable, key: key, source: file, turn: turn, subagent: !tracksTurns)
             case .usageModel(let key, let model):
@@ -175,7 +176,7 @@ final class AgentUsageStore {
                 settled[file] = nil
                 // A turn that went quiet on the way ends as the whole turn.
                 let quiet = waiting.removeValue(forKey: file)
-                guard let turn = turns.removeValue(forKey: file) ?? quiet, completed, reportsTransitions else { continue }
+                guard let turn = turns.removeValue(forKey: file) ?? quiet, completed, reportsTransitions, notifyFinish else { continue }
                 let end = date ?? modified
                 guard now.timeIntervalSince(end) <= Self.lateEnd else { continue }
                 events.append(.finished(provider: provider,
@@ -641,7 +642,9 @@ struct AgentLogRoot: Equatable {
         } : []
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
          (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
-         (.cursor, ".cursor/projects")].compactMap { provider, path in
+         (.cursor, ".cursor/projects"),
+         (.antigravity, ".gemini/antigravity/brain"), (.antigravity, ".gemini/antigravity-cli/brain"),
+         (.antigravity, ".gemini/antigravity-ide/brain")].compactMap { provider, path in
             guard providers.contains(provider) else { return nil }
             return AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
@@ -656,7 +659,9 @@ struct AgentLogRoot: Equatable {
     }
 
     var exists: Bool {
-        if provider == .cursor { return CursorTranscriptAccess(root: url).exists }
+        if provider == .cursor || provider == .antigravity {
+            return AgentTranscriptAccess(root: url, provider: provider).exists
+        }
         var directory: ObjCBool = false
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &directory) && directory.boolValue
     }
@@ -668,6 +673,10 @@ struct AgentLogRoot: Equatable {
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+        if provider == .antigravity {
+            return parts.count == 4 && AntigravityReader.sessionID(parts[0]) != nil
+                && parts.dropFirst().joined(separator: "/") == AntigravityReader.transcript
+        }
         if provider == .copilot {
             return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
         }
@@ -702,7 +711,7 @@ struct CursorTranscriptFiles {
         self.init(directory: nested ? parent.deletingLastPathComponent() : parent, session: session)
     }
 
-    func preferred(in access: CursorTranscriptAccess) -> (path: String, modified: Date)? {
+    func preferred(in access: AgentTranscriptAccess) -> (path: String, modified: Date)? {
         for file in [nested, flat] {
             if let info = access.info(at: file.path) {
                 return (file.path, AgentLogCursor.modificationDate(info))
@@ -715,7 +724,7 @@ struct CursorTranscriptFiles {
     /// together before reading the selected copy. A change to either filename
     /// can be the first event macOS delivers.
     func select(root: URL, cursors: inout [String: AgentLogCursor], store: AgentUsageStore) -> (path: String?, changed: Bool) {
-        let selected = preferred(in: CursorTranscriptAccess(root: root))?.path
+        let selected = preferred(in: AgentTranscriptAccess(root: root))?.path
         var removed = false
         for path in [flat.path, nested.path] where path != selected {
             if cursors.removeValue(forKey: path) != nil {
@@ -774,7 +783,9 @@ struct AgentSessionRegistry: Equatable {
 final class AgentLogCursor {
     let path: String
     let provider: AgentProvider
-    let cursorAccess: CursorTranscriptAccess?
+    let cursorAccess: AgentTranscriptAccess?
+    let antigravityAccess: AgentTranscriptAccess?
+    private let antigravitySession: String?
     /// Subagents report to a turn another file tracks.
     var tracksTurns: Bool {
         provider == .claude ? parent == nil : (provider == .codex ? !state.codexSubagent : true)
@@ -808,9 +819,12 @@ final class AgentLogCursor {
     init(path: String, provider: AgentProvider, cursorRoot: URL? = nil) {
         self.path = path
         self.provider = provider
-        cursorAccess = provider == .cursor ? cursorRoot.map { CursorTranscriptAccess(root: $0) } : nil
-        let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
-        self.parent = parent
+        cursorAccess = provider == .cursor ? cursorRoot.map { AgentTranscriptAccess(root: $0) } : nil
+        let location = provider == .antigravity ? AntigravityReader.location(path) : nil
+        antigravityAccess = location.map { AgentTranscriptAccess(root: $0.root, provider: .antigravity) }
+        antigravitySession = location?.session
+        self.parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
+        state.session = antigravitySession ?? ""
         if provider == .cursor { CursorReader.adopt(path: path, into: &state) }
     }
 
@@ -881,6 +895,7 @@ final class AgentLogCursor {
         pending = Data()
         discarding = false
         state = AgentLogState()
+        state.session = antigravitySession ?? ""
         cursorPromptFingerprint = nil
         cursorPrefix = CursorTranscriptPrefix()
         cachedCoverage = nil
@@ -891,9 +906,8 @@ final class AgentLogCursor {
 
     private func fingerprint(upTo end: UInt64, descriptor: Int32? = nil) -> UInt64? {
         if let descriptor { return AgentLogReader.fingerprint(descriptor, upTo: end) }
-        if provider == .cursor {
-            guard let file = cursorAccess?.openFile(at: path) else { return nil }
-            return file.fingerprint(upTo: end)
+        if provider == .cursor || provider == .antigravity {
+            return (cursorAccess ?? antigravityAccess)?.openFile(at: path)?.fingerprint(upTo: end)
         }
         return AgentLogReader.fingerprint(path, upTo: end)
     }
@@ -937,13 +951,19 @@ final class AgentLogCursor {
     convenience init?(saved: Saved, cursorRoot: URL? = nil, shouldContinue: () -> Bool = { true }) {
         let sample: UInt64
         if saved.provider == .cursor {
-            guard let cursorRoot, let file = CursorTranscriptAccess(root: cursorRoot).openFile(at: saved.path),
+            guard let cursorRoot, let file = AgentTranscriptAccess(root: cursorRoot).openFile(at: saved.path),
                   UInt64(file.info.st_ino) == saved.identity,
                   let edges = file.fingerprint(upTo: saved.offset) else { return nil }
             let unchanged = UInt64(max(0, file.info.st_size)) == saved.offset
                 && Self.modificationDate(file.info) == saved.modified && saved.cursorSample == edges
             guard unchanged || CursorTranscriptPrefix.matches(file, upTo: saved.offset, checksum: saved.fingerprint,
                                                               shouldContinue: shouldContinue) == true else { return nil }
+            sample = edges
+        } else if saved.provider == .antigravity {
+            guard let location = AntigravityReader.location(saved.path),
+                  let file = AgentTranscriptAccess(root: location.root, provider: .antigravity).openFile(at: saved.path),
+                  UInt64(file.info.st_ino) == saved.identity, Self.modificationDate(file.info) == saved.modified,
+                  let edges = file.fingerprint(upTo: saved.offset), edges == saved.fingerprint else { return nil }
             sample = edges
         } else {
             var info = stat()
@@ -979,6 +999,38 @@ enum AgentLogReader {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
         return path.hasSuffix(".jsonl")
+    }
+
+    /// An atomic replacement, truncation or in-place rewrite may contain old
+    /// turns. Replay them for history and only notify for the turn already observed.
+    static func readAntigravity(_ cursor: AgentLogCursor, into store: AgentUsageStore, now: Date,
+                                since horizon: Date, shouldContinue: () -> Bool,
+                                report: (AgentUsageEvent) -> Void) -> Bool {
+        guard shouldContinue() else { return false }
+        let path = cursor.path
+        guard let file = cursor.antigravityAccess?.openFile(at: path) else {
+            cursor.startOver(identity: 0)
+            return store.forget(file: path)
+        }
+        let previousStart = (store.turns[path] ?? store.waiting[path])?.started
+        var changed = false
+        let reader = AntigravityReader()
+        readRegularFile(cursor, secured: file, shouldContinue: shouldContinue, onRestart: {
+            changed = store.forget(file: path)
+            return true
+        }) { line in
+            let entries = reader.parse(line, state: &cursor.state, now: now).filter { entry in
+                if case .usage(_, let record, _) = entry { return record.date >= horizon }
+                return true
+            }
+            guard !entries.isEmpty else { return }
+            changed = true
+            let currentStart = (store.turns[path] ?? store.waiting[path])?.started
+            store.apply(entries, file: path, provider: .antigravity, tracksTurns: true,
+                        modified: cursor.modified, now: now, notifyFinish: previousStart != nil && currentStart == previousStart)
+                .forEach(report)
+        }
+        return changed
     }
 
     /// Cursor can replace a transcript at the end of a turn. During a replay,
@@ -1125,7 +1177,7 @@ enum AgentLogReader {
             // Cursor keeps tools, terminals and canvases beside transcripts.
             // Enumerate only the two expected directory levels under the root.
             if root.provider == .cursor {
-                let access = CursorTranscriptAccess(root: root.url)
+                let access = AgentTranscriptAccess(root: root.url)
                 for project in access.entries(at: []) {
                     let directory = root.url.appending(path: project, directoryHint: .isDirectory)
                         .appending(path: "agent-transcripts", directoryHint: .isDirectory)
@@ -1137,6 +1189,16 @@ enum AgentLogReader {
                             found.append((file.path, .cursor, file.modified, false))
                         }
                     }
+                }
+                continue
+            }
+            if root.provider == .antigravity {
+                let access = AgentTranscriptAccess(root: root.url, provider: .antigravity)
+                for session in access.entries(at: []) where AntigravityReader.sessionID(session[...]) != nil {
+                    let path = root.url.appending(path: session + "/" + AntigravityReader.transcript).path
+                    guard let info = access.info(at: path) else { continue }
+                    let modified = AgentLogCursor.modificationDate(info)
+                    if modified >= horizon { found.append((path, .antigravity, modified, false)) }
                 }
                 continue
             }
@@ -1182,29 +1244,31 @@ enum AgentLogReader {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
             return
         }
-        if cursor.provider == .cursor {
-            guard let file = cursor.cursorAccess?.openFile(at: cursor.path) else { return }
+        if cursor.provider == .cursor || cursor.provider == .antigravity {
+            let access = cursor.cursorAccess ?? cursor.antigravityAccess
+            guard let file = access?.openFile(at: cursor.path) else { return }
             readRegularFile(cursor, secured: file, shouldContinue: shouldContinue, including: including, line: line)
         } else {
             readRegularFile(cursor, secured: nil, shouldContinue: shouldContinue, including: including, line: line)
         }
     }
 
-    private static func readRegularFile(_ cursor: AgentLogCursor, secured: CursorTranscriptAccess.File?,
+    private static func readRegularFile(_ cursor: AgentLogCursor, secured: AgentTranscriptAccess.File?,
                                         shouldContinue: () -> Bool, onRestart: () -> Bool = { true },
                                         including: ((Data, Range<Int>) -> Bool)? = nil, line: (Data) -> Void) {
         var info = stat()
         if let secured {
             info = secured.info
         } else {
-            guard cursor.provider != .cursor, stat(cursor.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return }
+            guard cursor.provider != .cursor, cursor.provider != .antigravity,
+                  stat(cursor.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return }
         }
         let size = UInt64(max(0, info.st_size))
         let identity = UInt64(info.st_ino)
         let modified = AgentLogCursor.modificationDate(info)
-        let sameSizeRewrite = cursor.provider == .cursor && size == cursor.offset && cursor.modified != modified
+        let sameSizeRewrite = secured != nil && size == cursor.offset && cursor.modified != modified
         func cursorPrefixChanged() -> Bool {
-            guard let secured else { return false }
+            guard cursor.provider == .cursor, let secured else { return false }
             return !cursor.cursorPrefix.matches(secured, offset: cursor.offset, grew: size > cursor.offset)
         }
         // A same-length edit can change counters in the unsampled middle.
@@ -1228,7 +1292,7 @@ enum AgentLogReader {
                 guard let chunk = try? handle.read(upToCount: wanted), !chunk.isEmpty else { return false }
                 cursor.offset += UInt64(chunk.count)
                 split(chunk, cursor: cursor, including: including, line: line)
-                if secured != nil { cursor.cursorPrefix.append(chunk, pending: cursor.pending.count) }
+                if cursor.provider == .cursor { cursor.cursorPrefix.append(chunk, pending: cursor.pending.count) }
                 return true
             }
             guard read else { break }

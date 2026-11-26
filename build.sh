@@ -304,12 +304,13 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/AgentLogObject.swift
         Sources/Vorssaint/Services/AgentUsage/AgentLogParser.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/AgentHarnessReader.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/AntigravityReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/ClaudeReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/CodexReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/OpenCodeReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/CopilotReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/CursorReader.swift
-        Sources/Vorssaint/Services/AgentUsage/Harness/CursorTranscriptAccess.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/AgentTranscriptAccess.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageArchive.swift

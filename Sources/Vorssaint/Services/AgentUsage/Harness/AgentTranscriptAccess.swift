@@ -7,8 +7,14 @@ import Foundation
 /// The root has already been resolved by AgentLogRoot. Never resolve a link
 /// in a transcript path: the same open that checks the path supplies the
 /// descriptor used for enumeration, metadata, checksums and actual reads.
-struct CursorTranscriptAccess {
+struct AgentTranscriptAccess {
     let root: URL
+    let provider: AgentProvider
+
+    init(root: URL, provider: AgentProvider = .cursor) {
+        self.root = root
+        self.provider = provider
+    }
 
     /// Resolve descendants relative to an opened directory. Callers supply
     /// only admitted transcript components, never an absolute path or "..".
@@ -69,7 +75,7 @@ struct CursorTranscriptAccess {
     }
 
     func openFile(at path: String, mode: Int32 = O_RDONLY) -> File? {
-        guard !path.utf8.contains(0), AgentLogRoot(provider: .cursor, url: root).accepts(path) else { return nil }
+        guard !path.utf8.contains(0), AgentLogRoot(provider: provider, url: root).accepts(path) else { return nil }
         let relative = String(path.dropFirst(root.path.count + 1))
         let fd = descriptor(for: relative, flags: mode)
         guard fd >= 0 else { return nil }
@@ -114,7 +120,7 @@ struct CursorTranscriptPrefix {
         var offset: UInt64 = 0
         var value = CursorTranscriptPrefix.basis
 
-        mutating func advance(in file: CursorTranscriptAccess.File, budget: UInt64) -> Bool {
+        mutating func advance(in file: AgentTranscriptAccess.File, budget: UInt64) -> Bool {
             let count = Int(min(budget, end - offset))
             var buffer = [UInt8](repeating: 0, count: count)
             let ok = buffer.withUnsafeMutableBytes { file.read(into: $0, at: offset) }
@@ -130,7 +136,7 @@ struct CursorTranscriptPrefix {
     var needsVerification: Bool { check != nil || queued }
     var checkedBytes: UInt64 { check?.offset ?? 0 }
 
-    mutating func matches(_ file: CursorTranscriptAccess.File, offset: UInt64, grew: Bool) -> Bool {
+    mutating func matches(_ file: AgentTranscriptAccess.File, offset: UInt64, grew: Bool) -> Bool {
         if grew && offset > 0 { queued = true }
         if check == nil && queued {
             check = Check(end: offset, expected: checksum)
@@ -146,7 +152,7 @@ struct CursorTranscriptPrefix {
     }
 
     /// Nil leaves the checkpoint untouched when a stop interrupts verification.
-    static func matches(_ file: CursorTranscriptAccess.File, upTo offset: UInt64, checksum: UInt64,
+    static func matches(_ file: AgentTranscriptAccess.File, upTo offset: UInt64, checksum: UInt64,
                         shouldContinue: () -> Bool) -> Bool? {
         guard offset <= UInt64(max(0, file.info.st_size)) else { return false }
         var pass = Check(end: offset, expected: checksum)

@@ -478,8 +478,9 @@ final class AgentUsageService: ObservableObject {
             }
             var info = stat()
             let exists: Bool
-            if cursor.provider == .cursor {
-                if let checked = cursor.cursorAccess?.info(at: path) {
+            let access = cursor.cursorAccess ?? cursor.antigravityAccess
+            if let access {
+                if let checked = access.info(at: path) {
                     info = checked
                     exists = true
                 } else {
@@ -488,9 +489,9 @@ final class AgentUsageService: ObservableObject {
             } else {
                 exists = stat(path, &info) == 0
             }
-            let cursorRewrite = cursor.provider == .cursor && exists && AgentLogCursor.modificationDate(info) != cursor.modified
+            let transcriptRewrite = access != nil && exists && AgentLogCursor.modificationDate(info) != cursor.modified
             guard !exists || UInt64(max(0, info.st_size)) != cursor.offset
-                    || UInt64(info.st_ino) != cursor.identity || cursorRewrite else { continue }
+                    || UInt64(info.st_ino) != cursor.identity || transcriptRewrite else { continue }
             if read(path, provider: cursor.provider) { changed = true }
         }
         return changed
@@ -562,6 +563,10 @@ final class AgentUsageService: ObservableObject {
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
         let now = Date()
+        if provider == .antigravity {
+            return AgentLogReader.readAntigravity(cursor, into: store, now: now, since: now.addingTimeInterval(-Self.horizon),
+                                                  shouldContinue: { !cancellation.isCancelled }, report: report)
+        }
         var changed = false
         let consume: (Data) -> Void = { [self] line in
             // Apply in log order while the chunk is alive instead of retaining
@@ -594,6 +599,14 @@ final class AgentUsageService: ObservableObject {
             cursors[path] = nil
             store.forget(files: [path])
         }
+        let antigravityRoots = Set(existing.lazy.filter { $0.provider == .antigravity }.map(\.url.path))
+        for (path, cursor) in cursors where cursor.provider == .antigravity {
+            guard let root = cursor.antigravityAccess?.root.path, antigravityRoots.contains(root) else {
+                cursors[path] = nil
+                store.forget(file: path)
+                continue
+            }
+        }
         watchedRoots = existing
         lastRootCheck = Date()
         if watcher == nil {
@@ -611,7 +624,9 @@ final class AgentUsageService: ObservableObject {
         if rescan {
             let files = AgentLogReader.discover(watchedRoots, since: Date().addingTimeInterval(-Self.horizon))
             let cursorFiles = Set(files.lazy.filter { $0.provider == .cursor }.map(\.path))
-            for (path, cursor) in cursors where cursor.provider == .cursor && !cursorFiles.contains(path) {
+            let antigravityFiles = Set(files.lazy.filter { $0.provider == .antigravity }.map(\.path))
+            for (path, cursor) in cursors where (cursor.provider == .cursor && !cursorFiles.contains(path))
+                || (cursor.provider == .antigravity && !antigravityFiles.contains(path)) {
                 cursors[path] = nil
                 store.forget(files: [path])
                 changed = true

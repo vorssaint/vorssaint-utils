@@ -108,6 +108,7 @@ enum NotchAgentSupport {
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
         case .cursor: return DefaultsKey.notchAgentsCursor
+        case .antigravity: return DefaultsKey.notchAgentsAntigravity
         }
     }
 
@@ -243,7 +244,7 @@ enum NotchAgentSupport {
         case .elapsed:
             return elapsed()
         case .tokens, .cost:
-            let metered = live.filter { $0.provider != .cursor }
+            let metered = live.filter { $0.provider.reportsLiveUsage }
             let partial = metered.count != live.count
             // What the agent wrote, the count its own window shows; the
             // context it reads again on every call is in the cost.
@@ -272,7 +273,7 @@ enum NotchAgentSupport {
                                             tokens: AgentTokens(input: 1_180_000, output: 20_000), cost: 4.56)]
         }
         let working = AgentProvider.allCases.first { provider in sample.live.contains { $0.provider == provider } } ?? provider
-        if working != .cursor, focusedLimit(sample.limits[working], focus: focus, now: now) == nil {
+        if working != .cursor, working != .antigravity, focusedLimit(sample.limits[working], focus: focus, now: now) == nil {
             sample.limits[working] = AgentLimits(provider: working, windows: [
                 AgentLimitWindow(id: "example-session", kind: .session, minutes: 300, scope: nil,
                                  usedPercent: 32, resetsAt: now.addingTimeInterval(3600)),
@@ -315,7 +316,10 @@ enum NotchAgentSupport {
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
                       codexAccounts: [String] = [], claudeAccount: String? = nil,
                       snapshot: AgentUsageSnapshot = AgentUsageSnapshot()) -> [NotchAgentTile] {
-        let activityOnly = providers == [.cursor] && !snapshot.days.contains { ($0.byProvider[.cursor]?.tokens.total ?? 0) > 0 }
+        let activityOnly = !providers.isEmpty && providers.allSatisfy { !$0.reportsLiveUsage }
+            && !snapshot.days.contains { day in
+                providers.contains { (day.byProvider[$0]?.tokens.total ?? 0) > 0 }
+            }
         let shown = activityOnly ? cards.filter { $0 == .live } : cards
         return shown.flatMap { card -> [NotchAgentTile] in
             switch card {
