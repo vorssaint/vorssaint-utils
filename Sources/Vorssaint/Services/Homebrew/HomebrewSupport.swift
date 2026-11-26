@@ -377,6 +377,15 @@ enum HomebrewTerminalScript {
 
 enum HomebrewCommandBuilder {
     static let candidatePaths = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+
+    /// Every installed cask keeps a folder in `<prefix>/Caskroom`, beside the
+    /// prefix's `bin/brew`, so this is how a leftover brew is told apart from
+    /// one that still has casks to account for.
+    static func caskroomPath(brewPath: String) -> String {
+        URL(fileURLWithPath: brewPath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Caskroom").path
+    }
+
     static let installerCommand = #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#
     static var currentShellPath: String {
         if let shell = getpwuid(getuid())?.pointee.pw_shell {
