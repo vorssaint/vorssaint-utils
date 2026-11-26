@@ -33,13 +33,13 @@ enum CursorAgentDiscoveryTests {
             try Data().write(to: flat)
             try fm.createDirectory(at: nested.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data().write(to: root.url.appending(path: "index.txt"))
-            let access = AgentTranscriptAccess(root: root.url)
+            let access = CursorTranscriptAccess(root: root.url)
             let files = CursorTranscriptFiles(path: flat.path)
             suite.expect(files.preferred(in: access)?.path == flat.path,
                          "a session folder with no matching file leaves the flat transcript active")
             let otherRoot = home.appending(path: "another-profile/projects")
             try fm.createDirectory(at: otherRoot, withIntermediateDirectories: true)
-            suite.expect(files.preferred(in: AgentTranscriptAccess(root: otherRoot)) == nil,
+            suite.expect(files.preferred(in: CursorTranscriptAccess(root: otherRoot)) == nil,
                          "a different profile only selects transcripts from its own root")
             func discovered() -> [String] {
                 AgentLogReader.discover([root], since: .distantPast).map(\.path)

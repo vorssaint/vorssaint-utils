@@ -30,12 +30,6 @@ enum AgentUsageReadTests {
             AgentUsageProductionLogReader.readCursor(cursor, into: store, now: now, since: horizon,
                                                     shouldContinue: shouldContinue, report: report)
         }
-        static func readAntigravity(_ cursor: AgentLogCursor, into store: AgentUsageStore, now: Date,
-                                    since horizon: Date, shouldContinue: () -> Bool,
-                                    report: (AgentUsageEvent) -> Void) -> Bool {
-            AgentUsageProductionLogReader.readAntigravity(cursor, into: store, now: now, since: horizon,
-                                                         shouldContinue: shouldContinue, report: report)
-        }
         static func readAppended(_ cursor: AgentLogCursor, since horizon: Date = .distantPast, shouldContinue: () -> Bool,
                                  including: ((Data, Range<Int>) -> Bool)? = nil,
                                  line: (Data) -> Void) {
@@ -158,7 +152,6 @@ enum AgentUsageReadTests {
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
                 case .cursor: entries += AgentLogParser.parseCursor(line, state: &cursor.state, now: now)
-                case .antigravity: entries += provider.reader.parse(line, state: &cursor.state, now: now)
                 }
             }
             if provider == .copilot {

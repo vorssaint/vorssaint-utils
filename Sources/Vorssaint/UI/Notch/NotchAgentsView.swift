@@ -19,7 +19,6 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
     @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
-    @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
@@ -34,7 +33,7 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        _ = (claude, codex, opencode, copilot, cursor, antigravity)
+        _ = (claude, codex, opencode, copilot, cursor)
         return NotchAgentSupport.pageProviders(snapshot: usage.snapshot, hasCodexAccounts: !codexAccounts.isEmpty,
                                                hasClaudeAccount: !usage.claudeProfile.isDefault)
     }
@@ -666,7 +665,7 @@ private struct NotchAgentLiveCard: View {
                     .lineLimit(1)
             }
         }
-        .help(!session.provider.reportsLiveUsage ? session.provider.displayName : text.tokens(AgentFormat.tokens(session.tokens.total)) + " · "
+        .help(session.provider == .cursor ? session.provider.displayName : text.tokens(AgentFormat.tokens(session.tokens.total)) + " · "
               + text.cached(AgentFormat.percent(session.tokens.cacheHitRate ?? 0)))
     }
 

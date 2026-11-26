@@ -21,7 +21,6 @@ enum NotchAgentTests {
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
         CursorAgentTests.run(suite)
-        AntigravityAgentTests.run(suite)
         HarnessReaderContractTests.run(suite)
         timestamps(suite)
         summary(suite)
@@ -2578,12 +2577,12 @@ enum NotchAgentTests {
             for focus in NotchAgentLimitFocus.allCases {
                 let empty = AgentUsageSnapshot()
                 let sample = NotchAgentSupport.stripSampleSnapshot(empty, provider: provider, focus: focus, now: now)
-                if !provider.reportsLiveUsage {
+                if provider == .cursor {
                     suite.expect(sample.limits.isEmpty
                                     && NotchAgentSupport.stripReading(sample, readout: .limit, display: .remaining, now: now) == "12:34"
                                     && NotchAgentSupport.stripReading(sample, readout: .cost, display: .remaining, now: now) == "—"
                                     && NotchAgentSupport.stripReading(sample, readout: .tokens, display: .remaining, now: now) == "—",
-                                 "the transcript-only preview shows elapsed time and leaves unavailable live usage readings empty")
+                                 "the Cursor preview shows elapsed time and leaves unavailable usage readings empty")
                     continue
                 }
                 let used = focus == .session ? 0.32 : 0.57
@@ -3276,11 +3275,11 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor, .antigravity], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .cursor, .antigravity], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .cursor], "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor, .antigravity], "Copilot keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor], "Copilot keeps its own preference")
         var installed = AgentUsageSnapshot(loaded: true)
         installed.cursorProjectsFound = true
         suite.expect(NotchAgentSupport.pageProviders(snapshot: installed, hasCodexAccounts: false, hasClaudeAccount: false,
@@ -3291,7 +3290,6 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.pageProviders(snapshot: installed, hasCodexAccounts: false, hasClaudeAccount: true,
                                                      in: defaults) == [.claude],
                      "an existing directory or prior activity cannot bring a disabled Cursor back onto the page")
-        defaults.set(false, forKey: DefaultsKey.notchAgentsAntigravity)
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
@@ -3306,7 +3304,7 @@ enum NotchAgentTests {
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
                     DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsCursor,
-                    DefaultsKey.notchAgentsAntigravity, DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
+                    DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
                     DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates]
@@ -3352,7 +3350,7 @@ enum NotchAgentTests {
         let allProviders = AgentProvider.allCases
         let active = AgentLiveSession(id: "active", provider: .cursor, started: .now, lastActivity: .now,
                                       model: "", project: "demo", tokens: AgentTokens(), cost: 0)
-        for count in 4...6 {
+        for count in 4...5 {
             let providers = Array(allProviders.suffix(count))
             let idle = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers)
             let live = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers, snapshot: AgentUsageSnapshot(live: [active]))

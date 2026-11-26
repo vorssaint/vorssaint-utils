@@ -28,7 +28,6 @@ extension AgentProvider {
         case .opencode: OpenCodeReader()
         case .copilot: CopilotReader()
         case .cursor: CursorReader()
-        case .antigravity: AntigravityReader()
         }
     }
 }
