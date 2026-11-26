@@ -311,12 +311,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if inputSourceRestorationPending { return .terminateLater }
-        guard CommandBarService.shared.hasBorrowedInputSource else { return .terminateNow }
+        // The borrowed layout is the neutral owner's, not the bar's: quitting
+        // must not build a feature that is not installed just to give a
+        // keyboard layout back.
+        guard InputSourceBorrow.restoreTo != nil else { return .terminateNow }
         inputSourceRestorationPending = true
         // Terminate-later runs a modal loop, which may be nested inside a
         // main-queue callback. Schedule in both modes before approving quit.
         RunLoop.main.perform(inModes: [.default, .modalPanel]) { [weak self] in
-            CommandBarService.shared.restoreBorrowedInputSource()
+            InputSourceBorrow.restoreAll()
             self?.inputSourceRestorationPending = false
             sender.reply(toApplicationShouldTerminate: true)
         }
@@ -325,7 +328,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
-        CommandBarService.shared.restoreBorrowedInputSource()
+        InputSourceBorrow.restoreAll()
         if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
         // Quitting properly means the start worked, whenever it happened.
         endStartupWatch()

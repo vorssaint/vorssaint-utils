@@ -123,3 +123,61 @@ enum InputSourceSelection {
         return CFBooleanGetValue(Unmanaged<CFBoolean>.fromOpaque(pointer).takeUnretainedValue())
     }
 }
+
+/// The keyboard layout borrowed for the length of a presentation, and the
+/// channel that reports the app's own switches to whichever surface shows a
+/// layout notice. It lives here rather than in Command Bar because giving the
+/// source back is not the bar's business: quitting must restore a layout even
+/// with the bar, or the island, uninstalled and therefore never built.
+enum InputSourceBorrow {
+    /// The source to return to when the presentation that borrowed a Latin
+    /// layout ends, or nil when nothing is borrowed. Written only once TIS
+    /// accepts the switch, so a refused borrow creates no obligation.
+    private(set) static var restoreTo: String?
+
+    /// Whoever shows a layout notice, told about a switch made on the
+    /// person's behalf so it stays quiet about it. No island subscribed
+    /// simply means nobody is listening.
+    private static var switchObservers: [UUID: (String) -> Void] = [:]
+
+    /// Joins the channel, answering a token that leaves it again.
+    @discardableResult
+    static func observeSwitches(_ observer: @escaping (String) -> Void) -> UUID {
+        let token = UUID()
+        switchObservers[token] = observer
+        return token
+    }
+
+    static func stopObservingSwitches(_ token: UUID) {
+        switchObservers.removeValue(forKey: token)
+    }
+
+    /// Borrows the first enabled ASCII layout, remembering the source to
+    /// return to. The record belongs to acceptance, not to the request: a
+    /// switch that never landed must not restore a source nobody left.
+    static func borrow(restoreTo currentID: String?) {
+        guard let currentID,
+              let target = InputSourceSelection.asciiLayoutID(
+                currentID: currentID,
+                snapshots: InputSourceSelection.snapshots()),
+              InputSourceSelection.select(sourceID: target)
+        else { return }
+        restoreTo = currentID
+        reportSwitch(target)
+    }
+
+    /// Gives the borrowed layout back, telling the channel it was the app's
+    /// own doing. Clears the obligation only when TIS accepts, so a refused
+    /// restoration stays available to a later close or to quit.
+    static func restoreAll() {
+        guard let sourceID = restoreTo,
+              InputSourceSelection.select(sourceID: sourceID)
+        else { return }
+        restoreTo = nil
+        reportSwitch(sourceID)
+    }
+
+    private static func reportSwitch(_ sourceID: String) {
+        for observer in switchObservers.values { observer(sourceID) }
+    }
+}

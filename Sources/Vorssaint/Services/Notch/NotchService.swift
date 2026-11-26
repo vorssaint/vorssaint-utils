@@ -297,6 +297,11 @@ final class NotchService: ObservableObject {
     private var inputSourceID: String?
     /// The accepted Command Bar selection awaiting its source-change reading.
     private var ownInputSourceID: String?
+    /// The subscription to switches the app makes on the person's behalf,
+    /// held so it can leave the channel when the route changes or the island
+    /// stops. It is a token rather than a service reference: the borrow must
+    /// work with no island to tell.
+    private var ownSwitchObserver: UUID?
     private var notchNeedsMonitor = false
     private var menuSpaceTimer: Timer?
     private var appFullscreenTimer: Timer?
@@ -1304,6 +1309,10 @@ final class NotchService: ObservableObject {
         NotchLockScreenService.shared.close()
         observers.forEach { $0.0.removeObserver($0.1) }
         observers.removeAll()
+        if let token = ownSwitchObserver {
+            InputSourceBorrow.stopObservingSwitches(token)
+            ownSwitchObserver = nil
+        }
         session = NotchSessionState()
         if AppFeature.mixer.isAvailable { PreciseVolumeRollerService.shared.syncWithPreferences() }
         if AppFeature.brightness.isAvailable { BrightnessService.shared.syncWithPreferences() }
@@ -4142,6 +4151,10 @@ final class NotchService: ObservableObject {
 
     private func bindEvents() {
         subscriptions.removeAll()
+        if let token = ownSwitchObserver {
+            InputSourceBorrow.stopObservingSwitches(token)
+            ownSwitchObserver = nil
+        }
         if modules.contains(.timer) {
             NotchTimerService.shared.$session.removeDuplicates().receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
@@ -4325,6 +4338,13 @@ final class NotchService: ObservableObject {
             // is read now so that first post announces nothing.
             ownInputSourceID = nil
             inputSourceID = InputSourceSelection.currentReading()?.id
+            // The Command Bar borrows a layout while it is up, and both of
+            // its switches are the app's own. The borrow reports them here
+            // through the neutral channel instead of reaching for this
+            // service, which may not be installed at all.
+            ownSwitchObserver = InputSourceBorrow.observeSwitches { [weak self] sourceID in
+                self?.noteOwnInputSourceSwitch(to: sourceID)
+            }
             NotificationCenter.default.publisher(for: GlobalShortcut.keyboardLayoutDidChange)
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in self?.inputSourceChanged() }

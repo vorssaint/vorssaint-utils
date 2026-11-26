@@ -1136,8 +1136,12 @@ enum CommandBarFeatureTests {
         let commandBarServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
             encoding: .utf8)) ?? ""
-        suite.expect(commandBarServiceSource.contains("InputSourceSelection.asciiLayoutID"),
-               "the bar borrows the ASCII layout through the shared TIS selection")
+        let inputSourceSelectionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Core/InputSourceSelection.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(commandBarServiceSource.contains("InputSourceBorrow.borrow(")
+                && inputSourceSelectionSource.contains("InputSourceSelection.asciiLayoutID"),
+               "the bar borrows the ASCII layout through the neutral owner, not through its own state")
         suite.expect(commandBarServiceSource.contains("restoreSuspendedInputSource"),
                "closing the bar gives the suspended input source back")
         suite.expect(commandBarServiceSource.range(
@@ -3170,6 +3174,7 @@ typealias ProductionInputSourceSelection = InputSourceSelection
 /// Production borrow/restore methods with an inert input source and controlled
 /// next-turn delivery; the machine's keyboard layout is never changed.
 enum CommandBarInputSourceContract {
+    typealias InputSourceSelection = Sources
     enum Preferences {
         static var standard: Preferences.Type { Self.self }
         static var enabled = true
@@ -3210,19 +3215,35 @@ enum CommandBarInputSourceContract {
         typealias InputSourceSelection = Sources
         typealias DispatchQueue = Queue
         typealias NotchService = Island
-        var suspendedInputSourceID: String?
+        typealias InputSourceBorrow = Borrow
         var presentationID = UUID()
     }
+    /// The subscription the island keeps to the neutral channel, mirroring
+    /// the one NotchService holds in production.
+    static var islandSwitchToken: UUID?
     static func run(_ suite: TestSuite) {
-        defer { Queue.jobs = []; Sources.selected = []; Sources.acceptsSelection = true; Preferences.enabled = true }
+        defer {
+            Queue.jobs = []
+            Sources.selected = []
+            Sources.acceptsSelection = true
+            Preferences.enabled = true
+            Borrow.restoreTo = nil
+            Borrow.switchObservers = [:]
+        }
         func reset() -> Service {
             Queue.jobs = []
             Sources.current = "original"
             Sources.selected = []
             Sources.acceptsSelection = true
             Preferences.enabled = true
+            Borrow.restoreTo = nil
+            Borrow.switchObservers = [:]
             Island.shared = Island()
+            Island.constructed = false
             Island.shared.inputSourceID = Sources.current
+            islandSwitchToken = Borrow.observeSwitches {
+                Island.shared.noteOwnInputSourceSwitch(to: $0)
+            }
             return Service()
         }
         let normal = reset()
@@ -3231,11 +3252,35 @@ enum CommandBarInputSourceContract {
         normal.restoreSuspendedInputSource()
         suite.expect(Sources.current == "ascii", "closing inside a key event defers keyboard restoration")
         Queue.drain()
-        suite.expect(Sources.selected == ["ascii", "original"] && normal.suspendedInputSourceID == nil,
+        suite.expect(Sources.selected == ["ascii", "original"] && Borrow.restoreTo == nil,
                      "ordinary close restores the original layout exactly once")
         Island.shared.inputSourceChanged()
         suite.expect(Island.shared.presented.isEmpty,
                      "the borrowed layout and its return both leave the island's layout notice quiet")
+
+        // Giving the layout back is one event even when more than one surface
+        // listens: the neutral channel reports each app-owned switch once,
+        // and a second restore finds nothing left to give back.
+        let observed = reset()
+        var barReports: [String] = []
+        var islandReports: [String] = []
+        let barToken = Borrow.observeSwitches { barReports.append($0) }
+        let islandToken = Borrow.observeSwitches { islandReports.append($0) }
+        observed.adoptASCIIInputSource()
+        observed.restoreSuspendedInputSource()
+        Queue.drain()
+        Borrow.stopObservingSwitches(barToken)
+        Borrow.stopObservingSwitches(islandToken)
+        suite.expect(barReports == ["ascii", "original"]
+                     && islandReports == ["ascii", "original"]
+                     && Sources.selected == ["ascii", "original"]
+                     && Borrow.restoreTo == nil,
+                     "a borrow is restored exactly once, and both the bar and the island hear of its two switches")
+        observed.restoreSuspendedInputSource()
+        Borrow.restoreAll()
+        Queue.drain()
+        suite.expect(Sources.selected == ["ascii", "original"],
+                     "a second restore, from either surface, cannot give the layout back twice")
         for coalesced in [false, true] {
             let manual = reset()
             manual.adoptASCIIInputSource()
@@ -3249,7 +3294,7 @@ enum CommandBarInputSourceContract {
             Island.shared.inputSourceChanged()
             suite.expect(Island.shared.presented.map(\.title) == ["DE", "ASCII"],
                          "returning manually to the borrowed source is no longer an app-owned switch")
-            manual.restoreBorrowedInputSource()
+            Borrow.restoreAll()
             Island.shared.inputSourceChanged()
             Sources.current = "fr"
             Island.shared.inputSourceChanged()
@@ -3266,7 +3311,7 @@ enum CommandBarInputSourceContract {
                      "an unchanged reading before a delayed selection lands does not lose its quiet marker")
         let merged = reset()
         merged.adoptASCIIInputSource()
-        merged.restoreBorrowedInputSource()
+        Borrow.restoreAll()
         Island.shared.inputSourceChanged()
         Sources.current = "ascii"
         Island.shared.inputSourceChanged()
@@ -3282,7 +3327,7 @@ enum CommandBarInputSourceContract {
         reopened.restoreSuspendedInputSource()
         reopened.restoreSuspendedInputSource()
         Queue.drain()
-        suite.expect(Sources.selected == ["ascii", "original"] && reopened.suspendedInputSourceID == nil,
+        suite.expect(Sources.selected == ["ascii", "original"] && Borrow.restoreTo == nil,
                      "closing after a fast reopen restores the original layout without duplicate switches")
         for alreadyASCII in [false, true] {
             let untouched = reset()
@@ -3299,25 +3344,25 @@ enum CommandBarInputSourceContract {
         disabledOnReopen.presentationID = UUID()
         disabledOnReopen.adoptASCIIInputSource()
         Queue.drain()
-        suite.expect(Sources.current == "original" && disabledOnReopen.suspendedInputSourceID == nil,
+        suite.expect(Sources.current == "original" && Borrow.restoreTo == nil,
                      "reopening with borrowing disabled completes the previous restoration")
         let refusedRestore = reset()
         refusedRestore.adoptASCIIInputSource()
         Sources.acceptsSelection = false
         refusedRestore.restoreSuspendedInputSource()
         Queue.drain()
-        suite.expect(Sources.current == "ascii" && refusedRestore.suspendedInputSourceID == "original",
+        suite.expect(Sources.current == "ascii" && Borrow.restoreTo == "original",
                      "a rejected restoration keeps its original source available for retry")
         Sources.acceptsSelection = true
         refusedRestore.restoreSuspendedInputSource()
         Queue.drain()
-        suite.expect(Sources.current == "original" && refusedRestore.suspendedInputSourceID == nil,
+        suite.expect(Sources.current == "original" && Borrow.restoreTo == nil,
                      "a later accepted restoration releases the borrowing obligation")
         let terminating = reset()
         terminating.adoptASCIIInputSource()
         terminating.restoreSuspendedInputSource()
-        terminating.restoreBorrowedInputSource()
-        suite.expect(Sources.current == "original" && terminating.suspendedInputSourceID == nil,
+        Borrow.restoreAll()
+        suite.expect(Sources.current == "original" && Borrow.restoreTo == nil,
                      "termination restores the borrowed source without waiting for the run loop")
         Queue.drain()
         suite.expect(Sources.selected == ["ascii", "original"],
@@ -3327,7 +3372,7 @@ enum CommandBarInputSourceContract {
         refused.adoptASCIIInputSource()
         refused.restoreSuspendedInputSource()
         Queue.drain()
-        suite.expect(Sources.current == "original" && refused.suspendedInputSourceID == nil,
+        suite.expect(Sources.current == "original" && Borrow.restoreTo == nil,
                      "a refused source switch never creates a restoration obligation")
     }
 }
@@ -3344,21 +3389,32 @@ enum CommandBarTerminationContract {
             replies.append(accepted)
         }
     }
+    /// A bar that records ever being reached for, so a quit path that builds
+    /// it just to give a layout back fails instead of passing quietly.
     enum Bar {
-        static var shared = CommandBarInputSourceContract.Service()
+        static var constructed = false
+        private static var instance = CommandBarInputSourceContract.Service()
+        static var shared: CommandBarInputSourceContract.Service {
+            get { constructed = true; return instance }
+            set { instance = newValue }
+        }
     }
     class Fixture {
         typealias NSApplication = Application
         typealias CommandBarService = Bar
+        typealias NotchService = CommandBarInputSourceContract.Island
+        typealias InputSourceBorrow = CommandBarInputSourceContract.Borrow
         var inputSourceRestorationPending = false
     }
     static func run(_ suite: TestSuite) {
         func reset(borrowed: Bool) -> (Host, Application) {
             Bar.shared = CommandBarInputSourceContract.Service()
-            Bar.shared.suspendedInputSourceID = borrowed ? "original" : nil
+            CommandBarInputSourceContract.Borrow.restoreTo = borrowed ? "original" : nil
             CommandBarInputSourceContract.Sources.current = borrowed ? "ascii" : "original"
             CommandBarInputSourceContract.Sources.selected = []
             CommandBarInputSourceContract.Sources.acceptsSelection = true
+            Bar.constructed = false
+            CommandBarInputSourceContract.Island.constructed = false
             return (Host(), Application())
         }
         func awaitReply(_ app: Application, mode: RunLoop.Mode = .default) {
@@ -3369,6 +3425,7 @@ enum CommandBarTerminationContract {
         }
         defer {
             Bar.shared = CommandBarInputSourceContract.Service()
+            CommandBarInputSourceContract.Borrow.restoreTo = nil
             CommandBarInputSourceContract.Sources.current = "original"
             CommandBarInputSourceContract.Sources.selected = []
             CommandBarInputSourceContract.Sources.acceptsSelection = true
@@ -3387,11 +3444,14 @@ enum CommandBarTerminationContract {
         suite.expect(app.replies == [true] && app.sourceAtReply == ["original"]
                      && CommandBarInputSourceContract.Sources.selected == ["original"],
                      "the next run-loop turn restores once before sending the single quit reply")
-        suite.expect(!host.inputSourceRestorationPending && !Bar.shared.hasBorrowedInputSource,
+        suite.expect(!host.inputSourceRestorationPending
+                     && CommandBarInputSourceContract.Borrow.restoreTo == nil,
                      "completed termination preparation releases its pending state")
+        suite.expect(!Bar.constructed && !CommandBarInputSourceContract.Island.constructed,
+                     "a quit restores through the neutral owner without building the bar or the island")
         let (restoredHost, restoredApp) = reset(borrowed: true)
         _ = restoredHost.applicationShouldTerminate(restoredApp)
-        Bar.shared.restoreBorrowedInputSource()
+        CommandBarInputSourceContract.Borrow.restoreAll()
         suite.expect(restoredHost.applicationShouldTerminate(restoredApp) == .terminateLater,
                      "a repeated quit cannot bypass an already queued reply after another path restored")
         awaitReply(restoredApp)
@@ -3402,7 +3462,8 @@ enum CommandBarTerminationContract {
         CommandBarInputSourceContract.Sources.acceptsSelection = false
         _ = refusedHost.applicationShouldTerminate(refusedApp)
         awaitReply(refusedApp)
-        suite.expect(refusedApp.replies == [true] && Bar.shared.hasBorrowedInputSource
+        suite.expect(refusedApp.replies == [true]
+                     && CommandBarInputSourceContract.Borrow.restoreTo == "original"
                      && !refusedHost.inputSourceRestorationPending,
                      "an unavailable original layout cannot strand termination waiting for a reply")
 
@@ -3431,6 +3492,17 @@ enum CommandBarTerminationContract {
         // A regression may only deliver after leaving the modal mode; drain
         // that reply before fixture cleanup while retaining the failed verdict.
         awaitReply(modalApp)
+
+        // The passive quit callback is not sliced above, so keep its shape
+        // checked: it too must give the layout back through the neutral
+        // owner, never by building the bar.
+        let delegate = (try? String(contentsOfFile: "Sources/Vorssaint/App/AppDelegate.swift",
+                                    encoding: .utf8)) ?? ""
+        let willTerminate = delegate.components(separatedBy: "func applicationWillTerminate(")
+            .last?.components(separatedBy: "\n    func ").first ?? ""
+        suite.expect(willTerminate.contains("InputSourceBorrow.restoreAll()")
+                     && !willTerminate.contains("CommandBarService.shared"),
+                     "the quit callback restores the layout without reaching into the bar")
     }
 }
 
