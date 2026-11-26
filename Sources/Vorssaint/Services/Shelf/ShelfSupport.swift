@@ -261,6 +261,143 @@ enum ShelfInteractionSupport {
     }
 }
 
+/// The one answer to "is this shelf file still there?", shared by the drag
+/// path and the Open/Reveal/Share actions. Everything here touches the file
+/// system, so callers run it on their own queue and never on the main thread.
+enum ShelfFileResolution {
+    /// A file tile asking to be resolved.
+    struct Candidate {
+        let id: UUID
+        let url: URL
+        let bookmark: Data?
+
+        init(id: UUID, url: URL, bookmark: Data? = nil) {
+            self.id = id
+            self.url = url
+            self.bookmark = bookmark
+        }
+    }
+
+    /// A candidate that is still alive, possibly under a new path when its
+    /// bookmark found it again after a move or rename.
+    struct File: Equatable {
+        let id: UUID
+        let url: URL
+        let healed: Bool
+        /// Fresh bookmark for a healed file; nil when the path never moved.
+        let bookmark: Data?
+    }
+
+    struct Result {
+        var living: [File] = []
+        /// Files that are gone for good: their volume is mounted, so waiting
+        /// will not bring them back.
+        var missingIDs: [UUID] = []
+        /// A drag of any living file inside a package must stay copy-only.
+        var containsPackageContent = false
+        /// The gesture was cancelled: nothing is living and no action may run.
+        var cancelled = false
+
+        var livingURLs: [URL] { living.map(\.url) }
+
+        func file(for id: UUID) -> File? { living.first { $0.id == id } }
+    }
+
+    static func fileExists(_ path: String) -> Bool {
+        FileManager.default.fileExists(atPath: path)
+    }
+
+    static func isPackage(_ url: URL) -> Bool {
+        // Unknown ancestry is copy-only; a later gesture retries it.
+        (try? url.resourceValues(forKeys: [.isPackageKey]).isPackage) ?? true
+    }
+
+    /// A file that is gone and whose volume is not merely unmounted. A volume
+    /// under /Volumes that is absent right now keeps its files: the drive may
+    /// come back, and retiring them would lose them for good.
+    static func isMissingForever(_ url: URL, exists: (String) -> Bool = fileExists) -> Bool {
+        guard let volumeRoot = ShelfPersistenceSupport.unmountedVolumeRoot(of: url.path) else {
+            return true
+        }
+        return exists(volumeRoot)
+    }
+
+    /// Resolve every candidate in order. `isCancelled` is checked between
+    /// files so a cancelled gesture stops touching a slow or network volume
+    /// and returns an empty result no caller may act on.
+    static func resolve(_ candidates: [Candidate],
+                        wantsPackageContent: Bool = false,
+                        exists: (String) -> Bool = fileExists,
+                        isPackageAt: (URL) -> Bool = isPackage,
+                        resolveBookmark: (Data) -> String? = ShelfPersistenceSupport.resolvedBookmarkPath,
+                        isCancelled: () -> Bool = { false }) -> Result {
+        var result = Result()
+        var packageFlags: [URL: Bool] = [:]
+        func notePackageContent(_ url: URL) {
+            guard wantsPackageContent, !result.containsPackageContent else { return }
+            result.containsPackageContent = ShelfInteractionSupport.isInsidePackage(url) { ancestor in
+                if let flag = packageFlags[ancestor] { return flag }
+                let flag = isPackageAt(ancestor)
+                packageFlags[ancestor] = flag
+                return flag
+            }
+        }
+        for candidate in candidates {
+            if isCancelled() { return Result(cancelled: true) }
+            if exists(candidate.url.path) {
+                result.living.append(File(id: candidate.id, url: candidate.url,
+                                          healed: false, bookmark: nil))
+                notePackageContent(candidate.url)
+                continue
+            }
+            // The path died; its bookmark gets one chance to find it again.
+            guard let bookmark = candidate.bookmark,
+                  let path = resolveBookmark(bookmark),
+                  exists(path) else {
+                if isMissingForever(candidate.url, exists: exists) {
+                    result.missingIDs.append(candidate.id)
+                }
+                continue
+            }
+            let healed = URL(fileURLWithPath: path)
+            result.living.append(File(id: candidate.id, url: healed, healed: true,
+                                      bookmark: (try? healed.bookmarkData()) ?? bookmark))
+            notePackageContent(healed)
+        }
+        return result
+    }
+
+    /// The same resolution on a background queue; completion runs there too.
+    /// Cancelling the returned work item stops the walk and delivers a
+    /// cancelled (empty) result, so a late finish never acts.
+    @discardableResult
+    static func resolve(_ candidates: [Candidate], on queue: DispatchQueue,
+                        wantsPackageContent: Bool = false,
+                        exists: @escaping (String) -> Bool = fileExists,
+                        isPackageAt: @escaping (URL) -> Bool = isPackage,
+                        resolveBookmark: @escaping (Data) -> String? = ShelfPersistenceSupport.resolvedBookmarkPath,
+                        isCancelled: @escaping () -> Bool = { false },
+                        completion: @escaping (Result) -> Void) -> DispatchWorkItem {
+        final class Gate {
+            var work: DispatchWorkItem?
+            var isCancelled: Bool { work?.isCancelled ?? true }
+        }
+        let gate = Gate()
+        let work = DispatchWorkItem {
+            // The gate owns the item only while the walk runs, so it can
+            // observe `cancel()` and does not outlive the result.
+            defer { gate.work = nil }
+            completion(resolve(candidates, wantsPackageContent: wantsPackageContent,
+                               exists: exists, isPackageAt: isPackageAt,
+                               resolveBookmark: resolveBookmark,
+                               isCancelled: { isCancelled() || gate.isCancelled }))
+        }
+        gate.work = work
+        queue.async(execute: work)
+        return work
+    }
+}
+
 /// Types accepted by the native shelf drop targets.
 enum ShelfPasteboardSupport {
     /// Orders a mixed drop by pasteboard position. Receivers follow the
@@ -879,6 +1016,17 @@ enum ShelfPersistenceSupport {
             return nil
         }
         return "/Volumes/" + components[2]
+    }
+
+    /// Resolves a shelf bookmark without mounting drives or showing UI; nil
+    /// when the file it names can no longer be found.
+    static func resolvedBookmarkPath(_ bookmark: Data) -> String? {
+        var stale = false
+        guard let url = try? URL(resolvingBookmarkData: bookmark,
+                                 options: [.withoutUI, .withoutMounting],
+                                 relativeTo: nil,
+                                 bookmarkDataIsStale: &stale) else { return nil }
+        return url.path
     }
 
     private static func sanitized(_ items: [ShelfPersistedItem],

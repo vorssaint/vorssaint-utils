@@ -265,7 +265,7 @@ enum ShelfDragCompletionTests {
                 return
             }
             let held = DispatchSemaphore(value: 0)
-            Context.Service.dragFileQueue.async { _ = held.wait(timeout: .now() + 3) }
+            Context.Service.fileResolutionQueue.async { _ = held.wait(timeout: .now() + 3) }
             tile.mouseDragged(with: Context.NSEvent())
             suite.expect(tile.pendingDragID != nil && tile.sessionStarts == 0,
                          "the file gesture is pending when the sibling thumbnail arrives")
@@ -330,7 +330,7 @@ enum ShelfDragCompletionTests {
             held.signal()
             // A cancelled work item can skip its completion. Wait for every
             // earlier worker and its main-queue callback before testing either outcome.
-            Context.Service.dragFileQueue.sync {}
+            Context.Service.fileResolutionQueue.sync {}
             var delivered = false
             DispatchQueue.main.async { delivered = true }
             drain { delivered }
@@ -381,7 +381,7 @@ enum ShelfDragCompletionTests {
             slowService.items = [early]
             let slowTile = Context.Tile(item: early)
             let releaseIO = DispatchSemaphore(value: 0)
-            Context.Service.dragFileQueue.async { _ = releaseIO.wait(timeout: .now() + 3) }
+            Context.Service.fileResolutionQueue.async { _ = releaseIO.wait(timeout: .now() + 3) }
             slowTile.beginItemDrag(with: Context.NSEvent())
             suite.expect(slowTile.pendingDragID != nil && slowTile.draggingItems.isEmpty
                          && slowService.activeInternalDragIDs.isEmpty,
@@ -393,7 +393,7 @@ enum ShelfDragCompletionTests {
             slowService.completeInternalDrag(dropAccepted: false)
 
             let held = DispatchSemaphore(value: 0)
-            Context.Service.dragFileQueue.async { _ = held.wait(timeout: .now() + 3) }
+            Context.Service.fileResolutionQueue.async { _ = held.wait(timeout: .now() + 3) }
             let released = Context.Tile(item: early)
             released.beginItemDrag(with: Context.NSEvent())
             Context.NSEvent.pressedMouseButtons = 0

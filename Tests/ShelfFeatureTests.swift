@@ -219,6 +219,7 @@ enum ShelfFeatureTests {
         suite.expect(!ShelfPasteboardSupport.isDroppablePasteboardType(
             "com.vorssaint.tests.not-a-real-pasteboard-type"),
                "unrelated pasteboard types do not activate the shelf")
+        ShelfFileResolutionTests.run(suite)
         ShelfFilePromiseTests.run(suite)
         ShelfDropRoutingTests.run(suite)
 
