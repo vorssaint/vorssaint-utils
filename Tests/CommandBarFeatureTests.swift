@@ -167,8 +167,64 @@ enum CommandBarFeatureTests {
         typealias DispatchQueue = Queue
     }
 
+    /// One contract for asynchronous row sources: one stop cancels each of
+    /// them once, and nothing a stopped source delivers can still refresh.
+    enum LiveSourcesContract {
+        final class Source: CommandBarLiveSource {
+            var started = 0
+            var cancelled = 0
+            var onChange: (() -> Void)?
+            func start(onChange: @escaping () -> Void) {
+                started += 1
+                self.onChange = onChange
+            }
+            func cancel() {
+                cancelled += 1
+                onChange = nil
+            }
+        }
+
+        static func run(_ suite: TestSuite) {
+            var scheduled: [() -> Void] = []
+            var refreshes = 0
+            let live = CommandBarLiveSources(scheduler: { _, work in scheduled.append(work) },
+                                             refresh: { refreshes += 1 })
+            let first = Source(), second = Source()
+            live.register(first)
+            live.register(second)
+            live.register(first)
+            suite.expect(first.started == 1 && second.started == 1 && live.registeredCount == 2,
+                         "one registration per source, however often rows are rebuilt")
+
+            first.onChange?()
+            second.onChange?()
+            suite.expect(scheduled.count == 2 && refreshes == 0,
+                         "a change waits for the one debounce instead of refreshing per event")
+            scheduled.removeLast()()
+            suite.expect(refreshes == 1, "only the newest change in a burst reaches the bar")
+
+            first.onChange?()
+            let late = first.onChange
+            live.stopAll()
+            suite.expect(first.cancelled == 1 && second.cancelled == 1 && live.isEmpty,
+                         "closing stops every registered source exactly once")
+            live.stopAll()
+            suite.expect(first.cancelled == 1 && second.cancelled == 1,
+                         "a second stop cancels nothing that was already stopped")
+
+            let pending = scheduled.count
+            scheduled.forEach { $0() }
+            suite.expect(pending == 2 && refreshes == 1,
+                         "a debounce already scheduled before close never publishes")
+            late?()
+            suite.expect(scheduled.count == pending && refreshes == 1,
+                         "a late result after close does not publish")
+        }
+    }
+
     static func run(_ suite: TestSuite) {
         CommandBarMicMuteTests.run(suite)
+        LiveSourcesContract.run(suite)
         CommandBarInputSourceContract.run(suite)
         CommandBarTerminationContract.run(suite)
         CommandBarAppSortContract.run(suite)

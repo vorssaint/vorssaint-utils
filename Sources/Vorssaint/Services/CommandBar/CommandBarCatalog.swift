@@ -1799,24 +1799,40 @@ enum CommandBarCatalog {
 
     // MARK: - Clipboard history
 
+    /// The rows one live feature built, and the source that can replace them
+    /// when its data changes. The bar owns the source without knowing which
+    /// feature it belongs to.
+    struct LiveRows {
+        let rows: [CommandBarEntry]
+        let source: CommandBarLiveSource?
+    }
+
+    private static let clipboardLiveSource = CommandBarClipboardLiveSource(
+        history: ClipboardHistoryService.shared)
+
     /// Rows for history items matching the query, capped so pasted text never
-    /// crowds out actions. Never offered on an empty query and never counted
-    /// as usage; the items come and go with the clipboard.
+    /// crowds out actions, plus the source that keeps them current. Never
+    /// offered on an empty query and never counted as usage; the items come
+    /// and go with the clipboard.
     static func clipboardEntries(matching query: String,
                                  bar: CommandBarFeatureStrings,
                                  limit: Int = 4,
-                                 onDeferredResults: @escaping () -> Void,
-                                 paste: @escaping (ClipboardHistoryEntry) -> Void) -> [CommandBarEntry] {
+                                 paste: @escaping (ClipboardHistoryEntry) -> Void) -> LiveRows {
         guard AppFeature.clipboardHistory.isAvailable,
-              !query.isEmpty else { return [] }
+              !query.isEmpty else { return LiveRows(rows: [], source: nil) }
         let history = ClipboardHistoryService.shared
         guard CommandBarClipboardAccess.canUseHistory(
             captureEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled),
-            hasSavedItems: !history.entries.isEmpty) else { return [] }
+            hasSavedItems: !history.entries.isEmpty) else { return LiveRows(rows: [], source: nil) }
+        let source = clipboardLiveSource
         let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
-        return history.filteredEntries(matching: query, surface: .commandBar, onDeferredResults: onDeferredResults)
+        let rows = history.filteredEntries(
+            matching: query,
+            surface: .commandBar,
+            onDeferredResults: { [weak source] in source?.notifyChange() })
             .prefix(limit)
             .map { clipboardRow($0, imageLabel: imageLabel, bar: bar, matchingQuery: query, paste: paste) }
+        return LiveRows(rows: rows, source: source)
     }
 
     private static func clipboardRow(_ entry: ClipboardHistoryEntry,
