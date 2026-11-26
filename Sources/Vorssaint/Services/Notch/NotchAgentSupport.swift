@@ -94,21 +94,16 @@ enum NotchAgentSupport {
     static func pageProviders(snapshot: AgentUsageSnapshot, hasCodexAccounts: Bool, hasClaudeAccount: Bool,
                               in defaults: UserDefaults = .standard) -> [AgentProvider] {
         providers(in: defaults).filter { provider in
-            snapshot.seen.contains(provider)
-                || (provider == .cursor && snapshot.cursorProjectsFound)
-                || (provider == .codex && hasCodexAccounts)
-                || (provider == .claude && hasClaudeAccount)
+            let descriptor = provider.descriptor
+            return snapshot.seen.contains(provider)
+                || (descriptor.showsWithProjects && snapshot.cursorProjectsFound)
+                || (descriptor.account == .codex && hasCodexAccounts)
+                || (descriptor.account == .claude && hasClaudeAccount)
         }
     }
 
     static func key(for provider: AgentProvider) -> String {
-        switch provider {
-        case .claude: return DefaultsKey.notchAgentsClaude
-        case .codex: return DefaultsKey.notchAgentsCodex
-        case .opencode: return DefaultsKey.notchAgentsOpenCode
-        case .copilot: return DefaultsKey.notchAgentsCopilot
-        case .cursor: return DefaultsKey.notchAgentsCursor
-        }
+        provider.descriptor.defaultsKey
     }
 
     /// Every card in the saved order; cards added later join at the end.
@@ -243,7 +238,7 @@ enum NotchAgentSupport {
         case .elapsed:
             return elapsed()
         case .tokens, .cost:
-            let metered = live.filter { $0.provider != .cursor }
+            let metered = live.filter { !$0.provider.descriptor.activityOnly }
             let partial = metered.count != live.count
             // What the agent wrote, the count its own window shows; the
             // context it reads again on every call is in the cost.
@@ -272,7 +267,7 @@ enum NotchAgentSupport {
                                             tokens: AgentTokens(input: 1_180_000, output: 20_000), cost: 4.56)]
         }
         let working = AgentProvider.allCases.first { provider in sample.live.contains { $0.provider == provider } } ?? provider
-        if working != .cursor, focusedLimit(sample.limits[working], focus: focus, now: now) == nil {
+        if !working.descriptor.activityOnly, focusedLimit(sample.limits[working], focus: focus, now: now) == nil {
             sample.limits[working] = AgentLimits(provider: working, windows: [
                 AgentLimitWindow(id: "example-session", kind: .session, minutes: 300, scope: nil,
                                  usedPercent: 32, resetsAt: now.addingTimeInterval(3600)),
@@ -315,21 +310,27 @@ enum NotchAgentSupport {
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
                       codexAccounts: [String] = [], claudeAccount: String? = nil,
                       snapshot: AgentUsageSnapshot = AgentUsageSnapshot()) -> [NotchAgentTile] {
-        let activityOnly = providers == [.cursor] && !snapshot.days.contains { ($0.byProvider[.cursor]?.tokens.total ?? 0) > 0 }
+        let activityOnlyProvider = providers.count == 1 ? providers[0] : nil
+        let activityOnly = activityOnlyProvider.map { provider in
+            provider.descriptor.activityOnly && !snapshot.days.contains { ($0.byProvider[provider]?.tokens.total ?? 0) > 0 }
+        } ?? false
         let shown = activityOnly ? cards.filter { $0 == .live } : cards
         return shown.flatMap { card -> [NotchAgentTile] in
             switch card {
             case .limits: return providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
-                if provider == .claude, let claudeAccount {
+                if provider.descriptor.account == .claude, let claudeAccount {
                     return [NotchAgentTile(card: .limits, provider: provider, accountID: claudeAccount)]
                 }
-                guard provider == .codex, !codexAccounts.isEmpty else { return [NotchAgentTile(card: .limits, provider: provider)] }
+                guard provider.descriptor.account == .codex, !codexAccounts.isEmpty else {
+                    return [NotchAgentTile(card: .limits, provider: provider)]
+                }
                 return codexAccounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }
             }
             // Banked resets belong to a Codex account: the default one, which
             // the card names once others have cards.
-            case .resets: return providers.contains(.codex)
-                ? [NotchAgentTile(card: .resets, provider: .codex, namesDefaultAccount: !codexAccounts.isEmpty)] : []
+            case .resets: return providers.first { $0.descriptor.account == .codex }.map {
+                [NotchAgentTile(card: .resets, provider: $0, namesDefaultAccount: !codexAccounts.isEmpty)]
+            } ?? []
             case .live:
                 let working = snapshot.live.contains { providers.contains($0.provider) }
                 return [NotchAgentTile(card: .live, provider: nil, idleProviderCount: working ? 0 : providers.count)]
@@ -384,7 +385,7 @@ enum NotchAgentSupport {
         guard let limits else { return false }
         let age = now.timeIntervalSince(limits.observedAt)
         if account { return age >= accountStaleness }
-        return provider == .claude && age >= AgentClaudeAppUsage.freshness
+        return provider.descriptor.account == .claude && age >= AgentClaudeAppUsage.freshness
     }
 
     static func contentHeight(_ rows: [[NotchAgentTile]]) -> CGFloat {

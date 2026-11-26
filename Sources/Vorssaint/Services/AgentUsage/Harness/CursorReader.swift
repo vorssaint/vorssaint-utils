@@ -96,7 +96,7 @@ struct CursorReader: AgentHarnessReader {
     }
 
     static func usageKey(session: String, id: String) -> String {
-        "cursor-transcript:\(session.utf8.count):\(session):\(id)"
+        AgentUsageKey.transcript(provider: .cursor, copy: "\(session.utf8.count):\(session):\(id)").rawValue
     }
 
     /// The file's last write cannot date older replies.

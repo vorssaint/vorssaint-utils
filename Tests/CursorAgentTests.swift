@@ -209,27 +209,27 @@ enum CursorAgentTests {
         let dated = #"{"role":"assistant","timestamp":"2026-11-18T10:00:32Z","message":{"id":"one","model":"gpt-5.2"}}"#
         let metered = #"{"role":"assistant","timestamp":"2026-11-18T10:00:32Z","message":{"id":"one","model":"gpt-5.2","usage":{"output_tokens":1000}}}"#
         missing.feed(dated)
-        let emptyRevision = store.cursorUsageRevision(for: session)
+        let emptyRevision = store.transcriptUsageRevision(for: session, provider: .cursor)
         unrelated.feed(metered)
-        suite.expect(store.cursorUsageRevision(for: session) == emptyRevision
+        suite.expect(store.transcriptUsageRevision(for: session, provider: .cursor) == emptyRevision
                      && store.transcriptActivity(for: missing.state).minutes.count == 1,
                      "the same response ID in another Cursor session cannot resolve an unmetered reply")
         first.feed(metered)
-        let measuredRevision = store.cursorUsageRevision(for: session)
+        let measuredRevision = store.transcriptUsageRevision(for: session, provider: .cursor)
         second.feed(metered)
         store.forgetUsage(files: [first.path])
-        suite.expect(measuredRevision != emptyRevision && store.cursorUsageRevision(for: session) == measuredRevision
+        suite.expect(measuredRevision != emptyRevision && store.transcriptUsageRevision(for: session, provider: .cursor) == measuredRevision
                      && store.transcriptActivity(for: missing.state).minutes.isEmpty,
                      "a duplicate and removal of one metered copy preserve the original session's resolved coverage")
         let restored = AgentUsageStore(saved: store.saved)
-        suite.expect(restored.cursorUsageRevision(for: session) != 0 && restored.transcriptActivity(for: missing.state).minutes.isEmpty,
+        suite.expect(restored.transcriptUsageRevision(for: session, provider: .cursor) != 0 && restored.transcriptActivity(for: missing.state).minutes.isEmpty,
                      "restored measured IDs resolve the same gaps as the live store")
         restored.dropRecords(before: missing.now)
-        suite.expect(restored.cursorUsageRevision(for: session) == 0 && restored.transcriptActivity(for: missing.state).minutes.count == 1,
+        suite.expect(restored.transcriptUsageRevision(for: session, provider: .cursor) == 0 && restored.transcriptActivity(for: missing.state).minutes.count == 1,
                      "pruning the last metered copy restores its unmetered observation")
         store.forgetUsage(files: [second.path])
         first.feed(metered)
-        suite.expect(store.cursorUsageRevision(for: session) != measuredRevision,
+        suite.expect(store.transcriptUsageRevision(for: session, provider: .cursor) != measuredRevision,
                      "a removed and reinserted session key invalidates coverage across both changes")
     }
 

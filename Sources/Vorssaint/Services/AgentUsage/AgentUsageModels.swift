@@ -10,28 +10,52 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
 
     var id: String { rawValue }
 
-    var displayName: String {
-        switch self {
-        case .claude: return "Claude"
-        case .codex: return "Codex"
-        case .opencode: return "OpenCode"
-        case .copilot: return "GitHub Copilot"
-        case .cursor: return "Cursor"
-        }
-    }
+    var displayName: String { descriptor.displayName }
 
-    var symbol: String {
-        switch self {
-        case .claude: return "sparkle"
-        case .codex: return "chevron.left.forwardslash.chevron.right"
-        case .opencode: return "terminal"
-        case .copilot: return "infinity"
-        case .cursor: return "cursorarrow"
-        }
-    }
+    var symbol: String { descriptor.symbol }
 
     /// Whether the provider records a plan allowance in its local logs.
-    var reportsLimits: Bool { self != .copilot && self != .cursor }
+    var reportsLimits: Bool { descriptor.reportsLimits }
+}
+
+/// The name a response is counted under. A transcript response appears in every
+/// copy of its session's log, so it is read per file instead of merged. Its
+/// string form is what the archive keeps, so keys saved before this type existed
+/// still match byte for byte.
+enum AgentUsageKey: Hashable {
+    case transcript(provider: AgentProvider, copy: String)
+    case other(String)
+
+    private static let transcriptMarker = "-transcript:"
+    private static let transcriptPrefixes: [(prefix: String, provider: AgentProvider)] = AgentProvider.allCases.map {
+        ($0.rawValue + transcriptMarker, $0)
+    }
+
+    init(_ raw: String) {
+        for (prefix, provider) in Self.transcriptPrefixes where raw.hasPrefix(prefix) {
+            self = .transcript(provider: provider, copy: String(raw.dropFirst(prefix.count)))
+            return
+        }
+        self = .other(raw)
+    }
+
+    var rawValue: String {
+        switch self {
+        case .transcript(let provider, let copy): return provider.rawValue + Self.transcriptMarker + copy
+        case .other(let raw): return raw
+        }
+    }
+
+    var isTranscript: Bool {
+        if case .transcript = self { return true }
+        return false
+    }
+
+    /// Whether `raw` names a response read per copy, without building a key on
+    /// the store's hot path.
+    static func isTranscript(_ raw: String) -> Bool {
+        transcriptPrefixes.contains { raw.hasPrefix($0.prefix) }
+    }
 }
 
 /// Token counts in the shape both logs can be reduced to. `input` excludes

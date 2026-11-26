@@ -183,7 +183,7 @@ private struct NotchAgentGlyphBridge: NSViewRepresentable {
         switch AgentMarks.mark(for: provider) {
         case .template(let mark):
             image = mark
-            markSize = size * provider.markScale
+            markSize = size * provider.descriptor.markScale
             tint = NSColor(provider.tint)
         case .icon(let mark):
             image = mark
@@ -352,10 +352,10 @@ enum AgentMarks {
     }
 
     private static func lookUp(_ provider: AgentProvider) -> Mark? {
-        for identifier in provider.appIdentifiers {
+        for identifier in provider.descriptor.appIdentifiers {
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) else { continue }
             if let bundle = Bundle(url: url) {
-                for name in provider.menuBarImageNames {
+                for name in provider.descriptor.menuBarImageNames {
                     if let image = bundle.image(forResource: name) {
                         image.isTemplate = true
                         return .template(image)
@@ -365,35 +365,6 @@ enum AgentMarks {
             return .icon(NSWorkspace.shared.icon(forFile: url.path))
         }
         return nil
-    }
-}
-
-private extension AgentProvider {
-    /// The maker's desktop apps, the one that runs the agent first.
-    var appIdentifiers: [String] {
-        switch self {
-        case .claude: return [AgentClaudeAppUsage.bundleIdentifier]
-        case .codex: return AgentCodexServer.appIdentifiers
-        case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
-        case .copilot: return ["com.github.githubapp"]
-        case .cursor: return ["com.todesktop.230313mzl4w4u92"]
-        }
-    }
-
-    /// The menu bar images keep a margin; the spark's thin rays need more
-    /// of the box than the knot to look the same size.
-    var markScale: CGFloat { self == .claude ? 1.45 : 1.2 }
-
-    /// What those apps name the mark they show in the menu bar.
-    var menuBarImageNames: [String] {
-        switch self {
-        case .claude: return ["TrayIconTemplate"]
-        case .codex: return ["chatgptTemplate"]
-        // The OpenCode app shows nothing in the menu bar; its icon stands in.
-        case .opencode: return []
-        case .copilot: return []
-        case .cursor: return []
-        }
     }
 }
 
@@ -411,7 +382,7 @@ struct NotchAgentMark: View {
                 .resizable()
                 .interpolation(.high)
                 .scaledToFit()
-                .frame(width: size * provider.markScale, height: size * provider.markScale)
+                .frame(width: size * provider.descriptor.markScale, height: size * provider.descriptor.markScale)
                 .foregroundStyle(tint ?? provider.tint)
         case .icon(let image):
             // App icons keep a margin around their artwork.
