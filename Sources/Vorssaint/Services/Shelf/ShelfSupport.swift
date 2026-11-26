@@ -398,6 +398,36 @@ enum ShelfFileResolution {
     }
 }
 
+/// Serializes right-click menu requests against the shelf's background file
+/// resolution. A click that arrives while a resolution is already running is
+/// remembered and becomes the single menu shown when that resolution lands,
+/// instead of being swallowed or starting a second walk of a slow volume.
+struct ShelfContextMenuRequests<Request> {
+    private var resolving: Request?
+    private var deferred: Request?
+
+    /// Ask for a menu. True means nothing is resolving and the caller must
+    /// start the resolution now; false means this click was remembered (the
+    /// latest one wins) and its menu appears with the running resolution.
+    mutating func begin(_ request: Request) -> Bool {
+        guard resolving == nil else {
+            deferred = request
+            return false
+        }
+        resolving = request
+        return true
+    }
+
+    /// The running resolution finished. Returns the click whose menu to show
+    /// now, or nil when there is none or the window closed while waiting.
+    mutating func finish(windowIsOpen: Bool) -> Request? {
+        let request = deferred ?? resolving
+        resolving = nil
+        deferred = nil
+        return windowIsOpen ? request : nil
+    }
+}
+
 /// Types accepted by the native shelf drop targets.
 enum ShelfPasteboardSupport {
     /// Orders a mixed drop by pasteboard position. Receivers follow the

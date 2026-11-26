@@ -1322,10 +1322,11 @@ final class ShelfService: ObservableObject {
     }
 
     /// The action resolution currently in flight, if any. Buttons ask the
-    /// service to resolve before acting, and a second request while one is
-    /// still running is ignored: a control cannot double-fire and nothing on
-    /// the main thread ever waits for a slow or network volume.
+    /// service to resolve before acting, and a request that arrives while one
+    /// is running waits for that same answer: one flight, no parallel walks of
+    /// a slow volume, and no dropped `completion`.
     private var pendingFileAction: DispatchWorkItem?
+    private var waitingFileActions: [([URL]) -> Void] = []
 
     /// What the panel's own buttons act on: the selection when there is one,
     /// everything otherwise, the way its trash button already reads. A grab
@@ -1348,7 +1349,11 @@ final class ShelfService: ObservableObject {
 
     private func resolveActionFiles(in candidates: [Item], retiresMissing: Bool,
                                     completion: @escaping ([URL]) -> Void) -> Bool {
-        guard pendingFileAction == nil else { return false }
+        guard pendingFileAction == nil else {
+            // The answer already on its way is this request's answer too.
+            waitingFileActions.append(completion)
+            return true
+        }
         let leaves = dragItems(for: candidates)
         let holdsFiles = leaves.contains(where: \.holdsFile)
         let work = ShelfFileResolution.resolve(Self.resolutionCandidates(leaves),
@@ -1356,11 +1361,14 @@ final class ShelfService: ObservableObject {
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.pendingFileAction = nil
+                let waiting = self.waitingFileActions
+                self.waitingFileActions = []
                 let applied = Self.applying(resolution, to: leaves)
                 if !resolution.cancelled, resolution.livingURLs.isEmpty, retiresMissing, holdsFiles {
                     self.retireMissing(resolution)
                 }
                 completion(resolution.livingURLs)
+                for waiter in waiting { waiter(resolution.livingURLs) }
                 // Healed tiles catch up after the caller has opened, revealed
                 // or shared the file, so no rebuild lands under a menu.
                 guard !resolution.cancelled else { return }

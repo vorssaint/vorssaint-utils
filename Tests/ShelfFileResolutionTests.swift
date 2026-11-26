@@ -148,6 +148,28 @@ enum ShelfFileResolutionTests {
         suite.expect(normalURLs == normal.map(\.url),
                "a normal batch of 50 files resolves every action target")
 
+        // MARK: Menu latency — 20 local files
+
+        var local: [ShelfFileResolution.Candidate] = []
+        for index in 0..<20 {
+            let url = root.appendingPathComponent("menu-\(index).txt")
+            try? Data("local".utf8).write(to: url)
+            local.append(.init(id: UUID(), url: url))
+        }
+        let menuFinished = DispatchSemaphore(value: 0)
+        var menuURLs: [URL] = []
+        let menuStarted = Date()
+        ShelfFileResolution.resolve(local, on: DispatchQueue(label: "shelf-resolution-menu-latency")) {
+            menuURLs = $0.livingURLs
+            menuFinished.signal()
+        }
+        _ = menuFinished.wait(timeout: .now() + 3)
+        let menuLatency = Date().timeIntervalSince(menuStarted)
+        print(String(format: "shelf context menu: 20 local files resolved in %.2f ms before the menu is built",
+                     menuLatency * 1000))
+        suite.expect(menuURLs.count == 20,
+               "a local 20-file menu resolves every action target")
+
         // MARK: Performance — 50 files on a simulated slow provider
 
         let count = 50

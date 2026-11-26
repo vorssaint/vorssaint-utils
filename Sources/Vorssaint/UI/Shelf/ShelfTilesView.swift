@@ -344,7 +344,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
     /// URLs the open context menu acts on, resolved before it was built.
     private var actionURLs: [URL] = []
     /// True while this tile waits for its context menu's files to resolve.
-    private var menuIsResolving = false
+    private var menuRequests = ShelfContextMenuRequests<NSEvent>()
     private var didDrag = false
     private var draggedIDs: [UUID] = []
     private var isDropTargeted = false
@@ -580,24 +580,27 @@ final class ShelfTileView: NSView, NSDraggingSource {
     override func menu(for event: NSEvent) -> NSMenu? { nil }
 
     /// The right-click menu acts on files the shelf resolves off the main
-    /// thread. Until that finishes the tile ignores further right-clicks, so
-    /// the menu can never be built twice from one click.
+    /// thread. A click that arrives while that runs is remembered and gets the
+    /// menu of that resolution, so it never disappears and two menus can never
+    /// race each other.
     private func presentContextMenu(with event: NSEvent) {
         ShelfService.shared.noteInteraction()
         // A tooltip already showing (or about to show, from a hover just
         // before the right-click) has no reason to stick around once a
         // context menu covers the same corner of the tile it anchors to.
         ShelfTooltipPopover.shared.hide()
-        guard !menuIsResolving else { return }
-        menuIsResolving = true
+        guard menuRequests.begin(event) else { return }
         let started = ShelfService.shared.resolveActionFiles(startingAt: item) { [weak self] urls in
             guard let self else { return }
-            self.menuIsResolving = false
-            guard self.window != nil else { return }
+            guard let menuEvent = self.menuRequests.finish(windowIsOpen: self.window != nil) else { return }
             self.actionURLs = urls
-            NSMenu.popUpContextMenu(self.makeMenu(urls: urls), with: event, for: self)
+            NSMenu.popUpContextMenu(self.makeMenu(urls: urls), with: menuEvent, for: self)
         }
-        if !started { menuIsResolving = false }
+        if !started {
+            // The service never refuses while it holds a request, but drop the
+            // pending click rather than leave the tile waiting forever.
+            _ = menuRequests.finish(windowIsOpen: false)
+        }
     }
 
     private func makeMenu(urls: [URL]) -> NSMenu {
