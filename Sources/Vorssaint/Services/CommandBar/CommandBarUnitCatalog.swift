@@ -160,7 +160,6 @@ enum CommandBarUnitCatalog {
     static let mixedPairs: [String: (remainder: Unit, ratio: Double)] = [
         "ft": (unit(byID: "in")!, 12),
         "h": (unit(byID: "min")!, 60),
-        "hr": (unit(byID: "min")!, 60),
         "min": (unit(byID: "s")!, 60),
         "lb": (unit(byID: "oz")!, 16),
         "kg": (unit(byID: "g")!, 1000),
@@ -170,7 +169,7 @@ enum CommandBarUnitCatalog {
     /// Two units asked for together split the answer between them ("to feet
     /// and inches", "to lb oz"). Only the pairs that people actually say.
     static let splitPairs: Set<String> = [
-        "ft|in", "lb|oz", "h|min", "hr|min", "yr|mo", "wk|d", "d|h",
+        "ft|in", "lb|oz", "h|min", "yr|mo", "wk|d", "d|h",
     ]
 
     /// A squared base unit reads as the area unit when one exists, so 5m * 4m
@@ -517,7 +516,7 @@ enum CommandBarUnitCatalog {
         add("atm", pressureDims, scale: 101325, foundation: CommandBarUnitCatalog.customAtmosphere,
             ["atm", "atmosphere", "atmospheres"])
         add("psi", pressureDims, scale: 6894.757293168, foundation: UnitPressure.poundsForcePerSquareInch,
-            ["psi", "poundsperSquareinch", "pounds per square inch"])
+            ["psi", "poundspersquareinch", "pounds per square inch"])
         add("mmhg", pressureDims, scale: 133.322387415, foundation: UnitPressure.millimetersOfMercury,
             ["mmhg", "millimetersofmercury", "millimeters of mercury"])
         add("inhg", pressureDims, scale: 3386.389, foundation: UnitPressure.inchesOfMercury,
