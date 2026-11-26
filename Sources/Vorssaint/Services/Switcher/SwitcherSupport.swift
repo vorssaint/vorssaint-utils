@@ -1161,7 +1161,10 @@ enum SwitcherSupport {
     /// whoever shipped it (issues #215, #512). Compatibility-hosted windows
     /// keep their own exception for the surfaces that resolve to no window
     /// server id at all (issue #274), and a screen-sized surface stays
-    /// switchable so full-screen playback on another desktop is not lost.
+    /// switchable so full-screen playback on another desktop is not lost —
+    /// unless it carries no sign of being an interactive window at all, which
+    /// is what a painted overlay looks like (issue #4428, see
+    /// `isUndescribedScreenOverlay`).
     ///
     /// Every subrole the app did describe is left alone: a dialog, a sheet or
     /// a floating panel is filtered as before unless it fills the screen.
@@ -1180,15 +1183,49 @@ enum SwitcherSupport {
                                               hasNormalWindowLevel: Bool,
                                               acceptsUndescribedSubroles: Bool,
                                               canMinimize: Bool = false,
-                                              isExcludedFromWindowCycle: Bool = false) -> Bool {
+                                              isExcludedFromWindowCycle: Bool = false,
+                                              isMain: Bool = false,
+                                              hasWindowButtons: Bool = false,
+                                              title: String = "") -> Bool {
         guard role == "AXWindow", !isExcludedFromWindowCycle else { return false }
         if subrole == "AXUnknown" {
-            return hasNormalWindowLevel || acceptsUndescribedSubroles || fillsScreen
+            if acceptsUndescribedSubroles { return true }
+            // Only the normal level is ambiguous: a surface above it keeps
+            // the existing treatment.
+            if hasNormalWindowLevel,
+               isUndescribedScreenOverlay(fillsScreen: fillsScreen,
+                                          isMain: isMain,
+                                          hasWindowButtons: hasWindowButtons,
+                                          title: title) { return false }
+            return hasNormalWindowLevel || fillsScreen
         }
         if subrole == "AXDialog" {
             return hasNormalWindowLevel && canMinimize
         }
         return fillsScreen && subrole == "AXFloatingWindow"
+    }
+
+    /// Whether a screen-filling window that Accessibility left undescribed
+    /// (`AXUnknown`) offers nothing the user can work with.
+    ///
+    /// The window server cannot tell a borderless main window from a painted
+    /// overlay: both cover the screen at level 0. The app's own answer can. A
+    /// real window can be the app's main window, and it exposes window buttons
+    /// or a title; any one of those signs keeps it switchable. A watermark, a
+    /// scrim or a privacy shield owned by a service process has none of them:
+    /// it is never the main window, has no title bar controls, and carries no
+    /// title text (issue #4428).
+    ///
+    /// The shape alone never hides a window. Window enumeration resolves the
+    /// candidates against the app's assembled Accessibility snapshot and keeps
+    /// them when they are all the app has, so a lone borderless game or player
+    /// stays switchable.
+    static func isUndescribedScreenOverlay(fillsScreen: Bool,
+                                           isMain: Bool,
+                                           hasWindowButtons: Bool,
+                                           title: String) -> Bool {
+        guard fillsScreen, !isMain, !hasWindowButtons else { return false }
+        return title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// Picks the entries that survive the visible cap, by index into `appPIDs`

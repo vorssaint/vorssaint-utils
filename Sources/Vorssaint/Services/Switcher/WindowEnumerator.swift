@@ -1243,7 +1243,7 @@ enum WindowEnumerator {
     /// window, and repeated timeouts kept the panel behind busy apps (#2348).
     private struct AccessibilityWindowAttributes {
         enum Attribute: Int, CaseIterable {
-            case role, subrole, fullscreen, minimized, position, size, title
+            case role, subrole, fullscreen, minimized, position, size, title, main, closeButton
 
             var name: String {
                 switch self {
@@ -1254,6 +1254,8 @@ enum WindowEnumerator {
                 case .position: return kAXPositionAttribute as String
                 case .size: return kAXSizeAttribute as String
                 case .title: return kAXTitleAttribute as String
+                case .main: return kAXMainAttribute as String
+                case .closeButton: return kAXCloseButtonAttribute as String
                 }
             }
         }
@@ -1315,11 +1317,28 @@ enum WindowEnumerator {
         var isNativeFullscreen: Bool {
             bool(.fullscreen) || string(.subrole) == "AXFullScreenWindow"
         }
+
+        /// A window's own `AXMain` flag. A painted overlay is never the main
+        /// window of its process, while a borderless main window is.
+        var isMain: Bool {
+            bool(.main)
+        }
+
+        /// Whether the window exposes a close button. The attribute is part of
+        /// the same batch; a window without one reports an error value there
+        /// instead of a value of its own.
+        var hasCloseButton: Bool {
+            error(for: .closeButton) == .success
+        }
     }
 
     /// How Accessibility judged one window of an app.
-    private enum WindowReading {
+    private enum WindowReading: Equatable {
         case userFacing
+        /// A screen-filling undescribed surface with no interactive signal.
+        /// It stays out only while the app has another switchable window
+        /// (issue #4428), which the app's whole snapshot decides.
+        case overlayCandidate(CGWindowID?)
         case notUserFacing
         case unanswered
     }
@@ -1464,6 +1483,24 @@ enum WindowEnumerator {
         var byID: [CGWindowID: AccessibilityWindowSnapshot] = [:]
         var ordered: [(id: CGWindowID, snapshot: AccessibilityWindowSnapshot)] = []
         var rejectedWindowIDs = Set<CGWindowID>()
+        var overlayCandidates: [(window: AXUIElement,
+                                 id: CGWindowID?,
+                                 attributes: AccessibilityWindowAttributes)] = []
+        func record(_ window: AXUIElement,
+                    _ attributes: AccessibilityWindowAttributes,
+                    id: CGWindowID) {
+            let frame = attributes.frame
+            let isNativeFullscreen = attributes.isNativeFullscreen
+            var snapshot = AccessibilityWindowSnapshot(
+                title: attributes.string(.title) ?? "",
+                frame: frame,
+                isMinimized: attributes.bool(.minimized),
+                isFullscreen: isNativeFullscreen || frameLooksFullscreen(frame, screenFrames: screenFrames),
+                isNativeFullscreen: isNativeFullscreen)
+            snapshot.element = window
+            byID[id] = snapshot
+            ordered.append((id, snapshot))
+        }
         func read(_ window: AXUIElement) -> WindowReading {
             guard !contains(window, in: readWindows) else { return .notUserFacing }
             readWindows.append(window)
@@ -1477,26 +1514,19 @@ enum WindowEnumerator {
                                             screenFrames: screenFrames,
                                             rejectedWindowIDs: &rejectedWindowIDs,
                                             isCancelled: isCancelled)
-            if reading == .unanswered { appendUnique(window, to: &unansweredWindows) }
-            if reading == .userFacing, !isCancelled(), let id = AXWindowResolver.windowID(for: window) {
-                let frame = attributes.frame
-                let isNativeFullscreen = attributes.isNativeFullscreen
-                var snapshot = AccessibilityWindowSnapshot(
-                    title: attributes.string(.title) ?? "",
-                    frame: frame,
-                    isMinimized: attributes.bool(.minimized),
-                    isFullscreen: isNativeFullscreen || frameLooksFullscreen(frame, screenFrames: screenFrames),
-                    isNativeFullscreen: isNativeFullscreen)
-                snapshot.element = window
-                byID[id] = snapshot
-                ordered.append((id, snapshot))
+            if case .unanswered = reading { appendUnique(window, to: &unansweredWindows) }
+            if case .overlayCandidate(let id) = reading {
+                overlayCandidates.append((window, id, attributes))
+            }
+            if case .userFacing = reading, !isCancelled(), let id = AXWindowResolver.windowID(for: window) {
+                record(window, attributes, id: id)
             }
             return reading
         }
         if windowsResult == .success, let windows = axWindowList {
             for window in windows {
                 guard !isCancelled() else { return nil }
-                if read(window) == .userFacing {
+                if case .userFacing = read(window) {
                     appendUnique(window, to: &axWindows)
                 }
             }
@@ -1513,7 +1543,7 @@ enum WindowEnumerator {
                 // the attribute read contacts the other process to reach a
                 // window we would then drop. Rejected and timed-out windows
                 // must not be read again either.
-                if read(window) == .userFacing {
+                if case .userFacing = read(window) {
                     axWindows.append(window)
                 }
                 if attribute as String == kAXFocusedWindowAttribute as String {
@@ -1522,6 +1552,23 @@ enum WindowEnumerator {
                     }?.id
                 }
             }
+        }
+
+        // An undescribed screen-filling surface is an overlay only while its
+        // app keeps another switchable window. A borderless game or player can
+        // look exactly the same and be the app's only surface; hiding it would
+        // take the whole app out of the switcher (issue #4428). The sibling
+        // check uses the snapshot already assembled above, so no window is
+        // asked a second time.
+        if axWindows.isEmpty {
+            for candidate in overlayCandidates {
+                guard !isCancelled() else { return nil }
+                guard let id = candidate.id else { continue }
+                record(candidate.window, candidate.attributes, id: id)
+                appendUnique(candidate.window, to: &axWindows)
+            }
+        } else {
+            rejectedWindowIDs.formUnion(overlayCandidates.compactMap(\.id))
         }
 
         guard !isCancelled() else { return nil }
@@ -1691,7 +1738,22 @@ enum WindowEnumerator {
                 // A borderless helper stays in the app's window list even when
                 // the app asks the window server to keep it out of cycling.
                 isExcludedFromWindowCycle: windowID
-                    .map(SpaceWindowBridge.isExcludedFromWindowCycle) ?? false) { return .userFacing }
+                    .map(SpaceWindowBridge.isExcludedFromWindowCycle) ?? false,
+                isMain: attributes.isMain,
+                hasWindowButtons: attributes.hasCloseButton,
+                title: attributes.string(.title) ?? "") { return .userFacing }
+            // The overlay verdict waits for the app's whole answer: a lone
+            // borderless window keeps the app switchable (issue #4428).
+            if role == (kAXWindowRole as String),
+               subrole == "AXUnknown",
+               !acceptsUndescribedSubroles,
+               SwitcherSupport.isUndescribedScreenOverlay(
+                   fillsScreen: fillsScreen,
+                   isMain: attributes.isMain,
+                   hasWindowButtons: attributes.hasCloseButton,
+                   title: attributes.string(.title) ?? "") {
+                return .overlayCandidate(windowID)
+            }
             if let windowID { rejectedWindowIDs.insert(windowID) }
             return .notUserFacing
         }

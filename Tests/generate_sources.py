@@ -288,7 +288,7 @@ def main():
                         "    private struct AccessibilityWindowSnapshot {",
                         "    private struct AccessibilityWindowSnapshotList {",
                         "    private struct AccessibilityWindowAttributes {",
-                        "    private enum WindowReading {",
+                        "    private enum WindowReading: Equatable {",
                         "    private static func accessibilityWindows(for pid: pid_t,",
                         "    private static func userFacingReading(",
                         "    private static func frameLooksFullscreen(",
