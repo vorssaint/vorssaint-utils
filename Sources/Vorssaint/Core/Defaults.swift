@@ -923,6 +923,10 @@ enum DefaultsKey {
     static let notchWatchEnabled = "notchWatchEnabled"
     static let notchWatchSound = "notchWatchSound"
     static let notchWatchCondition = "notchWatchCondition"
+    // 3D printer: a Bambu Lab printer followed through Bambu Cloud. The
+    // sign-in lives in the keychain, never in preferences.
+    static let notchPrinterEnabled = "notchPrinterEnabled"
+    static let notchPrinterSerial = "notchPrinterSerial"
     static let notchCalendarEnabled = "notchCalendarEnabled"
     static let notchCalendarCountdown = "notchCalendarCountdown"
     static let notchCalendarCountdownLead = "notchCalendarCountdownLead" // minutes before a start, chosen events included
@@ -1574,6 +1578,8 @@ enum Defaults {
         DefaultsKey.notchWatchEnabled: true,
         DefaultsKey.notchWatchSound: true,
         DefaultsKey.notchWatchCondition: NotchWatchCondition.changes.rawValue,
+        DefaultsKey.notchPrinterEnabled: false,
+        DefaultsKey.notchPrinterSerial: "",
         DefaultsKey.notchEnabled: false,
         DefaultsKey.notchDisplay: NotchDisplay.automatic.rawValue,
         DefaultsKey.notchSilhouette: NotchSilhouette.capsule.rawValue,

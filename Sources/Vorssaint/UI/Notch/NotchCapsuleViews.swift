@@ -429,7 +429,7 @@ private struct NotchCapsuleCompanionMark: View {
                     NotchCapsuleCalendarStrip.clockMark(countdown, now: context.date)
                 }
             }
-        case .timer, .keepAwake, .watch:
+        case .timer, .keepAwake, .watch, .printer:
             EmptyView()
         }
     }
@@ -733,5 +733,41 @@ struct NotchCapsuleCaptureStrip: View {
             }
         }
         .accessibilityHidden(true)
+    }
+}
+
+/// A print job in the floating capsule: the printer, then its progress.
+struct NotchCapsulePrinterStrip: View {
+    @ObservedObject var service: NotchService
+    let size: CGSize
+    /// Another display's capsule, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
+    @ObservedObject private var printer = NotchPrinterService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let geometry = displayGeometry ?? service.geometry
+        let reading = NotchPrinterSupport.stripReading(printer.status)
+        let tint = NotchPrinterSupport.tint(for: printer.status.state)
+        NotchCapsuleRow(size: size, geometry: geometry) {
+            HStack(spacing: CapsuleLayout.spacing) {
+                Image(systemName: printer.status.state.symbol)
+                    .font(.system(size: CapsuleLayout.symbolSize, weight: .medium))
+                    .foregroundStyle(tint)
+                    .frame(width: CapsuleLayout.symbolWidth)
+                if reading.isEmpty {
+                    ProgressView().controlSize(.mini).frame(width: CapsuleLayout.spinnerWidth)
+                } else {
+                    Text(reading).font(Font(CapsuleLayout.levelFont as CTFont)).monospacedDigit()
+                        .foregroundStyle(tint).lineLimit(1)
+                }
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { service.openActivity(.printer) }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(FeatureStrings.notchPrinter(l10n.language).title)
+        .accessibilityValue(reading)
+        .accessibilityAddTraits(.isButton)
     }
 }
