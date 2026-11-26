@@ -1763,13 +1763,15 @@ final class ClipboardHistoryService: ObservableObject {
 /// (UserDefaults would balloon with base64), named by UUID and swept against
 /// the live entry list after every save.
 enum ClipboardImageStore {
-    /// Advisory limits for decoded thumbnails retained between panel uses.
-    /// Visible rows retain their own images; an evicted preview is decoded
-    /// again from disk when needed.
-    private static let thumbnails: NSCache<NSString, NSImage> = {
-        let cache = NSCache<NSString, NSImage>()
-        cache.countLimit = 120
-        cache.totalCostLimit = 32 * 1024 * 1024
+    /// Decoded thumbnails retained between panel uses. Visible rows retain
+    /// their own images; an evicted preview is decoded again from disk when
+    /// needed. The cache itself enforces the budget: 32 MiB and at most 120
+    /// entries, least recently used first, and gives half of it back on memory
+    /// pressure.
+    private static let thumbnails: ThumbnailCache<String, NSImage> = {
+        let cache = ThumbnailCache<String, NSImage>(byteBudget: 32 * 1024 * 1024,
+                                                    countLimit: 120)
+        cache.monitorMemoryPressure()
         return cache
     }()
 
@@ -1794,25 +1796,9 @@ enum ClipboardImageStore {
     }
 
     /// Downsampled preview for list rows, cached; loading full PNGs per row
-    /// would drag the quick window.
+    /// would drag the quick window. The decode itself lives in `Downsampler`.
     static func thumbnail(named name: String) -> NSImage? {
-        if let cached = thumbnails.object(forKey: name as NSString) {
-            return cached
-        }
-        guard let directory else { return nil }
-        let url = directory.appendingPathComponent(name)
-        let options = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: 480,
-        ] as CFDictionary
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-              let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options)
-        else { return nil }
-        let image = NSImage(cgImage: cgImage, size: .zero)
-        thumbnails.setObject(image, forKey: name as NSString,
-                             cost: cgImage.bytesPerRow * cgImage.height)
-        return image
+        thumbnail(for: .stored(name: name))
     }
 
     /// Where a list thumbnail comes from; also its identity for a row that
@@ -1823,12 +1809,7 @@ enum ClipboardImageStore {
     }
 
     static func cachedThumbnail(_ source: ThumbnailSource) -> NSImage? {
-        switch source {
-        case .stored(let name):
-            return thumbnails.object(forKey: name as NSString)
-        case .file(let path, let maxPixelSize):
-            return thumbnails.object(forKey: fileThumbnailKey(path: path, maxPixelSize: maxPixelSize))
-        }
+        thumbnails.value(for: key(for: source))
     }
 
     /// The same downsample as the synchronous lookups, off the main thread.
@@ -1836,50 +1817,34 @@ enum ClipboardImageStore {
     /// history held more screenshots than the cache fits, rows that decoded
     /// while drawing redid it on every search keystroke and froze the field.
     /// A row that is filtered out or scrolled away before its turn cancels
-    /// its decode instead of queueing work nobody will see.
+    /// its decode instead of queueing work nobody will see. The cache owns the
+    /// decode lane and does nothing on the caller's thread on a miss.
     static func loadThumbnail(_ source: ThumbnailSource) async -> NSImage? {
-        if let cached = cachedThumbnail(source) { return cached }
-        let request = ThumbnailRequest()
-        return await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                thumbnailQueue.addOperation {
-                    guard !request.isCancelled else {
-                        continuation.resume(returning: nil)
-                        return
-                    }
-                    switch source {
-                    case .stored(let name):
-                        continuation.resume(returning: thumbnail(named: name))
-                    case .file(let path, let maxPixelSize):
-                        continuation.resume(returning: fileThumbnail(atPath: path, maxPixelSize: maxPixelSize))
-                    }
-                }
-            }
-        } onCancel: {
-            request.cancel()
+        await thumbnails.value(for: key(for: source)) {
+            guard let decoded = decodeThumbnail(source) else { return nil }
+            return (value: decoded.image, cost: decoded.cost)
         }
     }
 
-    /// Two decodes at a time: a burst of new rows should not hold dozens of
-    /// full size screenshots in memory at once.
-    private static let thumbnailQueue: OperationQueue = {
-        let queue = OperationQueue()
-        queue.name = "com.vorssaint.utils.clipboard-thumbnails"
-        queue.maxConcurrentOperationCount = 2
-        queue.qualityOfService = .userInitiated
-        return queue
-    }()
-
-    private final class ThumbnailRequest: @unchecked Sendable {
-        private let lock = NSLock()
-        private var cancelled = false
-
-        var isCancelled: Bool { lock.withLock { cancelled } }
-        func cancel() { lock.withLock { cancelled = true } }
+    private static func key(for source: ThumbnailSource) -> String {
+        switch source {
+        case .stored(let name):
+            return "stored:\(name)"
+        case .file(let path, let maxPixelSize):
+            return "file:\(path):\(Int(maxPixelSize))"
+        }
     }
 
-    private static func fileThumbnailKey(path: String, maxPixelSize: CGFloat) -> NSString {
-        "file:\(path):\(Int(maxPixelSize))" as NSString
+    /// One decode for both thumbnail sources, on the caller's thread.
+    private static func decodeThumbnail(_ source: ThumbnailSource) -> Downsampler.Thumbnail? {
+        switch source {
+        case .stored(let name):
+            guard let directory else { return nil }
+            return Downsampler.thumbnail(at: directory.appendingPathComponent(name), maxPixelSize: 480)
+        case .file(let path, let maxPixelSize):
+            guard isImageFile(atPath: path) else { return nil }
+            return Downsampler.thumbnail(at: URL(fileURLWithPath: path), maxPixelSize: maxPixelSize)
+        }
     }
 
     /// The Finder icon for a path, cached: the workspace lookup is a round
@@ -1906,25 +1871,17 @@ enum ClipboardImageStore {
 
     /// Downsampled preview for a copied image file on disk, cached.
     static func fileThumbnail(atPath path: String, maxPixelSize: CGFloat = 480) -> NSImage? {
-        let key = fileThumbnailKey(path: path, maxPixelSize: maxPixelSize)
-        if let cached = thumbnails.object(forKey: key) {
-            return cached
-        }
-        guard isImageFile(atPath: path) else { return nil }
-        let url = URL(fileURLWithPath: path)
-        let options = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
-        ] as CFDictionary
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-              let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options)
-        else { return nil }
-        let image = NSImage(cgImage: cgImage, size: .zero)
-        thumbnails.setObject(image, forKey: key,
-                             cost: cgImage.bytesPerRow * cgImage.height)
-        return image
+        thumbnail(for: .file(path: path, maxPixelSize: maxPixelSize))
+    }
+
+    /// A cache hit returns the retained image; a miss decodes once on the
+    /// caller's thread and stores it with the bitmap cost it really occupies.
+    private static func thumbnail(for source: ThumbnailSource) -> NSImage? {
+        let key = key(for: source)
+        if let cached = thumbnails.value(for: key) { return cached }
+        guard let decoded = decodeThumbnail(source) else { return nil }
+        thumbnails.insert(decoded.image, cost: decoded.cost, for: key)
+        return decoded.image
     }
 
     static func imageDimensions(atPath path: String) -> (width: Int, height: Int)? {
@@ -1966,7 +1923,7 @@ enum ClipboardImageStore {
         else { return }
         for file in files where !names.contains(file.lastPathComponent) {
             try? FileManager.default.removeItem(at: file)
-            thumbnails.removeObject(forKey: file.lastPathComponent as NSString)
+            thumbnails.removeValue(for: key(for: .stored(name: file.lastPathComponent)))
         }
     }
 }

@@ -596,7 +596,7 @@ def main():
           + "".join(declaration(preview_provider, prefix) for prefix in [
               "    func refreshPreviews(", "    static func captureViaWindowServer(", "    func cachedPreview(",
               "    private func store(", "    private static func rectifiedStripCapture(",
-              "    private static func bitmapCopy(", "    private struct PreviewTarget {",
+              "    private struct PreviewTarget {",
               "    private static func bestWindowMatch(", "    private static func titlesMatch(",
               "    private static func frameDistance("])
           + "}\n")
