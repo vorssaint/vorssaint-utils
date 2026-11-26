@@ -245,7 +245,8 @@ enum SwitcherAccessibilitySnapshotTests {
                             Set($0) == Set([kAXRoleAttribute as String, kAXSubroleAttribute as String,
                                            "AXFullScreen", kAXMinimizedAttribute as String,
                                            kAXPositionAttribute as String, kAXSizeAttribute as String,
-                                           kAXTitleAttribute as String]) && $0.count == 7
+                                           kAXTitleAttribute as String, kAXMainAttribute as String,
+                                           kAXCloseButtonAttribute as String]) && $0.count == 9
                         } && Reader.batchOptions.allSatisfy { $0.isEmpty },
                      "the shared read requests every snapshot field without stopping at an unsupported attribute")
         suite.expect(manyWindows.allSatisfy { window in

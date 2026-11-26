@@ -1243,7 +1243,7 @@ enum WindowEnumerator {
     /// window, and repeated timeouts kept the panel behind busy apps (#2348).
     private struct AccessibilityWindowAttributes {
         enum Attribute: Int, CaseIterable {
-            case role, subrole, fullscreen, minimized, position, size, title
+            case role, subrole, fullscreen, minimized, position, size, title, main, closeButton
 
             var name: String {
                 switch self {
@@ -1254,6 +1254,8 @@ enum WindowEnumerator {
                 case .position: return kAXPositionAttribute as String
                 case .size: return kAXSizeAttribute as String
                 case .title: return kAXTitleAttribute as String
+                case .main: return kAXMainAttribute as String
+                case .closeButton: return kAXCloseButtonAttribute as String
                 }
             }
         }
@@ -1314,6 +1316,19 @@ enum WindowEnumerator {
 
         var isNativeFullscreen: Bool {
             bool(.fullscreen) || string(.subrole) == "AXFullScreenWindow"
+        }
+
+        /// A window's own `AXMain` flag. A painted overlay is never the main
+        /// window of its process, while a borderless main window is.
+        var isMain: Bool {
+            bool(.main)
+        }
+
+        /// Whether the window exposes a close button. The attribute is part of
+        /// the same batch; a window without one reports an error value there
+        /// instead of a value of its own.
+        var hasCloseButton: Bool {
+            error(for: .closeButton) == .success
         }
     }
 
@@ -1691,7 +1706,10 @@ enum WindowEnumerator {
                 // A borderless helper stays in the app's window list even when
                 // the app asks the window server to keep it out of cycling.
                 isExcludedFromWindowCycle: windowID
-                    .map(SpaceWindowBridge.isExcludedFromWindowCycle) ?? false) { return .userFacing }
+                    .map(SpaceWindowBridge.isExcludedFromWindowCycle) ?? false,
+                isMain: attributes.isMain,
+                hasWindowButtons: attributes.hasCloseButton,
+                title: attributes.string(.title) ?? "") { return .userFacing }
             if let windowID { rejectedWindowIDs.insert(windowID) }
             return .notUserFacing
         }

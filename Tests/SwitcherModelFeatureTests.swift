@@ -1659,8 +1659,9 @@ enum SwitcherModelFeatureTests {
             subrole: "AXUnknown",
             fillsScreen: true,
             hasNormalWindowLevel: false,
-            acceptsUndescribedSubroles: false),
-               "App Switcher accepts a screen-sized window with a nonstandard subrole")
+            acceptsUndescribedSubroles: false,
+            title: "Player"),
+               "App Switcher accepts a screen-sized undocumented window that names itself as a real one")
         suite.expect(SwitcherSupport.isSwitchableNonstandardWindow(
             role: "AXWindow",
             subrole: "AXFloatingWindow",
@@ -1755,6 +1756,80 @@ enum SwitcherModelFeatureTests {
         suite.expect(placementCode.contains("let canMinimize = subrole == \"AXDialog\" && hasNormalWindowLevel")
                && placementCode.contains("canMinimize: canMinimize"),
                "window enumeration reads the minimize button only for a normal-level dialog and passes it on")
+
+        // MARK: Screen-sized undescribed overlays (issue #4428)
+        suite.expect(!SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXUnknown",
+            fillsScreen: true,
+            hasNormalWindowLevel: true,
+            acceptsUndescribedSubroles: false),
+               "a full-screen undescribed level-0 surface with no interactive evidence stays out (issue #4428)")
+        suite.expect(!SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXUnknown",
+            fillsScreen: true,
+            hasNormalWindowLevel: true,
+            acceptsUndescribedSubroles: false,
+            title: "   "),
+               "a whitespace-only title does not vouch for a full-screen undescribed surface")
+        suite.expect(SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXUnknown",
+            fillsScreen: true,
+            hasNormalWindowLevel: true,
+            acceptsUndescribedSubroles: false,
+            isMain: true),
+               "the app's main window vouches for a full-screen undescribed surface")
+        suite.expect(SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXUnknown",
+            fillsScreen: true,
+            hasNormalWindowLevel: true,
+            acceptsUndescribedSubroles: false,
+            hasWindowButtons: true),
+               "a window button vouches for a full-screen undescribed surface")
+        suite.expect(SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXUnknown",
+            fillsScreen: true,
+            hasNormalWindowLevel: true,
+            acceptsUndescribedSubroles: false,
+            title: "Live"),
+               "a title vouches for a full-screen undescribed surface")
+        suite.expect(SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXUnknown",
+            fillsScreen: true,
+            hasNormalWindowLevel: true,
+            acceptsUndescribedSubroles: true),
+               "compatibility-hosted full-screen surfaces keep their exception (issue #274)")
+        suite.expect(SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXUnknown",
+            fillsScreen: true,
+            hasNormalWindowLevel: false,
+            acceptsUndescribedSubroles: false,
+            isMain: true),
+               "a screen-sized surface above the normal level stays switchable when it is a real window")
+        suite.expect(!SwitcherSupport.isUndescribedScreenOverlay(
+            fillsScreen: false, isMain: false, hasWindowButtons: false, title: "")
+               && SwitcherSupport.isUndescribedScreenOverlay(
+                    fillsScreen: true, isMain: false, hasWindowButtons: false, title: "")
+               && !SwitcherSupport.isUndescribedScreenOverlay(
+                    fillsScreen: true, isMain: true, hasWindowButtons: false, title: "")
+               && !SwitcherSupport.isUndescribedScreenOverlay(
+                    fillsScreen: true, isMain: false, hasWindowButtons: true, title: "")
+               && !SwitcherSupport.isUndescribedScreenOverlay(
+                    fillsScreen: true, isMain: false, hasWindowButtons: false, title: "Feishu"),
+               "the overlay predicate needs a screen-filling surface with no interactive signal")
+        suite.expect(placementCode.contains("case .main: return kAXMainAttribute as String")
+               && placementCode.contains("case .closeButton: return kAXCloseButtonAttribute as String")
+               && placementCode.contains("attributes.isMain")
+               && placementCode.contains("attributes.hasCloseButton")
+               && placementCode.contains("title: attributes.string(.title) ?? \"\"")
+               && !placementCode.contains("hasOperableControls"),
+               "window enumeration reads the overlay signals in the existing batch and leaves the decision to the shared predicate")
         suite.expect(SwitcherSupport.sessionSourceItem(frontmostPID: nil,
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow]) == nil,
