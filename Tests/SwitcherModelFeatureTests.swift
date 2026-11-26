@@ -1809,9 +1809,8 @@ enum SwitcherModelFeatureTests {
             subrole: "AXUnknown",
             fillsScreen: true,
             hasNormalWindowLevel: false,
-            acceptsUndescribedSubroles: false,
-            isMain: true),
-               "a screen-sized surface above the normal level stays switchable when it is a real window")
+            acceptsUndescribedSubroles: false),
+               "a screen-sized surface above the normal level keeps its existing treatment")
         suite.expect(!SwitcherSupport.isUndescribedScreenOverlay(
             fillsScreen: false, isMain: false, hasWindowButtons: false, title: "")
                && SwitcherSupport.isUndescribedScreenOverlay(

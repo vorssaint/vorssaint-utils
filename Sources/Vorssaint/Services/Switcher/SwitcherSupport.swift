@@ -1190,7 +1190,10 @@ enum SwitcherSupport {
         guard role == "AXWindow", !isExcludedFromWindowCycle else { return false }
         if subrole == "AXUnknown" {
             if acceptsUndescribedSubroles { return true }
-            if isUndescribedScreenOverlay(fillsScreen: fillsScreen,
+            // Only the normal level is ambiguous: a surface above it keeps
+            // the existing treatment.
+            if hasNormalWindowLevel,
+               isUndescribedScreenOverlay(fillsScreen: fillsScreen,
                                           isMain: isMain,
                                           hasWindowButtons: hasWindowButtons,
                                           title: title) { return false }
