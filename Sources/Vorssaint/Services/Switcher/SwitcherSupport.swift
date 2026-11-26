@@ -465,13 +465,11 @@ enum SwitcherWindowlessApps: String, CaseIterable, Equatable {
     /// Every running app, the way the system switcher lists them.
     case all
 
-    static let fallback = SwitcherWindowlessApps.finder
+    static let fallback = SwitcherWindowlessApps.off
 
     /// Preferences are stored as plain strings, so an unknown or missing value
-    /// resolves to the behavior the app shipped with instead of nothing.
-    static func mode(storedValue: String?,
-                     takeOverSystemShortcuts: Bool) -> SwitcherWindowlessApps {
-        if takeOverSystemShortcuts { return .all }
+    /// resolves to the default instead of nothing.
+    static func mode(storedValue: String?) -> SwitcherWindowlessApps {
         guard let storedValue, let mode = SwitcherWindowlessApps(rawValue: storedValue) else {
             return fallback
         }

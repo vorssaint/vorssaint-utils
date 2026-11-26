@@ -637,7 +637,7 @@ enum SwitcherModelFeatureTests {
             migrationDefaults.set(true, forKey: DefaultsKey.switcherShowWindowlessFinder)
             Defaults.migrateSwitcherWindowlessFinder(in: migrationDefaults)
             suite.expect(migrationDefaults.object(forKey: DefaultsKey.switcherWindowlessApps) == nil,
-                   "a setup that kept the windowless desktop app is left exactly as it was")
+                   "a setup that never turned the old Finder toggle off leaves the picker unset for the default")
 
             for pairedRecheckCompleted in [false, true] {
                 migrationDefaults.set(pairedRecheckCompleted,
@@ -1762,8 +1762,8 @@ enum SwitcherModelFeatureTests {
         suite.expect(registeredDefaults[DefaultsKey.switcherShowWindowlessFinder] as? Bool == true,
                "the retired windowless Finder toggle keeps its shipped value so the migration can read it")
         suite.expect(registeredDefaults[DefaultsKey.switcherWindowlessApps] as? String
-               == SwitcherWindowlessApps.finder.rawValue,
-               "the switcher offers the desktop app without windows, and nothing else, by default")
+               == SwitcherWindowlessApps.off.rawValue,
+               "the switcher hides windowless apps, including Finder, by default")
         suite.expect((registeredDefaults[DefaultsKey.switcherAppRules] as? [String: String])?.isEmpty == true,
                "per-app switcher rules start empty, so existing choices stay unchanged")
         suite.expect(registeredDefaults[DefaultsKey.switcherCurrentSpaceOnly] as? Bool == false,
@@ -1916,23 +1916,14 @@ enum SwitcherModelFeatureTests {
                "the target display filters remembered windows before the session opens")
 
         // MARK: Switcher entries for apps with no window (issue #351)
-        suite.expect(SwitcherWindowlessApps.mode(storedValue: nil,
-                                           takeOverSystemShortcuts: false) == .finder
-               && SwitcherWindowlessApps.mode(storedValue: "",
-                                              takeOverSystemShortcuts: false) == .finder
-               && SwitcherWindowlessApps.mode(storedValue: "bogus",
-                                              takeOverSystemShortcuts: false) == .finder,
-               "an unset or unreadable windowless apps choice falls back to what the app shipped with")
-        suite.expect(SwitcherWindowlessApps.mode(storedValue: "off",
-                                           takeOverSystemShortcuts: false) == .off
-               && SwitcherWindowlessApps.mode(storedValue: "finder",
-                                              takeOverSystemShortcuts: false) == .finder
-               && SwitcherWindowlessApps.mode(storedValue: "all",
-                                              takeOverSystemShortcuts: false) == .all,
+        suite.expect(SwitcherWindowlessApps.mode(storedValue: nil) == .off
+               && SwitcherWindowlessApps.mode(storedValue: "") == .off
+               && SwitcherWindowlessApps.mode(storedValue: "bogus") == .off,
+               "an unset or unreadable windowless apps choice falls back to hiding windowless apps")
+        suite.expect(SwitcherWindowlessApps.mode(storedValue: "off") == .off
+               && SwitcherWindowlessApps.mode(storedValue: "finder") == .finder
+               && SwitcherWindowlessApps.mode(storedValue: "all") == .all,
                "every windowless apps choice survives a round trip through preferences")
-        suite.expect(SwitcherWindowlessApps.mode(storedValue: "off",
-                                           takeOverSystemShortcuts: true) == .all,
-               "native shortcut takeover keeps every running app reachable")
         suite.expect(SwitcherWindowlessApps.migrated(showsWindowlessFinder: true) == .finder
                && SwitcherWindowlessApps.migrated(showsWindowlessFinder: false) == .off,
                "the old windowless Finder toggle maps onto the choice that keeps its behavior")
