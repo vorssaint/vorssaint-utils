@@ -119,14 +119,16 @@ enum CodexAccountUsageReader {
     }
 
     static func environment(directory: URL, executable: URL, searchPath: String?,
-                            base: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
+                            base: [String: String] = ProcessInfo.processInfo.environment,
+                            telemetryRefused: Bool = TelemetryPolicy.isRefused()) -> [String: String] {
         // Neither a sign-in, a provider nor a shared state folder Vorssaint
         // was opened with may point a check at another account.
         let allowed = ["HOME", "USER", "LOGNAME", "TMPDIR", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
                        "http_proxy", "https_proxy", "all_proxy", "no_proxy", "SSL_CERT_FILE", "SSL_CERT_DIR",
                        "NODE_EXTRA_CA_CERTS", "DO_NOT_TRACK", "DISABLE_TELEMETRY"]
         var result = AgentCodexServer.environment(for: executable, searchPath: searchPath,
-                                                  base: base.filter { allowed.contains($0.key) })
+                                                  base: base.filter { allowed.contains($0.key) },
+                                                  telemetryRefused: telemetryRefused)
         result["CODEX_HOME"] = directory.path
         result["LANG"] = "en_US.UTF-8"
         return result

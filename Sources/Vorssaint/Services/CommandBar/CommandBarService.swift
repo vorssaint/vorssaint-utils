@@ -1168,8 +1168,9 @@ final class CommandBarService: ObservableObject {
         // source is on.
         disabledCache = CommandBarPreferences.disabledSources(
             from: UserDefaults.standard.string(forKey: DefaultsKey.commandBarDisabledSources) ?? "")
-        usageCache = CommandBarUsage.decode(
-            UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage))
+        usageCache = TelemetryPolicy.allowsUsageLearning()
+            ? CommandBarUsage.decode(UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage))
+            : [:]
         shortcutCache = rowShortcuts
         compactMode = UserDefaults.standard.bool(forKey: DefaultsKey.commandBarCompactMode)
         hasCustomPosition = positionOffset != .zero
@@ -1533,8 +1534,10 @@ final class CommandBarService: ObservableObject {
                     let content = CommandBarService.uniqued(categoryContent(category, bar: bar))
                     let byID = Dictionary(content.map { ($0.id, $0) },
                                           uniquingKeysWith: { first, _ in first })
-                    let usage = CommandBarUsage.decode(
-                        UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage))
+                    let usage = TelemetryPolicy.allowsUsageLearning()
+                        ? CommandBarUsage.decode(
+                            UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage))
+                        : [:]
                     let durableUsage = usage.filter { byID[$0.key]?.countsUsage == true }
                     rows = CommandBarUsage.categoryIDs(usage: durableUsage,
                                                        available: content.map(\.id))
@@ -2008,14 +2011,14 @@ final class CommandBarService: ObservableObject {
                                 // A running app is likelier to be the one
                                 // wanted, but never enough to beat a better
                                 // name match.
-                                boost: (entry.countsUsage
+                                boost: (entry.countsUsage && TelemetryPolicy.allowsUsageLearning()
                                         ? CommandBarUsage.boost(for: usage[entry.id], now: now)
                                         : 0)
                                     + (entry.isActive ? 20 : 0)
                                     + aliasBoost
                                     // What this session already answered with
                                     // for exactly these letters.
-                                    + (entry.countsUsage
+                                    + (entry.countsUsage && TelemetryPolicy.allowsUsageLearning()
                                         ? queryMemory.boost(normalizedQuery: foldedQuery, id: entry.id)
                                         : 0)
                                     // What the Mac itself holds leads what is
@@ -2864,6 +2867,7 @@ final class CommandBarService: ObservableObject {
 
     /// Normal insertion and one-off variants share the same learning history.
     private func recordUsage(of entry: CommandBarEntry) {
+        guard TelemetryPolicy.allowsUsageLearning() else { return }
         let now = Date().timeIntervalSince1970
         let typedQuery: String
         switch mode {

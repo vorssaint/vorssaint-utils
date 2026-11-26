@@ -111,6 +111,10 @@ enum FeatureStrings {
     static func audioTranscriptionExtras(_ language: AppLanguage) -> AudioTranscriptionExtrasStrings {
         AudioTranscriptionExtrasStrings.localized(language)
     }
+
+    static func telemetryPolicy(_ language: AppLanguage) -> TelemetryPolicyStrings {
+        TelemetryPolicyStrings.localized(language)
+    }
 }
 
 struct MixerFeatureStrings {

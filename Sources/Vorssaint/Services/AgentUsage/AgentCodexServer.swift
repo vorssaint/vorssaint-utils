@@ -86,13 +86,14 @@ enum AgentCodexServer {
     /// and a tool installed with npm needs `node`, which sits beside it or
     /// on the shell's PATH.
     static func environment(for executable: URL, searchPath: String?,
-                            base: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
+                            base: [String: String] = ProcessInfo.processInfo.environment,
+                            telemetryRefused: Bool = TelemetryPolicy.isRefused()) -> [String: String] {
         var environment = base
         let folders = [executable.deletingLastPathComponent().path]
             + (searchPath.map { [$0] } ?? ["/opt/homebrew/bin", "/usr/local/bin"])
             + [base["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"]
         environment["PATH"] = folders.joined(separator: ":")
-        return environment
+        return TelemetryPolicy.codexEnvironment(environment, refused: telemetryRefused)
     }
 
     // MARK: Conversations

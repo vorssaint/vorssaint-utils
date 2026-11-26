@@ -109,7 +109,8 @@ enum AgentClaudeServer {
     /// from one, and the opt-outs and the proxy the person keeps in its user
     /// settings apply as in their own sessions. The profile owns the sign-in.
     static func environment(_ base: [String: String], home: URL,
-                            profile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [String: String] {
+                            profile: ClaudeAccountProfile = ClaudeAccountProfile(),
+                            telemetryRefused: Bool = TelemetryPolicy.isRefused()) -> [String: String] {
         // The app may itself have been launched by another agent or account.
         // Its tokens, provider routing and config overrides must not replace
         // the chosen profile's own sign-in. Network settings still apply.
@@ -119,21 +120,22 @@ enum AgentClaudeServer {
         environment.removeValue(forKey: "CLAUDECODE")
         if !profile.isDefault { environment["CLAUDE_CONFIG_DIR"] = profile.directory }
         environment["DISABLE_AUTOUPDATER"] = "1"
-        guard let data = try? Data(contentsOf: profile.configurationURL(home: home).appending(path: "settings.json")),
-              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let settings = json["env"] as? [String: Any] else { return environment }
-        // Claude Code lets its settings override the environment, and reads
-        // a number or a switch there as text.
-        for key in optOuts + networkSettings {
-            switch settings[key] {
-            case let text as String: environment[key] = text
-            case let number as NSNumber:
-                environment[key] = CFGetTypeID(number) == CFBooleanGetTypeID()
-                    ? (number.boolValue ? "true" : "false") : number.stringValue
-            default: break
+        if let data = try? Data(contentsOf: profile.configurationURL(home: home).appending(path: "settings.json")),
+           let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+           let settings = json["env"] as? [String: Any] {
+            // Claude Code lets its settings override the environment, and reads
+            // a number or a switch there as text.
+            for key in optOuts + networkSettings {
+                switch settings[key] {
+                case let text as String: environment[key] = text
+                case let number as NSNumber:
+                    environment[key] = CFGetTypeID(number) == CFBooleanGetTypeID()
+                        ? (number.boolValue ? "true" : "false") : number.stringValue
+                default: break
+                }
             }
         }
-        return environment
+        return TelemetryPolicy.claudeEnvironment(environment, refused: telemetryRefused)
     }
 
     static func limits(_ result: [String: Any], observed: Date) -> AgentLimits? {

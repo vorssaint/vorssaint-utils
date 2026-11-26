@@ -2194,6 +2194,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         let host = NSHostingController(rootView: OnboardingView(mode: mode) { [weak self] in
             self?.markOnboardingComplete()
+            // First-run update checks wait until onboarding finishes so the
+            // person can refuse all telemetry on the very first screen before
+            // any network request is made.
+            UpdateService.shared.startAutomaticChecks()
             self?.onboardingWindow?.close()
         })
         host.sizingOptions = .preferredContentSize
