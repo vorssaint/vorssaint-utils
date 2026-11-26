@@ -138,6 +138,106 @@ enum MeetingCoreAudio {
         return false
     }
 
+    /// Marks a WAV file created by Meeting Recorder with an extended attribute
+    /// so shared custom folders never list or trash unrelated user WAVs. When
+    /// the destination filesystem or ACL forbids extended attributes, falls back
+    /// to recording the file's `(device, inode)` identity in a local index so
+    /// the recording stays visible in Recents and a replaced file is never
+    /// trashed.
+    private static let ownerXattrName = "com.vorssaint.meeting-recorder"
+    private static let ownershipLock = NSLock()
+
+    private static var ownershipIndexURL: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser
+        return base
+            .appendingPathComponent("Vorssaint", isDirectory: true)
+            .appendingPathComponent("meeting-recorder-owned.json")
+    }
+
+    /// Returns true if any directory entry exists at `url` (including dangling
+    /// symlinks and APFS case/Unicode-equivalent names).
+    static func pathEntryExists(_ url: URL) -> Bool {
+        var st = stat()
+        return lstat(url.path, &st) == 0
+    }
+
+    /// Atomically reserves a brand-new regular file at `url` (`O_CREAT | O_EXCL |
+    /// O_NOFOLLOW`), failing if any file or symlink already occupies that path,
+    /// and returns its `(st_dev, st_ino)` identity.
+    static func reserveExclusiveFile(_ url: URL) -> MeetingRecorderSupport.FileIdentity? {
+        let fd = open(url.path, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, 0o644)
+        guard fd >= 0 else { return nil }
+        var st = stat()
+        let ok = fstat(fd, &st) == 0
+        close(fd)
+        guard ok else { return nil }
+        return MeetingRecorderSupport.FileIdentity(device: UInt64(bitPattern: Int64(st.st_dev)),
+                                                   inode: UInt64(st.st_ino))
+    }
+
+    /// Returns `(st_dev, st_ino)` for a regular non-symlink file at `url`.
+    static func regularFileIdentity(of url: URL) -> MeetingRecorderSupport.FileIdentity? {
+        var st = stat()
+        guard lstat(url.path, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG else { return nil }
+        return MeetingRecorderSupport.FileIdentity(device: UInt64(bitPattern: Int64(st.st_dev)),
+                                                   inode: UInt64(st.st_ino))
+    }
+
+    static func markRecorderOwnedFile(_ url: URL) {
+        var marker: UInt8 = 1
+        if setxattr(url.path, ownerXattrName, &marker, 1, 0, XATTR_NOFOLLOW) == 0 {
+            return
+        }
+        guard let identity = regularFileIdentity(of: url) else { return }
+        ownershipLock.lock()
+        defer { ownershipLock.unlock() }
+        var map = loadOwnershipIndexLocked()
+        map[url.standardizedFileURL.path] = identity
+        saveOwnershipIndexLocked(map)
+    }
+
+    static func isRecorderOwnedFile(_ url: URL,
+                                    expectedIdentity: MeetingRecorderSupport.FileIdentity? = nil) -> Bool {
+        guard let current = regularFileIdentity(of: url) else { return false }
+        if let expectedIdentity, current != expectedIdentity {
+            return false
+        }
+        if getxattr(url.path, ownerXattrName, nil, 0, 0, XATTR_NOFOLLOW) >= 0 {
+            return true
+        }
+        ownershipLock.lock()
+        defer { ownershipLock.unlock() }
+        let map = loadOwnershipIndexLocked()
+        return map[url.standardizedFileURL.path] == current
+    }
+
+    static func forgetRecorderOwnedFile(_ url: URL) {
+        ownershipLock.lock()
+        defer { ownershipLock.unlock() }
+        var map = loadOwnershipIndexLocked()
+        if map.removeValue(forKey: url.standardizedFileURL.path) != nil {
+            saveOwnershipIndexLocked(map)
+        }
+    }
+
+    private static func loadOwnershipIndexLocked() -> [String: MeetingRecorderSupport.FileIdentity] {
+        guard let data = try? Data(contentsOf: ownershipIndexURL),
+              let decoded = try? JSONDecoder().decode([String: MeetingRecorderSupport.FileIdentity].self, from: data) else {
+            return [:]
+        }
+        return decoded
+    }
+
+    private static func saveOwnershipIndexLocked(_ map: [String: MeetingRecorderSupport.FileIdentity]) {
+        let url = ownershipIndexURL
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        if let data = try? JSONEncoder().encode(map) {
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
     /// Computes peak magnitude across all Float32 PCM buffers in `buffer`,
     /// handling both interleaved and non-interleaved layouts (`floatChannelData`
     /// is nil for interleaved buffers on macOS).
@@ -178,16 +278,61 @@ enum MeetingCoreAudio {
     }
 }
 
+/// Monotonic active-elapsed recording clock shared across tracks so idle Core
+/// Audio tap gaps are padded with matching silence while deliberate pauses are
+/// excluded.
+final class MeetingActiveClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var accumulated: Double = 0
+    private var segmentStart: Double?
+    private var paused = false
+
+    func start() {
+        lock.lock()
+        accumulated = 0
+        segmentStart = ProcessInfo.processInfo.systemUptime
+        paused = false
+        lock.unlock()
+    }
+
+    func setPaused(_ value: Bool) {
+        lock.lock()
+        let now = ProcessInfo.processInfo.systemUptime
+        if value, !paused {
+            if let start = segmentStart {
+                accumulated += max(0, now - start)
+            }
+            segmentStart = nil
+            paused = true
+        } else if !value, paused {
+            segmentStart = now
+            paused = false
+        }
+        lock.unlock()
+    }
+
+    func activeElapsedSeconds() -> Double {
+        lock.lock()
+        defer { lock.unlock() }
+        if paused { return accumulated }
+        guard let start = segmentStart else { return accumulated }
+        return accumulated + max(0, ProcessInfo.processInfo.systemUptime - start)
+    }
+}
+
 /// Captures system audio output (global excluding Vorssaint, or per-app
 /// mixdown) to a Float32 PCM WAV via a Core Audio process tap + private
-/// aggregate device. Supports pause/resume and quiet in-place `kick()` rebuild.
+/// aggregate device. Supports pause/resume, idle-gap silence alignment,
+/// dynamic per-app process refresh, and quiet in-place `kick()` rebuild.
 final class MeetingSystemAudioRecorder: @unchecked Sendable {
     enum RecorderError: LocalizedError {
-        case unsupportedOS, tap, format, aggregate, ioProc, start
+        case unsupportedOS, permissionDenied, fileExists, tap, format, aggregate, ioProc, start
 
         var errorDescription: String? {
             switch self {
             case .unsupportedOS: return "System audio capture requires macOS 14.4 or later."
+            case .permissionDenied: return "System audio capture permission is not granted."
+            case .fileExists: return "Recording file already exists."
             case .tap: return "Could not create Core Audio process tap."
             case .format: return "Could not read system audio tap format."
             case .aggregate: return "Could not create private audio aggregate device."
@@ -202,39 +347,93 @@ final class MeetingSystemAudioRecorder: @unchecked Sendable {
     private var procID: AudioDeviceIOProcID?
     private var format: AVAudioFormat?
     private var file: AVAudioFile?
-    private var targetProcesses: [AudioObjectID] = []
+    private var silenceBuffer: AVAudioPCMBuffer?
+    private var processResolver: (() -> [AudioObjectID])?
+    private var tappedProcesses: Set<AudioObjectID> = []
+    private var pendingTappedProcesses: Set<AudioObjectID> = []
+    private var processListener: AudioObjectPropertyListenerBlock?
+    private var heartbeatTimer: DispatchSourceTimer?
+    private var clock = MeetingActiveClock()
+    private let controlQueue = DispatchQueue(label: "com.vorssaint.utils.meeting.systemaudio.control")
     private let ioQueue = DispatchQueue(label: "com.vorssaint.utils.meeting.systemaudio.io")
     private var paused = false
+    private var _frameCount: Int64 = 0
+    private var _receivedFrameCount: Int64 = 0
 
-    private(set) var peak: Float = 0
-    private(set) var frameCount: Int64 = 0
     let levels = MeetingLevelHistory()
+
+    /// Number of real audio frames delivered by the Core Audio tap (excluding
+    /// silence padding written across idle gaps).
+    var receivedFrameCount: Int64 {
+        ioQueue.sync { _receivedFrameCount }
+    }
 
     func setPaused(_ value: Bool) {
         ioQueue.sync { paused = value }
     }
 
-    /// Empty `processes` taps all system audio excluding Vorssaint itself;
-    /// non-empty taps only those audio processes (per-app capture).
-    func start(toFile url: URL, processes: [AudioObjectID] = []) throws {
-        targetProcesses = processes
-        let fmt = try buildTap()
-        do {
-            file = try AVAudioFile(forWriting: url, settings: fmt.settings,
-                                   commonFormat: .pcmFormatFloat32, interleaved: fmt.isInterleaved)
-            try startIO()
-        } catch {
-            stop()
-            throw error
+    /// `processResolver` nil taps all system audio excluding Vorssaint;
+    /// non-nil dynamically resolves the target app's audio processes (including
+    /// helper processes that spawn mid-call) and refreshes on process changes.
+    @discardableResult
+    func start(toFile url: URL,
+               processResolver: (() -> [AudioObjectID])? = nil,
+               clock: MeetingActiveClock = MeetingActiveClock()) throws -> MeetingRecorderSupport.FileIdentity {
+        try controlQueue.sync {
+            self.processResolver = processResolver
+            self.clock = clock
+            self.ioQueue.sync {
+                self._frameCount = 0
+                self._receivedFrameCount = 0
+                self.paused = false
+            }
+            let fmt = try buildTap()
+            self.format = fmt
+            var reservedIdentity: MeetingRecorderSupport.FileIdentity?
+            do {
+                guard let reserved = MeetingCoreAudio.reserveExclusiveFile(url) else {
+                    throw RecorderError.fileExists
+                }
+                reservedIdentity = reserved
+                let opened = try AVAudioFile(forWriting: url, settings: fmt.settings,
+                                             commonFormat: .pcmFormatFloat32, interleaved: fmt.isInterleaved)
+                MeetingCoreAudio.markRecorderOwnedFile(url)
+                let pad = Self.makeSilenceBuffer(format: fmt, frames: 4096)
+                self.ioQueue.sync {
+                    self.file = opened
+                    self.silenceBuffer = pad
+                }
+                try startIO()
+                self.tappedProcesses = self.pendingTappedProcesses
+                startHeartbeat(sampleRate: fmt.sampleRate)
+                installProcessListenerIfNeeded()
+                return reserved
+            } catch {
+                removeProcessListener()
+                stopHeartbeat()
+                teardownTap()
+                self.format = nil
+                self.ioQueue.sync {
+                    self.file = nil
+                    self.silenceBuffer = nil
+                }
+                if let reservedIdentity, MeetingCoreAudio.regularFileIdentity(of: url) == reservedIdentity {
+                    try? FileManager.default.removeItem(at: url)
+                    MeetingCoreAudio.forgetRecorderOwnedFile(url)
+                }
+                throw error
+            }
         }
     }
 
     private func buildTap() throws -> AVAudioFormat {
         guard #available(macOS 14.4, *) else { throw RecorderError.unsupportedOS }
+        let resolved = processResolver?() ?? []
         let mode: VorssaintTapMode
         let tapProcesses: [NSNumber]
-        if targetProcesses.isEmpty {
+        if resolved.isEmpty {
             mode = .stereoGlobalExcluding
+            pendingTappedProcesses = []
             if let ownObj = MeetingCoreAudio.audioProcessObject(forPID: getpid()) {
                 tapProcesses = [NSNumber(value: ownObj)]
             } else {
@@ -242,7 +441,8 @@ final class MeetingSystemAudioRecorder: @unchecked Sendable {
             }
         } else {
             mode = .stereoMixdown
-            tapProcesses = targetProcesses.map { NSNumber(value: $0) }
+            pendingTappedProcesses = Set(resolved)
+            tapProcesses = resolved.map { NSNumber(value: $0) }
         }
 
         var createdTap = AudioObjectID(kAudioObjectUnknown)
@@ -265,7 +465,6 @@ final class MeetingSystemAudioRecorder: @unchecked Sendable {
             teardownTap()
             throw RecorderError.format
         }
-        format = fmt
 
         let aggregate: [String: Any] = [
             kAudioAggregateDeviceNameKey: "Vorssaint Meeting Tap Aggregate",
@@ -288,26 +487,116 @@ final class MeetingSystemAudioRecorder: @unchecked Sendable {
     }
 
     private func startIO() throws {
+        let fmt = format
         let status = AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, ioQueue) { [weak self] _, input, _, _, _ in
-            guard let self, !self.paused, let fmt = self.format,
+            guard let self, !self.paused, let fmt, let file = self.file,
                   let buffer = AVAudioPCMBuffer(pcmFormat: fmt, bufferListNoCopy: input, deallocator: nil) else {
                 return
             }
             let frames = Int(buffer.frameLength)
+            // The 1-second heartbeat keeps `_frameCount` caught up during idle
+            // periods, so cap any synchronous catch-up inside the IO callback
+            // to 2 seconds to avoid blocking Core Audio.
+            let rawGap = MeetingRecorderSupport.silenceGapFrames(
+                activeElapsedSeconds: self.clock.activeElapsedSeconds(),
+                writtenFrames: self._frameCount,
+                incomingFrames: Int64(frames),
+                sampleRate: fmt.sampleRate
+            )
+            let maxInlineGap = Int64(fmt.sampleRate * 2.0)
+            self.writeSilenceOnIOQueue(frames: min(rawGap, maxInlineGap), to: file)
             let bufferPeak = MeetingCoreAudio.peakFloatSample(in: buffer)
-            self.peak = max(self.peak, bufferPeak)
             self.levels.ingest(peak: bufferPeak, frames: frames, sampleRate: fmt.sampleRate)
-            self.frameCount += Int64(frames)
-            try? self.file?.write(from: buffer)
+            if (try? file.write(from: buffer)) != nil {
+                self._frameCount += Int64(frames)
+                self._receivedFrameCount += Int64(frames)
+            }
         }
         guard status == noErr else { throw RecorderError.ioProc }
         guard AudioDeviceStart(aggregateID, procID) == noErr else { throw RecorderError.start }
     }
 
-    /// Quiet in-place rebuild for a wedged tap (health watchdog), keeping the
-    /// same open WAV file when the stream format still matches.
+    /// Quiet in-place rebuild for a wedged tap (health watchdog) or newly
+    /// spawned per-app helper processes, keeping the same open WAV file when
+    /// the stream format still matches.
     func kick() throws {
-        guard file != nil else { return }
+        try controlQueue.sync {
+            try rebuildLocked()
+        }
+    }
+
+    func stop() {
+        controlQueue.sync {
+            removeProcessListener()
+            stopHeartbeat()
+            teardownTap()
+            let sampleRate = format?.sampleRate ?? 0
+            ioQueue.sync {
+                // Flush trailing silence after an idle tail only when real
+                // system audio was captured, so the track ends aligned with
+                // the mic WAV while still discarding 0-audio tracks.
+                if _receivedFrameCount > 0, let file, sampleRate > 0 {
+                    let tailGap = MeetingRecorderSupport.silenceGapFrames(
+                        activeElapsedSeconds: clock.activeElapsedSeconds(),
+                        writtenFrames: _frameCount,
+                        incomingFrames: 0,
+                        sampleRate: sampleRate
+                    )
+                    writeSilenceOnIOQueue(frames: tailGap, to: file)
+                }
+                file = nil
+                silenceBuffer = nil
+            }
+            processResolver = nil
+            tappedProcesses = []
+            pendingTappedProcesses = []
+        }
+    }
+
+    private func writeSilenceOnIOQueue(frames: Int64, to file: AVAudioFile) {
+        guard frames > 0, let pad = silenceBuffer else { return }
+        var remaining = frames
+        let chunkCap = Int64(pad.frameCapacity)
+        while remaining > 0 {
+            let count = min(remaining, chunkCap)
+            pad.frameLength = AVAudioFrameCount(count)
+            if (try? file.write(from: pad)) == nil { break }
+            _frameCount += count
+            remaining -= count
+        }
+    }
+
+    private func startHeartbeat(sampleRate: Double) {
+        stopHeartbeat()
+        guard sampleRate > 0 else { return }
+        let timer = DispatchSource.makeTimerSource(queue: ioQueue)
+        timer.schedule(deadline: .now() + 1.0, repeating: 1.0)
+        timer.setEventHandler { [weak self] in
+            guard let self, !self.paused, let file = self.file else { return }
+            let gap = MeetingRecorderSupport.silenceGapFrames(
+                activeElapsedSeconds: self.clock.activeElapsedSeconds(),
+                writtenFrames: self._frameCount,
+                incomingFrames: 0,
+                sampleRate: sampleRate,
+                thresholdSeconds: 0.5
+            )
+            // Drip at most 1.5s of silence per tick so even long idle stretches
+            // never cause a multi-hundred-MB blocking burst in the IO callback.
+            let maxTickFrames = Int64(sampleRate * 1.5)
+            self.writeSilenceOnIOQueue(frames: min(gap, maxTickFrames), to: file)
+        }
+        heartbeatTimer = timer
+        timer.resume()
+    }
+
+    private func stopHeartbeat() {
+        heartbeatTimer?.cancel()
+        heartbeatTimer = nil
+    }
+
+    private func rebuildLocked() throws {
+        let hasFile = ioQueue.sync { file != nil }
+        guard hasFile else { return }
         let previousFormat = format
         teardownTap()
         let nextFormat = try buildTap()
@@ -316,13 +605,30 @@ final class MeetingSystemAudioRecorder: @unchecked Sendable {
             throw RecorderError.format
         }
         try startIO()
+        tappedProcesses = pendingTappedProcesses
     }
 
-    func stop() {
-        teardownTap()
-        ioQueue.sync {
-            file = nil
+    private func installProcessListenerIfNeeded() {
+        guard processResolver != nil, processListener == nil else { return }
+        var addr = MeetingCoreAudio.address(kAudioHardwarePropertyProcessObjectList)
+        let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            guard let self, let resolver = self.processResolver else { return }
+            let current = Set(resolver())
+            guard !current.isEmpty, !current.isSubset(of: self.tappedProcesses) else { return }
+            try? self.rebuildLocked()
         }
+        if AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject),
+                                               &addr, controlQueue, block) == noErr {
+            processListener = block
+        }
+    }
+
+    private func removeProcessListener() {
+        guard let listener = processListener else { return }
+        var addr = MeetingCoreAudio.address(kAudioHardwarePropertyProcessObjectList)
+        AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject),
+                                               &addr, controlQueue, listener)
+        processListener = nil
     }
 
     private func teardownTap() {
@@ -339,6 +645,20 @@ final class MeetingSystemAudioRecorder: @unchecked Sendable {
         procID = nil
         aggregateID = AudioObjectID(kAudioObjectUnknown)
         tapID = AudioObjectID(kAudioObjectUnknown)
+        tappedProcesses = []
+        pendingTappedProcesses = []
+    }
+
+    private static func makeSilenceBuffer(format: AVAudioFormat, frames: AVAudioFrameCount) -> AVAudioPCMBuffer? {
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return nil }
+        buffer.frameLength = frames
+        let list = UnsafeMutableAudioBufferListPointer(buffer.mutableAudioBufferList)
+        for audioBuf in list {
+            if let data = audioBuf.mData, audioBuf.mDataByteSize > 0 {
+                memset(data, 0, Int(audioBuf.mDataByteSize))
+            }
+        }
+        return buffer
     }
 }
 
@@ -352,12 +672,17 @@ final class MeetingMicRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var file: AVAudioFile?
     private var fileFormat: AVAudioFormat?
+    private var silenceBuffer: AVAudioPCMBuffer?
+    private var clock = MeetingActiveClock()
     private var converter: AVAudioConverter?
     private var converterRate: Double = 0
     private var observer: NSObjectProtocol?
+    private var heartbeatTimer: DispatchSourceTimer?
+    private let heartbeatQueue = DispatchQueue(label: "com.vorssaint.utils.meeting.mic.heartbeat", qos: .utility)
     private var stopped = false
     private var restartAttempts = 0
     private var _frameCount: Int64 = 0
+    private var _receivedFrameCount: Int64 = 0
     private var _deliveredFrames: Int64 = 0
     private var paused = false
     private var _windowPeak: Float = 0
@@ -371,9 +696,9 @@ final class MeetingMicRecorder: @unchecked Sendable {
         self.echoCancellation = echoCancellation
     }
 
-    var frameCount: Int64 {
+    var receivedFrameCount: Int64 {
         lock.lock(); defer { lock.unlock() }
-        return _frameCount
+        return _receivedFrameCount
     }
 
     var secondsSinceDeviceChange: Double {
@@ -395,7 +720,9 @@ final class MeetingMicRecorder: @unchecked Sendable {
         return peak > 0 ? Double(20 * log10(peak)) : -120
     }
 
-    func start(toFile url: URL) throws {
+    @discardableResult
+    func start(toFile url: URL, clock: MeetingActiveClock = MeetingActiveClock()) throws -> MeetingRecorderSupport.FileIdentity {
+        self.clock = clock
         if echoCancellation {
             _ = catchNSException {
                 do {
@@ -414,12 +741,32 @@ final class MeetingMicRecorder: @unchecked Sendable {
             throw NSError(domain: "com.vorssaint.utils.meeting", code: 10,
                           userInfo: [NSLocalizedDescriptionKey: "Could not build microphone file format."])
         }
-        file = try AVAudioFile(forWriting: url, settings: canonical.settings,
-                               commonFormat: .pcmFormatFloat32, interleaved: false)
+        guard let reservedIdentity = MeetingCoreAudio.reserveExclusiveFile(url) else {
+            throw NSError(domain: "com.vorssaint.utils.meeting", code: 13,
+                          userInfo: [NSLocalizedDescriptionKey: "Microphone recording file already exists."])
+        }
+        do {
+            file = try AVAudioFile(forWriting: url, settings: canonical.settings,
+                                   commonFormat: .pcmFormatFloat32, interleaved: false)
+            MeetingCoreAudio.markRecorderOwnedFile(url)
+        } catch {
+            if MeetingCoreAudio.regularFileIdentity(of: url) == reservedIdentity {
+                try? FileManager.default.removeItem(at: url)
+                MeetingCoreAudio.forgetRecorderOwnedFile(url)
+            }
+            throw error
+        }
         fileFormat = canonical
+        silenceBuffer = Self.makeSilenceBuffer(format: canonical, frames: 4096)
+        _frameCount = 0
+        _receivedFrameCount = 0
         stopped = false
         guard installTap() else {
             stop()
+            if MeetingCoreAudio.regularFileIdentity(of: url) == reservedIdentity {
+                try? FileManager.default.removeItem(at: url)
+                MeetingCoreAudio.forgetRecorderOwnedFile(url)
+            }
             throw NSError(domain: "com.vorssaint.utils.meeting", code: 11,
                           userInfo: [NSLocalizedDescriptionKey: "Microphone tap rejected by input device."])
         }
@@ -427,8 +774,13 @@ final class MeetingMicRecorder: @unchecked Sendable {
             try startEngine()
         } catch {
             stop()
+            if MeetingCoreAudio.regularFileIdentity(of: url) == reservedIdentity {
+                try? FileManager.default.removeItem(at: url)
+                MeetingCoreAudio.forgetRecorderOwnedFile(url)
+            }
             throw error
         }
+        startHeartbeat(sampleRate: canonical.sampleRate)
         verifyDeliverySoon()
         observer = NotificationCenter.default.addObserver(
             forName: .AVAudioEngineConfigurationChange,
@@ -439,15 +791,19 @@ final class MeetingMicRecorder: @unchecked Sendable {
             self?.restartAttempts = 0
             self?.handleConfigurationChange()
         }
+        return reservedIdentity
     }
 
+    /// Rebuilds the engine for a watchdog stall recovery without resetting
+    /// the hardware device-change grace window, so a persistently dead mic
+    /// still escalates to `.neverStarted`/`.wedged`.
     func kick() {
-        markDeviceChange()
         rebuildEngine()
         verifyDeliverySoon()
     }
 
     func stop() {
+        stopHeartbeat()
         lock.lock()
         stopped = true
         deliveryGeneration += 1
@@ -460,6 +816,7 @@ final class MeetingMicRecorder: @unchecked Sendable {
         }
         lock.lock()
         file = nil
+        silenceBuffer = nil
         converter = nil
         lock.unlock()
     }
@@ -540,18 +897,83 @@ final class MeetingMicRecorder: @unchecked Sendable {
                       sampleRate: buffer.format.sampleRate)
         guard let mono = buffer.format.channelCount == 1 ? buffer : Self.mixToMono(buffer) else { return }
         let rate = mono.format.sampleRate
+        let outputBuffer: AVAudioPCMBuffer
         if rate == fileFormat.sampleRate {
-            _frameCount += Int64(mono.frameLength)
-            try? file.write(from: mono)
-            return
+            outputBuffer = mono
+        } else {
+            if converter == nil || converterRate != rate {
+                converter = AVAudioConverter(from: mono.format, to: fileFormat)
+                converterRate = rate
+            }
+            guard let converter, let out = Self.convert(mono, with: converter, to: fileFormat) else { return }
+            outputBuffer = out
         }
-        if converter == nil || converterRate != rate {
-            converter = AVAudioConverter(from: mono.format, to: fileFormat)
-            converterRate = rate
+        let rawGap = MeetingRecorderSupport.silenceGapFrames(
+            activeElapsedSeconds: clock.activeElapsedSeconds(),
+            writtenFrames: _frameCount,
+            incomingFrames: Int64(outputBuffer.frameLength),
+            sampleRate: fileFormat.sampleRate
+        )
+        // The 1-second heartbeat drips silence during long input outages, so
+        // cap any inline catch-up inside the lock to 2 seconds to avoid
+        // blocking Stop or subsequent audio callbacks.
+        let maxInlineGap = Int64(fileFormat.sampleRate * 2.0)
+        writeSilenceLocked(frames: min(rawGap, maxInlineGap), to: file)
+        if (try? file.write(from: outputBuffer)) != nil {
+            _frameCount += Int64(outputBuffer.frameLength)
+            _receivedFrameCount += Int64(outputBuffer.frameLength)
         }
-        guard let converter, let out = Self.convert(mono, with: converter, to: fileFormat) else { return }
-        _frameCount += Int64(out.frameLength)
-        try? file.write(from: out)
+    }
+
+    private func writeSilenceLocked(frames: Int64, to file: AVAudioFile) {
+        guard frames > 0, let pad = silenceBuffer else { return }
+        var remaining = frames
+        let chunkCap = Int64(pad.frameCapacity)
+        while remaining > 0 {
+            let count = min(remaining, chunkCap)
+            pad.frameLength = AVAudioFrameCount(count)
+            if (try? file.write(from: pad)) == nil { break }
+            _frameCount += count
+            remaining -= count
+        }
+    }
+
+    private func startHeartbeat(sampleRate: Double) {
+        stopHeartbeat()
+        guard sampleRate > 0 else { return }
+        let timer = DispatchSource.makeTimerSource(queue: heartbeatQueue)
+        timer.schedule(deadline: .now() + 1.0, repeating: 1.0)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            guard !self.stopped, !self.paused, let file = self.file else { return }
+            let gap = MeetingRecorderSupport.silenceGapFrames(
+                activeElapsedSeconds: self.clock.activeElapsedSeconds(),
+                writtenFrames: self._frameCount,
+                incomingFrames: 0,
+                sampleRate: sampleRate,
+                thresholdSeconds: 0.5
+            )
+            let maxTickFrames = Int64(sampleRate * 1.5)
+            self.writeSilenceLocked(frames: min(gap, maxTickFrames), to: file)
+        }
+        heartbeatTimer = timer
+        timer.resume()
+    }
+
+    private func stopHeartbeat() {
+        heartbeatTimer?.cancel()
+        heartbeatTimer = nil
+    }
+
+    private static func makeSilenceBuffer(format: AVAudioFormat, frames: AVAudioFrameCount) -> AVAudioPCMBuffer? {
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return nil }
+        buffer.frameLength = frames
+        if let data = buffer.floatChannelData?[0] {
+            memset(data, 0, Int(frames) * MemoryLayout<Float>.size)
+        }
+        return buffer
     }
 
     private static func peakAcrossChannels(_ buffer: AVAudioPCMBuffer) -> Float {
@@ -614,7 +1036,7 @@ final class MeetingMicRecorder: @unchecked Sendable {
         guard !done else { return }
         _ = catchNSException { self.engine.inputNode.removeTap(onBus: 0) }
         let hw = engine.inputNode.outputFormat(forBus: 0)
-        guard hw.sampleRate > 0, hw.channelCount > 0, installTap() else {
+        guard hw.sampleRate > 0, hw.channelCount > 0, installTap(), (try? startEngine()) != nil else {
             restartAttempts += 1
             if restartAttempts <= 40 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
@@ -624,9 +1046,7 @@ final class MeetingMicRecorder: @unchecked Sendable {
             return
         }
         restartAttempts = 0
-        if (try? startEngine()) != nil {
-            verifyDeliverySoon()
-        }
+        verifyDeliverySoon()
     }
 }
 
@@ -650,17 +1070,20 @@ final class MeetingCaptureSession: @unchecked Sendable {
 
     private let detectedPID: pid_t?
     private let perApp: Bool
+    private let clock = MeetingActiveClock()
     private let system = MeetingSystemAudioRecorder()
     private let mic: MeetingMicRecorder
 
     private(set) var systemRunning = false
     private(set) var micRunning = false
-    private(set) var systemError: String?
-    private(set) var micError: String?
+    private var createdSystemIdentity: MeetingRecorderSupport.FileIdentity?
+    private var createdMicIdentity: MeetingRecorderSupport.FileIdentity?
 
     var micLevels: MeetingLevelHistory { mic.levels }
     var systemLevels: MeetingLevelHistory { system.levels }
     var micSecondsSinceDeviceChange: Double { mic.secondsSinceDeviceChange }
+    var micReceivedFrames: Int64 { mic.receivedFrameCount }
+    var systemReceivedFrames: Int64 { system.receivedFrameCount }
 
     init(stem: String,
          detectedApp: String?,
@@ -679,33 +1102,43 @@ final class MeetingCaptureSession: @unchecked Sendable {
     }
 
     func start() throws {
-        var processes: [AudioObjectID] = []
-        if perApp, let pid = resolvedTargetPID() {
-            processes = MeetingCoreAudio.audioProcessObjects(forPID: pid)
-        }
+        clock.start()
 
-        do {
-            try system.start(toFile: systemFileURL, processes: processes)
-            systemRunning = true
-        } catch {
-            if !processes.isEmpty {
-                system.stop()
-                do {
-                    try system.start(toFile: systemFileURL)
-                    systemRunning = true
-                } catch {
-                    systemError = error.localizedDescription
+        // Gate system capture on TCC kTCCServiceAudioCapture preflight: an
+        // unauthorized Core Audio tap succeeds silently and writes all-zero
+        // WAV frames, which would otherwise look healthy to the user.
+        let resolver: (() -> [AudioObjectID])? = perApp
+            ? { [weak self] in
+                guard let self, let pid = self.resolvedTargetPID() else { return [] }
+                return MeetingCoreAudio.audioProcessObjects(forPID: pid)
+            }
+            : nil
+
+        if MeetingAudioPermission.preflight() == .granted {
+            do {
+                createdSystemIdentity = try system.start(toFile: systemFileURL,
+                                                         processResolver: resolver,
+                                                         clock: clock)
+                systemRunning = true
+            } catch {
+                if resolver != nil {
+                    system.stop()
+                    do {
+                        createdSystemIdentity = try system.start(toFile: systemFileURL,
+                                                                 processResolver: nil,
+                                                                 clock: clock)
+                        systemRunning = true
+                    } catch {
+                        systemRunning = false
+                    }
                 }
-            } else {
-                systemError = error.localizedDescription
             }
         }
 
         do {
-            try mic.start(toFile: micFileURL)
+            createdMicIdentity = try mic.start(toFile: micFileURL, clock: clock)
             micRunning = true
         } catch {
-            micError = error.localizedDescription
             if !systemRunning {
                 cleanupUnusedFiles()
                 throw error
@@ -714,6 +1147,7 @@ final class MeetingCaptureSession: @unchecked Sendable {
     }
 
     func setPaused(_ value: Bool) {
+        clock.setPaused(value)
         if systemRunning { system.setPaused(value) }
         if micRunning { mic.setPaused(value) }
     }
@@ -737,27 +1171,37 @@ final class MeetingCaptureSession: @unchecked Sendable {
     func stop() -> Result {
         if systemRunning { system.stop() }
         if micRunning { mic.stop() }
-        cleanupUnusedFiles()
+        let systemHasAudio = systemRunning && system.receivedFrameCount > 0
+        let micHasAudio = micRunning && mic.receivedFrameCount > 0
+        if !systemHasAudio { removeOwnedSessionFile(systemFileURL, identity: createdSystemIdentity) }
+        if !micHasAudio { removeOwnedSessionFile(micFileURL, identity: createdMicIdentity) }
         return Result(
             stem: stem,
-            systemAudioURL: systemRunning ? systemFileURL : nil,
-            micAudioURL: micRunning ? micFileURL : nil,
+            systemAudioURL: systemHasAudio ? systemFileURL : nil,
+            micAudioURL: micHasAudio ? micFileURL : nil,
             detectedApp: detectedApp,
-            systemCaptured: systemRunning,
-            micCaptured: micRunning
+            systemCaptured: systemHasAudio,
+            micCaptured: micHasAudio
         )
     }
 
     func discard() {
         if systemRunning { system.stop() }
         if micRunning { mic.stop() }
-        try? FileManager.default.removeItem(at: systemFileURL)
-        try? FileManager.default.removeItem(at: micFileURL)
+        removeOwnedSessionFile(systemFileURL, identity: createdSystemIdentity)
+        removeOwnedSessionFile(micFileURL, identity: createdMicIdentity)
     }
 
     private func cleanupUnusedFiles() {
-        if !systemRunning { try? FileManager.default.removeItem(at: systemFileURL) }
-        if !micRunning { try? FileManager.default.removeItem(at: micFileURL) }
+        if !systemRunning { removeOwnedSessionFile(systemFileURL, identity: createdSystemIdentity) }
+        if !micRunning { removeOwnedSessionFile(micFileURL, identity: createdMicIdentity) }
+    }
+
+    private func removeOwnedSessionFile(_ url: URL, identity: MeetingRecorderSupport.FileIdentity?) {
+        guard let identity, MeetingCoreAudio.regularFileIdentity(of: url) == identity else { return }
+        if (try? FileManager.default.removeItem(at: url)) != nil {
+            MeetingCoreAudio.forgetRecorderOwnedFile(url)
+        }
     }
 
     private func resolvedTargetPID() -> pid_t? {

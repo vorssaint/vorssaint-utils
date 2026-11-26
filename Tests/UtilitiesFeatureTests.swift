@@ -160,12 +160,24 @@ enum UtilitiesFeatureTests {
                "resumed byte growth clears the wedged state")
 
         var deadHealth = MeetingStreamHealth(kickAfter: 2, wedgedAfter: 4, neverStartedAfter: 3)
-        suite.expect(deadHealth.observe(bytes: 0) == .pending
-               && deadHealth.observe(bytes: 0) == .pending
-               && deadHealth.observe(bytes: 0) == .pending
-               && deadHealth.observe(bytes: 0) == .neverStarted
+        suite.expect(deadHealth.observe(bytes: 4096) == .pending
+               && deadHealth.observe(bytes: 4096) == .pending
+               && deadHealth.observe(bytes: 4096) == .stalled
+               && deadHealth.observe(bytes: 4096) == .neverStarted
                && deadHealth.isWedged,
-               "a stream that never writes any bytes reports neverStarted once")
+               "a stream stuck before its first byte increase gets one kick attempt before reporting neverStarted")
+
+        suite.expect(MeetingRecorderSupport.shouldApplyDetectorStop(isRecording: true, sessionIsAutomatic: true)
+               && !MeetingRecorderSupport.shouldApplyDetectorStop(isRecording: true, sessionIsAutomatic: false)
+               && !MeetingRecorderSupport.shouldApplyDetectorStop(isRecording: false, sessionIsAutomatic: true),
+               "detector stop events end only auto-started sessions, never manual recordings")
+
+        suite.expect(MeetingRecorderSupport.silenceGapFrames(activeElapsedSeconds: 1.0, writtenFrames: 47_000,
+                                                             incomingFrames: 512, sampleRate: 48_000) == 0,
+               "normal audio callback jitter below 150 ms inserts no silence gap")
+        suite.expect(MeetingRecorderSupport.silenceGapFrames(activeElapsedSeconds: 5.0, writtenFrames: 48_000,
+                                                             incomingFrames: 480, sampleRate: 48_000) == 191_520,
+               "idle tap gaps insert exact silence frames to keep system audio aligned with the mic track")
 
         let levels = MeetingLevelHistory(capacity: 16)
         levels.ingest(peak: 0.4, frames: 2400, sampleRate: 48_000)
@@ -180,6 +192,22 @@ enum UtilitiesFeatureTests {
                                                       timeZone: TimeZone(secondsFromGMT: 0)!)
         suite.expect(stem.hasSuffix("-Microsoft-Teams") && !stem.contains(" "),
                "meeting stems sanitize app names into clean filesystem paths")
+        suite.expect(MeetingRecorderSupport.uniqueSessionStem(
+            baseStem: stem,
+            existingFileNames: ["\(stem.lowercased())-mic.wav", "\(stem)-2-system.wav"]
+        ) == "\(stem)-3",
+               "duplicate session stems avoid case-variant collisions so existing WAVs are never overwritten")
+        suite.expect(MeetingRecorderSupport.uniqueSessionStem(
+            baseStem: "2026-11-26_10-00-00-σ",
+            fileExists: { $0 == "2026-11-26_10-00-00-σ-mic.wav" }
+        ) == "2026-11-26_10-00-00-σ-2",
+               "filesystem collision check avoids APFS Unicode-equivalent overwrites")
+        suite.expect(MeetingRecorderSupport.isRecorderStem("2026-11-26_10-00-00")
+               && MeetingRecorderSupport.isRecorderStem("2026-11-26_10-00-00-Zoom")
+               && MeetingRecorderSupport.isRecorderStem("2026-11-26_10-00-00-会議")
+               && !MeetingRecorderSupport.isRecorderStem("podcast")
+               && !MeetingRecorderSupport.isRecorderStem("2026-11-26_10-00-00-"),
+               "recorder stem check matches recorder-generated timestamp names including Unicode app labels")
         suite.expect(MeetingRecorderSupport.elapsedLabel(seconds: 65) == "1:05"
                && MeetingRecorderSupport.elapsedLabel(seconds: 3661) == "1:01:01",
                "elapsed timer formats minutes and hours cleanly")
@@ -192,17 +220,20 @@ enum UtilitiesFeatureTests {
                 "2026-11-26_10-00-00-Zoom-mic.wav",
                 "2026-11-26_11-00-00-Slack-mic.wav",
                 "2026-11-26_12-00-00-Active-system.wav",
+                "podcast-mic.wav",
                 "notes.txt",
             ],
             sizes: [
                 "2026-11-26_10-00-00-Zoom-system.wav": 1000,
                 "2026-11-26_10-00-00-Zoom-mic.wav": 500,
                 "2026-11-26_11-00-00-Slack-mic.wav": 300,
+                "podcast-mic.wav": 9999,
             ],
             dates: [
                 "2026-11-26_10-00-00-Zoom-system.wav": refDate,
                 "2026-11-26_10-00-00-Zoom-mic.wav": refDate,
                 "2026-11-26_11-00-00-Slack-mic.wav": refDate.addingTimeInterval(3600),
+                "podcast-mic.wav": refDate.addingTimeInterval(7200),
             ],
             excludingStem: "2026-11-26_12-00-00-Active"
         )
@@ -210,7 +241,7 @@ enum UtilitiesFeatureTests {
                && scanned[0].label == "Slack" && !scanned[0].hasSystemTrack && scanned[0].hasMicTrack
                && scanned[1].label == "Zoom" && scanned[1].hasSystemTrack && scanned[1].hasMicTrack
                && scanned[1].totalBytes == 1500,
-               "recording scanner pairs system/mic WAV tracks newest-first and hides active sessions")
+               "recording scanner pairs recorder-generated tracks newest-first, ignores unrelated WAVs, and hides active sessions")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.meetingRecorderAutoRecord] as? Bool == false
                && Defaults.registeredDefaults[DefaultsKey.meetingRecorderEchoCancellation] as? Bool == true
                && Defaults.registeredDefaults[DefaultsKey.panelUtilityMeetingRecorder] as? Bool == true
@@ -220,7 +251,8 @@ enum UtilitiesFeatureTests {
         for lang in AppLanguage.allCases {
             let ms = FeatureStrings.meetingRecorder(lang)
             suite.expect(!ms.title.isEmpty && !ms.hubDescription.isEmpty
-                   && !ms.autoRecordToggle.isEmpty && !ms.startButton.isEmpty,
+                   && !ms.autoRecordToggle.isEmpty && !ms.startButton.isEmpty
+                   && !ms.noAudioCapturedError.isEmpty,
                    "meeting recorder strings are populated in \(lang)")
         }
 

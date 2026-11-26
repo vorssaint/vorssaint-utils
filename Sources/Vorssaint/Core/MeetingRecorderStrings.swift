@@ -45,6 +45,7 @@ struct MeetingRecorderFeatureStrings {
     let unknownDevice: String
     let revealInFinder: String
     let deleteRecording: String
+    let noAudioCapturedError: String
 }
 
 extension FeatureStrings {
@@ -110,7 +111,8 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "System audio capture stalled. The other side may not be recorded.",
         unknownDevice: "default input",
         revealInFinder: "Reveal in Finder",
-        deleteRecording: "Move to Trash"
+        deleteRecording: "Move to Trash",
+        noAudioCapturedError: "No audio was captured. Check permissions and input devices."
     )
 
     static let ptBR = MeetingRecorderFeatureStrings(
@@ -153,7 +155,8 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "A captura de áudio do sistema parou. O outro lado pode não estar sendo gravado.",
         unknownDevice: "entrada padrão",
         revealInFinder: "Mostrar no Finder",
-        deleteRecording: "Mover para o Lixo"
+        deleteRecording: "Mover para o Lixo",
+        noAudioCapturedError: "Nenhum áudio foi capturado. Verifique as permissões e os dispositivos de entrada."
     )
 
     static let tr = MeetingRecorderFeatureStrings(
@@ -196,7 +199,8 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "Sistem sesi yakalama durdu. Diğer taraf kaydedilmiyor olabilir.",
         unknownDevice: "varsayılan giriş",
         revealInFinder: "Finder’da göster",
-        deleteRecording: "Çöp Sepetine Taşı"
+        deleteRecording: "Çöp Sepetine Taşı",
+        noAudioCapturedError: "Hiç ses yakalanmadı. İzinleri ve giriş aygıtlarını kontrol et."
     )
 
     static let ru = MeetingRecorderFeatureStrings(
@@ -239,7 +243,8 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "Запись системного звука остановилась. Собеседники могут не записываться.",
         unknownDevice: "вход по умолчанию",
         revealInFinder: "Показать в Finder",
-        deleteRecording: "Переместить в Корзину"
+        deleteRecording: "Переместить в Корзину",
+        noAudioCapturedError: "Аудио не было записано. Проверьте разрешения и устройства ввода."
     )
 
     static let es = MeetingRecorderFeatureStrings(
@@ -282,7 +287,8 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "La captura del audio del sistema se detuvo. Puede que no se grabe el otro lado.",
         unknownDevice: "entrada predeterminada",
         revealInFinder: "Mostrar en Finder",
-        deleteRecording: "Mover a la Papelera"
+        deleteRecording: "Mover a la Papelera",
+        noAudioCapturedError: "No se capturó audio. Comprueba los permisos y los dispositivos de entrada."
     )
 
     static let sk = MeetingRecorderFeatureStrings(
@@ -325,7 +331,8 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "Zachytávanie systémového zvuku sa zastavilo. Druhá strana nemusí byť nahrávaná.",
         unknownDevice: "predvolený vstup",
         revealInFinder: "Zobraziť vo Finderi",
-        deleteRecording: "Presunúť do Koša"
+        deleteRecording: "Presunúť do Koša",
+        noAudioCapturedError: "Nebol zaznamenaný žiadny zvuk. Skontrolujte povolenia a vstupné zariadenia."
     )
 
     static let de = MeetingRecorderFeatureStrings(
@@ -368,7 +375,8 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "Systemaudioaufnahme stockt. Die Gegenseite wird eventuell nicht aufgezeichnet.",
         unknownDevice: "Standardeingang",
         revealInFinder: "Im Finder zeigen",
-        deleteRecording: "In den Papierkorb"
+        deleteRecording: "In den Papierkorb",
+        noAudioCapturedError: "Es wurde kein Audio aufgenommen. Prüfe Berechtigungen und Eingabegeräte."
     )
 
     static let fr = MeetingRecorderFeatureStrings(
@@ -411,7 +419,8 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "La capture audio système s’est figée. Vos interlocuteurs risquent de ne pas être enregistrés.",
         unknownDevice: "entrée par défaut",
         revealInFinder: "Afficher dans le Finder",
-        deleteRecording: "Placer dans la Corbeille"
+        deleteRecording: "Placer dans la Corbeille",
+        noAudioCapturedError: "Aucun audio n’a été capturé. Vérifiez les autorisations et les périphériques d’entrée."
     )
 
     static let it = MeetingRecorderFeatureStrings(
@@ -454,7 +463,8 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "Cattura audio di sistema bloccata. L’altra parte potrebbe non essere registrata.",
         unknownDevice: "ingresso predefinito",
         revealInFinder: "Mostra nel Finder",
-        deleteRecording: "Sposta nel Cestino"
+        deleteRecording: "Sposta nel Cestino",
+        noAudioCapturedError: "Nessun audio acquisito. Controlla i permessi e i dispositivi di ingresso."
     )
 
     static let ja = MeetingRecorderFeatureStrings(
@@ -497,7 +507,8 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "システム音声の録音が停止しました。相手の音声が録音されていない可能性があります。",
         unknownDevice: "デフォルト入力",
         revealInFinder: "Finder で表示",
-        deleteRecording: "ゴミ箱に入れる"
+        deleteRecording: "ゴミ箱に入れる",
+        noAudioCapturedError: "音声が録音されませんでした。権限と入力デバイスを確認してください。"
     )
 
     static let ko = MeetingRecorderFeatureStrings(
@@ -540,7 +551,8 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "시스템 오디오 녹음이 멈췄습니다. 상대방 소리가 녹음되지 않을 수 있습니다.",
         unknownDevice: "기본 입력",
         revealInFinder: "Finder에서 보기",
-        deleteRecording: "휴지통으로 이동"
+        deleteRecording: "휴지통으로 이동",
+        noAudioCapturedError: "오디오가 녹음되지 않았습니다. 권한과 입력 장치를 확인하세요."
     )
 
     static let uk = MeetingRecorderFeatureStrings(
@@ -583,7 +595,8 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "Запис системного звуку зупинився. Співрозмовники можуть не записуватися.",
         unknownDevice: "типовий вхід",
         revealInFinder: "Показати у Finder",
-        deleteRecording: "Перемістити в Смітник"
+        deleteRecording: "Перемістити в Смітник",
+        noAudioCapturedError: "Аудіо не записалося. Перевірте дозволи та пристрої вводу."
     )
 
     static let zhHans = MeetingRecorderFeatureStrings(
@@ -626,7 +639,8 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "系统音频录制已停滞，可能未录到对方声音。",
         unknownDevice: "默认输入",
         revealInFinder: "在访达中显示",
-        deleteRecording: "移到废纸篓"
+        deleteRecording: "移到废纸篓",
+        noAudioCapturedError: "未捕获到音频。请检查权限和输入设备。"
     )
 
     static let zhTW = MeetingRecorderFeatureStrings(
@@ -669,7 +683,8 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "系統音訊錄製已停滯，可能未錄到對方聲音。",
         unknownDevice: "預設輸入",
         revealInFinder: "在 Finder 中顯示",
-        deleteRecording: "丟到垃圾桶"
+        deleteRecording: "丟到垃圾桶",
+        noAudioCapturedError: "未擷取到音訊。請檢查權限與輸入裝置。"
     )
 
     static let zhHK = MeetingRecorderFeatureStrings(
@@ -712,6 +727,7 @@ extension MeetingRecorderFeatureStrings {
         systemStalledWarning: "系統音訊錄音停滯，對方聲音可能未有錄低。",
         unknownDevice: "預設輸入",
         revealInFinder: "喺 Finder 顯示",
-        deleteRecording: "移至垃圾桶"
+        deleteRecording: "移至垃圾桶",
+        noAudioCapturedError: "未擷取到音訊。請檢查權限及輸入裝置。"
     )
 }

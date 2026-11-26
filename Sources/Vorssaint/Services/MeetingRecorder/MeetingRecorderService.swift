@@ -25,6 +25,7 @@ final class MeetingRecorderService: ObservableObject {
     @Published private(set) var recentRecordings: [MeetingRecorderSupport.RecordingSummary] = []
 
     private var session: MeetingCaptureSession?
+    private var currentSessionAutomatic = false
     private var decider = MeetingAutoRecordDecider(ownPID: getpid())
     private var detectorQueue = DispatchQueue(label: "com.vorssaint.utils.meeting.detector", qos: .utility)
     private var detectorTimer: DispatchSourceTimer?
@@ -133,6 +134,7 @@ final class MeetingRecorderService: ObservableObject {
         hideIndicator()
         let result = session.stop()
         self.session = nil
+        currentSessionAutomatic = false
         isRecording = false
         isPaused = false
         systemTrackActive = false
@@ -145,9 +147,16 @@ final class MeetingRecorderService: ObservableObject {
             decider.noteRecordingStopped()
         }
         refreshRecordings()
-        if showHUD, result.systemCaptured || result.micCaptured {
-            let strings = FeatureStrings.meetingRecorder(L10n.shared.language)
-            QuickToolHUD.show(icon: "checkmark.circle", message: strings.savedHUD)
+        let strings = FeatureStrings.meetingRecorder(L10n.shared.language)
+        if result.systemCaptured || result.micCaptured {
+            if showHUD {
+                QuickToolHUD.show(icon: "checkmark.circle", message: strings.savedHUD)
+            }
+        } else {
+            errorMessage = strings.noAudioCapturedError
+            if showHUD {
+                QuickToolHUD.show(icon: "exclamationmark.triangle", message: strings.noAudioCapturedError)
+            }
         }
     }
 
@@ -157,6 +166,7 @@ final class MeetingRecorderService: ObservableObject {
         hideIndicator()
         session.discard()
         self.session = nil
+        currentSessionAutomatic = false
         isRecording = false
         isPaused = false
         systemTrackActive = false
@@ -178,7 +188,15 @@ final class MeetingRecorderService: ObservableObject {
         Permissions.shared.refresh()
 
         let outputDir = saveFolderURL
-        let stem = MeetingRecorderSupport.sessionStem(date: Date(), appName: appName)
+        try? FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
+        let fm = FileManager.default
+        let existingNames = Set((try? fm.contentsOfDirectory(atPath: outputDir.path)) ?? [])
+        let baseStem = MeetingRecorderSupport.sessionStem(date: Date(), appName: appName)
+        let stem = MeetingRecorderSupport.uniqueSessionStem(
+            baseStem: baseStem,
+            existingFileNames: existingNames,
+            fileExists: { MeetingCoreAudio.pathEntryExists(outputDir.appendingPathComponent($0)) }
+        )
         let perApp = UserDefaults.standard.bool(forKey: DefaultsKey.meetingRecorderPerAppAudio)
         let echoCancel = UserDefaults.standard.bool(forKey: DefaultsKey.meetingRecorderEchoCancellation)
 
@@ -199,6 +217,7 @@ final class MeetingRecorderService: ObservableObject {
         }
 
         session = capture
+        currentSessionAutomatic = automatic
         isRecording = true
         isPaused = false
         elapsedSeconds = 0
@@ -264,7 +283,10 @@ final class MeetingRecorderService: ObservableObject {
             let label = MeetingRecorderSupport.displayName(for: trigger, localizedAppName: localized)
             startSession(appName: label, pid: trigger.pid, automatic: true)
         case .stop:
-            guard isRecording else { return }
+            guard MeetingRecorderSupport.shouldApplyDetectorStop(
+                isRecording: isRecording,
+                sessionIsAutomatic: currentSessionAutomatic
+            ) else { return }
             stopRecording(userInitiated: false, showHUD: true)
         }
     }
@@ -362,14 +384,8 @@ final class MeetingRecorderService: ObservableObject {
             }
         }
 
-        func fileBytes(_ url: URL) -> Int64 {
-            guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-                  let size = attrs[.size] as? NSNumber else { return 0 }
-            return size.int64Value
-        }
-
         if session.micRunning, !micInGrace {
-            switch micHealth.observe(bytes: fileBytes(session.micFileURL)) {
+            switch micHealth.observe(bytes: session.micReceivedFrames) {
             case .stalled:
                 session.kickMic()
             case .wedged, .neverStarted:
@@ -380,16 +396,16 @@ final class MeetingRecorderService: ObservableObject {
         }
 
         if session.systemRunning {
-            let sysBytes = fileBytes(session.systemFileURL)
+            let sysFrames = session.systemReceivedFrames
             // Core Audio process taps pause IOProc callbacks when no app is
             // outputting audio (e.g. idle Bluetooth output). Only advance
-            // stall detection when bytes grew or another process is actively
-            // playing audio.
-            let shouldObserveSystem = sysBytes > lastObservedSystemBytes
+            // stall detection when real tap frames grew or another process is
+            // actively playing audio (ignoring silence-heartbeat writes).
+            let shouldObserveSystem = sysFrames > lastObservedSystemBytes
                 || MeetingCoreAudio.isAnyOtherProcessPlayingAudio()
-            lastObservedSystemBytes = max(lastObservedSystemBytes, sysBytes)
+            lastObservedSystemBytes = max(lastObservedSystemBytes, sysFrames)
             if shouldObserveSystem {
-                switch systemHealth.observe(bytes: sysBytes) {
+                switch systemHealth.observe(bytes: sysFrames) {
                 case .stalled:
                     _ = session.kickSystem()
                 case .wedged, .neverStarted:
@@ -442,11 +458,17 @@ final class MeetingRecorderService: ObservableObject {
             recentRecordings = []
             return
         }
+        var regularNames: [String] = []
         var sizes: [String: Int64] = [:]
         var dates: [String: Date] = [:]
+        var identities: [String: MeetingRecorderSupport.FileIdentity] = [:]
         for name in names where name.hasSuffix(".wav") {
-            let path = dir.appendingPathComponent(name).path
-            if let attrs = try? fm.attributesOfItem(atPath: path) {
+            let url = dir.appendingPathComponent(name)
+            if let identity = MeetingCoreAudio.regularFileIdentity(of: url),
+               MeetingCoreAudio.isRecorderOwnedFile(url, expectedIdentity: identity),
+               let attrs = try? fm.attributesOfItem(atPath: url.path) {
+                regularNames.append(name)
+                identities[name] = identity
                 if let size = attrs[.size] as? NSNumber { sizes[name] = size.int64Value }
                 if let date = (attrs[.creationDate] as? Date) ?? (attrs[.modificationDate] as? Date) {
                     dates[name] = date
@@ -455,9 +477,10 @@ final class MeetingRecorderService: ObservableObject {
         }
         recentRecordings = Array(
             MeetingRecorderSupport.scanRecordings(
-                fileNames: names,
+                fileNames: regularNames,
                 sizes: sizes,
                 dates: dates,
+                identities: identities,
                 excludingStem: activeStem
             ).prefix(20)
         )
@@ -484,9 +507,20 @@ final class MeetingRecorderService: ObservableObject {
 
     func delete(_ item: MeetingRecorderSupport.RecordingSummary) {
         let dir = saveFolderURL
-        for name in [item.systemFileName, item.micFileName].compactMap({ $0 }) {
+        let fm = FileManager.default
+        let targets: [(String?, MeetingRecorderSupport.FileIdentity?)] = [
+            (item.systemFileName, item.systemFileIdentity),
+            (item.micFileName, item.micFileIdentity),
+        ]
+        for (name, expectedIdentity) in targets {
+            guard let name, let expectedIdentity else { continue }
             let url = dir.appendingPathComponent(name)
-            try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
+            guard MeetingCoreAudio.isRecorderOwnedFile(url, expectedIdentity: expectedIdentity) else {
+                continue
+            }
+            if (try? fm.trashItem(at: url, resultingItemURL: nil)) != nil {
+                MeetingCoreAudio.forgetRecorderOwnedFile(url)
+            }
         }
         refreshRecordings()
     }

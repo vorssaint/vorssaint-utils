@@ -116,6 +116,76 @@ enum MeetingRecorderSupport {
         return suffix.isEmpty ? stamp : "\(stamp)-\(suffix)"
     }
 
+    /// Reserves a non-colliding session stem against existing files in the
+    /// output folder, delegating to `fileExists` (which queries the actual
+    /// filesystem in production so APFS case-folding and Unicode normalization
+    /// such as `σ` vs `ς` are matched exactly).
+    static func uniqueSessionStem(baseStem: String,
+                                  existingFileNames: Set<String> = [],
+                                  fileExists: ((String) -> Bool)? = nil) -> String {
+        let lowerExisting = Set(existingFileNames.map { $0.lowercased() })
+        func collides(_ candidate: String) -> Bool {
+            let sys = "\(candidate)-system.wav"
+            let mic = "\(candidate)-mic.wav"
+            if let fileExists, fileExists(sys) || fileExists(mic) {
+                return true
+            }
+            return lowerExisting.contains(sys.lowercased())
+                || lowerExisting.contains(mic.lowercased())
+        }
+        guard collides(baseStem) else { return baseStem }
+        var counter = 2
+        while collides("\(baseStem)-\(counter)") {
+            counter += 1
+        }
+        return "\(baseStem)-\(counter)"
+    }
+
+    /// Returns true only for recorder-generated stems (`yyyy-MM-dd_HH-mm-ss`
+    /// with an optional sanitized `-<label>` suffix, including Unicode app
+    /// names) so unrelated `*-mic.wav` or `*-system.wav` files are ignored.
+    static func isRecorderStem(_ stem: String) -> Bool {
+        let chars = Array(stem)
+        guard chars.count >= 19 else { return false }
+        let digitPositions: Set<Int> = [0, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18]
+        for idx in 0..<19 {
+            let c = chars[idx]
+            if digitPositions.contains(idx) {
+                guard c >= "0", c <= "9" else { return false }
+            } else if idx == 10 {
+                guard c == "_" else { return false }
+            } else {
+                guard c == "-" else { return false }
+            }
+        }
+        if chars.count == 19 { return true }
+        guard chars[19] == "-", chars.count > 20 else { return false }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        let suffix = String(chars[20...])
+        return suffix.unicodeScalars.allSatisfy { allowed.contains($0) }
+    }
+
+    /// Returns the number of silent PCM frames to pad before an incoming buffer
+    /// so the system-audio track stays time-aligned with the microphone track
+    /// across idle Core Audio tap gaps (> 150 ms), excluding deliberate pauses.
+    static func silenceGapFrames(activeElapsedSeconds: Double,
+                                 writtenFrames: Int64,
+                                 incomingFrames: Int64,
+                                 sampleRate: Double,
+                                 thresholdSeconds: Double = 0.15) -> Int64 {
+        guard sampleRate > 0, activeElapsedSeconds > 0, incomingFrames >= 0 else { return 0 }
+        let expectedBefore = Int64((activeElapsedSeconds * sampleRate).rounded()) - incomingFrames
+        let gap = expectedBefore - writtenFrames
+        let threshold = Int64((thresholdSeconds * sampleRate).rounded())
+        return gap > threshold ? gap : 0
+    }
+
+    /// Pure guard ensuring an automatic detector stop only ends a session that
+    /// was started automatically, never a manual recording.
+    static func shouldApplyDetectorStop(isRecording: Bool, sessionIsAutomatic: Bool) -> Bool {
+        isRecording && sessionIsAutomatic
+    }
+
     static func sanitizedLabel(_ raw: String?) -> String {
         guard let raw else { return "" }
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
@@ -147,6 +217,13 @@ enum MeetingRecorderSupport {
         peakDb < silentMicThresholdDb
     }
 
+    /// Filesystem identity `(st_dev, st_ino)` captured when scanning a file so
+    /// delete/cleanup never touches a different file that replaced the same path.
+    struct FileIdentity: Codable, Equatable, Sendable {
+        let device: UInt64
+        let inode: UInt64
+    }
+
     /// A saved dual-track (or single-track) meeting recording paired by stem.
     struct RecordingSummary: Identifiable, Equatable, Sendable {
         let id: String
@@ -155,6 +232,8 @@ enum MeetingRecorderSupport {
         let createdAt: Date
         let systemFileName: String?
         let micFileName: String?
+        let systemFileIdentity: FileIdentity?
+        let micFileIdentity: FileIdentity?
         let totalBytes: Int64
 
         var hasSystemTrack: Bool { systemFileName != nil }
@@ -166,10 +245,13 @@ enum MeetingRecorderSupport {
     static func scanRecordings(fileNames: [String],
                                sizes: [String: Int64],
                                dates: [String: Date],
+                               identities: [String: FileIdentity] = [:],
                                excludingStem activeStem: String? = nil) -> [RecordingSummary] {
         struct Pair {
             var system: String?
             var mic: String?
+            var systemIdentity: FileIdentity?
+            var micIdentity: FileIdentity?
             var size: Int64 = 0
             var date: Date = .distantPast
         }
@@ -186,9 +268,15 @@ enum MeetingRecorderSupport {
             } else {
                 continue
             }
-            guard !stem.isEmpty, stem != activeStem else { continue }
+            guard !stem.isEmpty, isRecorderStem(stem), stem != activeStem else { continue }
             var pair = grouped[stem] ?? Pair()
-            if isSystem { pair.system = name } else { pair.mic = name }
+            if isSystem {
+                pair.system = name
+                pair.systemIdentity = identities[name]
+            } else {
+                pair.mic = name
+                pair.micIdentity = identities[name]
+            }
             pair.size += max(0, sizes[name] ?? 0)
             if let d = dates[name], d > pair.date { pair.date = d }
             grouped[stem] = pair
@@ -202,6 +290,8 @@ enum MeetingRecorderSupport {
                 createdAt: pair.date,
                 systemFileName: pair.system,
                 micFileName: pair.mic,
+                systemFileIdentity: pair.systemIdentity,
+                micFileIdentity: pair.micIdentity,
                 totalBytes: pair.size
             )
         }.sorted { lhs, rhs in
@@ -347,6 +437,10 @@ struct MeetingStreamHealth: Sendable {
                 reportedNeverStarted = true
                 isWedged = true
                 return .neverStarted
+            }
+            if flatTicks >= kickAfter, !reportedStalled {
+                reportedStalled = true
+                return .stalled
             }
             return .pending
         }
