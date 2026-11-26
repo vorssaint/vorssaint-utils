@@ -60,6 +60,20 @@ enum ScreenshotCapturePolicy {
             || (!hideVorssaintWindows && !protectedWindowIDs.contains(windowID))
     }
 
+    /// The tools whose selection surface can confirm the whole display in one
+    /// click, before any area is dragged. A screenshot takes the display as a
+    /// picture; a recording takes it as a region covering the display, which is
+    /// the same outcome its dragged area produces, so both offer the control
+    /// (issue #4454). Text and colour have no such outcome, and scrolling
+    /// capture owns the whole-display gesture for its own workflow.
+    static func offersFullScreenSelection(for tool: ScreenCaptureTool?) -> Bool {
+        guard let tool else { return false }
+        switch tool {
+        case .screenshot, .recording: return true
+        case .text, .color, .scrolling: return false
+        }
+    }
+
     /// One on-screen window as the capture decision needs it.
     struct CaptureWindow: Equatable {
         let id: CGWindowID
