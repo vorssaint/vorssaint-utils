@@ -187,6 +187,44 @@ enum SuperKeySupport {
         lhs.count == rhs.count && lhs.allSatisfy(rhs.contains)
     }
 
+    /// What a hidutil read of the key-mapping property means to the feature.
+    enum MappingRead: Equatable {
+        /// No keyboard is present yet: the report has no keyboard table at all.
+        /// Transient — there is nothing to read, write or refuse. Distinct from
+        /// a conflict so a Bluetooth keyboard that connects a few seconds after
+        /// launch recovers on its own instead of being refused forever.
+        case noKeyboard
+        /// Every matched keyboard carries the same external mappings.
+        case consistent([SuperKeyMapping])
+        /// Keyboards disagree: one or more carry different external mappings, so
+        /// copying a single table onto every keyboard would be wrong.
+        case foreignMapping
+        /// The command returned output, but no recognizable keyboard report.
+        case unreadable
+    }
+
+    static func reportsNoKeyboard(_ report: String) -> Bool {
+        let fields = report.split(whereSeparator: \.isWhitespace)
+        return fields.isEmpty || fields == ["RegistryID", "Key", "Value"]
+    }
+
+    /// Reads the report into a decision. The empty report means "no keyboard
+    /// yet", not "someone else mapped this key".
+    static func readMappings(_ report: String,
+                             property: String,
+                             ownedSource: SuperKeySource? = nil) -> MappingRead {
+        let tables = mappingTables(report, property: property).map { mappings in
+            mappings.filter { !isOwnedMapping($0, source: ownedSource) }
+        }
+        guard let first = tables.first else {
+            return reportsNoKeyboard(report) ? .noKeyboard : .unreadable
+        }
+        guard tables.dropFirst().allSatisfy({ mappingsMatch($0, first) }) else {
+            return .foreignMapping
+        }
+        return .consistent(first)
+    }
+
     /// Returns one safe table only when every matched keyboard has the same
     /// external mappings. A newly connected keyboard may differ solely by the
     /// entries this feature already owns; those are removed before comparison
@@ -195,12 +233,10 @@ enum SuperKeySupport {
     static func consistentMappings(_ report: String,
                                    property: String,
                                    ownedSource: SuperKeySource? = nil) -> [SuperKeyMapping]? {
-        let tables = mappingTables(report, property: property).map { mappings in
-            mappings.filter { !isOwnedMapping($0, source: ownedSource) }
-        }
-        guard let first = tables.first,
-              tables.dropFirst().allSatisfy({ mappingsMatch($0, first) }) else { return nil }
-        return first
+        guard case .consistent(let mappings) = readMappings(
+            report, property: property, ownedSource: ownedSource
+        ) else { return nil }
+        return mappings
     }
 
     static func mappingTables(_ report: String,
@@ -358,6 +394,24 @@ enum SuperKeySupport {
         private(set) var isAlone = false
         private var triggerDownTimestamp: UInt64?
         private var didRepeat = false
+        private var forwardedTriggerDown = false
+
+        /// When an app receives F18 before the mapping is armed, it also needs
+        /// the repeats and release from that press. A fresh down starts a new
+        /// press even if the old keyboard disconnected before sending its up.
+        mutating func shouldCapture(_ event: Event, enabled: Bool) -> Bool {
+            switch event {
+            case .triggerDown(let isRepeat, _, _):
+                if !enabled || !isRepeat { forwardedTriggerDown = !enabled }
+                return enabled && !forwardedTriggerDown
+            case .triggerUp:
+                let capture = enabled && !forwardedTriggerDown
+                forwardedTriggerDown = false
+                return capture
+            case .otherKey, .sourceKey, .otherModifier:
+                return enabled
+            }
+        }
 
         mutating func decide(_ event: Event) -> Decision {
             switch event {
@@ -403,8 +457,8 @@ enum SuperKeySupport {
             }
         }
 
-        /// Forgets the press in progress. Used when the tap goes away, so a key
-        /// held across a teardown cannot leave the state stuck down.
+        /// Forgets the Super Key hold. A forwarded F18 still belongs to its
+        /// recipient until release, even if the tap restarts in the meantime.
         mutating func reset() {
             isHeld = false
             isAlone = false

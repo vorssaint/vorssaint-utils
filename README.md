@@ -47,23 +47,6 @@
   <a href="https://trendshift.io/repositories/53716?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-53716" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/53716/monthly?language=Swift" alt="vorssaint/vorssaint-utils | Trendshift monthly ranking" width="250" height="55"></a>
 </p>
 
-<h2 align="center">Sponsors</h2>
-
-<p align="center">
-  Help keep Vorssaint free and open source. Share your product with Mac users.
-</p>
-
-<table align="center">
-  <tr>
-    <td align="center" width="520">
-      <br>
-      <strong>Your product here</strong><br>
-      <sub>Your logo · Your name · Your link</sub><br><br>
-      <a href="SPONSORS.md"><strong>Become our first sponsor →</strong></a><br><br>
-    </td>
-  </tr>
-</table>
-
 <p align="center">
   <img src="docs/assets/readme/panel-mixer.png" width="196" alt="Volume mixer with per app sliders, one app boosted past 100 percent">
   <img src="docs/assets/readme/panel-system.png" width="196" alt="System tab with temperatures, usage graphs and memory pressure">
@@ -90,7 +73,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Volume mixer.** Set volume per app, boost quiet audio past 100%, and pin or reorder favorites. No audio driver required.
 - **Per app output.** Play music through speakers while a call uses your headset.
 - **Output switcher.** Switch audio outputs with a shortcut and lower the volume when headphones disconnect.
-- **Microphone tools.** Choose a preferred input, adjust its level on supported devices, and apply available microphone mute or input-volume controls with one shortcut. Siri and some apps may still hear you; Mic Mute is not a privacy lock. Its indicator shows that the feature is on, not that every app receives silence.
+- **Microphone tools.** Choose a preferred input and adjust its level on supported devices. One shortcut turns on Mic Mute, which tries to engage every available mute switch and set each adjustable input volume to zero. The menu bar indicator shows when Mic Mute is on. A warning appears if a microphone’s controls cannot confirm mute. Siri and some apps may still hear you even when those controls report mute.
 - **Music app blocker.** Prevent unwanted Music launches after detected playback-button presses. Requires Accessibility.
 
 ### Know what your Mac is doing
@@ -146,12 +129,12 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Shelf.** Park files, text and links near your cursor while dragging, then drop or share them later.
 - **Finder shortcuts.** Move files with ⌘X and ⌘V, rename with F2, or paste copied images as PNG files.
 - **Clean URL.** Remove tracking parameters from links, manually or automatically.
-- **Disk image installer.** Install an app from a mounted disk image and eject it, with optional download cleanup.
+- **Disk image installer.** Install an app from a mounted disk image and eject it, with optional download cleanup. Place an empty `.vorssaint-no-install` file in a build folder to skip prompts for images in that folder and its subfolders. Removing the file restores prompts. Hidden mounts and images in system temporary folders are always skipped. Other visible mounts can prompt, including scripted mounts in unmarked folders. For an untagged image outside Downloads, moving it to Trash requires selecting that option for the current install.
 
 ### Everyday tools
 
 - **Dynamic Island.** Keep music, notifications, calendars, timers, downloads and everyday controls around the camera cutout, or a simulated one on other Macs. Customize sections and shortcuts, with optional lyrics, a live equalizer, camera preview and file tools.
-- **AI agents.** Follow Claude, Codex, OpenCode and GitHub Copilot in the Dynamic Island: plan limits and when they reset where available, tokens, API value, models, projects and live work, with a notice when a long task finishes. Codex's banked resets can be used from there too, and each extra Codex account (`CODEX_HOME`) can have a limits card of its own. Copilot uses local CLI/app session logs; its token totals update when shutdown metrics arrive, and aggregate API-value estimates use base rates.
+- **AI agents.** Follow Claude, Codex, OpenCode, GitHub Copilot and Cursor in the Dynamic Island: plan limits and when they reset where available, tokens, API value, models, projects and live work, with a notice when a long task finishes. Codex's banked resets can be used from there too, and each extra Codex account (`CODEX_HOME`) can have a limits card of its own. Copilot uses local CLI/app session logs; its token totals update when shutdown metrics arrive, and aggregate API-value estimates use base rates. Cursor follows local agent transcripts under `~/.cursor/projects/*/agent-transcripts/` for live work and finish notices. Replies that include token counts, a message ID and a timestamp also contribute to usage history. Cursor plan credits are not read from the network.
 - **Command Bar.** Search apps, windows, files, clipboard history, snippets and app menu commands from one field. Calculate, convert units, find emoji or run saved scripts.
 - **Quick panel.** Open a floating palette of favorite tools with ⌃⌘V.
 - **Quick toggles.** Switch appearance, hide desktop icons, eject disks, empty the Trash, lock the screen and more.
@@ -257,7 +240,7 @@ See [troubleshooting](docs/TROUBLESHOOTING.md) for launch problems, permissions 
 
 Vorssaint went from first commit to the front of GitHub trending in three days, top of the Swift charts, and issues and pull requests have shaped every release since. Bug reports, feature ideas and translations are all welcome, starting from the [contributing guide](CONTRIBUTING.md).
 
-Vorssaint is free and will stay that way. If it earned its place in your menu bar, a star helps other people find it, and a [coffee](https://buymeacoffee.com/vorssaint) keeps the maintainer awake, with or without the Keep awake feature.
+Vorssaint is free and open source. If the app has been useful to you and you’d like to support my work, you can [buy me a coffee](https://buymeacoffee.com/vorssaint). Contributions are entirely optional. Everyone gets the same features and updates, and contributing doesn’t come with perks or priority support.
 
 ## Acknowledgements
 

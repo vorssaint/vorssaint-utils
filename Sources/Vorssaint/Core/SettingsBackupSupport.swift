@@ -143,11 +143,17 @@ enum SettingsBackupSupport {
         // A Bluetooth restore owed by one sleeping Mac means nothing on another.
         DefaultsKey.bluetoothSleepRestorePending,
         DefaultsKey.micMuteActive,
+        DefaultsKey.micMuteReleasePending,
+        DefaultsKey.micMuteReleasedUIDs,
         DefaultsKey.micMuteSavedVolume,
         // Levels and device ids belong to the microphones of one Mac.
         DefaultsKey.micMuteSavedVolumes,
         DefaultsKey.micMuteSavedChannelVolumes,
         DefaultsKey.micMuteSavedControls,
+        DefaultsKey.micMuteProtectedChannels,
+        DefaultsKey.micMutePendingLegacyControls,
+        DefaultsKey.micMuteMixerHandoffUID,
+        DefaultsKey.micMuteManualCheckNeeded,
         DefaultsKey.micMuteMutedDevices,
         DefaultsKey.cleanerLastAutoRun,
         // When the last check ran and what it found belong to one Mac.
@@ -210,6 +216,9 @@ enum SettingsBackupSupport {
         // grant this Mac gave, not a setting.
         DefaultsKey.recorderSystemAudioTapVerified,
         DefaultsKey.fanControlRecoveryNeeded,
+        DefaultsKey.fanControlUnregisterPending,
+        DefaultsKey.fanControlInterruptedStop,
+        DefaultsKey.fanControlDismissedStop,
         DefaultsKey.fanControlHelperVersion,
         // Control left running on one Mac must not start fans on another.
         DefaultsKey.fanControlResumeConfiguration,
@@ -223,6 +232,7 @@ enum SettingsBackupSupport {
         // a Mac that still holds its own stale verdicts.
         DefaultsKey.brightnessDDCWriteOnlyPathsRechecked,
         DefaultsKey.brightnessDDCReadChecksumRechecked,
+        DefaultsKey.brightnessDDCHDMIConverterRechecked,
         DefaultsKey.brightnessForcedSoftwarePaths,
         DefaultsKey.brightnessExtendedDimmingPaths,
         // A fit measured against one Mac's camera housing would misfit another's.
@@ -316,6 +326,29 @@ enum SettingsBackupSupport {
     /// them should take on the file's settings; only a plain launch does.
     static func appliesConfigFile(arguments: [String]) -> Bool {
         !arguments.dropFirst().contains { $0.hasPrefix("--") }
+    }
+
+    /// These portable values contain JSON re-encoded by both export and import.
+    /// Object key order can change even when the user has changed no setting.
+    static func matchesPortableValue(_ value: Any, local: Any?, key: String) -> Bool {
+        if value as? NSObject == local as? NSObject { return true }
+        let incoming: Data
+        let current: Data
+        switch key {
+        case DefaultsKey.screenshotWatermarkStyle, DefaultsKey.screenshotWatermarkPresets,
+             DefaultsKey.mediaImageProfiles:
+            guard let lhs = value as? String, let rhs = local as? String else { return false }
+            incoming = Data(lhs.utf8)
+            current = Data(rhs.utf8)
+        case DefaultsKey.recorderEditorPresets:
+            guard let lhs = value as? Data, let rhs = local as? Data else { return false }
+            incoming = lhs
+            current = rhs
+        default: return false
+        }
+        guard let lhs = try? JSONSerialization.jsonObject(with: incoming) as? NSObject,
+              let rhs = try? JSONSerialization.jsonObject(with: current) as? NSObject else { return false }
+        return lhs == rhs
     }
 
     /// These keys have no registered type for the ordinary backup validator

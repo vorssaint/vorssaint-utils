@@ -7,6 +7,11 @@ enum PreciseVolumeRollerDirection: Equatable {
     case up, down
 }
 
+/// The disposition of one physical press on an output that uses native keys.
+enum NativeVolumeKeyPress: Equatable {
+    case unchanged, fine, suppressed
+}
+
 struct PreciseVolumeRollerGate {
     var minimumSpacing: TimeInterval = 0.03
     var reversalWindow: TimeInterval = 0.30
@@ -72,12 +77,13 @@ enum PreciseVolumeKeyEvents {
         event.getIntegerValueField(.eventSourceUserData) == postedMarker
     }
 
-    static func fineStep(_ keyCode: Int32) -> [CGEvent] {
-        let fineFlags: UInt = 0x80000 | 0x20000
-        return [0x0a, 0x0b].compactMap { state in
+    static func fineStep(_ keyCode: Int32, preserving flags: CGEventFlags = []) -> [CGEvent] {
+        let modifiers = UInt(flags.union([.maskAlternate, .maskShift]).rawValue)
+            & NSEvent.ModifierFlags.deviceIndependentFlagsMask.rawValue
+        func event(state: Int) -> CGEvent? {
             let event = NSEvent.otherEvent(with: .systemDefined,
                                            location: .zero,
-                                           modifierFlags: NSEvent.ModifierFlags(rawValue: UInt(state << 8) | fineFlags),
+                                           modifierFlags: NSEvent.ModifierFlags(rawValue: UInt(state << 8) | modifiers),
                                            timestamp: 0,
                                            windowNumber: 0,
                                            context: nil,
@@ -87,6 +93,8 @@ enum PreciseVolumeKeyEvents {
             event?.setIntegerValueField(.eventSourceUserData, value: postedMarker)
             return event
         }
+        guard let down = event(state: 0x0a), let up = event(state: 0x0b) else { return [] }
+        return [down, up]
     }
 }
 
