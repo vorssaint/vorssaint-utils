@@ -6,7 +6,6 @@ import SwiftUI
 struct CutPasteSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
-    @ObservedObject private var service = FinderCutPaste.shared
     @AppStorage(DefaultsKey.finderCutPasteEnabled) private var enabled = false
     @AppStorage(DefaultsKey.finderCutPasteShowHUD) private var showHUD = true
     @AppStorage(DefaultsKey.finderRenameEnabled) private var renameEnabled = false
@@ -49,10 +48,8 @@ struct CutPasteSettings: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    if enabled, service.isRunning {
-                        Label(l10n.s.cutPasteActiveNow, systemImage: "checkmark.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.green)
+                    if enabled {
+                        FinderCutPasteActiveStatus()
                     }
                 }
                 .settingsFormSectionAnchor(.finderCutPaste)
@@ -189,5 +186,21 @@ struct CutPasteSettings: View {
             if clearTakeOver { SystemShortcutTakeover.setTakeOver(DefaultsKey.finderRenameShortcut, false) }
         }
         FinderRenameService.shared.syncWithPreferences()
+    }
+}
+
+
+/// The shared Finder page can also be opened for Rename or New File alone.
+/// Only instantiate the Cut & Paste service when its own status is shown.
+private struct FinderCutPasteActiveStatus: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = FinderCutPaste.shared
+
+    var body: some View {
+        if service.isRunning {
+            Label(l10n.s.cutPasteActiveNow, systemImage: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(.green)
+        }
     }
 }

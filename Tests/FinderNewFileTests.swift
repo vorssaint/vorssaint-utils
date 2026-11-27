@@ -13,9 +13,12 @@ enum FinderNewFileTests {
         suite.expect(FinderNewFileStrings.supportedCodes == Set(AppLanguage.allCases.map(\.rawValue)),
                      "Finder new file supports every app language")
         for language in AppLanguage.allCases {
-            let strings = FinderNewFileStrings.localized(language.rawValue)
+            let strings = FeatureStrings.finderNewFile(language)
+            suite.expect(strings.title == FinderNewFileStrings.localized(language.rawValue).title,
+                         "host and extension share the same Finder menu title: \(language)")
             suite.expect(!strings.title.isEmpty && !strings.description.isEmpty
-                         && !strings.manage.isEmpty && !strings.error.isEmpty
+                         && !strings.enable.isEmpty && !strings.page.isEmpty && !strings.text.isEmpty
+                         && !strings.cancel.isEmpty && !strings.manage.isEmpty && !strings.error.isEmpty
                          && !strings.extensionName.isEmpty && !strings.extensionEnabled.isEmpty
                          && !strings.extensionDisabled.isEmpty && !strings.extensionHelp.isEmpty
                          && strings.extensionEnabled != strings.extensionDisabled,

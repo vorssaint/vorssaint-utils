@@ -4,6 +4,11 @@
 import Foundation
 
 enum FeatureStrings {
+    /// The extension also compiles this catalog, without the host's L10n.
+    static func finderNewFile(_ language: AppLanguage) -> FinderNewFileStrings {
+        FinderNewFileStrings.localized(language.rawValue)
+    }
+
     static func settingsCategories(_ language: AppLanguage) -> SettingsCategoryStrings {
         switch language {
         case .enUS: return .enUS

@@ -40,14 +40,28 @@ enum FinderNewFileService {
         FIFinderSyncController.showExtensionManagementInterface()
     }
 
-    static func handle(_ request: FinderNewFileRequest) {
+    /// Capture the OS sender synchronously, before leaving the Apple event.
+    static func handleOpenURLs(_ urls: [URL]) {
+        guard enabled else { return }
+        let requests = urls.compactMap { FinderNewFileRequest.decode($0) }
+        guard !requests.isEmpty else { return }
+        guard FinderNewFileSender.isEmbeddedExtension() else {
+            NSLog("Vorssaint Finder New File: rejected unauthenticated Apple event")
+            return
+        }
+        for request in requests {
+            DispatchQueue.main.async { handle(request) }
+        }
+    }
+
+    private static func handle(_ request: FinderNewFileRequest) {
         guard enabled, extensionEnabled, kinds.contains(request.kind),
               replayGuard.accept(request) else { return }
         do {
             _ = try FinderNewFileCreator.create(request.kind, in: request.directory,
                 templates: Bundle.main.resourceURL?.appendingPathComponent("FinderNewFileTemplates", isDirectory: true))
         } catch {
-            let strings = FinderNewFileStrings.localized(L10n.shared.language.rawValue)
+            let strings = FeatureStrings.finderNewFile(L10n.shared.language)
             let alert = NSAlert()
             alert.alertStyle = .warning
             alert.messageText = strings.error

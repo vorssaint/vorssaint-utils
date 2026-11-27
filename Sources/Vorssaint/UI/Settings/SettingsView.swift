@@ -1047,6 +1047,33 @@ enum PermissionKind {
     case microphone
 }
 
+/// Shared status line for system capabilities, including TCC permissions and
+/// Finder extension enablement. An unknown status must not be shown as denied.
+struct SystemCapabilityStatusRow: View {
+    let name: String
+    let granted: Bool?
+    let grantedTitle: String
+    let missingTitle: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let granted {
+                Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                    .foregroundStyle(granted ? .green : .orange)
+            } else {
+                ProgressView().controlSize(.small)
+            }
+            Text(name)
+            Spacer()
+            if let granted {
+                Text(granted ? grantedTitle : missingTitle)
+                    .font(.caption)
+                    .foregroundStyle(granted ? .green : .orange)
+            }
+        }
+    }
+}
+
 /// Status + actions for one TCC permission; shared by Settings and onboarding.
 struct PermissionRow: View {
     @ObservedObject private var l10n = L10n.shared
@@ -1080,15 +1107,9 @@ struct PermissionRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                    .foregroundStyle(granted ? .green : .orange)
-                Text(name)
-                Spacer()
-                Text(granted ? l10n.s.permissionGranted : l10n.s.permissionMissing)
-                    .font(.caption)
-                    .foregroundStyle(granted ? .green : .orange)
-            }
+            SystemCapabilityStatusRow(name: name, granted: granted,
+                                      grantedTitle: l10n.s.permissionGranted,
+                                      missingTitle: l10n.s.permissionMissing)
             if !granted {
                 HStack(spacing: 8) {
                     Button(l10n.s.permissionRequest) {

@@ -70,17 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     // MARK: - Lifecycle
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        let requests = urls.compactMap { FinderNewFileRequest.decode($0) }
-        guard !requests.isEmpty else { return }
-        // Capture and check the OS sender before leaving the Apple event
-        // callback; dispatching first loses the sender's audit token.
-        guard FinderNewFileSender.isEmbeddedExtension() else {
-            NSLog("Vorssaint Finder New File: rejected unauthenticated Apple event")
-            return
-        }
-        for request in requests {
-            DispatchQueue.main.async { FinderNewFileService.handle(request) }
-        }
+        FinderNewFileService.handleOpenURLs(urls)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

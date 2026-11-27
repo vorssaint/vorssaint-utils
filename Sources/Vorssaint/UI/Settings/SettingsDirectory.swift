@@ -236,6 +236,7 @@ enum SettingsDirectory {
                          state: SettingsSearchState)
         -> [(title: String, items: [SettingsDirectoryItem])] {
         let categories = FeatureStrings.settingsCategories(language)
+        let finderNewFile = FeatureStrings.finderNewFile(language)
         let quitProtection = FeatureStrings.quitProtection(language)
         let brightness = FeatureStrings.brightness(language)
         let bluetooth = FeatureStrings.bluetoothSleep(language)
@@ -506,7 +507,7 @@ enum SettingsDirectory {
                                         (.pastePlain, [s.pastePlainName]),
                                        ]),
                 SettingsDirectoryItem(page: .cutPaste,
-                                       title: FinderNewFileStrings.localized(language.rawValue).page,
+                                       title: finderNewFile.page,
                                        icon: "filemenu.and.selection",
                                        featureKeywords: [
                                         (.finderCutPaste, [s.cutPasteEnable]),
@@ -514,10 +515,9 @@ enum SettingsDirectory {
                                          [FeatureStrings.finderRename(language).enableLabel,
                                            FeatureStrings.finderRename(language).pageTitle]),
                                          (.finderNewFile,
-                                          [FinderNewFileStrings.localized(language.rawValue).title,
-                                           FinderNewFileStrings.localized(language.rawValue).enable,
-                                           FinderNewFileStrings.localized(language.rawValue).manage,
-                                           "Word", "Excel", "PowerPoint", "Markdown", "JSON", "Pages", "Numbers", "Keynote"]),
+                                          [finderNewFile.title, finderNewFile.enable, finderNewFile.manage,
+                                            finderNewFile.extensionName]
+                                            + FinderNewFileKind.allCases.map { $0.title(finderNewFile) }),
                                        ]),
                 SettingsDirectoryItem(page: .shelf, title: s.shelfName, icon: "tray.full",
                                       keywords: [s.shelfEnable, s.shelfDropZoneToggle, s.shelfEdgeToggle,

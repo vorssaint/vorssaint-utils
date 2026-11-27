@@ -12,7 +12,7 @@ struct FinderNewFileSettings: View {
     @AppStorage(DefaultsKey.finderNewFileKinds) private var selection = FinderNewFileKind.defaultSelection
 
     private var strings: FinderNewFileStrings {
-        FinderNewFileStrings.localized(l10n.language.rawValue)
+        FeatureStrings.finderNewFile(l10n.language)
     }
 
     var body: some View {
@@ -48,35 +48,23 @@ struct FinderNewFileSettings: View {
     }
 }
 
-
 /// Mirrors PermissionRow's status and actions without treating a Finder
 /// extension as a TCC permission. The management entry stays available even
 /// when the feature switch is off, so the user can disable the extension.
 struct FinderNewFileExtensionStatus: View {
     @ObservedObject private var l10n = L10n.shared
     @State private var extensionEnabled: Bool?
+    @State private var refreshID = UUID()
 
     private var strings: FinderNewFileStrings {
-        FinderNewFileStrings.localized(l10n.language.rawValue)
+        FeatureStrings.finderNewFile(l10n.language)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                if let enabled = extensionEnabled {
-                    Image(systemName: enabled ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                        .foregroundStyle(enabled ? .green : .orange)
-                } else {
-                    ProgressView().controlSize(.small)
-                }
-                Text(strings.extensionName)
-                Spacer()
-                if let enabled = extensionEnabled {
-                    Text(enabled ? strings.extensionEnabled : strings.extensionDisabled)
-                        .font(.caption)
-                        .foregroundStyle(enabled ? .green : .orange)
-                }
-            }
+            SystemCapabilityStatusRow(name: strings.extensionName, granted: extensionEnabled,
+                                      grantedTitle: strings.extensionEnabled,
+                                      missingTitle: strings.extensionDisabled)
             if extensionEnabled == false {
                 Text(strings.extensionHelp)
                     .font(.caption)
@@ -98,9 +86,12 @@ struct FinderNewFileExtensionStatus: View {
         // Match WindowLayoutSettings' appearance/activation refresh policy.
         // Like the permission portal's automation check, keep the system
         // query off the UI thread. No separate periodic monitor is needed.
+        let id = UUID()
+        refreshID = id
         DispatchQueue.global(qos: .userInitiated).async {
             let enabled = FinderNewFileService.extensionEnabled
             DispatchQueue.main.async {
+                guard refreshID == id else { return }
                 extensionEnabled = enabled
             }
         }
