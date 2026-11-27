@@ -89,6 +89,15 @@ enum FinderNewFileTests {
             edited.filename = "Report"
             edited.enabled = true
             let ordered = [custom, edited] + migrated.filter { $0.id != custom.id && $0.id != edited.id }
+            let movedDown = FinderNewFileItem.reordered(ordered, moving: custom.id, to: edited.id)
+            suite.expect(movedDown.map(\.id) == [edited.id, custom.id] + ordered.dropFirst(2).map(\.id),
+                         "dragging a custom entry down across a built-in preserves identities")
+            let movedUp = FinderNewFileItem.reordered(movedDown, moving: custom.id, to: edited.id)
+            suite.expect(movedUp == ordered, "dragging upward restores the original mixed order")
+            suite.expect(FinderNewFileItem.reordered(ordered, moving: custom.id, to: custom.id) == ordered,
+                         "dropping onto itself does not change order")
+            suite.expect(FinderNewFileItem.reordered(ordered, moving: UUID(), to: edited.id) == ordered,
+                         "unknown drag source is ignored")
             let restored = FinderNewFileItem.items(FinderNewFileItem.encode(ordered))
             suite.expect(restored.map(\.id) == ordered.map(\.id), "mixed order survives persistence")
             suite.expect(restored[1].filename == "Report" && !restored[1].canDelete,

@@ -171,6 +171,18 @@ struct FinderNewFileItem: Codable, Identifiable, Equatable {
         return result
     }
 
+    /// Match the panel editor's directional move: dropping onto a row
+    /// below the source inserts after that row, and vice versa.
+    static func reordered(_ items: [Self], moving source: UUID, to target: UUID) -> [Self] {
+        guard source != target,
+              let from = items.firstIndex(where: { $0.id == source }),
+              let to = items.firstIndex(where: { $0.id == target }) else { return items }
+        var updated = items
+        let moved = updated.remove(at: from)
+        updated.insert(moved, at: to)
+        return updated
+    }
+
     static func encode(_ items: [Self]) -> String {
         guard let data = try? JSONEncoder().encode(items) else { return "[]" }
         return String(decoding: data, as: UTF8.self)

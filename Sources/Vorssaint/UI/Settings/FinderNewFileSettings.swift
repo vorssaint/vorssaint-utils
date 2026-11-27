@@ -14,13 +14,12 @@ struct FinderNewFileSettings: View {
     @AppStorage(DefaultsKey.finderNewFileItems) private var raw = ""
     @State private var editing: FinderNewFileItem?
     @State private var dragging: UUID?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var strings: FinderNewFileStrings { FeatureStrings.finderNewFile(l10n.language) }
 
     private var items: [FinderNewFileItem] {
-        FinderNewFileItem.items(raw,
-            legacySelection: UserDefaults.standard.string(forKey: DefaultsKey.finderNewFileKinds),
-            legacyCustom: UserDefaults.standard.string(forKey: DefaultsKey.finderNewFileCustomItems) ?? "[]")
+        FinderNewFileService.configuredItems(raw: raw)
     }
 
     var body: some View {
@@ -88,19 +87,18 @@ struct FinderNewFileSettings: View {
                     .truncationMode(.middle)
             }
             Spacer()
-            Button { editing = item } label: { Image(systemName: "pencil") }
-                .buttonStyle(.plain)
-                .help(l10n.s.menuEdit)
-                .accessibilityLabel(l10n.s.menuEdit + ": " + item.displayName(strings))
             if item.canDelete {
                 Button { remove(item) } label: { Image(systemName: "trash") }
                     .buttonStyle(.plain)
                     .help(l10n.s.actionRemove)
                     .accessibilityLabel(l10n.s.actionRemove + ": " + item.displayName(strings))
                     .frame(width: 18)
-            } else {
-                Color.clear.frame(width: 18, height: 1).accessibilityHidden(true)
             }
+            Button { editing = item } label: { Image(systemName: "pencil") }
+                .buttonStyle(.plain)
+                .help(l10n.s.menuEdit)
+                .accessibilityLabel(l10n.s.menuEdit + ": " + item.displayName(strings))
+                .frame(width: 18)
             Toggle(isOn: Binding(get: {
                 items.first(where: { $0.id == item.id })?.isEnabled ?? false
             }, set: { value in
@@ -113,6 +111,7 @@ struct FinderNewFileSettings: View {
             }
             .labelsHidden()
             .toggleStyle(.switch)
+            .controlSize(.small)
         }
         .padding(.vertical, 5)
         .contentShape(Rectangle())
@@ -124,12 +123,10 @@ struct FinderNewFileSettings: View {
     }
 
     private func move(_ source: UUID, _ target: UUID) {
-        var updated = items
-        guard source != target,
-              let from = updated.firstIndex(where: { $0.id == source }),
-              let to = updated.firstIndex(where: { $0.id == target }) else { return }
-        withAnimation(.easeInOut(duration: 0.12)) {
-            updated.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        let current = items
+        let updated = FinderNewFileItem.reordered(current, moving: source, to: target)
+        guard updated != current else { return }
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.12)) {
             persist(updated)
         }
     }

@@ -14,9 +14,10 @@ enum FinderNewFileService {
         AppFeature.finderNewFile.isAvailable && UserDefaults.standard.bool(forKey: DefaultsKey.finderNewFileEnabled)
     }
 
-    static var items: [FinderNewFileItem] {
-        let defaults = UserDefaults.standard
-        return FinderNewFileItem.items(defaults.string(forKey: DefaultsKey.finderNewFileItems) ?? "",
+    static var items: [FinderNewFileItem] { configuredItems() }
+
+    static func configuredItems(raw: String? = nil, defaults: UserDefaults = .standard) -> [FinderNewFileItem] {
+        FinderNewFileItem.items(raw ?? defaults.string(forKey: DefaultsKey.finderNewFileItems) ?? "",
             legacySelection: defaults.string(forKey: DefaultsKey.finderNewFileKinds),
             legacyCustom: defaults.string(forKey: DefaultsKey.finderNewFileCustomItems) ?? "[]")
     }
