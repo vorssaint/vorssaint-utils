@@ -120,6 +120,8 @@ struct GlobalShortcut: Equatable, Hashable {
         return !modifiers.hasPrimaryModifier
     }
 
+    static let instantSpacesCycleDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_Period),
+                                                           modifiers: [.control, .option, .command])
     static let keepAwakeDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_K),
                                                  modifiers: [.control, .option, .command])
     static let shelfDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_D),
@@ -739,6 +741,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case keyboardBrightnessDecrease
     case keyboardBrightnessIncrease
     case pointerNextDisplay
+    case instantSpacesCycle
     case notch
 
     var id: String { storageKey }
@@ -778,6 +781,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessDecrease: return DefaultsKey.keyboardBrightnessDecreaseShortcut
         case .keyboardBrightnessIncrease: return DefaultsKey.keyboardBrightnessIncreaseShortcut
         case .pointerNextDisplay: return DefaultsKey.pointerDisplayShortcut
+        case .instantSpacesCycle: return DefaultsKey.instantSpacesCycleShortcut
         case .notch: return DefaultsKey.notchShortcut
         }
     }
@@ -817,6 +821,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessDecrease: return .keyboardBrightnessDecreaseDefault
         case .keyboardBrightnessIncrease: return .keyboardBrightnessIncreaseDefault
         case .pointerNextDisplay: return .pointerNextDisplayDefault
+        case .instantSpacesCycle: return .instantSpacesCycleDefault
         case .notch: return .notchDefault
         }
     }
@@ -900,6 +905,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessIncrease:
             return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessIncrease
         case .pointerNextDisplay: return PointerDisplayStrings.localized(L10n.shared.language).title
+        case .instantSpacesCycle: return FeatureStrings.instantSpaces(L10n.shared.language).cycle
         case .notch: return FeatureStrings.notch(L10n.shared.language).title
         }
     }
@@ -964,6 +970,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease:
             return [DefaultsKey.keyboardBrightnessShortcutsEnabled]
         case .pointerNextDisplay: return [DefaultsKey.pointerDisplayEnabled]
+        case .instantSpacesCycle: return [DefaultsKey.instantSpacesCycleEnabled, DefaultsKey.instantSpacesCycleCustom]
         case .notch: return [DefaultsKey.notchEnabled, DefaultsKey.notchShortcutEnabled]
         }
     }
@@ -997,6 +1004,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .displayBrightnessDecrease, .displayBrightnessIncrease: return .brightness
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness
         case .pointerNextDisplay: return .windowLayout
+        case .instantSpacesCycle: return .instantSpaces
         case .notch: return .notch
         }
     }
@@ -1019,7 +1027,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     /// promise refuses the combination instead of making it.
     var supportsTakeOver: Bool {
         switch self {
-        case .switcher, .switcherWindow, .switcherAllWindows, .radialMenu: return false
+        case .switcher, .switcherWindow, .switcherAllWindows, .radialMenu, .instantSpacesCycle: return false
         default: return true
         }
     }

@@ -6813,7 +6813,7 @@ enum SwitcherModelFeatureTests {
                && SystemShortcutTakeoverSupport.recorderDecision(shortcut: .screenshotDefault, conflictsWithMacOS: false,
                                                                  takenOver: true, current: areaShot) == .save(clearTakeOver: true),
                "a taken-over row re-records its own key silently, is asked again for any other macOS key or when no key is recorded, and forgets the take-over when it leaves macOS keys")
-        suite.expect(GlobalShortcutRole.allCases.filter { !$0.supportsTakeOver } == [.switcher, .switcherWindow, .switcherAllWindows, .radialMenu]
+        suite.expect(GlobalShortcutRole.allCases.filter { !$0.supportsTakeOver } == [.switcher, .switcherWindow, .switcherAllWindows, .radialMenu, .instantSpacesCycle]
                && GlobalShortcutRole.keepAwake.supportsTakeOver && GlobalShortcutRole.finderRename.supportsTakeOver,
                "only the rows whose key a feature claims may offer to take a macOS shortcut over")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.systemShortcutTakeOverKeys)

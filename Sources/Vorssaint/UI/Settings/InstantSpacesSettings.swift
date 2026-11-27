@@ -10,6 +10,9 @@ struct InstantSpacesSettings: View {
     @AppStorage(DefaultsKey.instantSpacesKeyboard) private var keyboard = false
     @AppStorage(DefaultsKey.instantSpacesTrackpad) private var trackpad = false
 
+    @AppStorage(DefaultsKey.instantSpacesCycleEnabled) private var cycle = false
+    @AppStorage(DefaultsKey.instantSpacesCycleCustom) private var cycleCustom = false
+
     private var strings: InstantSpacesStrings { FeatureStrings.instantSpaces(l10n.language) }
 
     var body: some View {
@@ -26,17 +29,36 @@ struct InstantSpacesSettings: View {
             }
             .disabled(!InstantSpacesGesture.isSupported)
 
+            Section(strings.cycle) {
+                Toggle(strings.cycle, isOn: $cycle)
+                if cycle {
+                    Toggle(strings.cycleCustom, isOn: $cycleCustom)
+                    if cycleCustom {
+                        ShortcutPreferenceRow(role: .instantSpacesCycle, isEnabled: cycle,
+                                              label: strings.cycle, includeInactiveConflicts: true,
+                                              additionalConflict: { shortcut in
+                            guard AppFeature.windowLayout.isAvailable else { return nil }
+                            return WindowLayoutService.shared.shortcutConflictTitle(shortcut, excluding: nil)
+                        }) { service.syncWithPreferences() }
+                    }
+                    Text(strings.cycleCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .disabled(!InstantSpacesGesture.isSupported)
+
             Section {
                 Text(strings.compatibility)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                if InstantSpacesGesture.isSupported, keyboard || trackpad,
+                if InstantSpacesGesture.isSupported, keyboard || trackpad || cycle,
                    permissions.accessibility, !service.isRunning {
                     Label(strings.unavailable, systemImage: "exclamationmark.triangle")
                         .font(.caption)
                 }
             }
-            if (keyboard || trackpad), !permissions.accessibility {
+            if (keyboard || trackpad || cycle), !permissions.accessibility {
                 Section(l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)
                 }
@@ -45,6 +67,8 @@ struct InstantSpacesSettings: View {
         .formStyle(.grouped)
         .onChange(of: keyboard) { _, value in sync(requestPermission: value) }
         .onChange(of: trackpad) { _, value in sync(requestPermission: value) }
+        .onChange(of: cycle) { _, value in sync(requestPermission: value) }
+        .onChange(of: cycleCustom) { _, _ in service.syncWithPreferences() }
     }
 
     private func sync(requestPermission: Bool) {

@@ -2,7 +2,7 @@
 
 Install Instant Spaces from Settings → Features → Windows and Dock. A first
 install enables keyboard switching; trackpad swipes are a separate control on
-its settings page. Accessibility is required. The feature starts uninstalled,
+its settings page. Space cycling is another opt-in control. Accessibility is required. The feature starts uninstalled,
 and reinstalling it preserves saved control choices.
 
 Keyboard switching reads the enabled macOS shortcuts for moving left or right
@@ -11,6 +11,18 @@ takes effect without switching away from System Settings. It does not rewrite
 the system shortcut table.
 Desktop numbers omit fullscreen Spaces; adjacent navigation includes them.
 Numbered shortcuts targeting another display retain native macOS handling.
+
+Space cycling advances through Spaces on the display under the pointer, including
+fullscreen Spaces, and wraps from the last Space to the first. Choose Fn or turn
+on “Use a custom shortcut” and record a combination with the standard recorder.
+The custom shortcut participates in Vorssaint's conflict checks. Cycling works
+independently of the system-keyboard and trackpad controls.
+
+Fn switches on release only when tapped alone; Fn-arrow, media keys and other
+chords keep their normal behavior. Enabling Fn cycling replaces the usual bare-Fn
+action. Overviews, window dragging, shortcut recording and inactive sessions
+leave navigation alone. Cycling is off by default and all its preferences are
+included in settings backup.
 
 Trackpad switching follows the system's configured three- or four-finger gesture.
 Small initial movement is held until its direction is clear. Moving back far
@@ -55,6 +67,9 @@ verify these interactions with the Developer app:
 
 - Keyboard and physical trackpad navigation both remove the slide animation.
   Check both directions, edges, fullscreen Spaces, quick flicks and reversals.
+- Enable cycling and test Fn alone, held Fn, Fn-arrow, Fn-media, pre-held
+  modifiers, a recorded shortcut, repeats and wrapping from the last Space.
+  Check single-Space displays and changing modes while a key is held.
 - Remap and disable the macOS shortcuts while the app runs. Check numbered
   desktop shortcuts with fullscreen Spaces between ordinary desktops.
 - Check each display, including a numbered shortcut targeting another display.

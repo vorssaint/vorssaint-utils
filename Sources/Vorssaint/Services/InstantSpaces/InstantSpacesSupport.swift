@@ -8,6 +8,7 @@ enum InstantSpacesSupport {
     enum Action: Equatable {
         case step(Int)
         case desktop(Int)
+        case cycle
     }
 
     static let shortcutIDs: Set<Int32> = Set([79, 81] + Array(118...127))
@@ -33,6 +34,34 @@ enum InstantSpacesSupport {
         guard direction == -1 || direction == 1, let index = spaces.firstIndex(of: current),
               spaces.indices.contains(index + direction) else { return nil }
         return spaces[index + direction]
+    }
+
+    static func cycleDestination(in spaces: [UInt64], current: UInt64) -> UInt64? {
+        guard spaces.count > 1, let index = spaces.firstIndex(of: current) else { return nil }
+        return spaces[(index + 1) % spaces.count]
+    }
+
+    /// A bare Fn tap is committed on release. A chord or repeated flags event
+    /// must never turn Fn-arrow navigation into a Space switch.
+    struct FnPress {
+        private(set) var isDown = false
+        private var chorded = false
+
+        mutating func begin(flags: CGEventFlags) {
+            guard !isDown else { return }
+            isDown = true
+            chorded = !GlobalShortcutModifiers(cgFlags: flags).isEmpty
+        }
+
+        mutating func markChorded() {
+            if isDown { chorded = true }
+        }
+
+        mutating func finish() -> Bool {
+            let bare = isDown && !chorded
+            self = FnPress()
+            return bare
+        }
     }
 
     /// One intent per direction, with enough return travel to distinguish a

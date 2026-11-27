@@ -236,7 +236,8 @@ extension AppFeature {
     /// the permissions portal.
     var enabledKeys: [String] {
         switch self {
-        case .instantSpaces: return [DefaultsKey.instantSpacesKeyboard, DefaultsKey.instantSpacesTrackpad]
+        case .instantSpaces: return [DefaultsKey.instantSpacesKeyboard, DefaultsKey.instantSpacesTrackpad,
+                                     DefaultsKey.instantSpacesCycleEnabled]
         case .switcher: return [DefaultsKey.switcherEnabled]
         case .dockPreview: return [DefaultsKey.dockPreviewEnabled]
         case .dockClick: return [DefaultsKey.dockClickMinimize,

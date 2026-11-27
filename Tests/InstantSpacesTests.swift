@@ -37,6 +37,11 @@ enum InstantSpacesTests {
         var swipeTap: Tap?
         var envelopeTap: Tap?
         var swipe: InstantSpacesSupport.Swipe?
+        var cycleEnabled = false
+        var cycleCustom = false
+        var cycleShortcut = GlobalShortcut.instantSpacesCycleDefault
+        var fnPress = InstantSpacesSupport.FnPress()
+        var fnClaimed = false
         var keyboardEnabled = true
         var canRun = true
         var claimedKeys: Set<Int64> = []
@@ -85,7 +90,22 @@ enum InstantSpacesTests {
                                             shortcuts: fn) == .step(-1),
                      "an explicitly configured Fn modifier is required")
 
+        var fnPress = InstantSpacesSupport.FnPress()
+        fnPress.begin(flags: .maskSecondaryFn)
+        suite.expect(fnPress.finish() && !fnPress.finish(), "bare Fn fires exactly once on release")
+        fnPress.begin(flags: .maskSecondaryFn)
+        fnPress.markChorded()
+        fnPress.begin(flags: .maskSecondaryFn)
+        suite.expect(!fnPress.finish(), "repeat flags do not revive an Fn chord")
+        fnPress.begin(flags: [.maskSecondaryFn, .maskShift])
+        suite.expect(!fnPress.finish(), "modifiers held before Fn prevent a cycle")
         let spaces: [UInt64] = [101, 12, 700]
+        suite.expect(InstantSpacesSupport.cycleDestination(in: spaces, current: 101) == 12
+            && InstantSpacesSupport.cycleDestination(in: spaces, current: 700) == 101,
+                     "cycling follows display order and wraps from last to first")
+        suite.expect(InstantSpacesSupport.cycleDestination(in: [101], current: 101) == nil
+            && InstantSpacesSupport.cycleDestination(in: spaces, current: 99) == nil,
+                     "cycling stands down for a single Space or unknown current Space")
         suite.expect(SpaceHopSupport.desktopSpaceIDs([
             ["id64": 101, "type": 0], ["id64": 12, "type": 4],
             ["id64": 90, "type": 2], ["id64": 700, "type": 0],
@@ -175,12 +195,21 @@ enum InstantSpacesTests {
             }
         }
 
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.instantSpacesCycleEnabled] as? Bool == false,
+                     "Space cycling cannot claim Fn on upgrade")
+        suite.expect(GlobalShortcutRole.instantSpacesCycle.feature == .instantSpaces
+            && GlobalShortcutRole.instantSpacesCycle.requiredEnableKeys.allSatisfy {
+                $0 == DefaultsKey.instantSpacesCycleEnabled || $0 == DefaultsKey.instantSpacesCycleCustom
+            } && GlobalShortcutRole.instantSpacesCycle.requiredEnableKeys.count == 2,
+                     "the custom shortcut role is active only for enabled custom cycling")
         suite.expect(AppFeature.availabilityDefaults[AppFeature.instantSpaces.availabilityKey] as? Bool == false
             && Defaults.registeredDefaults[DefaultsKey.instantSpacesKeyboard] as? Bool == false
             && Defaults.registeredDefaults[DefaultsKey.instantSpacesTrackpad] as? Bool == false,
                      "existing installations gain no new input interception on upgrade")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [
             DefaultsKey.instantSpacesKeyboard, DefaultsKey.instantSpacesTrackpad,
+            DefaultsKey.instantSpacesCycleEnabled, DefaultsKey.instantSpacesCycleCustom,
+            DefaultsKey.instantSpacesCycleShortcut,
             AppFeature.instantSpaces.availabilityKey,
         ]), "both input preferences and feature availability travel in settings backups")
         suite.expect(AppFeature.instantSpaces.permissions == [.accessibility]
@@ -204,7 +233,8 @@ enum InstantSpacesTests {
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.instantSpaces(language)
             suite.expect([strings.title, strings.description, strings.keyboard, strings.keyboardCaption,
-                          strings.trackpad, strings.trackpadCaption, strings.compatibility, strings.unavailable]
+                          strings.trackpad, strings.trackpadCaption, strings.cycle, strings.cycleCustom,
+                          strings.cycleCaption, strings.compatibility, strings.unavailable]
                 .allSatisfy { !$0.isEmpty }, "Instant Spaces covers every field in \(language)")
         }
     }
@@ -218,12 +248,13 @@ enum InstantSpacesTests {
         }
         let host = KeyboardHost()
         func send(_ key: CGKeyCode, flags: CGEventFlags = .maskControl,
-                  type: CGEventType = .keyDown) -> Bool {
+                  type: CGEventType = .keyDown, repeatKey: Bool = false) -> Bool {
             guard let event = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: type == .keyDown) else {
                 suite.expect(false, "keyboard regression events can be created")
                 return false
             }
             event.flags = flags
+            event.setIntegerValueField(.keyboardEventAutorepeat, value: repeatKey ? 1 : 0)
             return host.handle(proxy: OpaquePointer(bitPattern: 1)!, type: type, event: event) == nil
         }
         SymbolicHotKeys.table = host.shortcuts
@@ -269,6 +300,61 @@ enum InstantSpacesTests {
         host.overview = false
         suite.expect(!send(0, flags: []) && host.actions.count == 2,
                      "ordinary typing never starts Space navigation")
+        host.keyboardEnabled = false
+        host.cycleEnabled = true
+        let beforeCycle = host.actions.count
+        suite.expect(send(63, flags: .maskSecondaryFn, type: .flagsChanged)
+            && host.actions.count == beforeCycle, "Fn down is owned without switching")
+        suite.expect(send(63, flags: [], type: .flagsChanged)
+            && host.actions.last == .cycle && host.actions.count == beforeCycle + 1,
+                     "bare Fn release cycles with system keyboard switching disabled")
+        _ = send(63, flags: .maskSecondaryFn, type: .flagsChanged)
+        suite.expect(!send(0, flags: .maskSecondaryFn), "Fn chords retain the typed key")
+        _ = send(63, flags: [], type: .flagsChanged)
+        suite.expect(host.actions.count == beforeCycle + 1, "Fn chords never cycle on release")
+        ShortcutCapture.isCapturing = true
+        suite.expect(!send(63, flags: .maskSecondaryFn, type: .flagsChanged)
+            && !send(63, flags: [], type: .flagsChanged), "Fn stays native while recording")
+        ShortcutCapture.isCapturing = false
+        host.overview = true
+        suite.expect(!send(63, flags: .maskSecondaryFn, type: .flagsChanged)
+            && !send(63, flags: [], type: .flagsChanged), "Fn stays native in overviews")
+        host.overview = false
+        host.cycleCustom = true
+        let shortcut = host.cycleShortcut
+        suite.expect(send(CGKeyCode(shortcut.keyCode), flags: shortcut.modifiers.cgFlags)
+            && host.actions.count == beforeCycle + 2 && host.actions.last == .cycle,
+                     "configured chord cycles independently of system Space bindings")
+        suite.expect(send(CGKeyCode(shortcut.keyCode), flags: shortcut.modifiers.cgFlags, repeatKey: true)
+            && host.actions.count == beforeCycle + 2, "holding a cycle shortcut switches only once")
+        suite.expect(!send(0, flags: [], repeatKey: true), "unclaimed repeated typing remains native")
+        suite.expect(send(CGKeyCode(shortcut.keyCode), flags: [], type: .keyUp),
+                     "cycle shortcut release stays paired even after modifiers are released")
+        suite.expect(!send(63, flags: .maskSecondaryFn, type: .flagsChanged)
+            && !send(63, flags: [], type: .flagsChanged)
+            && host.actions.count == beforeCycle + 2, "custom shortcut mode releases bare Fn")
+        CGEventSource.dragging = true
+        host.cycleCustom = false
+        suite.expect(!send(63, flags: .maskSecondaryFn, type: .flagsChanged)
+            && !send(63, flags: [], type: .flagsChanged), "window dragging keeps bare Fn native")
+        CGEventSource.dragging = false
+        _ = send(63, flags: .maskSecondaryFn, type: .flagsChanged)
+        _ = send(0, flags: .maskSecondaryFn, type: CGEventType(rawValue: 14)!)
+        _ = send(63, flags: [], type: .flagsChanged)
+        suite.expect(host.actions.count == beforeCycle + 2, "Fn media events prevent release cycling")
+        host.cycleCustom = true
+        host.cycleShortcut = GlobalShortcut(keyCode: 105, modifiers: [])
+        _ = send(63, flags: .maskSecondaryFn, type: .flagsChanged)
+        suite.expect(send(105, flags: .maskSecondaryFn) && host.actions.count == beforeCycle + 3,
+                     "Fn can reach a configured function-row shortcut")
+        _ = send(105, flags: .maskSecondaryFn, type: .keyUp)
+        _ = send(63, flags: [], type: .flagsChanged)
+        suite.expect(host.actions.count == beforeCycle + 3, "function-row release never adds a bare Fn cycle")
+        host.cycleEnabled = false
+        suite.expect(!send(CGKeyCode(shortcut.keyCode), flags: shortcut.modifiers.cgFlags)
+            && !send(63, flags: .maskSecondaryFn, type: .flagsChanged),
+                     "disabled cycling releases both configured modes")
+        host.keyboardEnabled = true
         let intercepted = send(124)
         SymbolicHotKeys.table = []
         suite.expect(intercepted && send(124, type: .keyUp),

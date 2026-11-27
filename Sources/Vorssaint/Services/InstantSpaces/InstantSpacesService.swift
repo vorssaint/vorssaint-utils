@@ -23,6 +23,8 @@ final class InstantSpacesService: ObservableObject {
     private var wakeObserver: NSObjectProtocol?
     private var sleepObserver: NSObjectProtocol?
     private var claimedKeys: Set<Int64> = []
+    private var fnPress = InstantSpacesSupport.FnPress()
+    private var fnClaimed = false
     private var swipe: InstantSpacesSupport.Swipe?
     private var pendingEvents: [CGEvent] = []
     private var swipeCommitted = false
@@ -48,6 +50,18 @@ final class InstantSpacesService: ObservableObject {
         UserDefaults.standard.bool(forKey: DefaultsKey.instantSpacesKeyboard)
     }
 
+    private var cycleEnabled: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.instantSpacesCycleEnabled)
+    }
+
+    private var cycleCustom: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.instantSpacesCycleCustom)
+    }
+
+    private var cycleShortcut: GlobalShortcut { GlobalShortcutRole.instantSpacesCycle.savedShortcut }
+
+    private var keyboardActive: Bool { keyboardEnabled || cycleEnabled }
+
     private var swipeEnabled: Bool {
         UserDefaults.standard.bool(forKey: DefaultsKey.instantSpacesTrackpad)
     }
@@ -55,19 +69,21 @@ final class InstantSpacesService: ObservableObject {
     private var canRun: Bool {
         SessionActivitySupport.tapShouldRun(
             featureWanted: AppFeature.instantSpaces.isAvailable
-                && (keyboardEnabled || swipeEnabled) && InstantSpacesGesture.isSupported,
+                && (keyboardActive || swipeEnabled) && InstantSpacesGesture.isSupported,
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive)
     }
 
     func syncWithPreferences() {
+        fnPress = InstantSpacesSupport.FnPress()
+        fnClaimed = false
         guard canRun else { suspend(); return }
-        if !keyboardEnabled {
+        if !keyboardActive {
             removeTap(&keyboardTap)
             claimedKeys.removeAll()
             cancelTravel()
         } else if keyboardTap == nil {
-            keyboardTap = makeTap(types: [10, 11])
+            keyboardTap = makeTap(types: [10, 11, 12, 14])
         }
         if !swipeEnabled {
             resetSwipe()
@@ -80,10 +96,12 @@ final class InstantSpacesService: ObservableObject {
             if swipeTap == nil { removeTap(&envelopeTap) }
             setEnvelopeEnabled(false)
         }
-        isRunning = (!keyboardEnabled || keyboardTap != nil) && (!swipeEnabled || swipeTap != nil)
+        isRunning = (!keyboardActive || keyboardTap != nil) && (!swipeEnabled || swipeTap != nil)
     }
 
     func suspend() {
+        fnPress = InstantSpacesSupport.FnPress()
+        fnClaimed = false
         cancelTravel()
         resetSwipe()
         removeTap(&keyboardTap)
@@ -146,12 +164,50 @@ final class InstantSpacesService: ObservableObject {
         guard event.getIntegerValueField(.eventSourceUserData) != InstantSpacesGesture.marker else {
             return pass
         }
+        if !cycleEnabled || !canRun || ShortcutCapture.isCapturing {
+            fnPress = InstantSpacesSupport.FnPress()
+            fnClaimed = false
+        }
+        if type == .flagsChanged, cycleEnabled, canRun, !ShortcutCapture.isCapturing {
+            if event.getIntegerValueField(.keyboardEventKeycode) == 63 {
+                if event.flags.contains(.maskSecondaryFn) {
+                    if !fnPress.isDown {
+                        fnClaimed = !cycleCustom
+                            && !CGEventSource.buttonState(.combinedSessionState, button: .left)
+                            && overviewIsActive() == false
+                    }
+                    fnPress.begin(flags: event.flags)
+                    return fnClaimed ? nil : pass
+                } else {
+                    let claimed = fnClaimed
+                    fnClaimed = false
+                    let bare = fnPress.finish()
+                    if claimed, !cycleCustom, bare,
+                       !CGEventSource.buttonState(.combinedSessionState, button: .left),
+                       overviewIsActive() == false { _ = perform(.cycle) }
+                    return claimed ? nil : pass
+                }
+            }
+            fnPress.markChorded()
+        } else if type == .keyDown || type == .keyUp || type.rawValue == 14 {
+            fnPress.markChorded()
+        }
         if type == .keyUp {
             return claimedKeys.remove(event.getIntegerValueField(.keyboardEventKeycode)) != nil ? nil : pass
         }
         if type == .keyDown {
             let key = event.getIntegerValueField(.keyboardEventKeycode)
-            if claimedKeys.contains(key), travel != nil { return nil }
+            if claimedKeys.contains(key), travel != nil
+                || event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return nil }
+            if cycleEnabled, cycleCustom, canRun, !ShortcutCapture.isCapturing,
+               (!fnPress.isDown || cycleShortcut.syntheticEventFlags.contains(.maskSecondaryFn)),
+               cycleShortcut.matches(
+                   keyCode: key, modifiers: GlobalShortcutModifiers(cgFlags: event.flags)),
+               !CGEventSource.buttonState(.combinedSessionState, button: .left),
+               overviewIsActive() == false, perform(.cycle) {
+                claimedKeys.insert(key)
+                return nil
+            }
             // System Settings can remap or disable a binding while it stays
             // foreground. Read the known IDs before deciding to intercept.
             guard keyboardEnabled, canRun, !ShortcutCapture.isCapturing,
@@ -184,6 +240,10 @@ final class InstantSpacesService: ObservableObject {
               let currentIndex = display.spaces.firstIndex(of: current) else { return false }
         let target: UInt64
         switch action {
+        case .cycle:
+            guard let destination = InstantSpacesSupport.cycleDestination(
+                in: display.spaces, current: current) else { return false }
+            target = destination
         case .step(let direction):
             guard let destination = InstantSpacesSupport.destination(
                 in: display.spaces, current: current, direction: direction) else {
@@ -205,16 +265,17 @@ final class InstantSpacesService: ObservableObject {
         guard let targetIndex = display.spaces.firstIndex(of: target),
               post(direction: targetIndex > currentIndex ? 1 : -1) else { return false }
         waitForArrival(target: target, previous: current, generation: travelGeneration,
-                       deadline: .now() + 1.2, remaining: display.spaces.count)
+                       deadline: .now() + 1.2, remaining: display.spaces.count, cycling: action == .cycle)
         return true
     }
 
     private func waitForArrival(target: UInt64, previous: UInt64, generation: Int,
-                                deadline: DispatchTime, remaining: Int) {
+                                deadline: DispatchTime, remaining: Int, cycling: Bool) {
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.travelGeneration == generation else { return }
             self.travel = nil
-            guard self.canRun, self.keyboardEnabled, !ShortcutCapture.isCapturing, remaining > 0,
+            guard self.canRun, (cycling ? self.cycleEnabled : self.keyboardEnabled),
+                  !ShortcutCapture.isCapturing, remaining > 0,
                   !CGEventSource.buttonState(.combinedSessionState, button: .left),
                   self.overviewIsActive() == false,
                   let topology = SpaceWindowBridge.topology(),
@@ -224,10 +285,10 @@ final class InstantSpacesService: ObservableObject {
             if current == previous {
                 guard DispatchTime.now() < deadline else { return }
                 self.waitForArrival(target: target, previous: previous, generation: generation,
-                                    deadline: deadline, remaining: remaining)
+                                    deadline: deadline, remaining: remaining, cycling: cycling)
             } else if self.post(direction: to > from ? 1 : -1) {
                 self.waitForArrival(target: target, previous: current, generation: generation,
-                                    deadline: .now() + 1.2, remaining: remaining - 1)
+                                    deadline: .now() + 1.2, remaining: remaining - 1, cycling: cycling)
             }
         }
         travel = work
