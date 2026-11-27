@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import Foundation
+import AppKit
+import IOKit
 
 @MainActor
 enum LidLogoCompletionCueTests {
     static func run(_ suite: TestSuite) {
         preferences(suite)
+        unsupportedHardware(suite)
+        unavailableDuringStart(suite)
+        resumesRecoveryAfterControllerQuits(suite)
         doublePulse(suite)
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -42,6 +46,57 @@ enum LidLogoCompletionCueTests {
         let relaunched = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true })
         relaunched.recover()
         suite.expect(driver.restores == [0, 0], "a fresh controller can recover an interrupted cue")
+    }
+
+    private static func unsupportedHardware(_ suite: TestSuite) {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let journal = folder.appendingPathComponent("lid-logo-restore")
+        let cue = LidLogoCompletionCue(driver: { nil }, journal: journal, mayControlLogo: { true })
+        cue.play(.single)
+        cue.play(.double)
+        cue.cancel()
+        suite.expect(!FileManager.default.fileExists(atPath: folder.path),
+                     "an imported opt-in setting on an unsupported Mac creates no recovery state")
+
+        // On hosted macOS runners this exercises the actual absent-device gate.
+        let device = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceNameMatching("bklb-backlight"))
+        if device == IO_OBJECT_NULL {
+            suite.expect(!LidLogoCompletionCue.isSupported, "a Mac without the logo device reports no cue support")
+        } else {
+            IOObjectRelease(device)
+        }
+    }
+
+    private static func unavailableDuringStart(_ suite: TestSuite) {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let journal = folder.appendingPathComponent("lid-logo-restore")
+        let driver = Driver(journal: journal)
+        driver.fadeResult = .unavailable
+        let cue = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true })
+        cue.play(.double)
+        suite.expect(driver.fades == 1 && driver.restores.isEmpty && !driver.hasJournal,
+                     "hardware lost after preflight produces neither a restore write nor a lingering record")
+    }
+
+    private static func resumesRecoveryAfterControllerQuits(_ suite: TestSuite) {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let journal = folder.appendingPathComponent("lid-logo-restore")
+        let driver = Driver(journal: journal)
+        let center = NotificationCenter()
+        var anotherControllerRunning = false
+        let cue = LidLogoCompletionCue(driver: { driver }, journal: journal,
+                                       mayControlLogo: { !anotherControllerRunning }, recoveryCenter: center)
+        cue.play(.double)
+        anotherControllerRunning = true
+        cue.cancel()
+        suite.expect(driver.hasJournal && driver.restores.isEmpty,
+                     "a competing controller delays recovery rather than receiving overlapping writes")
+        anotherControllerRunning = false
+        center.post(name: NSWorkspace.didTerminateApplicationNotification, object: nil)
+        suite.expect(waitUntil { !driver.hasJournal } && driver.restores == [0] && driver.fades == 1,
+                     "quitting the competing app retries recovery without playing the second dip")
     }
 
     private static func doublePulse(_ suite: TestSuite) {
@@ -156,6 +211,7 @@ enum LidLogoCompletionCueTests {
         }
         var canFade = true
         var restoreSucceeds = true
+        var fadeResult = LidLogoFadeStart.started
         var fades = 0
         var recordedBeforeFade = false
         var restores: [Double] = []
@@ -163,10 +219,10 @@ enum LidLogoCompletionCueTests {
 
         init(journal: URL) { self.journal = journal }
 
-        func fadeOut() -> Bool {
+        func fadeOut() -> LidLogoFadeStart {
             fades += 1
             recordedBeforeFade = hasJournal
-            return true
+            return fadeResult
         }
 
         func restore(duration: Double) -> Bool {

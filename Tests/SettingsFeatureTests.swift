@@ -52,11 +52,27 @@ enum SettingsFeatureTests {
             DefaultsKey.monitorAlertBattery: true, DefaultsKey.monitorAlertBatteryTemperature: true,
         ], forName: domain)
 
-        func state(battery: Bool = true) -> SettingsSearchState {
+        func state(battery: Bool = true, lidLogo: Bool = false) -> SettingsSearchState {
             SettingsSearchState(defaults: defaults, hardware: .init(
                 battery: battery, notchedDisplay: true, plainDisplay: false,
-                keyboardLight: true, bluetoothSleep: true, brightnessOSD: true))
+                keyboardLight: true, bluetoothSleep: true, brightnessOSD: true, lidLogo: lidLogo))
         }
+
+        defaults.set(true, forKey: DefaultsKey.notchAgentsFinishAlert)
+        defaults.set(true, forKey: DefaultsKey.notchAgentsPulseLidLogo)
+        let agents = FeatureStrings.notchAgents(.enUS)
+        func cueSearchTerms(lidLogo: Bool) -> Set<String> {
+            Set(SettingsDirectory.sections(.enUS, language: .enUS, state: state(lidLogo: lidLogo))
+                .flatMap(\.items).flatMap(\.terms)
+                .filter { $0.shown && $0.feature == .notchAgents }.flatMap(\.titles))
+        }
+        let cueTitles: Set<String> = [agents.pulseLidLogo, agents.lidLogoPattern]
+        suite.expect(cueSearchTerms(lidLogo: true).isSuperset(of: cueTitles)
+                        && cueSearchTerms(lidLogo: false).isDisjoint(with: cueTitles),
+                     "a saved opt-in never exposes search rows on an unsupported Mac")
+        defaults.removeObject(forKey: DefaultsKey.notchAgentsFinishAlert)
+        defaults.removeObject(forKey: DefaultsKey.notchAgentsPulseLidLogo)
+
         for (language, strings) in LocalizationTests.languages {
             let mouse = SettingsDirectory.sections(strings, language: language, state: state())
                 .flatMap(\.items).first { $0.page == .mouse }!
