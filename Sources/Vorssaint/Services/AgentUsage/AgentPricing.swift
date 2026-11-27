@@ -326,6 +326,7 @@ enum AgentPricing {
     /// Readable model names: "claude-opus-5-5" reads "Opus 5.5" and
     /// "gpt-6-astra" reads "GPT-6 Astra". Built from the name itself, so a
     /// model no list knows yet still reads well.
+    /// "kimi-k3.1-pro" reads "Kimi K3.1 Pro".
     static func displayName(_ model: String) -> String {
         let id = normalized(model)
         guard !id.isEmpty else { return "" }
@@ -342,6 +343,11 @@ enum AgentPricing {
             let version = versions.joined(separator: ".")
             let name = [words.first?.capitalized ?? "", version] + words.dropFirst().map(\.capitalized)
             return name.filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        if id.hasPrefix("kimi-") {
+            var parts = id.dropFirst(5).split(separator: "-").map(String.init)
+            parts.removeAll { $0 == "latest" }
+            return (["Kimi"] + parts.map(\.capitalized)).joined(separator: " ")
         }
         guard id.hasPrefix("gpt-") else { return id }
         var parts = id.dropFirst(4).split(separator: "-").map(String.init)

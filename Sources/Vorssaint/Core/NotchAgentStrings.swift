@@ -193,8 +193,8 @@ extension FeatureStrings {
 extension NotchAgentStrings {
     static let enUS = NotchAgentStrings(
         title: "AI Agents",
-        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode, GitHub Copilot and Cursor in the Dynamic Island.",
-        settingsDescription: "Reads the usage Claude Code, Codex, OpenCode, GitHub Copilot and Cursor record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
+        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode, GitHub Copilot, Kimi Code and Cursor in the Dynamic Island.",
+        settingsDescription: "Reads the usage Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code and Cursor record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
         restingTitle: "AI limits",
         limitsCard: "Limits",
         spendCard: "Spending",
@@ -220,7 +220,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ the price of %2$@",
         idle: "Idle",
         noActivity: "Nothing in this period",
-        empty: "No usage from Claude Code, Codex, OpenCode, GitHub Copilot or Cursor yet. It appears here as soon as any of them works on this Mac.",
+        empty: "No usage from Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code or Cursor yet. It appears here as soon as any of them works on this Mac.",
         loading: "Reading usage…",
         noCards: "Choose what this page shows in Dynamic Island settings.",
         partialCostNote: "Missing token counts or model prices can leave costs incomplete. Any amount shown is a lower bound. A dash means the cost is unknown.",
@@ -292,8 +292,8 @@ extension NotchAgentStrings {
 
     static let uk = NotchAgentStrings(
         title: "ШІ-агенти",
-        hubDescription: "Стежте за лімітами плану, токенами, вартістю API та поточною роботою Claude, Codex, OpenCode, GitHub Copilot і Cursor у Dynamic Island.",
-        settingsDescription: "Читає дані про використання, які Claude Code, Codex, OpenCode, GitHub Copilot і Cursor записують на цьому Mac, та ліміти плану, збережені програмою Claude. Запити, відповіді й файли не зберігаються, а дані про використання не залишають ваш Mac.",
+        hubDescription: "Стежте за лімітами плану, токенами, вартістю API та поточною роботою Claude, Codex, OpenCode, GitHub Copilot, Kimi Code і Cursor у Dynamic Island.",
+        settingsDescription: "Читає дані про використання, які Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code і Cursor записують на цьому Mac, та ліміти плану, збережені програмою Claude. Запити, відповіді й файли не зберігаються, а дані про використання не залишають ваш Mac.",
         restingTitle: "Ліміти ШІ",
         limitsCard: "Ліміти",
         spendCard: "Витрати",
@@ -319,7 +319,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ від ціни %2$@",
         idle: "Неактивно",
         noActivity: "За цей період нічого немає",
-        empty: "Claude Code, Codex, OpenCode, GitHub Copilot або Cursor ще не використовувалися. Дані з’являться тут, щойно один із них почне працювати на цьому Mac.",
+        empty: "Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code або Cursor ще не використовувалися. Дані з’являться тут, щойно один із них почне працювати на цьому Mac.",
         loading: "Читання даних…",
         noCards: "Виберіть, що показувати на цій сторінці в налаштуваннях Dynamic Island.",
         partialCostNote: "Якщо бракує даних про кількість токенів або ціни моделей, сума може бути неповною. Показана сума є нижньою межею. Тире означає, що вартість невідома.",
@@ -391,8 +391,8 @@ extension NotchAgentStrings {
 
     static let ptBR = NotchAgentStrings(
         title: "Agentes de IA",
-        hubDescription: "Acompanhe no Dynamic Island os limites do plano, os tokens, o valor de API e o trabalho em andamento do Claude, do Codex, do OpenCode, do GitHub Copilot e do Cursor.",
-        settingsDescription: "Lê o uso que o Claude Code, o Codex, o OpenCode, o GitHub Copilot e o Cursor registram neste Mac e os limites do plano que o app Claude salva. Prompts, respostas e arquivos nunca são guardados, e o seu uso nunca sai do seu Mac.",
+        hubDescription: "Acompanhe no Dynamic Island os limites do plano, os tokens, o valor de API e o trabalho em andamento do Claude, do Codex, do OpenCode, do GitHub Copilot, do Kimi Code e do Cursor.",
+        settingsDescription: "Lê o uso que o Claude Code, o Codex, o OpenCode, o GitHub Copilot, o Kimi Code e o Cursor registram neste Mac e os limites do plano que o app Claude salva. Prompts, respostas e arquivos nunca são guardados, e o seu uso nunca sai do seu Mac.",
         restingTitle: "Limites de IA",
         limitsCard: "Limites",
         spendCard: "Gastos",
@@ -418,7 +418,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ o preço do %2$@",
         idle: "Parado",
         noActivity: "Nada neste período",
-        empty: "Ainda não há uso do Claude Code, do Codex, do OpenCode, do GitHub Copilot nem do Cursor. Ele aparece aqui assim que um deles trabalhar neste Mac.",
+        empty: "Ainda não há uso do Claude Code, do Codex, do OpenCode, do GitHub Copilot, do Kimi Code nem do Cursor. Ele aparece aqui assim que um deles trabalhar neste Mac.",
         loading: "Lendo o uso…",
         noCards: "Escolha o que esta página mostra nos ajustes do Dynamic Island.",
         partialCostNote: "Podem faltar contagens de tokens ou preços de modelos. O valor exibido é um limite inferior. Um travessão indica custo desconhecido.",
@@ -490,8 +490,8 @@ extension NotchAgentStrings {
 
     static let es = NotchAgentStrings(
         title: "Agentes de IA",
-        hubDescription: "Sigue en el Dynamic Island los límites del plan, los tokens, el valor de API y el trabajo en curso de Claude, Codex, OpenCode, GitHub Copilot y Cursor.",
-        settingsDescription: "Lee el uso que Claude Code, Codex, OpenCode, GitHub Copilot y Cursor registran en este Mac y los límites del plan que guarda la app de Claude. Nunca se guardan instrucciones, respuestas ni archivos, y tu uso nunca sale de tu Mac.",
+        hubDescription: "Sigue en el Dynamic Island los límites del plan, los tokens, el valor de API y el trabajo en curso de Claude, Codex, OpenCode, GitHub Copilot, Kimi Code y Cursor.",
+        settingsDescription: "Lee el uso que Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code y Cursor registran en este Mac y los límites del plan que guarda la app de Claude. Nunca se guardan instrucciones, respuestas ni archivos, y tu uso nunca sale de tu Mac.",
         restingTitle: "Límites de IA",
         limitsCard: "Límites",
         spendCard: "Gasto",
@@ -517,7 +517,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ el precio de %2$@",
         idle: "Inactivo",
         noActivity: "Nada en este periodo",
-        empty: "Aún no hay uso de Claude Code, Codex, OpenCode, GitHub Copilot ni de Cursor. Aparece aquí en cuanto cualquiera de ellos trabaje en este Mac.",
+        empty: "Aún no hay uso de Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code ni de Cursor. Aparece aquí en cuanto cualquiera de ellos trabaje en este Mac.",
         loading: "Leyendo el uso…",
         noCards: "Elige qué muestra esta página en los ajustes del Dynamic Island.",
         partialCostNote: "Pueden faltar recuentos de tokens o precios de modelos. El importe mostrado es un límite inferior. Una raya indica que se desconoce el coste.",
@@ -589,8 +589,8 @@ extension NotchAgentStrings {
 
     static let sk = NotchAgentStrings(
         title: "AI agenti",
-        hubDescription: "Sledujte v Dynamic Island limity plánu, tokeny, hodnotu API a to, na čom práve pracujú Claude, Codex, OpenCode, GitHub Copilot a Cursor.",
-        settingsDescription: "Číta využitie, ktoré si Claude Code, Codex, OpenCode, GitHub Copilot a Cursor zaznamenávajú na tomto Macu, a limity plánu, ktoré ukladá aplikácia Claude. Prompty, odpovede ani súbory sa neuchovávajú a vaše využitie nikdy neopustí váš Mac.",
+        hubDescription: "Sledujte v Dynamic Island limity plánu, tokeny, hodnotu API a to, na čom práve pracujú Claude, Codex, OpenCode, GitHub Copilot, Kimi Code a Cursor.",
+        settingsDescription: "Číta využitie, ktoré si Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code a Cursor zaznamenávajú na tomto Macu, a limity plánu, ktoré ukladá aplikácia Claude. Prompty, odpovede ani súbory sa neuchovávajú a vaše využitie nikdy neopustí váš Mac.",
         restingTitle: "Limity AI",
         limitsCard: "Limity",
         spendCard: "Výdavky",
@@ -616,7 +616,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ ceny %2$@",
         idle: "Nečinné",
         noActivity: "V tomto období nič",
-        empty: "Zatiaľ žiadne využitie z Claude Code, Codexu, OpenCode, GitHub Copilot ani Cursor. Zobrazí sa tu hneď, ako niektorý z nich začne na tomto Macu pracovať.",
+        empty: "Zatiaľ žiadne využitie z Claude Code, Codexu, OpenCode, GitHub Copilot, Kimi Code ani Cursor. Zobrazí sa tu hneď, ako niektorý z nich začne na tomto Macu pracovať.",
         loading: "Načítava sa využitie…",
         noCards: "V nastaveniach Dynamic Island vyberte, čo má táto stránka zobrazovať.",
         partialCostNote: "Niektoré počty tokenov alebo ceny modelov môžu chýbať. Zobrazená suma je dolnou hranicou. Pomlčka znamená, že cena nie je známa.",
@@ -688,8 +688,8 @@ extension NotchAgentStrings {
 
     static let de = NotchAgentStrings(
         title: "KI-Agenten",
-        hubDescription: "Verfolge im Dynamic Island die Planlimits, Tokens, den API-Wert und die laufende Arbeit von Claude, Codex, OpenCode, GitHub Copilot und Cursor.",
-        settingsDescription: "Liest die Nutzung, die Claude Code, Codex, OpenCode, GitHub Copilot und Cursor auf diesem Mac protokollieren, und die Planlimits, die die Claude-App speichert. Prompts, Antworten und Dateien werden nie gespeichert, und deine Nutzung verlässt nie deinen Mac.",
+        hubDescription: "Verfolge im Dynamic Island die Planlimits, Tokens, den API-Wert und die laufende Arbeit von Claude, Codex, OpenCode, GitHub Copilot, Kimi Code und Cursor.",
+        settingsDescription: "Liest die Nutzung, die Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code und Cursor auf diesem Mac protokollieren, und die Planlimits, die die Claude-App speichert. Prompts, Antworten und Dateien werden nie gespeichert, und deine Nutzung verlässt nie deinen Mac.",
         restingTitle: "KI-Limits",
         limitsCard: "Limits",
         spendCard: "Ausgaben",
@@ -715,7 +715,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ so viel wie %2$@",
         idle: "Inaktiv",
         noActivity: "Nichts in diesem Zeitraum",
-        empty: "Noch keine Nutzung von Claude Code, Codex, OpenCode, GitHub Copilot oder Cursor. Sie erscheint hier, sobald eines davon auf diesem Mac arbeitet.",
+        empty: "Noch keine Nutzung von Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code oder Cursor. Sie erscheint hier, sobald eines davon auf diesem Mac arbeitet.",
         loading: "Nutzung wird gelesen…",
         noCards: "Wähle in den Dynamic Island-Einstellungen, was diese Seite zeigt.",
         partialCostNote: "Tokenzahlen oder Modellpreise können fehlen. Der angezeigte Betrag ist eine Untergrenze. Ein Strich bedeutet, dass die Kosten unbekannt sind.",
@@ -787,8 +787,8 @@ extension NotchAgentStrings {
 
     static let fr = NotchAgentStrings(
         title: "Agents IA",
-        hubDescription: "Suivez dans le Dynamic Island les limites du forfait, les jetons, la valeur API et le travail en cours de Claude, Codex, OpenCode, GitHub Copilot et Cursor.",
-        settingsDescription: "Lit l’usage que Claude Code, Codex, OpenCode, GitHub Copilot et Cursor enregistrent sur ce Mac et les limites du forfait que l’app Claude enregistre. Les requêtes, réponses et fichiers ne sont jamais conservés, et votre usage ne quitte jamais votre Mac.",
+        hubDescription: "Suivez dans le Dynamic Island les limites du forfait, les jetons, la valeur API et le travail en cours de Claude, Codex, OpenCode, GitHub Copilot, Kimi Code et Cursor.",
+        settingsDescription: "Lit l’usage que Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code et Cursor enregistrent sur ce Mac et les limites du forfait que l’app Claude enregistre. Les requêtes, réponses et fichiers ne sont jamais conservés, et votre usage ne quitte jamais votre Mac.",
         restingTitle: "Limites IA",
         limitsCard: "Limites",
         spendCard: "Dépenses",
@@ -814,7 +814,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ le prix de %2$@",
         idle: "Inactif",
         noActivity: "Rien sur cette période",
-        empty: "Aucun usage de Claude Code, Codex, d’OpenCode, de GitHub Copilot ou de Cursor pour l’instant. Il apparaît ici dès que l’un d’eux travaille sur ce Mac.",
+        empty: "Aucun usage de Claude Code, Codex, d’OpenCode, de GitHub Copilot, de Kimi Code ou de Cursor pour l’instant. Il apparaît ici dès que l’un d’eux travaille sur ce Mac.",
         loading: "Lecture de l’usage…",
         noCards: "Choisissez ce que montre cette page dans les réglages du Dynamic Island.",
         partialCostNote: "Le décompte des jetons ou le tarif du modèle peut manquer pour certaines réponses. Le montant affiché est un minimum. Un tiret indique que le coût est inconnu.",
@@ -886,8 +886,8 @@ extension NotchAgentStrings {
 
     static let it = NotchAgentStrings(
         title: "Agenti IA",
-        hubDescription: "Segui nel Dynamic Island i limiti del piano, i token, il valore API e il lavoro in corso di Claude, Codex, OpenCode, GitHub Copilot e Cursor.",
-        settingsDescription: "Legge l’utilizzo che Claude Code, Codex, OpenCode, GitHub Copilot e Cursor registrano su questo Mac e i limiti del piano che l’app Claude salva. Prompt, risposte e file non vengono mai conservati, e il tuo utilizzo non lascia mai il tuo Mac.",
+        hubDescription: "Segui nel Dynamic Island i limiti del piano, i token, il valore API e il lavoro in corso di Claude, Codex, OpenCode, GitHub Copilot, Kimi Code e Cursor.",
+        settingsDescription: "Legge l’utilizzo che Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code e Cursor registrano su questo Mac e i limiti del piano che l’app Claude salva. Prompt, risposte e file non vengono mai conservati, e il tuo utilizzo non lascia mai il tuo Mac.",
         restingTitle: "Limiti IA",
         limitsCard: "Limiti",
         spendCard: "Spesa",
@@ -913,7 +913,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ il prezzo di %2$@",
         idle: "Inattivo",
         noActivity: "Niente in questo periodo",
-        empty: "Ancora nessun utilizzo di Claude Code, Codex, OpenCode, GitHub Copilot o Cursor. Compare qui appena uno di loro lavora su questo Mac.",
+        empty: "Ancora nessun utilizzo di Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code o Cursor. Compare qui appena uno di loro lavora su questo Mac.",
         loading: "Lettura dell’utilizzo…",
         noCards: "Scegli cosa mostra questa pagina nelle impostazioni del Dynamic Island.",
         partialCostNote: "Per alcune risposte potrebbero mancare il conteggio dei token o il prezzo del modello. L’importo mostrato è un limite inferiore. Un trattino indica che il costo è sconosciuto.",
@@ -985,8 +985,8 @@ extension NotchAgentStrings {
 
     static let ru = NotchAgentStrings(
         title: "ИИ-агенты",
-        hubDescription: "Следите в Dynamic Island за лимитами тарифа, токенами, стоимостью по API и текущей работой Claude, Codex, OpenCode, GitHub Copilot и Cursor.",
-        settingsDescription: "Читает сведения об использовании, которые Claude Code, Codex, OpenCode, GitHub Copilot и Cursor записывают на этом Mac, и лимиты тарифа, которые сохраняет приложение Claude. Запросы, ответы и файлы не сохраняются, а сведения об использовании никогда не покидают ваш Mac.",
+        hubDescription: "Следите в Dynamic Island за лимитами тарифа, токенами, стоимостью по API и текущей работой Claude, Codex, OpenCode, GitHub Copilot, Kimi Code и Cursor.",
+        settingsDescription: "Читает сведения об использовании, которые Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code и Cursor записывают на этом Mac, и лимиты тарифа, которые сохраняет приложение Claude. Запросы, ответы и файлы не сохраняются, а сведения об использовании никогда не покидают ваш Mac.",
         restingTitle: "Лимиты ИИ",
         limitsCard: "Лимиты",
         spendCard: "Расходы",
@@ -1012,7 +1012,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ от цены %2$@",
         idle: "Простой",
         noActivity: "За этот период ничего нет",
-        empty: "Пока нет данных об использовании Claude Code, Codex, OpenCode, GitHub Copilot или Cursor. Они появятся здесь, как только один из них начнёт работу на этом Mac.",
+        empty: "Пока нет данных об использовании Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code или Cursor. Они появятся здесь, как только один из них начнёт работу на этом Mac.",
         loading: "Чтение данных…",
         noCards: "Выберите, что показывает эта страница, в настройках Dynamic Island.",
         partialCostNote: "Данные о количестве токенов или ценах моделей могут быть неполными. Общая стоимость не ниже указанной суммы. Тире означает, что стоимость неизвестна.",
@@ -1084,8 +1084,8 @@ extension NotchAgentStrings {
 
     static let tr = NotchAgentStrings(
         title: "YZ Ajanları",
-        hubDescription: "Claude, Codex, GitHub Copilot, OpenCode ve Cursor için plan sınırlarını, token’ları, API değerini ve süren işleri Dynamic Island’dan izleyin.",
-        settingsDescription: "Claude Code, Codex, GitHub Copilot, OpenCode ve Cursor’un bu Mac’e kaydettiği kullanımı ve Claude uygulamasının kaydettiği plan sınırlarını okur. İstemler, yanıtlar ve dosyalar asla saklanmaz ve kullanımınız Mac’inizden asla çıkmaz.",
+        hubDescription: "Claude, Codex, GitHub Copilot, OpenCode, Kimi Code ve Cursor için plan sınırlarını, token’ları, API değerini ve süren işleri Dynamic Island’dan izleyin.",
+        settingsDescription: "Claude Code, Codex, GitHub Copilot, OpenCode, Kimi Code ve Cursor’un bu Mac’e kaydettiği kullanımı ve Claude uygulamasının kaydettiği plan sınırlarını okur. İstemler, yanıtlar ve dosyalar asla saklanmaz ve kullanımınız Mac’inizden asla çıkmaz.",
         restingTitle: "YZ sınırları",
         limitsCard: "Sınırlar",
         spendCard: "Harcama",
@@ -1111,7 +1111,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ fiyatının %1$@",
         idle: "Boşta",
         noActivity: "Bu dönemde bir şey yok",
-        empty: "Henüz Claude Code, Codex, GitHub Copilot, OpenCode veya Cursor kullanımı yok. Herhangi biri bu Mac’te çalışır çalışmaz burada görünür.",
+        empty: "Henüz Claude Code, Codex, GitHub Copilot, OpenCode, Kimi Code veya Cursor kullanımı yok. Herhangi biri bu Mac’te çalışır çalışmaz burada görünür.",
         loading: "Kullanım okunuyor…",
         noCards: "Bu sayfada nelerin görüneceğini Dynamic Island ayarlarından seçin.",
         partialCostNote: "Bazı yanıtların token sayısı veya model fiyatı bilinmeyebilir. Gösterilen tutar bir alt sınırdır. Çizgi, maliyetin bilinmediği anlamına gelir.",
@@ -1183,8 +1183,8 @@ extension NotchAgentStrings {
 
     static let ja = NotchAgentStrings(
         title: "AIエージェント",
-        hubDescription: "Claude、Codex、OpenCode、GitHub Copilot、Cursorのプラン上限、トークン、API換算額、進行中の作業をDynamic Islandで確認できます。",
-        settingsDescription: "Claude Code、Codex、OpenCode、GitHub Copilot、CursorがこのMacに記録する使用状況と、Claudeアプリが保存するプラン上限を読み取ります。プロンプト、応答、ファイルは保持せず、使用状況がMacの外に送信されることはありません。",
+        hubDescription: "Claude、Codex、OpenCode、GitHub Copilot、Kimi Code、Cursorのプラン上限、トークン、API換算額、進行中の作業をDynamic Islandで確認できます。",
+        settingsDescription: "Claude Code、Codex、OpenCode、GitHub Copilot、Kimi Code、CursorがこのMacに記録する使用状況と、Claudeアプリが保存するプラン上限を読み取ります。プロンプト、応答、ファイルは保持せず、使用状況がMacの外に送信されることはありません。",
         restingTitle: "AIの上限",
         limitsCard: "上限",
         spendCard: "使用額",
@@ -1210,7 +1210,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@の料金の%1$@",
         idle: "待機中",
         noActivity: "この期間の記録はありません",
-        empty: "Claude Code、Codex、OpenCode、GitHub Copilot、Cursorの使用状況はまだありません。いずれかがこのMacで動作するとここに表示されます。",
+        empty: "Claude Code、Codex、OpenCode、GitHub Copilot、Kimi Code、Cursorの使用状況はまだありません。いずれかがこのMacで動作するとここに表示されます。",
         loading: "使用状況を読み込み中…",
         noCards: "このページに表示する内容はDynamic Islandの設定で選べます。",
         partialCostNote: "応答によってはトークン数やモデルの料金が不明な場合があります。表示される金額は下限です。ダッシュは費用が不明なことを示します。",
@@ -1282,8 +1282,8 @@ extension NotchAgentStrings {
 
     static let ko = NotchAgentStrings(
         title: "AI 에이전트",
-        hubDescription: "Claude, Codex, OpenCode, GitHub Copilot, Cursor의 플랜 한도, 토큰, API 환산 금액, 진행 중인 작업을 Dynamic Island에서 확인하세요.",
-        settingsDescription: "Claude Code, Codex, OpenCode, GitHub Copilot, Cursor가 이 Mac에 기록하는 사용량과 Claude 앱이 저장하는 플랜 한도를 읽습니다. 프롬프트, 응답, 파일은 보관하지 않으며, 사용량은 Mac 밖으로 나가지 않습니다.",
+        hubDescription: "Claude, Codex, OpenCode, GitHub Copilot, Kimi Code, Cursor의 플랜 한도, 토큰, API 환산 금액, 진행 중인 작업을 Dynamic Island에서 확인하세요.",
+        settingsDescription: "Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code, Cursor가 이 Mac에 기록하는 사용량과 Claude 앱이 저장하는 플랜 한도를 읽습니다. 프롬프트, 응답, 파일은 보관하지 않으며, 사용량은 Mac 밖으로 나가지 않습니다.",
         restingTitle: "AI 한도",
         limitsCard: "한도",
         spendCard: "사용 금액",
@@ -1309,7 +1309,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 요금의 %1$@",
         idle: "대기 중",
         noActivity: "이 기간에는 기록이 없습니다",
-        empty: "아직 Claude Code, Codex, OpenCode, GitHub Copilot, Cursor 사용량이 없습니다. 이 중 하나가 이 Mac에서 작업하면 바로 여기에 표시됩니다.",
+        empty: "아직 Claude Code, Codex, OpenCode, GitHub Copilot, Kimi Code, Cursor 사용량이 없습니다. 이 중 하나가 이 Mac에서 작업하면 바로 여기에 표시됩니다.",
         loading: "사용량을 읽는 중…",
         noCards: "Dynamic Island 설정에서 이 페이지에 표시할 항목을 선택하세요.",
         partialCostNote: "일부 응답은 토큰 수나 모델 요금을 알 수 없습니다. 표시된 금액은 하한값입니다. 대시는 비용을 알 수 없다는 뜻입니다.",
@@ -1381,8 +1381,8 @@ extension NotchAgentStrings {
 
     static let zhHans = NotchAgentStrings(
         title: "AI 智能体",
-        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode、GitHub Copilot 和 Cursor 的套餐额度、令牌、API 价值与正在进行的工作。",
-        settingsDescription: "读取 Claude Code、Codex、OpenCode、GitHub Copilot 和 Cursor 在这台 Mac 上记录的用量，以及 Claude App 保存的套餐额度。不会保留提示、回复和文件，你的用量也不会离开你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode、GitHub Copilot、Kimi Code 和 Cursor 的套餐额度、令牌、API 价值与正在进行的工作。",
+        settingsDescription: "读取 Claude Code、Codex、OpenCode、GitHub Copilot、Kimi Code 和 Cursor 在这台 Mac 上记录的用量，以及 Claude App 保存的套餐额度。不会保留提示、回复和文件，你的用量也不会离开你的 Mac。",
         restingTitle: "AI 额度",
         limitsCard: "额度",
         spendCard: "花费",
@@ -1408,7 +1408,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 价格的 %1$@",
         idle: "空闲",
         noActivity: "此期间没有记录",
-        empty: "还没有 Claude Code、Codex、OpenCode、GitHub Copilot 或 Cursor 的用量。只要其中任何一个在这台 Mac 上工作，就会显示在这里。",
+        empty: "还没有 Claude Code、Codex、OpenCode、GitHub Copilot、Kimi Code 或 Cursor 的用量。只要其中任何一个在这台 Mac 上工作，就会显示在这里。",
         loading: "正在读取用量…",
         noCards: "在 Dynamic Island 设置中选择此页面显示的内容。",
         partialCostNote: "部分回复可能缺少令牌数或模型价格。显示的金额为下限。破折号表示费用未知。",
@@ -1480,8 +1480,8 @@ extension NotchAgentStrings {
 
     static let zhTW = NotchAgentStrings(
         title: "AI 代理",
-        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode、GitHub Copilot 與 Cursor 的方案額度、Token、API 價值與進行中的工作。",
-        settingsDescription: "讀取 Claude Code、Codex、OpenCode、GitHub Copilot 與 Cursor 在這台 Mac 上記錄的用量，以及 Claude App 儲存的方案額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode、GitHub Copilot、Kimi Code 與 Cursor 的方案額度、Token、API 價值與進行中的工作。",
+        settingsDescription: "讀取 Claude Code、Codex、OpenCode、GitHub Copilot、Kimi Code 與 Cursor 在這台 Mac 上記錄的用量，以及 Claude App 儲存的方案額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
         restingTitle: "AI 額度",
         limitsCard: "額度",
         spendCard: "花費",
@@ -1507,7 +1507,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 價格的 %1$@",
         idle: "閒置",
         noActivity: "此期間沒有紀錄",
-        empty: "目前還沒有 Claude Code、Codex、OpenCode、GitHub Copilot 或 Cursor 的用量。只要其中一個在這台 Mac 上運作，就會顯示在這裡。",
+        empty: "目前還沒有 Claude Code、Codex、OpenCode、GitHub Copilot、Kimi Code 或 Cursor 的用量。只要其中一個在這台 Mac 上運作，就會顯示在這裡。",
         loading: "正在讀取用量…",
         noCards: "在 Dynamic Island 設定中選擇此頁面顯示的內容。",
         partialCostNote: "部分回覆可能缺少 Token 數量或模型價格。顯示的金額為下限。破折號表示費用未知。",
@@ -1579,8 +1579,8 @@ extension NotchAgentStrings {
 
     static let zhHK = NotchAgentStrings(
         title: "AI 代理",
-        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode、GitHub Copilot 與 Cursor 的計劃額度、Token、API 價值與進行中的工作。",
-        settingsDescription: "讀取 Claude Code、Codex、OpenCode、GitHub Copilot 與 Cursor 在這部 Mac 上記錄的用量，以及 Claude App 儲存的計劃額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode、GitHub Copilot、Kimi Code 與 Cursor 的計劃額度、Token、API 價值與進行中的工作。",
+        settingsDescription: "讀取 Claude Code、Codex、OpenCode、GitHub Copilot、Kimi Code 與 Cursor 在這部 Mac 上記錄的用量，以及 Claude App 儲存的計劃額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
         restingTitle: "AI 額度",
         limitsCard: "額度",
         spendCard: "花費",
@@ -1606,7 +1606,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 價格的 %1$@",
         idle: "閒置",
         noActivity: "此期間沒有記錄",
-        empty: "目前還沒有 Claude Code、Codex、OpenCode、GitHub Copilot 或 Cursor 的用量。只要其中一個在這部 Mac 上運作，就會顯示在這裡。",
+        empty: "目前還沒有 Claude Code、Codex、OpenCode、GitHub Copilot、Kimi Code 或 Cursor 的用量。只要其中一個在這部 Mac 上運作，就會顯示在這裡。",
         loading: "正在讀取用量…",
         noCards: "在 Dynamic Island 設定中選擇此頁面顯示的內容。",
         partialCostNote: "部分回覆可能缺少 Token 數量或模型價格。顯示的金額為下限。破折號表示費用不詳。",

@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- AI Agents follows Kimi Code in the Dynamic Island: turns, token usage, API value and projects from the local session wire logs under `~/.kimi-code/sessions`, with prices from Moonshot's published list.
+
 ## [3.4.5] - 2026-11-25
 
 ### Summary

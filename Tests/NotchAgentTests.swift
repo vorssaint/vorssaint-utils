@@ -2797,6 +2797,9 @@ enum NotchAgentTests {
         suite.expect(AgentLogRoot.all(home: folder).contains {
             $0.provider == .copilot && $0.url.path == folder.appending(path: ".copilot/session-state").path
         }, "GitHub Copilot session event logs are a discovered local root")
+        suite.expect(AgentLogRoot.all(home: folder).contains {
+            $0.provider == .kimi && $0.url.path == folder.appending(path: ".kimi-code/sessions").path
+        }, "Kimi Code session wires are a discovered local root")
         let root = AgentLogRoot.canonical(folder)
         let found = AgentLogReader.discover([AgentLogRoot(provider: .codex, url: root)], since: .distantPast)
         suite.expect(found.map(\.path) == [root.appending(path: "session.jsonl").path] && found.first?.provider == .codex,
@@ -2815,6 +2818,21 @@ enum NotchAgentTests {
             [AgentLogRoot(provider: .copilot, url: AgentLogRoot.canonical(copilotRoot))], since: .distantPast)
         suite.expect(copilotFound.map(\.path) == [AgentLogRoot.canonical(copilotEvents).path],
                      "Copilot discovery reads only each session event log and never descends into its workspace")
+        let kimiRoot = FileManager.default.temporaryDirectory
+            .appending(path: "vorss-kimi-logs-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: kimiRoot) }
+        let kimiMain = kimiRoot.appending(path: "wm_1/session_abc/agents/main")
+        let kimiSub = kimiRoot.appending(path: "wm_1/session_abc/agents/researcher")
+        try? FileManager.default.createDirectory(at: kimiMain, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: kimiSub, withIntermediateDirectories: true)
+        let kimiWire = kimiMain.appending(path: "wire.jsonl")
+        FileManager.default.createFile(atPath: kimiWire.path, contents: Data("{}\n".utf8))
+        FileManager.default.createFile(atPath: kimiSub.appending(path: "wire.jsonl").path,
+                                       contents: Data("{}\n".utf8))
+        let kimiFound = AgentLogReader.discover(
+            [AgentLogRoot(provider: .kimi, url: AgentLogRoot.canonical(kimiRoot))], since: .distantPast)
+        suite.expect(kimiFound.map(\.path) == [AgentLogRoot.canonical(kimiWire).path],
+                     "Kimi discovery reads only each session's main agent wire, never a subagent's")
         let filtered = copilotRoot.appending(path: "filtered.jsonl")
         let filteredLines = [
             #"{"type":"tool.execution_complete","data":{"content":"never decoded"}}"#,
@@ -3275,11 +3293,11 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor, .kimi], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .cursor], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .cursor, .kimi], "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor], "Copilot keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor, .kimi], "Copilot keeps its own preference")
         var installed = AgentUsageSnapshot(loaded: true)
         installed.cursorProjectsFound = true
         suite.expect(NotchAgentSupport.pageProviders(snapshot: installed, hasCodexAccounts: false, hasClaudeAccount: false,
@@ -3290,7 +3308,9 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.pageProviders(snapshot: installed, hasCodexAccounts: false, hasClaudeAccount: true,
                                                      in: defaults) == [.claude],
                      "an existing directory or prior activity cannot bring a disabled Cursor back onto the page")
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .kimi], "multiple agents can be left out")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsKimi)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "Kimi Code keeps its own preference")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
         defaults.set(NotchAgentLimitFocus.weekly.rawValue, forKey: DefaultsKey.notchAgentsLimitFocus)
@@ -3304,6 +3324,7 @@ enum NotchAgentTests {
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
                     DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsCursor,
+                    DefaultsKey.notchAgentsKimi,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
@@ -3389,6 +3410,8 @@ enum NotchAgentTests {
             let lists = [copy.hubDescription, copy.settingsDescription, copy.empty, FeatureStrings.notchEditor(language).agentsSummary]
             suite.expect(lists.allSatisfy { $0.components(separatedBy: "Cursor").count == 2 },
                          "each provider list names Cursor once in \(language.rawValue)")
+            suite.expect(lists.allSatisfy { $0.components(separatedBy: "Kimi Code").count == 2 },
+                         "each provider list names Kimi Code once in \(language.rawValue)")
         }
         let english = Locale(identifier: "en_US")
         let portuguese = Locale(identifier: "pt_BR")
