@@ -390,7 +390,9 @@ enum SwitcherModelFeatureTests {
             && guarded.allSatisfy { $0.modifiers.contains(.command) }
             && !guarded.contains(GlobalShortcut(keyCode: Int64(kVK_ANSI_Q), modifiers: [])),
             "session guards are bounded and never claim bare password letters")
+        var labelReads = 0
         let localized = SwitcherSupport.secureInputActionShortcuts(for: commandTab, keyLabel: { code, command, shift in
+            labelReads += 1
             if command && code == 0 { return shift ? "Q" : "q" }
             if command && code == 6 { return "W" }
             return nil
@@ -398,6 +400,8 @@ enum SwitcherModelFeatureTests {
         suite.expect(localized.contains(GlobalShortcut(keyCode: 0, modifiers: [.command, .shift]))
             && localized.contains(GlobalShortcut(keyCode: 6, modifiers: [.command])),
             "secure action guards follow the layout's Command Q/W positions")
+        suite.expect(labelReads <= 2 * 128,
+            "opening Command-Tab under secure input scans each Command/Shift table at most once")
         let optionGuards = SwitcherSupport.secureInputActionShortcuts(for: optionTab, keyLabel: { _, _, _ in nil })
         suite.expect(optionGuards.allSatisfy { $0.modifiers.contains(.option) }
             && optionGuards.contains(GlobalShortcut(keyCode: Int64(kVK_ANSI_Q), modifiers: [.option, .command])),
@@ -461,11 +465,11 @@ enum SwitcherModelFeatureTests {
             "recording releases Carbon but keeps native keys out of the focused field's way")
         let begin = body("private func beginPendingSession(generation: UInt64) {")
         let guardRange = begin.range(of: "guard guardSecureInputActions(for: requested.shortcut) else {")
-        let enumerationRange = begin.range(of: "enumerationQueue.async")
-        suite.expect(guardRange != nil && enumerationRange != nil
-            && guardRange!.lowerBound < enumerationRange!.lowerBound
+        let selectionRange = begin.range(of: "windowInventory.selection(")
+        suite.expect(guardRange != nil && selectionRange != nil
+            && guardRange!.lowerBound < selectionRange!.lowerBound
             && source.contains("if id.signature == AppSwitcher.secureInputActionHotKeySignature { return noErr }"),
-            "the live session guards Q/W before enumeration and consumes them without replay")
+            "the live session guards Q/W before selecting remembered windows and consumes them without replay")
         let callback = body("private func routeSecureInputHotKey(id: UInt32) {")
         let claim = callback.range(of: "secureInputReplays.enqueue(shortcut: owner)")
         let protection = callback.range(of: "guard guardSecureInputActions(for: accepted.shortcut)")
@@ -499,9 +503,8 @@ enum SwitcherModelFeatureTests {
             .contains("releaseSecureInputActionsIfIdle()")
             && source.contains("if startPending, !clickPressedAKey {\n                    DispatchQueue.main.async { [weak self] in self?.releaseSecureInputActionsIfIdle() }"),
             "failed enumeration and a cancelling click release guards without disturbing a newer session")
-        suite.expect(source.contains("pending?.reconcileReplayedModifiers(CGEventSource.flagsState(.combinedSessionState))")
-            && source.components(separatedBy: "isSecureInputReplay: secureInputReplay").count == 3,
-            "both replay start paths reconcile current modifiers before presenting the session")
+        suite.expect(body("private func finishPendingSession(generation: UInt64,").contains("pending.reconcileReplayedModifiers(CGEventSource.flagsState(.combinedSessionState))"),
+            "the pending replay reconciles current modifiers before presenting the session")
         suite.expect(source.contains("secureInputReplays.invalidate()")
             && source.contains("self.secureInputReplays.contains(generation)"),
             "unregistering Carbon invalidates already queued presses before they reach routing")
@@ -509,8 +512,11 @@ enum SwitcherModelFeatureTests {
 
     static func run(_ suite: TestSuite) {
         SwitcherAccessibilitySnapshotTests.run(suite)
+        SwitcherWindowTitleTests.run(suite)
         SwitcherFullscreenScopeTests.run(suite)
+        SwitcherExclusiveFullscreenTests.run(suite)
         SwitcherQuickCommitTests.run(suite)
+        SwitcherRememberedSelectionTests.run(suite)
         ScrollingTitleMotionTests.run(suite)
         scrollNavigationChecks(suite)
         accessibilityPrefetchChecks(suite)
@@ -667,6 +673,23 @@ enum SwitcherModelFeatureTests {
                                                            rememberedPaths: Set(laterPaths)),
                        "the checksum recheck runs once and keeps later write-only verdicts")
             }
+
+            migrationDefaults.removeObject(forKey: DefaultsKey.brightnessDDCHDMIConverterRechecked)
+            migrationDefaults.set(["hdmi|port"], forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
+            migrationDefaults.set(["manual|port"], forKey: DefaultsKey.brightnessForcedSoftwarePaths)
+            Defaults.recheckBrightnessDDCHDMIConverterPaths(in: migrationDefaults)
+            suite.expect(migrationDefaults.object(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) == nil
+                   && migrationDefaults.bool(forKey: DefaultsKey.brightnessDDCHDMIConverterRechecked)
+                   && migrationDefaults.stringArray(forKey: DefaultsKey.brightnessForcedSoftwarePaths)
+                   == ["manual|port"],
+                   "a monitor cached as write-only behind the HDMI converter is probed again, manual choices kept")
+            migrationDefaults.set(["hdmi|port"], forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
+            Defaults.recheckBrightnessDDCHDMIConverterPaths(in: migrationDefaults)
+            suite.expect(migrationDefaults.stringArray(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
+                   == ["hdmi|port"],
+                   "the HDMI converter recheck runs once and keeps later write-only verdicts")
+            migrationDefaults.removeObject(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
+            migrationDefaults.removeObject(forKey: DefaultsKey.brightnessForcedSoftwarePaths)
 
             migrationDefaults.set("microphone,panel", forKey: DefaultsKey.notchHiddenControls)
             Defaults.hideScratchpadControlOnce(in: migrationDefaults)
@@ -1886,11 +1909,11 @@ enum SwitcherModelFeatureTests {
                && switcherCode.contains("items: sourceItems)")
                && enumeratorCode.contains("sourceItems: sourceCandidates"),
                "activation retains the foreground window even when the displayed list excludes its monitor")
-        let displaySnapshot = switcherSource.range(of: "let displayScope = currentDisplayScope")
-        let enumerationDispatch = switcherSource.range(of: "enumerationQueue.async")
-        suite.expect(displaySnapshot != nil && enumerationDispatch != nil
-               && displaySnapshot!.lowerBound < enumerationDispatch!.lowerBound,
-               "the target display is captured before window enumeration can delay the session")
+        let displaySnapshot = switcherSource.range(of: "displayScope: currentDisplayScope)")
+        let sessionHandoff = switcherSource.range(of: "finishPendingSession(generation: generation,")
+        suite.expect(displaySnapshot != nil && sessionHandoff != nil
+               && displaySnapshot!.lowerBound < sessionHandoff!.lowerBound,
+               "the target display filters remembered windows before the session opens")
 
         // MARK: Switcher entries for apps with no window (issue #351)
         suite.expect(SwitcherWindowlessApps.mode(storedValue: nil,
@@ -2466,24 +2489,23 @@ enum SwitcherModelFeatureTests {
                "update showcase intro starts unseen")
         suite.expect(registeredDefaults[DefaultsKey.updateShowcaseMediaOverride] as? String == "",
                "update showcase media override is empty by default")
-        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.3",
-               "support prompt is deliberately pinned to the 3.4.3 stable release")
-        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: "3.3.2")
-               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: nil),
+        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.5"
+               && SupportUpdateIntroInfo.seenVersion == "3.4.5-support",
+               "the support invitation has its own marker for the 3.4.5 stable release")
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.5", lastSeenVersion: "3.3.2")
+               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.5", lastSeenVersion: nil),
                "support prompt shows once after updating to its pinned release")
-        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: "3.4.0-support")
-               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: "3.4.2-support"),
-               "people who completed the 3.4.2 invitation receive the 3.4.3 invitation")
-        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.4", lastSeenVersion: SupportUpdateIntroInfo.seenVersion)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.5", lastSeenVersion: "3.4.4-support")
+               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.10", lastSeenVersion: "3.4.4-support"),
+               "people who completed the previous invitation receive the new one even if they skip its first patch")
+        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.5", lastSeenVersion: SupportUpdateIntroInfo.seenVersion)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.6", lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
                "support prompt stays hidden after it is seen, through later patches")
-        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: "3.4.3"),
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.5", lastSeenVersion: "3.4.0"),
                "premature support markers from beta onboarding do not suppress the stable invitation")
-        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: nil)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.1", lastSeenVersion: nil)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: nil)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3-beta.2", lastSeenVersion: nil)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.5.0", lastSeenVersion: nil),
+        suite.expect(["3.4.0", "3.4.1", "3.4.2", "3.4.3", "3.4.4", "3.4.5-beta.1", "3.4.6-rc.1", "3.5.0"].allSatisfy {
+                   !SupportUpdateIntroInfo.shouldShow(appVersion: $0, lastSeenVersion: nil)
+               },
                "support prompt never leaks into another release or a beta")
         suite.expect(AppInfo.discordURL.absoluteString == "https://discord.gg/M6BwWH4BJp",
                "the community action uses the permanent Discord invitation")
@@ -2497,13 +2519,11 @@ enum SwitcherModelFeatureTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        suite.expect(plistVersion == "3.4.3",
+        suite.expect(plistVersion == "3.4.5",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        suite.expect(plistBuild == "105",
+        suite.expect(plistBuild == "107",
                "every app version needs its own incremented bundle build")
-        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.3",
-               "the support prompt is prepared for the 3.4.3 stable release")
         suite.expect(UpdateHighlightsInfo.releaseVersion == "3.4.0",
                "the stable release has its own tour marker without changing the installed version")
         for version in ["3.4.0-beta.1", "3.4.0-beta.2", "3.4.0-beta.2.1", "3.4.0-beta.3", "3.4.0-beta.4", "3.4.0-beta.5", "3.4.0-beta.6", "3.4.0-beta.7", "3.4.0-beta.10"] {
@@ -2528,11 +2548,10 @@ enum SwitcherModelFeatureTests {
                    && !UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil),
                    "previewing from the current build and other release cycles cannot consume the future beta tour")
         }
-        for version in ["3.4.0", "3.4.1", "3.4.2", "3.4.10", "3.4.99"] {
+        for version in ["3.4.0", "3.4.1", "3.4.2", "3.4.3", "3.4.4", "3.4.5", "3.4.10", "3.4.99"] {
             suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil)
-                   && UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.betaSeenVersion)
-                   && (["3.4.0", "3.4.1", "3.4.2"].contains(version) || SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: "3.4.0")),
-                   "direct hotfix upgraders still receive the stable tour and, from 3.4.3, the support invitation")
+                   && UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.betaSeenVersion),
+                   "direct hotfix upgraders still receive the stable tour")
             suite.expect(UpdateHighlightsInfo.seenVersion(for: version) == UpdateHighlightsInfo.releaseVersion
                    && !UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.releaseVersion)
                    && !SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
@@ -2691,6 +2710,8 @@ enum SwitcherModelFeatureTests {
                "copy text from screen reads QR codes by default")
         suite.expect(registeredDefaults[DefaultsKey.micMuteMenuBarIndicator] as? Bool == true,
                "mic mute menu bar indicator ships on by default (badge only shows while muted)")
+        suite.expect(registeredDefaults[DefaultsKey.micMuteFollowCallApps] as? Bool == false,
+               "call apps can only release Mic Mute after the user enables the setting")
         suite.expect(registeredDefaults[DefaultsKey.menuBarMetricSpacing] as? String == "compact",
                "menu bar metric spacing defaults to the compact look")
         suite.expect(registeredDefaults[DefaultsKey.menuBarMetricAppearance] as? String == "values",
@@ -2865,6 +2886,15 @@ enum SwitcherModelFeatureTests {
                                                                    current: 501, isOwnApp: ownApp) == nil,
                "a desktop switch while the panel is open drops the remembered app")
 
+        suite.expect(StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 26, panelWindowNumber: 26),
+               "the panel's activation click does not dismiss it")
+        suite.expect(!StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 31, panelWindowNumber: 26),
+               "clicking an overlapping window still dismisses the panel")
+        suite.expect(!StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 0, panelWindowNumber: 0),
+               "an event without an identified window cannot claim the panel's click")
+        suite.expect(!StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 26, panelWindowNumber: nil),
+               "an unavailable panel cannot claim another window's click")
+
         MenuPanelRecoveryTests.run { suite.expect($0, $1) }
         MenuPanelKeyTests.run(suite)
 
@@ -2915,7 +2945,7 @@ enum SwitcherModelFeatureTests {
         // slice can never run past it into an unrelated body that happens to
         // carry the same words.
         let shelfProviderCode = stripCommentLines((statusAnchorAppDelegateSource
-            .components(separatedBy: "ShelfService.shared.statusItemFrameProvider =").last ?? "")
+            .components(separatedBy: "ShelfService.statusItemFrameProvider =").last ?? "")
             .components(separatedBy: "\n        }").first ?? "")
         let statusControllerSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/App/StatusItemController.swift",

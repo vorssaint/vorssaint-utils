@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Darwin
 
 enum ScreenshotCanvasModelTests {
     class Fixture {
@@ -9,7 +10,22 @@ enum ScreenshotCanvasModelTests {
         var imageSize: CGSize { CGSize(width: baseImage.width, height: baseImage.height) }
         var annotations: [ScreenshotSupport.Annotation] = []
         var selectedID: UUID?
-        var editingTextID: UUID?
+        var draftID: UUID?
+        var editingSelectedAnnotation = false
+        var color: ScreenshotSupport.ColorID = .red
+        var stroke: ScreenshotSupport.StrokeID = .medium
+        var arrowStyle: ScreenshotSupport.ArrowStyleID = .filled
+        var sticker: ScreenshotSupport.StickerID = .check
+        var textSize = 24
+        var blurLevel = ScreenshotSupport.BlurStrength.defaultLevel
+        var blurStyle: ScreenshotSupport.BlurStyleID = .pixelate
+        var blurTextOnly = false
+        var cropResizeOrigin: CGRect?
+        var cropMoveOrigin: CGRect?
+        var cropSelectionOrigin: CGRect?
+        var cropLoupePoint: CGPoint?
+        let currentDisplayZoom: CGFloat = 1
+        var editingText = ""
         var newTextID: UUID?
         var cropDraft: CGRect?
         let scale: CGFloat = 1
@@ -27,7 +43,19 @@ enum ScreenshotCanvasModelTests {
         var undoStack: [(image: CGImage, annotations: [ScreenshotSupport.Annotation])] = []
         var redoStack: [(image: CGImage, annotations: [ScreenshotSupport.Annotation])] = []
         static let undoLimit = 60
-        var canUndo = false, canRedo = false, isDirty = false
+        /// Mirrors the editor's memory budget: full frames dominate it, and
+        /// states sharing one capture are charged once.
+        static var undoByteBudget = 256 << 20
+        static let undoAnnotationBytes = 512
+        var isDirty = false
+        weak var cleanImage: CGImage?
+        var cleanAnnotations: [ScreenshotSupport.SavedAnnotation] = []
+        let backdropStyle = ScreenshotSupport.BackdropStyle()
+        var cleanBackdropStyle = ScreenshotSupport.BackdropStyle()
+        let watermarkStyle = ScreenshotSupport.WatermarkStyle()
+        var cleanWatermarkStyle = ScreenshotSupport.WatermarkStyle()
+        let annotationShadowsEnabled = false, spotlightDimStrength: CGFloat = 0.5
+        var cleanAnnotationShadowsEnabled = false, cleanSpotlightDimStrength: CGFloat = 0.5
         var textSelectionAnchor: CGPoint?
         var selectedWordIndexes: [Int] = []
         var activeHandle: ScreenshotSupport.Handle?
@@ -40,8 +68,28 @@ enum ScreenshotCanvasModelTests {
         func recognizeText() {}
         func recognizeQRCodes() {}
         func ensureBlurSamplesForAnnotations() {}
+        @discardableResult
+        func ensureBlurSample(_ style: ScreenshotSupport.BlurStyleID, level: Int) -> Bool { true }
         func pruneCarriedRuns() {}
-        func refreshDirtyState() {}
+    }
+
+    struct CloseController {
+        struct NSWindow {}
+
+        final class NSAlert {
+            static var response = NSApplication.ModalResponse.alertSecondButtonReturn
+            static var shown = 0
+            var messageText = "", informativeText = ""
+            var alertStyle: AppKit.NSAlert.Style = .warning
+            func addButton(withTitle title: String) {}
+            func runModal() -> NSApplication.ModalResponse {
+                Self.shown += 1
+                return Self.response
+            }
+        }
+
+        let model: Host
+        let strings = FeatureStrings.screenshot(.enUS)
     }
 
     /// Command-V with a pasteboard lane that waits until the test runs it
@@ -109,7 +157,288 @@ enum ScreenshotCanvasModelTests {
                      "escape in expand canvas at rest leaves the tool like crop, without changing the canvas")
     }
 
+    private static func closingWithInlineText(_ suite: TestSuite) {
+        let model = Host(image: frame(width: 240, height: 100))
+        model.markExported()
+        model.tool = .text
+        let controller = CloseController(model: model)
+        let window = CloseController.NSWindow()
+        typealias Alert = CloseController.NSAlert
+        Alert.response = .alertSecondButtonReturn
+        Alert.shown = 0
+        func tapText() {
+            let point = CGPoint(x: 20, y: 20)
+            model.beginDrag(at: point)
+            model.endDrag(at: point, isTap: true)
+        }
+
+        tapText()
+        guard let emptyID = model.editingTextID else {
+            suite.expect(false, "the text tool opens an inline draft")
+            return
+        }
+        for blank in ["", " \t\n"] {
+            model.editingText = blank
+            suite.expect(controller.windowShouldClose(window) && Alert.shown == 0,
+                         "an empty or whitespace-only first caption closes without a discard prompt")
+            suite.expect(!model.canUndo && !model.canRedo, "a blank first caption has no history action")
+        }
+        model.commitText(emptyID)
+        suite.expect(model.annotations.isEmpty && !model.canUndo && !model.isDirty,
+                     "submitting the empty caption leaves the capture and its history clean")
+
+        tapText()
+        guard let id = model.editingTextID else {
+            suite.expect(false, "the text tool can start a new caption after an empty one")
+            return
+        }
+        model.editingText = "First"
+        suite.expect(!controller.windowShouldClose(window) && Alert.shown == 1
+                     && model.editingTextID == id && model.editingText == "First"
+                     && model.annotations.first?.text == "" && model.undoStack.isEmpty && !model.isDirty,
+                     "canceling red-button close preserves the first unsubmitted caption for further typing")
+        model.editingText += " caption "
+        suite.expect(model.canUndo && !model.canRedo, "Undo is available before the first caption is submitted")
+        model.commitText(id)
+        suite.expect(model.annotations.map(\.text) == ["First caption"] && model.undoStack.count == 1,
+                     "submitting after cancel keeps the continued caption as one edit")
+        model.undo()
+        suite.expect(model.annotations.isEmpty && !model.canUndo && !model.isDirty,
+                     "undoing the caption returns to the original clean capture")
+        tapText()
+        guard let secondID = model.editingTextID else {
+            suite.expect(false, "another caption can be started after undo")
+            return
+        }
+        model.editingText = "Replacement"
+        suite.expect(model.canUndo && !model.canRedo, "a pending replacement can be undone and would discard redo")
+        model.editingText = "  "
+        suite.expect(!model.canUndo && model.canRedo, "clearing the replacement preserves redo")
+        model.commitText(secondID)
+        model.redo()
+        suite.expect(model.annotations.map(\.text) == ["First caption"] && model.isDirty
+                     && !controller.windowShouldClose(window) && Alert.shown == 2,
+                     "redo restores the completed caption and ordinary unsaved changes still prompt")
+
+        model.markExported()
+        tapText()
+        suite.expect(model.editingTextID == id && model.editingText == "First caption"
+                     && controller.windowShouldClose(window) && Alert.shown == 2,
+                     "reopening an exported caption loads its text and closes without a discard prompt")
+        model.editingText = ""
+        Alert.response = .alertFirstButtonReturn
+        suite.expect(controller.windowShouldClose(window) && Alert.shown == 3
+                     && model.annotations.first?.text == "First caption",
+                     "confirming discard allows closing with a pending deletion of an exported caption")
+    }
+
+    /// A frame of `width`×`height` from a plain context, cheap to fill.
+    private static func frame(width: Int, height: Int) -> CGImage {
+        let context = CGContext(data: nil, width: width, height: height,
+                                bitsPerComponent: 8, bytesPerRow: 0,
+                                space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue)!
+        context.setFillColor(NSColor(deviceRed: 0.2, green: 0.4, blue: 0.6, alpha: 1).cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        return context.makeImage()!
+    }
+
+    /// Older entries go once the history's pixels pass the memory budget, so
+    /// a few full 5K frames cannot pile up, while an annotation-only session
+    /// keeps the step limit because it holds a single capture.
+    private static func historyStopsByBytes(_ suite: TestSuite) {
+        let originalBudget = Host.undoByteBudget
+        defer { Host.undoByteBudget = originalBudget }
+        let host = Host(image: ScreenshotCanvasSupportTests.image(width: 40, height: 40))
+        let pasted = ScreenshotCanvasSupportTests.image(width: 4, height: 4)
+        for _ in 0..<(Host.undoLimit + 3) { _ = host.pasteImage(pasted) }
+        suite.expect(host.undoStack.count == Host.undoLimit,
+                     "states sharing one capture stay bounded by steps, not bytes")
+
+        let frames = (0..<6).map { _ in frame(width: 128, height: 128) }
+        let frameBytes = frames[0].bytesPerRow * frames[0].height
+        Host.undoByteBudget = frameBytes * 4 + 4096
+        let big = Host(image: frames[0])
+        for image in frames {
+            big.baseImage = image
+            _ = big.pasteImage(pasted)
+            big.annotations = []
+        }
+        suite.expect(big.undoStack.count == 4 && big.undoStack.first?.image === frames[2],
+                     "only recent distinct frames fit the undo pixel budget")
+
+        let layers = Host(image: pasted)
+        for image in frames {
+            _ = layers.pasteImage(image)
+            _ = layers.pasteImage(pasted)
+            layers.annotations.removeAll()
+        }
+        let retained = Set(layers.undoStack.flatMap { state in
+            state.annotations.compactMap { $0.imageAsset.map { ObjectIdentifier($0.image) } }
+        })
+        suite.expect(retained.count == 4 && !retained.contains(ObjectIdentifier(frames[0])),
+                     "images retained only by pasted annotations share the history budget")
+
+        guard let padded = CGContext(data: nil, width: 32, height: 32, bitsPerComponent: 16,
+                                     bytesPerRow: 512, space: CGColorSpaceCreateDeviceRGB(),
+                                     bitmapInfo: CGBitmapInfo.byteOrder16Little.rawValue
+                                         | CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage()
+        else {
+            suite.expect(false, "the padded 16-bit image fixture exists")
+            return
+        }
+        Host.undoByteBudget = padded.bytesPerRow * padded.height + 1024
+        let depth = Host(image: pasted)
+        _ = depth.pasteImage(padded)
+        _ = depth.pasteImage(pasted)
+        depth.annotations.removeAll()
+        depth.baseImage = frame(width: 32, height: 32)
+        _ = depth.pasteImage(pasted)
+        suite.expect(depth.undoStack.allSatisfy { state in
+            !state.annotations.contains { $0.imageAsset?.image === padded }
+        }, "a high-depth image is charged its actual row stride")
+
+        Host.undoByteBudget = frameBytes * 2 + 512
+        let mixed = Host(image: frames[5])
+        mixed.undoStack = frames.prefix(2).map { ($0, []) }
+        mixed.redoStack = [(frames[3], [])]
+        mixed.undo()
+        suite.expect(mixed.undoStack.count + mixed.redoStack.count == 2
+                     && mixed.redoStack.last?.image === frames[5],
+                     "undo budgets both stacks and keeps the immediate redo")
+        mixed.redo()
+        suite.expect(mixed.baseImage === frames[5],
+                     "the retained redo returns to the previous frame")
+
+        let click = Host(image: frames[1])
+        click.undoStack = [(frames[0], [])]
+        click.redoStack = [(frames[2], [])]
+        let existing = ScreenshotSupport.Annotation(tool: .rect, rect: CGRect(x: 5, y: 5, width: 24, height: 24))
+        let start = CGPoint(x: 60, y: 60)
+        let end = CGPoint(x: 95, y: 110)
+        click.tool = .rect
+        click.annotations = [existing]
+        click.selectedID = existing.id
+        click.beginDrag(at: start)
+        click.endDrag(at: start, isTap: true)
+        suite.expect(click.annotations.map(\.id) == [existing.id] && click.selectedID == nil
+                     && click.draftID == nil && click.undoStack.count == 1 && click.redoStack.count == 1,
+                     "a tap without a drawing drops the draft and preserves undo and redo")
+
+        click.selectedID = existing.id
+        click.beginDrag(at: start)
+        let drawing = click.draftID
+        suite.expect(drawing != nil && click.annotations.last?.id == drawing && click.selectedID == nil,
+                     "pressing to draw clears the previous selection and leaves the new shape unselected")
+        click.continueDrag(to: end)
+        suite.expect(click.selectedID == nil && click.annotations.last?.rect ==
+                     CGRect(x: 60, y: 60, width: 35, height: 50)
+                     && click.undoStack.count == 1 && click.redoStack.count == 1,
+                     "the shape takes its dragged bounds before selection or history changes")
+        click.endDrag(at: end, isTap: false)
+        suite.expect(click.selectedID == drawing && click.draftID == nil && click.annotations.count == 2
+                     && click.undoStack.last?.annotations.map(\.id) == [existing.id] && click.redoStack.isEmpty,
+                     "releasing selects the new shape and records only the pre-drag annotations")
+        let full = CGRect(origin: .zero, size: click.imageSize)
+        let beforeCrop = click.undoStack.count
+        for draft in [full, full.insetBy(dx: -4, dy: -3), full.insetBy(dx: 0.2, dy: 0.4)] {
+            click.cropDraft = draft
+            click.applyCrop()
+            suite.expect(click.baseImage === frames[1] && click.undoStack.count == beforeCrop,
+                         "a crop that clamps or rounds to the full canvas keeps its buffer and history")
+        }
+    }
+
+    /// Exercises the full-size drawing contexts on demand. Each edit goes through
+    /// the same expansion and history methods as the editor, using generated pixels.
+    private static func largeCanvasHistory(_ suite: TestSuite) {
+        let width = 5120, height = 2880
+        let host = Host(image: frame(width: width, height: height))
+        func footprint() -> UInt64? {
+            var info = rusage_info_current()
+            let status = withUnsafeMutablePointer(to: &info) { pointer in
+                pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
+                    proc_pid_rusage(getpid(), RUSAGE_INFO_CURRENT, $0)
+                }
+            }
+            return status == 0 ? info.ri_phys_footprint : nil
+        }
+        var samples: [UInt64] = []
+        for edit in 1...14 {
+            let rect = CGRect(x: 0, y: 0, width: width + 4 * edit, height: height)
+            let changed = autoreleasepool { host.commitCanvasExpansion(to: rect) }
+            let retained = host.undoStack.reduce(0) { $0 + $1.image.bytesPerRow * $1.image.height }
+            guard changed, retained <= Host.undoByteBudget else {
+                suite.expect(false, "5K expansion must succeed and evict old buffers before the next edit")
+                return
+            }
+            if [6, 10, 14].contains(edit) {
+                guard let used = footprint() else {
+                    suite.expect(false, "the test process exposes its physical footprint")
+                    return
+                }
+                samples.append(used)
+                print("5K edit \(edit): \(host.undoStack.count) undo states, " +
+                      "\(retained >> 20) MiB history, \(used >> 20) MiB process footprint")
+            }
+        }
+        let bytesPerFrame = UInt64(host.baseImage.bytesPerRow * host.baseImage.height)
+        suite.expect(samples.max()! - samples.min()! <= 2 * bytesPerFrame,
+                     "5K edits reach a steady physical footprint within two frame buffers")
+        let finalWidth = host.baseImage.width
+        let available = host.undoStack.count
+        suite.expect(available == 4, "four recent full 5K frames fit the history budget")
+        for step in 1...4 {
+            host.undo()
+            suite.expect(host.baseImage.width == finalWidth - 4 * step,
+                         "5K undo restores the recent canvas at step \(step)")
+        }
+        for step in 1...4 {
+            host.redo()
+            suite.expect(host.baseImage.width == finalWidth - 4 * (4 - step),
+                         "5K redo restores the edited canvas at step \(step)")
+        }
+    }
+
+    /// A crop owns its pixels instead of pointing into the frame it came from,
+    /// with the same size, colour space and pixels.
+    private static func cropOwnsItsPixels(_ suite: TestSuite) {
+        let parent = ScreenshotImageLayerTests.solid(
+            NSColor(deviceRed: 0.2, green: 0.5, blue: 0.8, alpha: 1), width: 1200, height: 800)
+        let rect = CGRect(x: 100, y: 60, width: 800, height: 600)
+        func buffer(_ image: CGImage) -> Int {
+            (image.dataProvider?.data as Data?)?.count ?? 0
+        }
+        guard let window = parent.cropping(to: rect),
+              let independent = ScreenshotSupport.independentImage(window)
+        else {
+            suite.expect(false, "a crop is copied into pixels of its own")
+            return
+        }
+        suite.expect(independent.width == 800 && independent.height == 600,
+                     "the copy keeps the crop's size")
+        if let space = independent.colorSpace, let source = parent.colorSpace {
+            suite.expect(CFEqual(space, source), "the copy keeps the crop's colour space")
+        } else {
+            suite.expect(false, "both the crop and its parent carry a colour space")
+        }
+        suite.expect(buffer(window) > buffer(independent) && buffer(independent) == 800 * 600 * 4,
+                     "the crop holds its own buffer instead of the parent's: \(buffer(window)) then \(buffer(independent)) bytes")
+        suite.expect(independent.bytesPerRow == 800 * 4,
+                     "the copy stops reading rows of the parent")
+        let bounds = CGRect(x: 0, y: 0, width: 800, height: 600)
+        suite.expect(ScreenshotImageLayerTests.bytes(independent, in: bounds)
+                     == ScreenshotImageLayerTests.bytes(window, in: bounds),
+                     "the copy keeps every pixel")
+    }
+
     static func run(_ suite: TestSuite) {
+        historyStopsByBytes(suite)
+        closingWithInlineText(suite)
+        if ProcessInfo.processInfo.environment["VORSSAINT_SCREENSHOT_MEMORY_SMOKE"] == "1" {
+            largeCanvasHistory(suite)
+        }
+        cropOwnsItsPixels(suite)
         counterSizeAfterExpansion(suite)
         samplesAfterExpansion(suite)
         pasteFromClipboard(suite)

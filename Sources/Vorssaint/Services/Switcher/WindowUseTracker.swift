@@ -70,6 +70,27 @@ final class WindowUseTracker {
 
     var historyRevision: UUID { stateLock.withLock { focusHistory.revision } }
 
+    func frontAppFocus(for pid: pid_t, appPID: pid_t? = nil) -> WindowFocusHistory.FrontAppFocus {
+        stateLock.withLock { focusHistory.frontAppFocus(for: pid, appPID: appPID) }
+    }
+
+    func recordObservedFocus(windowID: CGWindowID, pid: pid_t) {
+        stateLock.withLock {
+            guard recording, let request = focusHistory.current, request.focusPID == pid,
+                  focusHistory.focus(windowID, for: request) else { return }
+            windowHistory = WindowUseOrder.promoting(windowID, in: windowHistory)
+        }
+    }
+
+    func recordDestroyedWindow(_ windowID: CGWindowID) {
+        stateLock.withLock {
+            guard recording else { return }
+            let index = windowHistory.firstIndex(of: windowID)
+            if let index { windowHistory.remove(at: index) }
+            focusHistory.destroyed(windowID, wasRanked: index != nil)
+        }
+    }
+
     /// Rank of an application; one never seen sorts after every known one.
     func rank(of pid: pid_t) -> Int {
         stateLock.withLock { appHistory.firstIndex(of: pid) ?? Int.max }
@@ -79,13 +100,29 @@ final class WindowUseTracker {
     /// second-most-recent window, so a quick repeat toggles straight back.
     /// Applied immediately because the window server's order lags an
     /// activation by a frame or two, and a flick is faster than that.
-    func recordSwitch(to windowID: CGWindowID?, pid: pid_t, from previous: CGWindowID?) {
+    func recordSwitch(to windowID: CGWindowID?, pid: pid_t, from previous: CGWindowID?, focusPID: pid_t? = nil,
+                      sourceRequest: WindowFocusHistory.Request? = nil) {
         stateLock.withLock {
             guard recording else { return }
-            focusHistory.switched(to: windowID, pid: pid, previous: previous)
+            focusHistory.switched(to: windowID, pid: pid, previous: previous, focusPID: focusPID, sourceRequest: sourceRequest)
             windowHistory = WindowUseOrder.promoting(target: windowID,
                                                      previous: previous,
                                                      in: windowHistory)
+        }
+    }
+
+    /// A grouped switch can commit before the source app's new window is listed.
+    /// Resolve that use at its original position, behind any newer activations.
+    func confirmSwitchSource(_ window: CGWindowID, replacing previous: CGWindowID, for request: WindowFocusHistory.Request) {
+        stateLock.withLock {
+            guard recording, window != previous, let anchor = windowHistory.firstIndex(of: previous),
+                  focusHistory.focus(window, for: request) else { return }
+            if let position = windowHistory.firstIndex(of: window) {
+                guard position > anchor else { return }
+                windowHistory.remove(at: position)
+            }
+            windowHistory.insert(window, at: anchor)
+            if windowHistory.count > WindowUseOrder.limit { windowHistory.removeLast() }
         }
     }
 
@@ -117,37 +154,6 @@ final class WindowUseTracker {
             let baseline = WindowUseOrder.order(entries, windowHistory: windowHistory,
                                                 appHistory: appHistory, frontToBack: frontToBack)
             return focusHistory.order(entries, baseline: baseline)
-        }
-    }
-
-    /// Why a promotion was or was not taken. The reason is read inside the
-    /// tracker's own lock, so naming it costs no extra round trip.
-    private enum Promotion {
-        case accepted
-        case rejectedNotRecording
-        case rejectedRequestGone
-
-        var wasAccepted: Bool { self == .accepted }
-
-        var reason: String {
-            switch self {
-            case .accepted: return "accepted"
-            case .rejectedNotRecording: return "not_recording"
-            case .rejectedRequestGone: return "request_not_current"
-            }
-        }
-    }
-
-    /// Promotes a focused window and reports whether the history took it.
-    /// A read that arrives after its request was replaced is observed but not
-    /// accepted, and the observer needs to be able to say which it was.
-    @discardableResult
-    private func promote(window windowID: CGWindowID, for request: WindowFocusHistory.Request) -> Promotion {
-        stateLock.withLock {
-            guard recording else { return .rejectedNotRecording }
-            guard focusHistory.focus(windowID, for: request) else { return .rejectedRequestGone }
-            windowHistory = WindowUseOrder.promoting(windowID, in: windowHistory)
-            return .accepted
         }
     }
 
@@ -361,7 +367,7 @@ final class WindowUseTracker {
         guard trusted else {
             return
         }
-        let pid = request.pid
+        let pid = request.focusPID
 
         var created: AXObserver?
         let application = AXUIElementCreateApplication(pid)
@@ -388,7 +394,7 @@ final class WindowUseTracker {
         // Activation itself posts no focus change, so the window the app came
         // back to has to be asked for once. Any change that races this arrives
         // through the observer, which is already installed.
-        let foundFocus = readFocusedWindow(for: request, trigger: "retarget")
+        let foundFocus = readFocusedWindow(for: request)
         if needsRetry || !foundFocus {
             scheduleRetry(request, attempt: attempt)
         }
@@ -427,39 +433,14 @@ final class WindowUseTracker {
         observedPID = nil
     }
 
-    /// Reads the focused window of the request's application. `trigger` says
-    /// what asked for the read, so a read that follows an activation can be
-    /// told apart from one that follows a focus notification.
-    ///
-    /// A window id read here says which window the application named as
-    /// focused; it says nothing about pixels on screen or about whether the
-    /// keyboard has already moved there.
-    private func readFocusedWindow(for request: WindowFocusHistory.Request, trigger: String = "unknown") -> Bool {
-        guard AXIsProcessTrusted() else {
-            return false
+    private func readFocusedWindow(for request: WindowFocusHistory.Request) -> Bool {
+        guard stateLock.withLock({ recording && focusHistory.beginFocusRead(for: request) }) else { return false }
+        let windowID = WindowActivator.focusedWindowID(for: request.focusPID)
+        return stateLock.withLock {
+            guard recording, focusHistory.finishFocusRead(windowID, for: request), let windowID else { return false }
+            windowHistory = WindowUseOrder.promoting(windowID, in: windowHistory)
+            return true
         }
-        guard stateLock.withLock({ recording && focusHistory.current == request }) else {
-            return false
-        }
-        let application = AXUIElementCreateApplication(request.pid)
-        AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
-        var value: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(application, kAXFocusedWindowAttribute as CFString, &value)
-        guard result == .success else {
-            return false
-        }
-        guard let value,
-              CFGetTypeID(value) == AXUIElementGetTypeID()
-        else {
-            return false
-        }
-        // A misbehaving app can answer with something that is not an element.
-        let window = value as! AXUIElement
-        guard let windowID = AXWindowResolver.windowID(for: window) else {
-            return false
-        }
-        _ = promote(window: windowID, for: request)
-        return true
     }
 
     /// C callback: no captures, so the tracker travels in the refcon.
@@ -473,13 +454,13 @@ final class WindowUseTracker {
         let current = (active != nil && observerMatches)
             ? tracker.stateLock.withLock({ tracker.focusHistory.current })
             : nil
-        let pidMatches = current.map { $0.pid == tracker.observedPID } ?? false
+        let pidMatches = current.map { $0.focusPID == tracker.observedPID } ?? false
         guard let request = current, pidMatches else {
             return
         }
         // Main-window notifications may name a window that does not have focus.
         // Read actual focus and reject replies from an older activation.
-        _ = tracker.readFocusedWindow(for: request, trigger: "notification")
+        _ = tracker.readFocusedWindow(for: request)
     }
 
     // MARK: - Window server

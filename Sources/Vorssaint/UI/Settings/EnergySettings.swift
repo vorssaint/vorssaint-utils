@@ -172,7 +172,8 @@ struct EnergySettings: View {
     private var sessionStatus: String {
         guard awake.isActive else { return l10n.s.keepAwakeNormalRules }
         if awake.sessionTrigger == .automation {
-            return automationStrings.activeStatus(for: awake.activeAutomationConditions)
+            return automationStrings.activeStatus(for: awake.activeAutomationConditions,
+                                                  waitingForPower: awake.waitingForPower)
         }
         return l10n.s.keepAwakeUntilDisabled
     }
@@ -384,7 +385,7 @@ struct EnergySettings: View {
                                 MonitorVolumeKeyControls(strings: strings)
                             }
                         }
-                        if brightnessKeysEnabled || brightnessOSDEnabled || displayVolumeKeys
+                        if brightnessKeysEnabled || brightnessOSDEnabled || (displayVolume && displayVolumeKeys)
                             || BrightnessSupport.KeyStep.sanitized(brightnessKeyStep) != .standard,
                            !permissions.accessibility {
                             PermissionRow(kind: .accessibility)
