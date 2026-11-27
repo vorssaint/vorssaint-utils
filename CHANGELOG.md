@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- The Command Bar opens an emoji grid with configurable tile sizes and its own global shortcut. On first use it offers to take the combination over from the system emoji picker; declining leaves the system picker alone.
+
 ## [3.4.5] - 2026-11-25
 
 ### Summary

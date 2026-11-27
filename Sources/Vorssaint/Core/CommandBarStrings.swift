@@ -171,6 +171,13 @@ struct CommandBarFeatureStrings {
     let compactModeCaption: String
     let emojiSkinToneLabel: String
     let emojiSkinToneCaption: String
+    let emojiTileSizeLabel: String
+    let emojiTileSizeCaption: String
+    let emojiTileSizeSmall: String
+    let emojiTileSizeMedium: String
+    let emojiTileSizeLarge: String
+    let emojiShortcutToggle: String
+    let emojiShortcutCaption: String
     let asciiLayoutToggle: String
     let asciiLayoutCaption: String
 }
@@ -363,6 +370,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "Bar opens without suggestions. Results appear as you type.",
         emojiSkinToneLabel: "Skin tone",
         emojiSkinToneCaption: "By default, emoji that can take a tone use this one. Open the actions on an emoji row to choose a different one.",
+        emojiTileSizeLabel: "Tile size",
+        emojiTileSizeCaption: "The size of the emoji tiles in the grid.",
+        emojiTileSizeSmall: "Small",
+        emojiTileSizeMedium: "Medium",
+        emojiTileSizeLarge: "Large",
+        emojiShortcutToggle: "Global shortcut for the emoji grid",
+        emojiShortcutCaption: "The shortcut opens the emoji grid straight from anywhere. If macOS answers the same combination with its own emoji picker, the offer below takes the combination over from it.",
         asciiLayoutToggle: "Switch to an ABC layout while the bar is open",
         asciiLayoutCaption: "The field types Latin characters whatever layout was active, and the previous layout comes back when the bar closes.")
 
@@ -531,6 +545,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "A barra abre sem sugestões. Os resultados aparecem conforme você digita.",
         emojiSkinToneLabel: "Tom de pele",
         emojiSkinToneCaption: "Por padrão, os emojis que aceitam tom usam este. Abra as ações em uma linha de emoji para escolher outro.",
+        emojiTileSizeLabel: "Tamanho dos ladrilhos",
+        emojiTileSizeCaption: "O tamanho dos ladrilhos de emoji na grade.",
+        emojiTileSizeSmall: "Pequeno",
+        emojiTileSizeMedium: "Médio",
+        emojiTileSizeLarge: "Grande",
+        emojiShortcutToggle: "Atalho global para a grade de emojis",
+        emojiShortcutCaption: "O atalho abre a grade de emojis de qualquer lugar. Se o macOS responde à mesma combinação com seu seletor, a oferta abaixo a toma dele.",
         asciiLayoutToggle: "Mudar para um layout ABC enquanto a barra está aberta",
         asciiLayoutCaption: "O campo digita caracteres latinos independente do layout ativo, e o layout anterior volta quando a barra fecha.")
 
@@ -699,6 +720,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "Çubuk önerilmeden açılır. Sonuçlar siz yazdıkça görünür.",
         emojiSkinToneLabel: "Ten rengi",
         emojiSkinToneCaption: "Ton alabilen emojiler varsayılan olarak bunu kullanır. Farklı birini seçmek için bir emoji satırında eylemleri açın.",
+        emojiTileSizeLabel: "Döşeme boyutu",
+        emojiTileSizeCaption: "Izgaradaki emoji döşemelerinin boyutu.",
+        emojiTileSizeSmall: "Küçük",
+        emojiTileSizeMedium: "Orta",
+        emojiTileSizeLarge: "Büyük",
+        emojiShortcutToggle: "Emoji ızgarası için genel kısayol",
+        emojiShortcutCaption: "Kısayol her yerden emoji ızgarasını açar. macOS seçicisi aynı kombinasyona yanıt veriyorsa, aşağıdaki teklif onu ondan alır.",
         asciiLayoutToggle: "Çubuk açıkken ABC düzene geç",
         asciiLayoutCaption: "Alan, etkin düzen ne olursa olsun Latin karakterler yazar; çubuk kapandığında önceki düzen geri gelir.")
 
@@ -867,6 +895,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "Строка открывается без подсказок. Результаты появляются по мере ввода.",
         emojiSkinToneLabel: "Тон кожи",
         emojiSkinToneCaption: "По умолчанию эмодзи с поддержкой тона используют этот. Чтобы выбрать другой, откройте действия в строке эмодзи.",
+        emojiTileSizeLabel: "Размер плиток",
+        emojiTileSizeCaption: "Размер плиток эмодзи в сетке.",
+        emojiTileSizeSmall: "Мелкие",
+        emojiTileSizeMedium: "Средние",
+        emojiTileSizeLarge: "Крупные",
+        emojiShortcutToggle: "Глобальное сочетание для сетки эмодзи",
+        emojiShortcutCaption: "Сочетание открывает сетку эмодзи откуда угодно. Если то же сочетание отвечает системный пикер macOS, предложение ниже перехватит его.",
         asciiLayoutToggle: "Переключаться на ABC-раскладку, пока открыта строка",
         asciiLayoutCaption: "Поле набирает латиницу, какая бы раскладка ни была активна; при закрытии строки прежняя раскладка возвращается.")
 
@@ -1035,6 +1070,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "La barra se abre sin sugerencias. Los resultados aparecen mientras escribes.",
         emojiSkinToneLabel: "Tono de piel",
         emojiSkinToneCaption: "De forma predeterminada, los emojis que admiten tono usan este. Abre las acciones en una fila de emoji para elegir otro.",
+        emojiTileSizeLabel: "Tamaño de mosaicos",
+        emojiTileSizeCaption: "El tamaño de los mosaicos de emoji en la cuadrícula.",
+        emojiTileSizeSmall: "Pequeño",
+        emojiTileSizeMedium: "Mediano",
+        emojiTileSizeLarge: "Grande",
+        emojiShortcutToggle: "Atajo global para la cuadrícula de emojis",
+        emojiShortcutCaption: "El atajo abre la cuadrícula de emojis desde cualquier lugar. Si macOS responde a la misma combinación con su selector, la oferta de abajo se la toma.",
         asciiLayoutToggle: "Cambiar a una disposición ABC mientras la barra esté abierta",
         asciiLayoutCaption: "El campo escribe caracteres latinos aunque haya otra disposición activa, y la anterior vuelve al cerrar la barra.")
 
@@ -1203,6 +1245,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "Lišta sa otvorí bez návrhov. Výsledky sa zobrazujú počas písania.",
         emojiSkinToneLabel: "Odtieň pleti",
         emojiSkinToneCaption: "Emoji, ktoré môžu mať odtieň, štandardne použijú tento. Otvorte akcie na riadku s emoji a vyberte iný.",
+        emojiTileSizeLabel: "Veľkosť dlaždíc",
+        emojiTileSizeCaption: "Veľkosť dlaždíc emoji v mriežke.",
+        emojiTileSizeSmall: "Malé",
+        emojiTileSizeMedium: "Stredné",
+        emojiTileSizeLarge: "Veľké",
+        emojiShortcutToggle: "Globálna skratka pre mriežku emoji",
+        emojiShortcutCaption: "Skratka otvára mriežku emoji odkiaľkoľvek. Ak na tú istú skratku reaguje výber v macOS, ponuka ju dole prevezme.",
         asciiLayoutToggle: "Prepnúť na rozloženie ABC, kým je lišta otvorená",
         asciiLayoutCaption: "Pole píše latinské znaky bez ohľadu na aktívne rozloženie a po zatvorení lišty sa vráti predchádzajúce rozloženie.")
 
@@ -1371,6 +1420,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "Die Leiste öffnet sich ohne Vorschläge. Die Ergebnisse erscheinen beim Tippen.",
         emojiSkinToneLabel: "Hautton",
         emojiSkinToneCaption: "Emojis mit Hautton verwenden standardmäßig diesen. Öffne die Aktionen in einer Emoji-Zeile, um einen anderen zu wählen.",
+        emojiTileSizeLabel: "Kachelgröße",
+        emojiTileSizeCaption: "Die Größe der Emoji-Kacheln im Raster.",
+        emojiTileSizeSmall: "Klein",
+        emojiTileSizeMedium: "Mittel",
+        emojiTileSizeLarge: "Groß",
+        emojiShortcutToggle: "Globaler Kurzbefehl für das Emoji-Raster",
+        emojiShortcutCaption: "Der Kurzbefehl öffnet das Emoji-Raster von überall. Antwortet macOS auf dieselbe Kombination mit seiner Auswahl, übernimmt das Angebot unten sie von dort.",
         asciiLayoutToggle: "Bei geöffneter Leiste zum ABC-Layout wechseln",
         asciiLayoutCaption: "Das Feld tippt lateinische Zeichen, egal welches Layout aktiv ist; beim Schließen kehrt das vorherige Layout zurück.")
 
@@ -1539,6 +1595,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "La barre s’ouvre sans suggestions. Les résultats apparaissent à mesure que vous tapez.",
         emojiSkinToneLabel: "Teinte de peau",
         emojiSkinToneCaption: "Par défaut, les émojis qui acceptent une teinte utilisent celle-ci. Ouvrez les actions sur une ligne d’émoji pour en choisir une autre.",
+        emojiTileSizeLabel: "Taille des tuiles",
+        emojiTileSizeCaption: "La taille des tuiles d’émoji dans la grille.",
+        emojiTileSizeSmall: "Petite",
+        emojiTileSizeMedium: "Moyenne",
+        emojiTileSizeLarge: "Grande",
+        emojiShortcutToggle: "Raccourci global pour la grille d’émojis",
+        emojiShortcutCaption: "Le raccourci ouvre la grille d’émojis depuis n’importe où. Si macOS répond à la même combinaison avec son sélecteur, l’offre ci-dessous la lui reprend.",
         asciiLayoutToggle: "Passer en disposition ABC quand la barre est ouverte",
         asciiLayoutCaption: "Le champ saisit des caractères latins quelle que soit la disposition active, et la précédente revient à la fermeture de la barre.")
 
@@ -1707,6 +1770,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "La barra si apre senza suggerimenti. I risultati appaiono mentre scrivi.",
         emojiSkinToneLabel: "Tonalità della pelle",
         emojiSkinToneCaption: "Per impostazione predefinita, le emoji che accettano una tonalità usano questa. Apri le azioni su una riga di emoji per sceglierne un’altra.",
+        emojiTileSizeLabel: "Dimensione delle piastrelle",
+        emojiTileSizeCaption: "La dimensione delle piastrelle delle emoji nella griglia.",
+        emojiTileSizeSmall: "Piccola",
+        emojiTileSizeMedium: "Media",
+        emojiTileSizeLarge: "Grande",
+        emojiShortcutToggle: "Scorciatoia globale per la griglia di emoji",
+        emojiShortcutCaption: "La scorciatoia apre la griglia di emoji da ovunque. Se macOS risponde alla stessa combinazione con il suo selettore, l’offerta qui sotto la prende da lui.",
         asciiLayoutToggle: "Passa a un layout ABC mentre la barra è aperta",
         asciiLayoutCaption: "Il campo digita caratteri latini indipendentemente dal layout attivo; alla chiusura torna il layout precedente.")
 
@@ -1875,6 +1945,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "バーは候補なしで開きます。入力すると結果が現れます。",
         emojiSkinToneLabel: "肌の色",
         emojiSkinToneCaption: "肌の色を持てる絵文字は標準でこの色になります。別の色を選ぶには、絵文字の行でアクションを開きます。",
+        emojiTileSizeLabel: "タイルのサイズ",
+        emojiTileSizeCaption: "グリッド内の絵文字タイルのサイズ。",
+        emojiTileSizeSmall: "小",
+        emojiTileSizeMedium: "中",
+        emojiTileSizeLarge: "大",
+        emojiShortcutToggle: "絵文字グリッドのグローバルショートカット",
+        emojiShortcutCaption: "ショートカットはどこからでも絵文字グリッドを開きます。macOSのセレクタが同じ組み合わせに応答する場合、下の提案がそちらから受け取ります。",
         asciiLayoutToggle: "バーを開いている間はABCレイアウトに切り替える",
         asciiLayoutCaption: "アクティブなレイアウトに関係なく、フィールドにはラテン文字が入力されます。バーを閉じると元のレイアウトに戻ります。")
 
@@ -2043,6 +2120,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "막대가 추천 없이 열립니다. 입력하면 결과가 나타납니다.",
         emojiSkinToneLabel: "피부색",
         emojiSkinToneCaption: "기본적으로 피부색을 가질 수 있는 이모티콘은 이 색을 사용합니다. 다른 색을 선택하려면 이모티콘 행에서 동작을 여세요.",
+        emojiTileSizeLabel: "타일 크기",
+        emojiTileSizeCaption: "그리드에 있는 이모티콘 타일의 크기.",
+        emojiTileSizeSmall: "작게",
+        emojiTileSizeMedium: "보통",
+        emojiTileSizeLarge: "크게",
+        emojiShortcutToggle: "이모티콘 그리드의 전역 단축키",
+        emojiShortcutCaption: "단축키가 어디서든 이모티콘 그리드를 엽니다. macOS 선택기가 같은 조합에 응답한다면, 아래 제안이 그쪽에서 가져옵니다.",
         asciiLayoutToggle: "막대가 열려 있는 동안 ABC 자판으로 전환",
         asciiLayoutCaption: "활성 자판과 관계없이 입력 필드에는 라틴 문자가 입력되고, 막대를 닫으면 이전 자판으로 돌아갑니다.")
 
@@ -2211,6 +2295,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "Панель відкривається без пропозицій. Результати з’являються під час введення.",
         emojiSkinToneLabel: "Тон шкіри",
         emojiSkinToneCaption: "Типово емодзі з підтримкою тону використовують цей. Щоб вибрати інший, відкрийте дії в рядку емодзі.",
+        emojiTileSizeLabel: "Розмір плиток",
+        emojiTileSizeCaption: "Розмір плиток емодзі в сітці.",
+        emojiTileSizeSmall: "Дрібні",
+        emojiTileSizeMedium: "Середні",
+        emojiTileSizeLarge: "Великі",
+        emojiShortcutToggle: "Глобальне клавіатурне скорочення для сітки емодзі",
+        emojiShortcutCaption: "Клавіатурне скорочення відкриває сітку емодзі звідусіль. Якщо macOS відповідає власним вибором емодзі на те саме скорочення, пропозиція нижче дасть змогу забрати його в macOS.",
         asciiLayoutToggle: "Перемикатися на розкладку ABC, поки відкрита панель команд",
         asciiLayoutCaption: "У полі вводяться латинські символи незалежно від активної розкладки. Після закриття панелі команд повертається попередня розкладка."
     )
@@ -2379,6 +2470,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "命令栏打开时不显示建议，输入时才显示结果。",
         emojiSkinToneLabel: "肤色",
         emojiSkinToneCaption: "支持肤色的表情默认使用此肤色。若要选择其他肤色，请在表情结果行打开操作。",
+        emojiTileSizeLabel: "网格大小",
+        emojiTileSizeCaption: "表情网格中图块的大小。",
+        emojiTileSizeSmall: "小",
+        emojiTileSizeMedium: "中",
+        emojiTileSizeLarge: "大",
+        emojiShortcutToggle: "表情网格的全局快捷键",
+        emojiShortcutCaption: "快捷键从任何地方打开表情网格。如果 macOS 选择器响应相同的组合，下方的提议将从其接管。",
         asciiLayoutToggle: "命令栏打开时切换到 ABC 布局",
         asciiLayoutCaption: "无论当前布局为何，输入栏都会键入拉丁字符；命令栏关闭后恢复原布局。")
 
@@ -2547,6 +2645,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。",
         emojiSkinToneLabel: "膚色",
         emojiSkinToneCaption: "支援膚色的表情符號預設使用此膚色。若要選擇其他膚色，請在表情符號列打開動作。",
+        emojiTileSizeLabel: "圖塊大小",
+        emojiTileSizeCaption: "表情符號格線中圖塊的大小。",
+        emojiTileSizeSmall: "小",
+        emojiTileSizeMedium: "中",
+        emojiTileSizeLarge: "大",
+        emojiShortcutToggle: "表情符號格線的全域快速鍵",
+        emojiShortcutCaption: "快速鍵從任何地方開啟表情符號格線。若 macOS 選擇器響應相同的組合，下方的提議會從其接管。",
         asciiLayoutToggle: "指令列開啟時切換到 ABC 配置",
         asciiLayoutCaption: "無論目前配置為何，輸入欄都會鍵入拉丁字元；指令列關閉後恢復原配置。")
 
@@ -2715,6 +2820,13 @@ extension CommandBarFeatureStrings {
         compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。",
         emojiSkinToneLabel: "膚色",
         emojiSkinToneCaption: "支援膚色的表情符號預設使用此膚色。若要選擇其他膚色，請在表情符號列打開動作。",
+        emojiTileSizeLabel: "圖塊大小",
+        emojiTileSizeCaption: "表情符號格線中圖塊的大小。",
+        emojiTileSizeSmall: "小",
+        emojiTileSizeMedium: "中",
+        emojiTileSizeLarge: "大",
+        emojiShortcutToggle: "表情符號格線的全域快速鍵",
+        emojiShortcutCaption: "快速鍵從任何地方開啟表情符號格線。若 macOS 選擇器響應相同的組合，下方的提議會從其接管。",
         asciiLayoutToggle: "指令列開啟時切換到 ABC 配置",
         asciiLayoutCaption: "無論目前配置為何，輸入欄都會鍵入拉丁字元；指令列關閉後恢復原配置。")
 }
