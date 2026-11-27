@@ -518,7 +518,9 @@ extension AppFeature {
             case (.notch, .automationPlayback):
                 return !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("music")
             case (.switcher, .screenRecording):
-                return !boolFor(DefaultsKey.switcherSimpleMode)
+                return SwitcherSupport.capturesPreviews(
+                    simpleMode: boolFor(DefaultsKey.switcherSimpleMode),
+                    windowLayout: SwitcherLayout(rawValue: stringFor(DefaultsKey.switcherWindowLayout) ?? ""))
             case (.notchWatch, .screenRecording):
                 return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
                     && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("watch")

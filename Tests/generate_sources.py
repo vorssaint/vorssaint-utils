@@ -2302,6 +2302,8 @@ def main():
                                    "    private func cancelSession(", "    private func endSession(",
                                    "    private func refreshSessionPreviews(", "    private func enqueuePreviewUpdate(",
                                    "    private func cancelSessionPreviews(", "    func syncWithPreferences(",
+                                   "    private var sessionLayout:", "    var simpleModeEnabled:", "    var usesIconRowLayout:",
+                                   "    private var capturesPreviews:",
                                    "    private static var allWindowsShortcut:",
                                    "    private func dismissForClickOutsidePanel(", "    private var iconRowItemCount:",
                                    "    private func iconRowIndex(", "    private func selectionIndex(forIconRowIndex",

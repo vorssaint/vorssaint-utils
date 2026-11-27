@@ -425,6 +425,24 @@ enum SwitcherLetterAction: Equatable {
     case pinSearch
 }
 
+enum SwitcherLayout: String {
+    case windows, icons, simple
+
+    var usesIconRow: Bool { self != .windows }
+
+    init(iconRowMode: Bool, simpleMode: Bool) {
+        if simpleMode {
+            self = .simple
+        } else {
+            self = iconRowMode ? .icons : .windows
+        }
+    }
+
+    static func forSession(_ scope: SwitcherSessionScope, appLayout: Self, windowLayout: Self?) -> Self {
+        scope == .allApps ? appLayout : (windowLayout ?? appLayout)
+    }
+}
+
 /// The normal layout, only the frontmost app's windows, or individual windows across apps.
 enum SwitcherSessionScope: Equatable {
     case allApps
@@ -924,18 +942,14 @@ enum SwitcherSupport {
         return usable
     }
 
-    static func usesIconRowLayout(iconRowMode: Bool, simpleMode: Bool) -> Bool {
-        iconRowMode || simpleMode
-    }
-
     /// Hover follows the pointer unless that is turned off. Click, the keyboard
     /// and an overflowing icon row's edge slide select through other paths.
     static func hoverMovesSelection(ignoreHoverSelection: Bool) -> Bool {
         !ignoreHoverSelection
     }
 
-    static func capturesPreviews(simpleMode: Bool) -> Bool {
-        !simpleMode
+    static func capturesPreviews(simpleMode: Bool, windowLayout: SwitcherLayout? = nil) -> Bool {
+        !simpleMode || (windowLayout ?? .simple) != .simple
     }
 
     /// The simple switcher follows the existing one-entry-per-app choice.
@@ -991,8 +1005,9 @@ enum SwitcherSupport {
 
     static func needsScreenRecording(switcherEnabled: Bool,
                                      simpleMode: Bool,
+                                     windowLayout: SwitcherLayout? = nil,
                                      dockPreviewEnabled: Bool) -> Bool {
-        dockPreviewEnabled || (switcherEnabled && capturesPreviews(simpleMode: simpleMode))
+        dockPreviewEnabled || (switcherEnabled && capturesPreviews(simpleMode: simpleMode, windowLayout: windowLayout))
     }
 
     /// Resolves the foreground surface a session is measured against: the

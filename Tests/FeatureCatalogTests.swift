@@ -1720,6 +1720,16 @@ enum FeatureCatalogTests {
                 == [.screenOCR, .screenshot, .screenRecorder],
                "simple-mode switcher stops using screen recording")
         suite.expect(activeSet(.screenRecording,
+                         on: [DefaultsKey.switcherEnabled, DefaultsKey.switcherSimpleMode],
+                         strings: [DefaultsKey.switcherWindowLayout: SwitcherLayout.windows.rawValue])
+                .contains(.switcher),
+               "window switching with previews needs screen recording even with the all-windows shortcut off")
+        suite.expect(!activeSet(.screenRecording,
+                          on: [DefaultsKey.switcherEnabled, DefaultsKey.switcherSimpleMode],
+                          strings: [DefaultsKey.switcherWindowLayout: SwitcherLayout.simple.rawValue])
+                .contains(.switcher),
+               "using simple layouts for both shortcuts stops using screen recording")
+        suite.expect(activeSet(.screenRecording,
                          on: [DefaultsKey.switcherSimpleMode, DefaultsKey.dockPreviewEnabled])
                 .contains(.dockPreview),
                "dock preview keeps screen recording in use regardless of switcher mode")

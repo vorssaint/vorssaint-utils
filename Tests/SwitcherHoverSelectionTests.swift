@@ -329,11 +329,9 @@ enum SwitcherHoverSelectionTests {
         var isSearchPinned = false
         var searchPinEnabled = true
         var currentSpaceOnly = false
-        var usesIconRowLayout = false
-        var iconRowModeEnabled: Bool { usesIconRowLayout && !simpleModeEnabled }
+        var appLayout: SwitcherLayout = .windows
+        var windowLayout: SwitcherLayout?
         var usesWindowRow = false
-        var simpleModeEnabled = false
-        var capturesPreviews: Bool { SwitcherSupport.capturesPreviews(simpleMode: simpleModeEnabled) }
         var grid = Grid()
         var iconRowLayout = Row()
         var shiftBackNavigationHeld = false
@@ -812,7 +810,7 @@ enum SwitcherHoverSelectionTests {
                      && service.pendingPreviewUpdates[1] != nil && provider.warming,
                      "the second capture starts with the first waiting to be published")
         let task = service.previewCaptureTask
-        service.simpleModeEnabled = true
+        service.appLayout = .simple
         service.syncWithPreferences()
         Fake.release.signal()
         suite.expect(requestsFinished(task), "the icon-only session releases its outstanding capture request")
@@ -880,6 +878,7 @@ enum SwitcherHoverSelectionTests {
         }
 
         let replaced = waitingService()
+        replaced.windowLayout = .simple
         let retired = press(replaced)
         _ = replaced.route(type: .flagsChanged, event: release)
         let current = press(replaced, shortcut: .switcherWindowDefault)
@@ -894,8 +893,11 @@ enum SwitcherHoverSelectionTests {
         suite.expect(replaced.startedGenerations == [current] && replaced.sessionScope == .frontmostApp
                      && replaced.windows.map(\.id) == [window.id] && replaced.sessionActive,
                      "the private read opens only the replacement shortcut and preserves its scope")
+        suite.expect(replaced.simpleModeEnabled && !replaced.capturesPreviews,
+                     "the current-app shortcut uses the window layout override")
 
         let empty = waitingService()
+        empty.windowLayout = .simple
         _ = press(empty)
         empty.windowInventory.publish([])
         suite.expect(!empty.keyboardInputOwnership.isOwned && empty.startedGenerations.isEmpty,
@@ -904,6 +906,8 @@ enum SwitcherHoverSelectionTests {
         let warm = press(empty)
         suite.expect(empty.startedGenerations == [warm] && empty.sessionActive,
                      "a new shortcut with a remembered window opens without another inventory notification")
+        suite.expect(!empty.usesIconRowLayout && empty.capturesPreviews,
+                     "the app shortcut still uses the app layout with a window override")
     }
 
     private static func checkOpeningOriginAndHiddenApp(_ suite: TestSuite) {
@@ -1720,8 +1724,11 @@ enum SwitcherHoverSelectionTests {
             Workspace.shared.frontmostApplication = .init(processIdentifier: pid)
             service.tap = Tap()
             service.routeAllWindowsShortcut = .switcherAllWindowsDefault
-            service.simpleModeEnabled = mode.simple
-            service.usesIconRowLayout = SwitcherSupport.usesIconRowLayout(iconRowMode: mode == .appIconRow, simpleMode: mode.simple)
+            service.appLayout = SwitcherLayout(iconRowMode: mode == .appIconRow, simpleMode: mode.simple)
+            if opening == .warm, shortcut == .switcherAllWindowsDefault {
+                service.windowLayout = service.appLayout
+                service.appLayout = .icons
+            }
             service.usesWindowRow = SwitcherSupport.usesWindowRow(simpleMode: mode.simple, mergeWindowsByApp: mode.grouped,
                                                                  sessionScope: .allApps)
             defaults.values = [DefaultsKey.switcherSimpleMode: mode.simple, DefaultsKey.switcherMergeTabs: mode.grouped,
@@ -1816,6 +1823,11 @@ enum SwitcherHoverSelectionTests {
                 Work.main.deliveries.drain()
             }
             Queue.advance(to: Queue.time)
+            if opening == .warm, shortcut == .switcherAllWindowsDefault {
+                suite.expect(service.sessionScope == .allWindows && service.simpleModeEnabled == mode.simple
+                             && service.usesIconRowLayout == mode.simple && service.capturesPreviews != mode.simple,
+                             "\(mode) opens in the chosen window layout instead of the app's large icons")
+            }
             if opening == .unlistedInspector && mode == .allWindowsSimple {
                 func press() {
                     _ = service.route(type: .keyDown, event: key(CGKeyCode(shortcut.keyCode), flags: shortcut.modifiers.cgFlags))
@@ -2520,7 +2532,7 @@ extension SwitcherHoverSelectionTests.Service {
     func open(icons: Bool = false, windowRow: Bool = false) {
         sessionStartGeneration &+= 1
         sessionActive = true
-        usesIconRowLayout = icons
+        appLayout = icons ? .icons : .windows
         usesWindowRow = windowRow
         panel = SwitcherHoverSelectionTests.Panel()
         windows = SwitcherHoverSelectionTests.Inventory.sampleWindows

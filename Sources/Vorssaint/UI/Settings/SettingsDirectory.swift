@@ -11,6 +11,7 @@ struct SettingsSearchState: Equatable {
 
     let hardware: Hardware
     let bars, batteryRest, capsule, customSize, minimalMascot, groupsMinimizedWindows: Bool
+    let switcherUsesIconRow: Bool
     private let switches: Set<String>
 
     init(defaults: UserDefaults, hardware: Hardware) {
@@ -23,11 +24,15 @@ struct SettingsSearchState: Equatable {
             ?? .minimal) == .minimal
         groupsMinimizedWindows = (defaults.string(forKey: DefaultsKey.switcherMinimizedPlacement)
             ?? WindowSwitchMinimizedPlacement.normal.rawValue) != WindowSwitchMinimizedPlacement.normal.rawValue
+        let appLayout = SwitcherLayout(iconRowMode: defaults.bool(forKey: DefaultsKey.switcherIconRowMode),
+                                       simpleMode: defaults.bool(forKey: DefaultsKey.switcherSimpleMode))
+        let windowLayout = SwitcherLayout(rawValue: defaults.string(forKey: DefaultsKey.switcherWindowLayout) ?? "")
+        switcherUsesIconRow = appLayout.usesIconRow || windowLayout?.usesIconRow == true
         switches = Set([
             DefaultsKey.clamshellPreferred, DefaultsKey.keepAwakeMouseJiggleEnabled, DefaultsKey.brightnessControlEnabled,
             DefaultsKey.displayVolumeEnabled, DefaultsKey.displayVolumeKeysEnabled,
-            DefaultsKey.bluetoothSleepEnabled, DefaultsKey.dockPreviewEnabled, DefaultsKey.switcherSimpleMode,
-            DefaultsKey.switcherIconRowMode, DefaultsKey.notchLyricsEnabled, DefaultsKey.notchShelf,
+            DefaultsKey.bluetoothSleepEnabled, DefaultsKey.dockPreviewEnabled,
+            DefaultsKey.notchLyricsEnabled, DefaultsKey.notchShelf,
             DefaultsKey.notchClipboardWindow, DefaultsKey.notchLowBatteryTint, DefaultsKey.notchLowBatteryEarly,
             DefaultsKey.notchHideInFullscreen, DefaultsKey.notchHoverInFullscreen, DefaultsKey.notchOpenOnHover,
             DefaultsKey.notchHideUntilHover, DefaultsKey.notchHoverExpands, DefaultsKey.notchAgentsClaude,
@@ -424,6 +429,8 @@ enum SettingsDirectory {
                                         (.switcher, [s.switcherEnable, s.switcherInstantSelection,
                                                      s.switcherIgnoreHoverSelection,
                                                      FeatureStrings.switcherShortcuts(language).allWindows,
+                                                     FeatureStrings.switcherShortcuts(language).appLayout,
+                                                     FeatureStrings.switcherShortcuts(language).windowLayout,
                                                      s.switcherWindowlessApps,
                                                      s.switcherMaxColumns,
                                                      FeatureStrings.switcherAppRules(language).listTitle,
@@ -443,7 +450,7 @@ enum SettingsDirectory {
                                         .init([s.switcherTreatHiddenAppsLikeMinimized], feature: .switcher,
                                               when: state.groupsMinimizedWindows),
                                         .init([s.switcherShowShortcutHints], feature: .switcher,
-                                              when: state.on(DefaultsKey.switcherSimpleMode) || state.on(DefaultsKey.switcherIconRowMode)),
+                                              when: state.switcherUsesIconRow),
                                        ]),
                 SettingsDirectoryItem(page: .dock, title: FeatureStrings.settingsPages(language).dockTitle,
                                        icon: "dock.rectangle",

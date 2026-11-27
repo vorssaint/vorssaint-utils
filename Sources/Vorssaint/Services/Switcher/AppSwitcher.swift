@@ -303,8 +303,8 @@ final class AppSwitcher: ObservableObject {
             // the first ⌘Tab.
             let panel = ensurePanel()
             panel.contentViewController?.view.layoutSubtreeIfNeeded()
-            if !capturesPreviews {
-                cancelSessionPreviews()
+            if !capturesPreviews { cancelSessionPreviews() }
+            if !SwitcherSupport.capturesPreviews(simpleMode: appLayout == .simple, windowLayout: windowLayout) {
                 WindowPreviewProvider.shared.stopWarming()
             } else {
                 WindowPreviewProvider.shared.startWarming()
@@ -1333,7 +1333,7 @@ final class AppSwitcher: ObservableObject {
 
     private func usesIndividualWindows(_ scope: SwitcherSessionScope) -> Bool {
         guard scope == .allApps else { return scope == .allWindows }
-        return !UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs) && (simpleModeEnabled || !iconRowModeEnabled)
+        return !UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs) && appLayout != .icons
     }
 
     private func isPendingStart(_ generation: UInt64) -> Bool {
@@ -2374,19 +2374,29 @@ final class AppSwitcher: ObservableObject {
         )
     }
 
-    private var iconRowModeEnabled: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.switcherIconRowMode)
+    private var appLayout: SwitcherLayout {
+        let defaults = UserDefaults.standard
+        return SwitcherLayout(iconRowMode: defaults.bool(forKey: DefaultsKey.switcherIconRowMode),
+                              simpleMode: defaults.bool(forKey: DefaultsKey.switcherSimpleMode))
     }
 
-    private var simpleModeEnabled: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.switcherSimpleMode)
+    private var windowLayout: SwitcherLayout? {
+        SwitcherLayout(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowLayout) ?? "")
+    }
+
+    private var sessionLayout: SwitcherLayout {
+        SwitcherLayout.forSession(sessionScope, appLayout: appLayout, windowLayout: windowLayout)
+    }
+
+    var simpleModeEnabled: Bool {
+        sessionLayout == .simple
     }
 
     private var currentSpaceOnly: Bool {
         UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
     }
 
-    private var usesWindowRow: Bool {
+    var usesWindowRow: Bool {
         SwitcherSupport.usesWindowRow(
             simpleMode: simpleModeEnabled,
             mergeWindowsByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
@@ -2402,9 +2412,8 @@ final class AppSwitcher: ObservableObject {
         UserDefaults.standard.bool(forKey: DefaultsKey.switcherShowShortcutHints)
     }
 
-    private var usesIconRowLayout: Bool {
-        SwitcherSupport.usesIconRowLayout(iconRowMode: iconRowModeEnabled,
-                                          simpleMode: simpleModeEnabled)
+    var usesIconRowLayout: Bool {
+        sessionLayout.usesIconRow
     }
 
     private var capturesPreviews: Bool {

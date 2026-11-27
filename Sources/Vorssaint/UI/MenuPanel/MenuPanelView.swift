@@ -1190,6 +1190,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
+    @AppStorage(DefaultsKey.switcherWindowLayout) private var switcherWindowLayout = ""
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.finderCutPasteEnabled) private var cutPasteEnabled = false
     @AppStorage(DefaultsKey.autoQuitEnabled) private var autoQuitEnabled = false
@@ -1367,12 +1368,10 @@ struct QuickControlsSection: View {
         }
     }
 
-    /// The simple layout never captures the screen, so the panel must not
-    /// nag for Screen Recording while it is active (the Settings page
-    /// already follows the same rule).
     private var switcherNeedsScreenRecording: Bool {
         SwitcherSupport.needsScreenRecording(switcherEnabled: switcherEnabled,
                                              simpleMode: switcherSimpleMode,
+                                             windowLayout: SwitcherLayout(rawValue: switcherWindowLayout),
                                              dockPreviewEnabled: false)
     }
 
