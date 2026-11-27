@@ -187,6 +187,10 @@ enum DefaultsKey {
     static let finderCutPasteShowHUD = "finderCutPasteShowHUD"
     static let finderRenameEnabled = "finderRenameEnabled"
     static let finderRenameShortcut = "finderRenameShortcut"
+    static let finderNewFileEnabled = "finderNewFileEnabled"
+    static let finderNewFileKinds = "finderNewFileKinds"
+    static let finderNewFileCustomItems = "finderNewFileCustomItems"
+    static let finderNewFileItems = "finderNewFileItems"
     static let diskImageInstallerTrashesDownload = "diskImageInstallerTrashesDownload"
     static let diskImageInstallerRevealsApp = "diskImageInstallerRevealsApp"
     static let finderPasteImageAsFile = "finderPasteImageAsFile"
@@ -1878,6 +1882,10 @@ enum Defaults {
         DefaultsKey.pastePlainShortcut: GlobalShortcut.pastePlainDefault.storageValue,
         DefaultsKey.finderRenameEnabled: false,
         DefaultsKey.finderRenameShortcut: GlobalShortcut.finderRenameDefault.storageValue,
+        DefaultsKey.finderNewFileEnabled: false,
+        DefaultsKey.finderNewFileKinds: FinderNewFileKind.defaultSelection,
+        DefaultsKey.finderNewFileCustomItems: "[]",
+        DefaultsKey.finderNewFileItems: "",
         DefaultsKey.diskImageInstallerUseUserApplications: false,
         DefaultsKey.diskImageInstallerTrashesDownload: true,
         DefaultsKey.diskImageInstallerRevealsApp: false,

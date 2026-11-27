@@ -24,6 +24,7 @@ enum SelfUninstall {
             DispatchQueue.main.async {
                 if sleepRestored { KeepAwakeManager.shared.resumeAfterSystemTeardown() }
                 Permissions.shared.refresh()
+                FinderNewFileService.endSystemTeardown()
                 FeatureRuntime.shared.sync(AppFeature.allCases)
                 BrightnessService.shared.resumeInputTaps()
                 completion(false)
@@ -39,13 +40,18 @@ enum SelfUninstall {
             // for a disconnected device to be restored.
             _ = suspendInputInterceptors()
             DispatchQueue.global(qos: .userInitiated).async {
+                // Finder's user election is independent of TCC and the
+                // system helpers. Clear it even when a later recovery step
+                // fails, and before revoking the host's privacy grants.
+                let finderReset = FinderNewFileService.clearExtensionPermission()
                 guard restoreSleepBeforeRemoval() else { stop(); return }
                 guard detachFromSystem() else {
                     stop(sleepRestored: true)
                     return
                 }
                 removeSudoersRuleIfPresent { ruleRemoved in    // may show one admin prompt
-                    let reset = resetTCC()
+                    let tccReset = resetTCC()
+                    let reset = finderReset && tccReset
                     DispatchQueue.main.async {
                         // The published permissions still say granted. Read the
                         // reset state now, or a grant made before the next poll
@@ -54,6 +60,7 @@ enum SelfUninstall {
                         // Sleep was restored directly, so the closed-lid session
                         // state is stale whether or not the reset finished.
                         KeepAwakeManager.shared.resumeAfterSystemTeardown()
+                        FinderNewFileService.endSystemTeardown()
                         if !ruleRemoved || !reset {
                             FeatureRuntime.shared.sync(AppFeature.allCases)
                         }
@@ -75,6 +82,7 @@ enum SelfUninstall {
             DispatchQueue.main.async {
                 if sleepRestored { KeepAwakeManager.shared.resumeAfterSystemTeardown() }
                 Permissions.shared.refresh()
+                FinderNewFileService.endSystemTeardown()
                 FeatureRuntime.shared.sync(AppFeature.allCases)
                 BrightnessService.shared.resumeInputTaps()
                 onFailure(body)
@@ -106,7 +114,9 @@ enum SelfUninstall {
                         stop(L10n.shared.s.advancedUninstallFailedBody, sleepRestored: true)
                         return
                     }
-                    guard resetTCC() else {
+                    let finderReset = FinderNewFileService.clearExtensionPermission()
+                    let tccReset = resetTCC()
+                    guard finderReset && tccReset else {
                         // The app stays installed, so restore a helper that was
                         // registered before the attempted uninstall.
                         let fanReady = !fanHelperWasRegistered
@@ -160,6 +170,7 @@ enum SelfUninstall {
         AutoQuitService.shared.suspend()
         FinderCutPaste.shared.suspend()
         FinderRenameService.shared.suspend()
+        FinderNewFileService.beginSystemTeardown()
         KeyboardDebounceService.shared.suspend()
         MouseClickDebounceService.shared.suspend()
         // Also takes the Super key mapping back out, synchronously, so the
@@ -246,12 +257,17 @@ enum SelfUninstall {
     /// id is a constant, so there is nothing to inject.
     @discardableResult
     private static func resetTCC() -> Bool {
-        Shell.run("/usr/bin/tccutil", ["reset", "All", bundleID]).status == 0
+        let tcc = Shell.run("/usr/bin/tccutil", ["reset", "All", bundleID])
+        if tcc.status != 0 {
+            NSLog("Vorssaint TCC reset failed: %@", tcc.output)
+        }
+        return tcc.status == 0
     }
 
     private static func removePreferences() {
         let id = bundleID
         UserDefaults.standard.removePersistentDomain(forName: id)
+        FinderNewFileExchange.removeSnapshot()
         let home = NSHomeDirectory()
         try? FileManager.default.removeItem(atPath: "\(home)/Library/Preferences/\(id).plist")
         try? FileManager.default.removeItem(atPath: "\(home)/Library/Saved Application State/\(id).savedState")

@@ -261,6 +261,8 @@ enum ReleaseDigestTests {
         let untracked = AppFeature.allCases.filter { !WhatsNewInfo.featuresBeforeTracking.contains($0.rawValue) }
         suite.expect(WhatsNewInfo.newFeatures(known: nil, isSupported: { _ in true }) == untracked,
                      "without a record, features added after tracking began are new")
+        suite.expect(WhatsNewInfo.newFeatures(known: nil, isSupported: { _ in true }).contains(.finderNewFile),
+                     "Finder New File is new to users without a saved feature history")
     }
 
     private static func checkSections(_ suite: TestSuite) {

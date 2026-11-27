@@ -4,6 +4,11 @@
 import Foundation
 
 enum FeatureStrings {
+    /// Use the same localized strings as the embedded Finder extension.
+    static func finderNewFile(_ language: AppLanguage) -> FinderNewFileStrings {
+        FinderNewFileStrings.localized(language.rawValue)
+    }
+
     static func settingsCategories(_ language: AppLanguage) -> SettingsCategoryStrings {
         switch language {
         case .enUS: return .enUS

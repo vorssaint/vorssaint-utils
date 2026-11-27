@@ -69,6 +69,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     // MARK: - Lifecycle
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        FinderNewFileService.handleOpenURLs(urls)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         // Before any window exists, so nothing is ever built with the wrong
@@ -178,6 +182,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // One binding per feature: only available features are touched, so a
         // feature switched off in the hub never even instantiates here.
         FeatureRuntime.shared.syncAtLaunch()
+        if !AppFeature.finderNewFile.isAvailable { FinderNewFileService.suspend() }
         if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
             MaxCapacityProbe.shared.refreshIfStale()
         }
@@ -220,7 +225,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         L10n.shared.$language
             .dropFirst()
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.installMainMenu() }
+            .sink { [weak self] _ in
+                self?.installMainMenu()
+                FeatureRuntime.shared.sync([.finderNewFile])
+            }
             .store(in: &cancellables)
 
         let defaults = UserDefaults.standard

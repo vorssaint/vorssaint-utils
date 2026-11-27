@@ -13,6 +13,7 @@ import VMStatisticsCompat
 
 enum UtilitiesFeatureTests {
     static func run(_ suite: TestSuite) {
+        FinderNewFileTests.run(suite)
         // MARK: Port manager parser
 
         let lsofFixture = """

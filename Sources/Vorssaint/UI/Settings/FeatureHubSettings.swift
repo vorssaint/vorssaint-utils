@@ -706,6 +706,32 @@ private struct FeatureHubRow: View {
     }
 
     var body: some View {
+        Group {
+            if feature == .finderNewFile, installed {
+                VStack(alignment: .leading, spacing: 8) {
+                    primaryRow
+                    FinderNewFileExtensionStatus()
+                }
+            } else {
+                primaryRow
+            }
+        }
+        .padding(.vertical, 7)
+        .padding(.horizontal, 8)
+        .background(rowFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .onHover { hovering = $0 }
+        .alert(hub.notchUninstallTitle, isPresented: $confirmingExtensions) {
+            Button(hub.notchUninstallWithExtensions) { flip(to: false, alongside: installedExtensions) }
+            Button(hub.notchUninstallKeepExtensions) { flip(to: false) }
+            Button(hub.presetConfirmCancel, role: .cancel) {}
+        } message: {
+            Text(String(format: hub.notchUninstallMessageFormat,
+                        installedExtensions.map { $0.hubTitle(l10n.s, hub: hub) }
+                            .joined(separator: ", ")))
+        }
+    }
+
+    private var primaryRow: some View {
         HStack(spacing: 12) {
             if opensSettings {
                 Button {
@@ -728,19 +754,6 @@ private struct FeatureHubRow: View {
             }
             metadata
             installAction
-        }
-        .padding(.vertical, 7)
-        .padding(.horizontal, 8)
-        .background(rowFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .onHover { hovering = $0 }
-        .alert(hub.notchUninstallTitle, isPresented: $confirmingExtensions) {
-            Button(hub.notchUninstallWithExtensions) { flip(to: false, alongside: installedExtensions) }
-            Button(hub.notchUninstallKeepExtensions) { flip(to: false) }
-            Button(hub.presetConfirmCancel, role: .cancel) {}
-        } message: {
-            Text(String(format: hub.notchUninstallMessageFormat,
-                        installedExtensions.map { $0.hubTitle(l10n.s, hub: hub) }
-                            .joined(separator: ", ")))
         }
     }
 
@@ -1165,6 +1178,7 @@ extension AppFeature {
         case .pastePlain: return s.pastePlainName
         case .finderCutPaste: return s.cutPasteName
         case .finderRename: return FeatureStrings.finderRename(language).hubTitle
+        case .finderNewFile: return FeatureStrings.finderNewFile(language).title
         case .shelf: return s.shelfName
         case .urlCleaner: return s.urlCleanerName
         case .diskImageInstaller:
@@ -1252,6 +1266,7 @@ extension AppFeature {
         case .pastePlain: return hub.descPastePlain
         case .finderCutPaste: return hub.descFinderCutPaste
         case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubDescription
+        case .finderNewFile: return FeatureStrings.finderNewFile(L10n.shared.language).description
         case .shelf: return hub.descShelf
         case .urlCleaner: return hub.descURLCleaner
         case .diskImageInstaller:

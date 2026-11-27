@@ -46,6 +46,15 @@
 	<array>
 		<string>MacOSX</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.vorssaint.utils.finder-new-file</string>
+			<key>CFBundleURLSchemes</key>
+			<array><string>vorssaint-new-file</string></array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>107</string>
 	<key>LSApplicationCategoryType</key>
@@ -80,6 +89,17 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Vorssaint</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.vorssaint.utils.finder-new-file.reorder</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

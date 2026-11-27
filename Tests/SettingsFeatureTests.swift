@@ -503,6 +503,27 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.finderRenameEnabled)
                 && backupKeys.contains(DefaultsKey.finderRenameShortcut),
                "the Finder rename choice and shortcut travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.finderNewFileEnabled)
+                     && backupKeys.contains(DefaultsKey.finderNewFileKinds)
+                     && backupKeys.contains(DefaultsKey.finderNewFileCustomItems)
+                     && backupKeys.contains(DefaultsKey.finderNewFileItems)
+                     && backupKeys.contains(AppFeature.finderNewFile.availabilityKey),
+                     "new file choices and availability travel with settings backup")
+        let newFileItem = FinderNewFileItem(title: "Report", filename: "Monthly", suffix: "docx",
+            template: .init(id: UUID(), name: "source.docx"), enabled: false)
+        let newFileItems = FinderNewFileItem.encode([newFileItem] + FinderNewFileItem.defaults(nil))
+        let newFileBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+            switch key {
+            case DefaultsKey.finderNewFileItems: return newFileItems
+            case DefaultsKey.finderNewFileEnabled, AppFeature.finderNewFile.availabilityKey: return true
+            default: return nil
+            }
+        }
+        let newFileRestored = SettingsBackupSupport.sanitizedSettings(from: newFileBackup) ?? [:]
+        suite.expect(newFileRestored[DefaultsKey.finderNewFileEnabled] as? Bool == true
+                     && newFileRestored[AppFeature.finderNewFile.availabilityKey] as? Bool == true
+                     && FinderNewFileItem.items(newFileRestored[DefaultsKey.finderNewFileItems] as? String ?? "").first == newFileItem,
+                     "new file backup round trips ordered metadata, visibility, and template references")
         suite.expect(backupKeys.contains(DefaultsKey.textSnippets)
                 && backupKeys.contains(DefaultsKey.textSnippetsEnabled),
                "snippets travel with the settings backup")

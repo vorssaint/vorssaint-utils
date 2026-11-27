@@ -236,6 +236,7 @@ enum SettingsDirectory {
                          state: SettingsSearchState)
         -> [(title: String, items: [SettingsDirectoryItem])] {
         let categories = FeatureStrings.settingsCategories(language)
+        let finderNewFile = FeatureStrings.finderNewFile(language)
         let quitProtection = FeatureStrings.quitProtection(language)
         let brightness = FeatureStrings.brightness(language)
         let bluetooth = FeatureStrings.bluetoothSleep(language)
@@ -512,6 +513,12 @@ enum SettingsDirectory {
                                         (.finderCutPaste, [s.cutPasteEnable]),
                                         (.finderRename,
                                          [FeatureStrings.finderRename(language).enableLabel]),
+                                         (.finderNewFile,
+                                          [finderNewFile.title, finderNewFile.enable, finderNewFile.manage,
+                                            finderNewFile.extensionName, finderNewFile.customTitle, finderNewFile.addItem,
+                                            finderNewFile.menuName, finderNewFile.fileName, finderNewFile.suffixLabel,
+                                            finderNewFile.templateLabel]
+                                            + FinderNewFileKind.allCases.map { $0.title(finderNewFile) }),
                                        ]),
                 SettingsDirectoryItem(page: .shelf, title: s.shelfName, icon: "tray.full",
                                       keywords: [s.shelfEnable, s.shelfDropZoneToggle, s.shelfEdgeToggle,

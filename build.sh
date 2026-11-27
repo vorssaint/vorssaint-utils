@@ -149,6 +149,20 @@ write_swift_output_file_map() {
     } > "$output_file"
 }
 
+sign_finder_new_file_extension() {
+    local extension="$1/Contents/PlugIns/VorssaintFinderNewFile.appex"
+    local identity="$2"
+    [[ -d "$extension" ]] || return 0
+    local options=(--force --strip-disallowed-xattrs
+        --entitlements "$extension/Contents/Resources/Signing.entitlements" --sign "$identity")
+    if [[ "${3:-0}" == "1" ]]; then
+        codesign_with_timestamp_retry "${options[@]}" --options runtime --timestamp "$extension"
+    else
+        /usr/bin/codesign "${options[@]}" "$extension"
+    fi
+    /usr/bin/codesign --verify --strict "$extension"
+}
+
 finalize_installed_bundle_after_child() {
     local bundle="$1"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
@@ -159,19 +173,22 @@ finalize_installed_bundle_after_child() {
     echo "▸ Finalizing installed signature…"
     sleep 3
     if [[ -n "$devid" ]]; then
+        sign_finder_new_file_extension "$bundle" "$devid" 1
         [[ -f "$helper" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
             --options runtime --timestamp --identifier "$FAN_HELPER_ID" --sign "$devid" "$helper"
         [[ -f "$adapter" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
             --options runtime --timestamp --identifier "$NOW_PLAYING_ADAPTER_ID" --sign "$devid" "$adapter"
         codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
-            --entitlements "$ENTITLEMENTS" --sign "$devid" "$bundle"
+            --entitlements "$bundle/Contents/Resources/Signing.entitlements" --sign "$devid" "$bundle"
     elif legacy_identity_installed; then
+        sign_finder_new_file_extension "$bundle" "$LEGACY_IDENTITY"
         [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$FAN_HELPER_ID" --sign "$LEGACY_IDENTITY" "$helper"
         [[ -f "$adapter" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$NOW_PLAYING_ADAPTER_ID" --sign "$LEGACY_IDENTITY" "$adapter"
         /usr/bin/codesign --force --strip-disallowed-xattrs --sign "$LEGACY_IDENTITY" "$bundle"
     else
+        sign_finder_new_file_extension "$bundle" -
         [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$FAN_HELPER_ID" --sign - "$helper"
         [[ -f "$adapter" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
@@ -368,6 +385,9 @@ if (( TEST )); then
         Sources/Vorssaint/UI/MenuPanel/WallpaperThumbnailView.swift
         Sources/Vorssaint/Core/ScratchpadStrings.swift
         Sources/Vorssaint/Core/FinderRenameStrings.swift
+        Sources/Vorssaint/Core/FinderNewFileStrings.swift
+        Sources/Vorssaint/Core/FinderNewFileSupport.swift
+        Sources/Vorssaint/Services/Finder/FinderNewFileCreator.swift
         Sources/Vorssaint/Core/CommandBarStrings.swift
         Sources/Vorssaint/Core/FeedbackStrings.swift
         Sources/Vorssaint/Core/RadialMenuStrings.swift
@@ -653,6 +673,15 @@ swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -enable-batch-mode -j "$(sysc
     "${APP_SOURCES[@]}" "${GIF_CODEC_OBJECTS[@]}" -o "build/$EXECUTABLE"
 xcrun dyld_info -imports "build/$EXECUTABLE" | awk -f Tests/AudioTapImports.awk
 
+echo "▸ Compiling Finder New File extension…"
+swiftc -O -parse-as-library -application-extension -emit-executable \
+    -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+    Sources/FinderNewFileExtension/FinderNewFileExtension.swift \
+    Sources/Vorssaint/Core/FinderNewFileSupport.swift \
+    Sources/Vorssaint/Core/FinderNewFileStrings.swift \
+    -framework AppKit -framework FinderSync -Xlinker -e -Xlinker _NSExtensionMain \
+    -o build/VorssaintFinderNewFile
+
 echo "▸ Compiling protected fan helper…"
 swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
     Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
@@ -722,6 +751,15 @@ cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
+FINDER_EXTENSION="$STAGE/Contents/PlugIns/VorssaintFinderNewFile.appex"
+mkdir -p "$FINDER_EXTENSION/Contents/MacOS" "$FINDER_EXTENSION/Contents/Resources"
+cp build/VorssaintFinderNewFile "$FINDER_EXTENSION/Contents/MacOS/"
+cp Resources/FinderNewFileExtension/Info.plist "$FINDER_EXTENSION/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $APP_BUNDLE_ID.finder-new-file" "$FINDER_EXTENSION/Contents/Info.plist"
+for lproj in Resources/FinderNewFileExtension/*.lproj(N); do
+    cp -R "$lproj" "$FINDER_EXTENSION/Contents/Resources/"
+done
+cp -R Resources/FinderNewFileTemplates "$STAGE/Contents/Resources/"
 cp CHANGELOG.md "$STAGE/Contents/Resources/CHANGELOG.md"
 for lproj in Resources/*.lproj(N); do
     cp -R "$lproj" "$STAGE/Contents/Resources/"
@@ -730,6 +768,8 @@ if (( DEV )); then
     # A distinct identity so the Developer build installs and runs next to the
     # official app, with its own permissions, preferences and login item.
     /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $APP_BUNDLE_ID" "$STAGE/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLName $APP_BUNDLE_ID.finder-new-file" "$STAGE/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 vorssaint-dev-new-file" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleName $APP_NAME" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $APP_NAME" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $EXECUTABLE" "$STAGE/Contents/Info.plist"
@@ -788,14 +828,24 @@ xattr -c -r "$STAGE" 2>/dev/null || true
 #      designated requirement across their local builds.
 #   3. Ad-hoc — fresh clone with no identity at all.
 DEVID="$(developer_id_identity)"
+# Both builds use the same read-only domain for menu presentation; only
+# the bundle identifier differs. File requests are authenticated separately.
+cp "$ENTITLEMENTS" "$STAGE/Contents/Resources/Signing.entitlements"
+FINDER_MENU_ENTITLEMENTS="$FINDER_EXTENSION/Contents/Resources/Signing.entitlements"
+cp Resources/FinderNewFileExtension/Entitlements.plist "$FINDER_MENU_ENTITLEMENTS"
+/usr/libexec/PlistBuddy -c 'Add :com.apple.security.temporary-exception.shared-preference.read-only array' "$FINDER_MENU_ENTITLEMENTS"
+/usr/libexec/PlistBuddy -c "Add :com.apple.security.temporary-exception.shared-preference.read-only:0 string $APP_BUNDLE_ID.finder-new-file-menu" "$FINDER_MENU_ENTITLEMENTS"
 codesign_app() {
     local target="$1"
     if [[ -n "$DEVID" ]]; then
+        sign_finder_new_file_extension "$target" "$DEVID" 1
         codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
-            --entitlements "$ENTITLEMENTS" --sign "$DEVID" "$target"
+            --entitlements "$target/Contents/Resources/Signing.entitlements" --sign "$DEVID" "$target"
     elif legacy_identity_installed; then
+        sign_finder_new_file_extension "$target" "$LEGACY_IDENTITY"
         codesign --force --strip-disallowed-xattrs --sign "$LEGACY_IDENTITY" "$target"
     else
+        sign_finder_new_file_extension "$target" -
         codesign --force --strip-disallowed-xattrs --sign - "$target"
     fi
 }
