@@ -706,28 +706,33 @@ private struct FeatureHubRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            if opensSettings {
-                Button {
-                    SettingsRouter.shared.request(feature.settingsDestination,
-                                                  sidebarFeature: feature)
-                } label: {
-                    rowContent(showsChevron: true)
-                }
-                .buttonStyle(.plain)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
-                .accessibilityAddTraits(.isLink)
-                .accessibilityRemoveTraits(.isButton)
-            } else {
-                rowContent(showsChevron: false)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                if opensSettings {
+                    Button {
+                        SettingsRouter.shared.request(feature.settingsDestination,
+                                                      sidebarFeature: feature)
+                    } label: {
+                        rowContent(showsChevron: true)
+                    }
+                    .buttonStyle(.plain)
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
-                    .opacity(unsupportedReason == nil ? 1 : 0.4)
-                    .saturation(unsupportedReason == nil ? 1 : 0)
+                    .accessibilityAddTraits(.isLink)
+                    .accessibilityRemoveTraits(.isButton)
+                } else {
+                    rowContent(showsChevron: false)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
+                        .opacity(unsupportedReason == nil ? 1 : 0.4)
+                        .saturation(unsupportedReason == nil ? 1 : 0)
+                }
+                metadata
+                installAction
             }
-            metadata
-            installAction
+            if feature == .finderNewFile, installed {
+                FinderNewFileExtensionStatus(missingOnly: true)
+            }
         }
         .padding(.vertical, 7)
         .padding(.horizontal, 8)

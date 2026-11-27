@@ -15,7 +15,10 @@ enum FinderNewFileTests {
         for language in AppLanguage.allCases {
             let strings = FinderNewFileStrings.localized(language.rawValue)
             suite.expect(!strings.title.isEmpty && !strings.description.isEmpty
-                         && !strings.manage.isEmpty && !strings.error.isEmpty,
+                         && !strings.manage.isEmpty && !strings.error.isEmpty
+                         && !strings.extensionName.isEmpty && !strings.extensionEnabled.isEmpty
+                         && !strings.extensionDisabled.isEmpty && !strings.extensionHelp.isEmpty
+                         && strings.extensionEnabled != strings.extensionDisabled,
                          "localized Finder labels are complete: \(language)")
         }
 

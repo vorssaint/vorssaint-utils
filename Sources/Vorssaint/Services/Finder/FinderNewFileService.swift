@@ -33,12 +33,15 @@ enum FinderNewFileService {
         catch { NSLog("Vorssaint Finder menu preferences could not be shared: %@", error.localizedDescription) }
     }
 
+    /// Reports the system's enablement state, not whether Finder has launched the extension process.
+    static var extensionEnabled: Bool { FIFinderSyncController.isExtensionEnabled }
+
     static func openExtensionSettings() {
         FIFinderSyncController.showExtensionManagementInterface()
     }
 
     static func handle(_ request: FinderNewFileRequest) {
-        guard enabled, FIFinderSyncController.isExtensionEnabled, kinds.contains(request.kind),
+        guard enabled, extensionEnabled, kinds.contains(request.kind),
               replayGuard.accept(request) else { return }
         do {
             _ = try FinderNewFileCreator.create(request.kind, in: request.directory,
