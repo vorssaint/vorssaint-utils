@@ -3144,6 +3144,14 @@ enum NotchAgentTests {
                         && AgentClaudeAppUsage.limits(from: accounts, now: now, organization: "z") == nil
                         && AgentClaudeAppUsage.limits(from: accounts, now: now)?.windows.map(\.usedPercent) == [90, 95],
                      "limits follow the account Claude Code signs in to, not whichever one the app shows")
+        let untagged = AgentClaudeAppUsage.Sample(date: now, organization: nil, used: ["sd": 99])
+        let mixed = accounts + [untagged]
+        suite.expect(AgentClaudeAppUsage.limits(from: mixed, now: now, organization: "o") == AgentClaudeAppUsage.limits(from: accounts, now: now, organization: "o")
+                        && AgentClaudeAppUsage.limits(from: mixed, now: now, organization: "z") == nil,
+                     "an untagged desktop sample never supersedes a known organization's reading in mixed history")
+        suite.expect(AgentClaudeAppUsage.limits(from: [untagged], now: now, organization: "o")?.windows.first?.usedPercent == 99
+                        && AgentClaudeAppUsage.limits(from: mixed, now: now)?.windows.first?.usedPercent == 99,
+                     "legacy untagged history and unscoped desktop views keep their latest reading")
         let continuous = AgentClaudeAppUsage.samples(from: history([
             ("2026-09-23T10:05:00Z", "o", ["fh": 3, "sd": 10]), ("2026-09-23T14:55:00Z", "o", ["fh": 85, "sd": 20]),
             ("2026-09-23T15:05:00Z", "o", ["fh": 4, "sd": 21]), ("2026-09-23T15:20:00Z", "o", ["fh": 12, "sd": 22])])) ?? []
