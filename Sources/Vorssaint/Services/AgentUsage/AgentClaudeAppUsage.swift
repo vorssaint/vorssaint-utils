@@ -23,7 +23,9 @@ enum AgentClaudeAppUsage {
 
     /// When the app last saved its limits, straight from the file.
     static func lastCheck(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> Date? {
-        (try? Data(contentsOf: historyURL(home: home))).flatMap(samples)?.last?.date
+        guard let data = try? Data(contentsOf: historyURL(home: home)), let samples = samples(from: data) else { return nil }
+        let organization = ClaudeAccountProfile().read(home: home).identity?.organization
+        return readings(samples, organization: organization).last?.date
     }
 
     struct Sample: Equatable {
@@ -109,8 +111,11 @@ enum AgentClaudeAppUsage {
 
     /// The app may be signed in to another account than Claude Code; its
     /// limits say nothing about this one.
-    private static func readings(_ samples: [Sample], organization: String?) -> [Sample] {
-        organization.map { account in samples.filter { $0.organization == nil || $0.organization == account } } ?? samples
+    static func readings(_ samples: [Sample], organization: String?) -> [Sample] {
+        // Older histories can be entirely untagged. Once tags are available,
+        // an anonymous sample cannot establish which organization used it.
+        guard let organization, samples.contains(where: { $0.organization != nil }) else { return samples }
+        return samples.filter { $0.organization == organization }
     }
 
     private static func sessionEnd(_ history: [Sample], used: Double, start: Date?, length: TimeInterval)

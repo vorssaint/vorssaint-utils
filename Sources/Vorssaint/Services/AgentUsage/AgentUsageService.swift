@@ -716,9 +716,8 @@ final class AgentUsageService: ObservableObject {
                                   cursorLastActivity: transcripts.compactMap(\.state.cursorLastActivity).max())
         published = next
         checkBudget(next)
-        let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
-            claudeOrganization == nil || $0.organization == nil || $0.organization == claudeOrganization
-        })?.date : nil
+        let checked = enabled.contains(.claude)
+            ? AgentClaudeAppUsage.readings(claudeAppSamples, organization: claudeOrganization).last?.date : nil
         let listed = AgentPricing.list.updated
         let prices = listed == AgentPriceList.empty.updated ? nil : listed
         let identity = claudeIdentity
