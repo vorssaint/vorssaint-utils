@@ -46,10 +46,81 @@ enum FinderNewFileKind: String, CaseIterable, Codable {
     }
 }
 
+/// User-editable definitions live only in the host's preferences. The menu
+/// snapshot contains a separate, minimal projection with no template data.
+struct FinderNewFileCustomItem: Codable, Identifiable, Equatable {
+    struct Template: Codable, Equatable {
+        let id: UUID
+        let name: String
+    }
+
+    var id = UUID()
+    var title = ""
+    var filename = "Untitled"
+    var suffix = ""
+    var template: Template?
+
+    static let maximum = 32
+    static let maximumTemplateBytes = 64 * 1024 * 1024
+
+    var normalized: Self? {
+        var item = self
+        item.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        item.filename = filename.trimmingCharacters(in: .whitespacesAndNewlines)
+        item.suffix = suffix.trimmingCharacters(in: .whitespacesAndNewlines)
+        if item.suffix.hasPrefix(".") { item.suffix.removeFirst() }
+        guard !item.title.isEmpty, item.title.utf8.count <= 120,
+              !item.title.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+              Self.validComponent(item.filename),
+              item.suffix.isEmpty || Self.validComponent(item.suffix),
+              !item.suffix.hasPrefix("."), !item.suffix.hasSuffix("."),
+              !item.filename.hasSuffix("."),
+              item.outputName.utf8.count <= 220 else { return nil }
+        if let template = item.template {
+            guard !template.name.isEmpty, template.name.utf8.count <= 1024 else { return nil }
+        }
+        return item
+    }
+
+    private static func validComponent(_ name: String) -> Bool {
+        !name.isEmpty && name != "." && name != ".."
+            && !name.contains("/") && !name.contains(":")
+            && !name.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+    }
+
+    var outputName: String { filename + (suffix.isEmpty ? "" : "." + suffix) }
+
+    var menuItem: FinderNewFileCustomMenuItem {
+        FinderNewFileCustomMenuItem(id: id, title: title)
+    }
+
+    static func decode(_ raw: String) -> [Self] {
+        guard raw.utf8.count <= 128 * 1024,
+              let items = try? JSONDecoder().decode([Self].self, from: Data(raw.utf8)) else { return [] }
+        var ids = Set<UUID>()
+        return Array(items.compactMap(\.normalized).filter { ids.insert($0.id).inserted }.prefix(maximum))
+    }
+
+    static func encode(_ items: [Self]) -> String {
+        guard let data = try? JSONEncoder().encode(items) else { return "[]" }
+        return String(decoding: data, as: UTF8.self)
+    }
+}
+
+struct FinderNewFileCustomMenuItem: Codable, Equatable {
+    let id: UUID
+    let title: String
+}
+
 struct FinderNewFileSnapshot: Codable {
     let enabled: Bool
     let language: String
     let selection: String
+    var customItems: [FinderNewFileCustomMenuItem]? = nil
+
+    var customMenu: [FinderNewFileCustomMenuItem] {
+        Array((customItems ?? []).prefix(FinderNewFileCustomItem.maximum))
+    }
 
     var kinds: [FinderNewFileKind] { FinderNewFileKind.selection(selection) }
 }
@@ -58,13 +129,23 @@ struct FinderNewFileSnapshot: Codable {
 /// The host separately authenticates the system-provided Apple event sender.
 struct FinderNewFileRequest: Codable, Equatable {
     let id: UUID
-    let kind: FinderNewFileKind
+    let kind: FinderNewFileKind?
+    let customID: UUID?
     let directory: URL
     let createdAt: Date
 
     init(kind: FinderNewFileKind, directory: URL, id: UUID = UUID(), createdAt: Date = Date()) {
         self.id = id
         self.kind = kind
+        self.customID = nil
+        self.directory = directory
+        self.createdAt = createdAt
+    }
+
+    init(customID: UUID, directory: URL, id: UUID = UUID(), createdAt: Date = Date()) {
+        self.id = id
+        self.kind = nil
+        self.customID = customID
         self.directory = directory
         self.createdAt = createdAt
     }
@@ -82,7 +163,8 @@ struct FinderNewFileRequest: Codable, Equatable {
 
     func isValid(now: Date = Date()) -> Bool {
         let age = now.timeIntervalSince(createdAt)
-        return age >= -2 && age <= Self.maximumAge && Self.isLocalDirectoryURL(directory)
+        return (kind != nil) != (customID != nil) && age >= -2 && age <= Self.maximumAge
+            && Self.isLocalDirectoryURL(directory)
     }
 
     static var scheme: String {
@@ -144,7 +226,7 @@ enum FinderNewFileExchange {
         CFPreferencesSynchronize(menuDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
         guard let data = CFPreferencesCopyValue(snapshotKey, menuDomain,
                                                 kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? Data,
-              data.count <= 4_096 else { return nil }
+              data.count <= 32_768 else { return nil }
         return try? JSONDecoder().decode(FinderNewFileSnapshot.self, from: data)
     }
 }

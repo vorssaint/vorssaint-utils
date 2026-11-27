@@ -18,6 +18,10 @@ enum FinderNewFileService {
         FinderNewFileKind.selection(UserDefaults.standard.string(forKey: DefaultsKey.finderNewFileKinds))
     }
 
+    private static var customItems: [FinderNewFileCustomItem] {
+        FinderNewFileCustomItem.decode(UserDefaults.standard.string(forKey: DefaultsKey.finderNewFileCustomItems) ?? "[]")
+    }
+
     static func syncWithPreferences() {
         publish(enabled: enabled)
     }
@@ -28,7 +32,8 @@ enum FinderNewFileService {
 
     private static func publish(enabled: Bool) {
         let snapshot = FinderNewFileSnapshot(enabled: enabled,
-            language: L10n.shared.language.rawValue, selection: kinds.map(\.rawValue).joined(separator: ","))
+            language: L10n.shared.language.rawValue, selection: kinds.map(\.rawValue).joined(separator: ","),
+            customItems: enabled ? customItems.map(\.menuItem) : [])
         do { try FinderNewFileExchange.publish(snapshot) }
         catch { NSLog("Vorssaint Finder menu preferences could not be shared: %@", error.localizedDescription) }
     }
@@ -55,11 +60,15 @@ enum FinderNewFileService {
     }
 
     private static func handle(_ request: FinderNewFileRequest) {
-        guard enabled, extensionEnabled, kinds.contains(request.kind),
-              replayGuard.accept(request) else { return }
+        guard enabled, extensionEnabled, replayGuard.accept(request) else { return }
         do {
-            _ = try FinderNewFileCreator.create(request.kind, in: request.directory,
-                templates: Bundle.main.resourceURL?.appendingPathComponent("FinderNewFileTemplates", isDirectory: true))
+            if let kind = request.kind, kinds.contains(kind) {
+                _ = try FinderNewFileCreator.create(kind, in: request.directory,
+                    templates: Bundle.main.resourceURL?.appendingPathComponent("FinderNewFileTemplates", isDirectory: true))
+            } else if let id = request.customID, let item = customItems.first(where: { $0.id == id }) {
+                _ = try FinderNewFileCreator.create(item, in: request.directory,
+                    templateDirectory: FinderNewFileTemplateStore.directory)
+            }
         } catch {
             let strings = FeatureStrings.finderNewFile(L10n.shared.language)
             let alert = NSAlert()

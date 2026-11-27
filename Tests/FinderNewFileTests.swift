@@ -56,6 +56,42 @@ enum FinderNewFileTests {
             } catch {
                 suite.expect(true, "missing document template rejected")
             }
+            var custom = FinderNewFileCustomItem(title: "Python", filename: "main", suffix: ".py")
+            guard let normalized = custom.normalized else {
+                suite.expect(false, "valid custom item"); return
+            }
+            custom = normalized
+            let customFirst = try FinderNewFileCreator.create(custom, in: directory, templateDirectory: nil)
+            let customSecond = try FinderNewFileCreator.create(custom, in: directory, templateDirectory: nil)
+            suite.expect(customFirst.lastPathComponent == "main.py" && customSecond.lastPathComponent == "main 2.py",
+                         "custom filename and suffix use exclusive numbered creation")
+            suite.expect(try Data(contentsOf: customFirst).isEmpty, "custom blank file is empty")
+            var invalid = custom
+            invalid.filename = "../outside"
+            suite.expect(invalid.normalized == nil, "reject path traversal in custom filename")
+            invalid = custom
+            invalid.suffix = "/txt"
+            suite.expect(invalid.normalized == nil, "reject path separators in custom suffix")
+            suite.expect(FinderNewFileCustomItem.decode(FinderNewFileCustomItem.encode([custom, custom, invalid])) == [custom],
+                         "custom settings round trip and reject duplicate/invalid entries")
+            let customRequest = FinderNewFileRequest(customID: custom.id, directory: directory)
+            suite.expect(customRequest.url.flatMap { FinderNewFileRequest.decode($0) } == customRequest,
+                         "custom request carries a registered item ID")
+            let store = directory.appendingPathComponent("templates")
+            let source = directory.appendingPathComponent("source.txt")
+            let contents = Data("template contents".utf8)
+            try contents.write(to: source)
+            custom.template = try FinderNewFileTemplateStore.importFile(source, into: store, container: directory)
+            try FileManager.default.removeItem(at: source)
+            let copy = try FinderNewFileCreator.create(custom, in: directory, templateDirectory: store)
+            suite.expect(try Data(contentsOf: copy) == contents, "imported template survives source removal")
+            FinderNewFileTemplateStore.remove(custom.template!, from: store)
+            do {
+                _ = try FinderNewFileCreator.create(custom, in: directory, templateDirectory: store)
+                suite.expect(false, "missing custom template must not silently create an empty file")
+            } catch {
+                suite.expect(true, "missing custom template rejected")
+            }
             let request = FinderNewFileRequest(kind: .excel, directory: directory)
             if let url = request.url {
                 suite.expect(FinderNewFileRequest.decode(url) == request, "creation request round trips")
