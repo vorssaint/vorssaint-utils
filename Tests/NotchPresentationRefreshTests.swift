@@ -191,6 +191,9 @@ enum NotchPresentationRefreshContract {
         var showingSections = false
         var showingAppPanel = false
         var showingCommandBar = false
+        var timerHistoryVisible = false
+        var pageLayers: [NotchModule: () -> Void] = [:]
+        func setPageLayer(_ module: NotchModule, close: (() -> Void)?) { pageLayers[module] = close }
         var commandBarClosings = 0
         func commandBarDidClose() { commandBarClosings += 1 }
         func flushMascotReaction() {}

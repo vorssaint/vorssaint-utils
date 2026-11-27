@@ -6,7 +6,7 @@ import CoreGraphics
 import Foundation
 
 enum NotchTimerMode: String, CaseIterable { case timer, pomodoro, stopwatch }
-enum NotchTimerPhase: String { case timer, focus, shortBreak, longBreak, stopwatch }
+enum NotchTimerPhase: String, Codable { case timer, focus, shortBreak, longBreak, stopwatch }
 
 enum NotchTimerRulerScale {
     static let spacing = 14.0

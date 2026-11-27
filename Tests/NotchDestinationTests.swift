@@ -103,6 +103,7 @@ enum NotchDestinationContract {
         var showingAppPanel = false
         var showingSections = false
         var showingCommandBar = false
+        var timerHistoryVisible = false
         var commandBarClosings = 0
         func commandBarDidClose() { commandBarClosings += 1 }
         var sectionQuery = ""
@@ -692,8 +693,14 @@ enum NotchDestinationContract {
                 defaults.set(true, forKey: DefaultsKey.notchOpensActivity)
             }
             let hidden = Service()
+            hidden.syncWithPreferences()
+            hidden.open(.timer)
+            hidden.timerHistoryVisible = true
+            hidden.setPageLayer(.timer) {}
             defaults.set("timer", forKey: DefaultsKey.notchHiddenModules)
             hidden.syncWithPreferences()
+            expect(!hidden.timerHistoryVisible && hidden.pageLayers[.timer] == nil,
+                   "hiding the timer also dismisses its history layer")
             hidden.compactActivity = .timer
             hidden.open()
             expect(hidden.selected == .controls && !hidden.modules.contains(.timer),

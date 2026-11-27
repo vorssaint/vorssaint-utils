@@ -181,6 +181,7 @@ final class NotchService: ObservableObject {
     @Published private var fanDetailHeight: CGFloat?
     @Published private(set) var power = PowerReading()
     @Published private var musicDetailVisible = false
+    @Published private(set) var timerHistoryVisible = false
 
     private var windowHost: NotchWindowHost?
     private var panel: NotchPanel? { windowHost?.panel }
@@ -849,7 +850,8 @@ final class NotchService: ObservableObject {
                         fileMediaHeight: !choosingFileDropDestination && AppFeature.mediaTools.isAvailable
                             && NotchFileToolsService.shared.mediaPresented ? NotchFileToolsService.shared.mediaContentHeight : nil,
                         toolCount: launcher.isEditing || launcher.activeUtility != nil ? nil : launcher.visibleItems.count,
-                        capturePreviewHeight: captureContent == nil ? nil : captureContentHeight)
+                        capturePreviewHeight: captureContent == nil ? nil : captureContentHeight,
+                        timerHistoryVisible: timerHistoryVisible)
     }
 
     /// The open island as Settings previews a section: at rest, with no
@@ -886,7 +888,7 @@ final class NotchService: ObservableObject {
 
     private func pageSize(in geometry: NotchGeometry, module: NotchModule, detail: Bool, panel: Bool,
                           detailHeight: CGFloat?, musicExtraHeight: CGFloat, fileMediaHeight: CGFloat?, toolCount: Int?,
-                          capturePreviewHeight: CGFloat?) -> CGSize {
+                          capturePreviewHeight: CGFloat?, timerHistoryVisible: Bool = false) -> CGSize {
         let controls = NotchSupport.controls()
         let sliders = controls.filter(\.isLevel).count
         let shortcuts = controls.filter { !$0.isLevel && $0 != .music }.count
@@ -901,6 +903,7 @@ final class NotchService: ObservableObject {
                                      timerHasSession: NotchTimerService.shared.session.hasSession,
                                      timerMode: NotchTimerService.shared.session.hasSession
                                         ? NotchTimerService.shared.session.mode : NotchTimerSupport.savedMode(),
+                                     timerHistoryVisible: timerHistoryVisible,
                                      agentsHeight: module == .agents && !detail && !panel
                                         ? agentsContentHeight(width: geometry.contentWidth) : nil)
     }
@@ -1275,7 +1278,10 @@ final class NotchService: ObservableObject {
         let updated = NotchSupport.modules()
         if modules != updated { modules = updated }
         let selection = modules.contains(selected) ? selected : modules.first ?? .controls
-        if selected != selection { selected = selection }
+        if selected != selection {
+            closeTimerHistory()
+            selected = selection
+        }
         if let selectedMetric, !metricIsAvailable(selectedMetric) { self.selectedMetric = nil }
     }
 
@@ -1330,6 +1336,7 @@ final class NotchService: ObservableObject {
         }
         captureControlsWork?.cancel(); captureControlsWork = nil
         musicDetailVisible = false
+        timerHistoryVisible = false
         pageLayers.removeAll()
         clipboardPinnedOnly = false
         panel?.handleScroll = nil
@@ -1489,6 +1496,7 @@ final class NotchService: ObservableObject {
         // An open page is followed again only from an exit report.
         if !expanded { removeHoverExitMonitors() }
         mutatePresentation(transitionContent: changesPresentation ? (expanded ? .replace : .reveal) : .none) {
+            if changesPresentation { closeTimerHistory() }
             showingCommandBar = false
             showingAppPanel = appPanel
             showingSections = sections
@@ -1520,6 +1528,7 @@ final class NotchService: ObservableObject {
         hoverWork?.cancel(); hoverWork = nil
         if noticeExpanded { noticeWork?.cancel(); noticeWork = nil }
         mutatePresentation(transitionContent: expanded || peeking || noticeExpanded ? .dismiss : .none) {
+            closeTimerHistory()
             if noticeExpanded { notice = nil; noticeExpanded = false }
             expanded = false
             openedByHover = false
@@ -1574,6 +1583,29 @@ final class NotchService: ObservableObject {
         guard mode != NotchTimerSupport.savedMode() else { return }
         UserDefaults.standard.set(mode.rawValue, forKey: DefaultsKey.notchTimerMode)
         refreshPresentation(transitionContent: .replace)
+    }
+
+    func setTimerHistoryVisible(_ visible: Bool) {
+        guard visible != timerHistoryVisible else { return }
+        if visible {
+            guard expanded, selected == .timer, selectedMetric == nil,
+                  !showingSections, !showingAppPanel, !showingCommandBar, NotchTimerSupport.isEnabled() else { return }
+            NotchTimerService.shared.loadHistory()
+        }
+        mutatePresentation(transitionContent: .replace) {
+            if visible {
+                timerHistoryVisible = true
+                setPageLayer(.timer) { [weak self] in self?.setTimerHistoryVisible(false) }
+            } else {
+                closeTimerHistory()
+            }
+        }
+    }
+
+    private func closeTimerHistory() {
+        guard timerHistoryVisible else { return }
+        timerHistoryVisible = false
+        setPageLayer(.timer, close: nil)
     }
 
     @discardableResult
@@ -2103,6 +2135,7 @@ final class NotchService: ObservableObject {
         // A Command Bar open in the island closes with it, or it would keep
         // the island's keys while the controls are up.
         let closesCommandBar = showingCommandBar
+        closeTimerHistory()
         showingCommandBar = false
         expanded = false
         showingSections = false
@@ -4965,6 +4998,7 @@ extension NotchService {
         hoverWork?.cancel()
         if !expanded { removeHoverExitMonitors() }
         mutatePresentation(transitionContent: expanded ? .replace : .reveal) {
+            closeTimerHistory()
             showingCommandBar = true
             showingAppPanel = false
             showingSections = false

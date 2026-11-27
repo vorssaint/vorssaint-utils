@@ -77,6 +77,15 @@ extension NotchPresentationRefreshContract {
         suite.expect(!bar.showingCommandBar && !bar.expanded && bar.commandBarClosings == 1,
                      "capture controls close a Command Bar open in the island")
         bar.endCaptureControls()
+
+        let history = Service()
+        history.expanded = true
+        history.timerHistoryVisible = true
+        history.setPageLayer(.timer, close: {})
+        history.presentCaptureControls(CaptureOptions(), cancel: {})
+        suite.expect(!history.timerHistoryVisible && history.pageLayers[.timer] == nil,
+                     "opening capture controls dismisses the Pomodoro history and its Escape handler")
+        history.endCaptureControls()
         NSEvent.monitorRemovals = 0
 
         let idle = begin()

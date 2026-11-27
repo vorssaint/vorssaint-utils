@@ -39,6 +39,7 @@ enum NotchCompactTests {
         var scratchpadFindAction = NSTextFinder.Action.showFindInterface
         var contentSize = CGSize(width: 304, height: 122)
         var selected = NotchModule.controls
+        var timerHistoryVisible = false
         var musicShowsVolume = false
         var notice: NotchNotice?
         var showingSections = false

@@ -1920,7 +1920,8 @@ def main():
               "    private func setCaptureSelectionInProgress(", "    func scheduleCaptureControlsCollapse(",
               "    private func updateCaptureControlsHover(", "    private func updateCaptureControlsClickThrough()",
               "    private func removeCaptureControlsClickThrough()", "    private func missionControlDidRestore()",
-              "    func endCaptureControls()", "    var stripNotice:", "    private var noticeCanPresent:",
+              "    func endCaptureControls()", "    private func closeTimerHistory()",
+              "    var stripNotice:", "    private var noticeCanPresent:",
               "    private func dismissNotice(", "    private func endDeparture(", "    private func mutatePresentation("])
           + declaration(notch, "    func presentCaptureControls(")
               .replace("ScreenCaptureSelectionOptions", "CaptureOptions")
@@ -2032,6 +2033,7 @@ def main():
           + declaration(notch, "    func goBack()")
           + declaration(notch, "    private func stepBack()").replace("private func", "func", 1)
           + declaration(notch, "    func setPageLayer(")
+          + declaration(notch, "    private func closeTimerHistory(")
           + declaration(notch, "    func openAppPanel(")
           + declaration(notch, "    func showMetric(")
           + declaration(notch, "    var reopeningDestination:")

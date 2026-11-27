@@ -269,7 +269,9 @@ if (( TEST )); then
         Sources/Vorssaint/Core/NotchEditorStrings.swift
         Sources/Vorssaint/UI/Settings/NotchSettingsTabRow.swift
         Sources/Vorssaint/Core/NotchActivityStrings.swift
+        Sources/Vorssaint/Core/NotchPomodoroHistoryStrings.swift
         Sources/Vorssaint/Services/Notch/NotchTimerSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchPomodoroHistory.swift
         Sources/Vorssaint/Services/Notch/NotchAppFullscreen.swift
         Sources/Vorssaint/Services/Notch/NotchTimerAlert.swift
         Sources/Vorssaint/UI/Notch/NotchIslandAlert.swift

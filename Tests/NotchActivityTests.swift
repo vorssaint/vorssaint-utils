@@ -11,6 +11,7 @@ enum NotchActivityTests {
         alertContracts(suite)
         lowBatteryContracts(suite)
         pomodoroContracts(suite)
+        pomodoroHistoryContracts(suite)
         stopwatchContracts(suite)
         modePickerContracts(suite)
         rulerContracts(suite)
@@ -436,6 +437,138 @@ enum NotchActivityTests {
                && geometry.contentSize(for: setup).height <= geometry.contentBudget
                && geometry.contentSize(for: active).height == NotchLayout.timerRulerHeight && active.height < setup.height,
                "the Pomodoro setup fits the strip with its readouts under the ruler; running, its progress is in the top row and the island shortens")
+    }
+
+    private static func pomodoroHistoryContracts(_ suite: TestSuite) {
+        let date = Date(timeIntervalSince1970: 1_764_590_400)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        var session = NotchTimerSession()
+        session.start(mode: .timer, minutes: 1, now: 0)
+        session.finishIfDue(at: 60)
+        suite.expect(NotchPomodoroHistory.Entry(session: session, completedAt: date) == nil,
+                     "ordinary countdowns never appear in Pomodoro history")
+        session.cancel()
+        session.start(mode: .pomodoro, minutes: 25, now: 0)
+        session.pause(at: 60)
+        suite.expect(NotchPomodoroHistory.Entry(session: session, completedAt: date) == nil,
+                     "an unfinished Pomodoro phase cannot be recorded")
+        var cancelled = session
+        cancelled.cancel()
+        suite.expect(NotchPomodoroHistory.Entry(session: cancelled, completedAt: date) == nil,
+                     "cancelling a Pomodoro does not add a history entry")
+        session.resume(at: 600)
+        session.finishIfDue(at: 2040)
+        let breakEnd = date.addingTimeInterval(300)
+        guard let focus = NotchPomodoroHistory.Entry(session: session, completedAt: date) else {
+            suite.expect(false, "a finished focus phase can be recorded")
+            return
+        }
+        session.startNext(at: 2040)
+        session.finishIfDue(at: 2340)
+        guard let rest = NotchPomodoroHistory.Entry(session: session, completedAt: breakEnd) else {
+            suite.expect(false, "a finished break can be recorded")
+            return
+        }
+        let entries = [rest, focus]
+        let days = NotchPomodoroHistory.days(entries, calendar: calendar)
+        suite.expect(days.count == 1 && days.first?.entries == entries
+                     && days.first?.focusSeconds == 1500 && days.first?.breakSeconds == 300,
+                     "daily focus and break totals exclude pauses and use the completed phases")
+        let csv = NotchPomodoroHistory.csv(entries).components(separatedBy: "\r\n")
+        suite.expect(csv.count == 4 && csv.first == "completed_at,phase,duration_seconds"
+                     && csv[1].hasSuffix("Z,focus,1500") && csv[2].hasSuffix("Z,shortBreak,300"),
+                     "CSV exports chronological UTC timestamps, phase identifiers and durations")
+
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: date)!
+        let earlier = NotchPomodoroHistory.Entry(session: session, completedAt: yesterday)!
+        var snapshot = NotchPomodoroHistory.Snapshot(calendar: calendar, readFailed: false, days: days)
+        snapshot.insert(earlier)
+        let week = snapshot.recentDays(through: date)
+        suite.expect(week.count == 7 && week[4].entries.isEmpty && week[5].entries == [earlier]
+                     && week[6].focusSeconds == 1500 && week[6].breakSeconds == 300,
+                     "weekly activity fills idle dates, posts older entries on their local day and includes today")
+        suite.expect(snapshot.day(containing: date.addingTimeInterval(60)).entries == entries
+                     && snapshot.day(containing: week[4].date).entries.isEmpty,
+                     "choosing a date returns only its own intervals, including empty days")
+        let past = calendar.date(byAdding: .month, value: -3, to: date)!
+        let monthStart = calendar.dateInterval(of: .month, for: past)!.start
+        let newestDay = calendar.date(byAdding: .day, value: 3, to: monthStart)!
+        var archive = snapshot
+        archive.insert(NotchPomodoroHistory.Entry(session: session, completedAt: monthStart)!)
+        archive.insert(NotchPomodoroHistory.Entry(session: session, completedAt: newestDay)!)
+        suite.expect(archive.months == snapshot.months + [monthStart]
+                     && archive.days(inMonth: past).map(\.date) == [newestDay, monthStart],
+                     "the archive lists only months with intervals and selects their dates in newest-first order")
+        let large = (0..<10_000).map { index in
+            NotchPomodoroHistory.Entry(session: session, completedAt: date.addingTimeInterval(-Double(index) * 3600))!
+        }
+        let longHistory = NotchPomodoroHistory.days(large, calendar: calendar)
+        suite.expect(longHistory.flatMap(\.entries) == large && longHistory.count > 400,
+                     "the full history, including old dates, stays available in newest-first order")
+
+        pomodoroHistoryStorageContracts(suite, entries: entries, snapshot: snapshot)
+    }
+
+    private static func pomodoroHistoryStorageContracts(_ suite: TestSuite, entries: [NotchPomodoroHistory.Entry],
+                                                        snapshot: NotchPomodoroHistory.Snapshot) {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = NotchPomodoroHistory.Store(containerURL: directory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let initial = store.read()
+        suite.expect(initial.entries.isEmpty && !initial.failed, "new installs start with an empty history")
+
+        DispatchQueue.concurrentPerform(iterations: entries.count) { index in _ = store.write(entries[index]) }
+        let clean = store.read()
+        suite.expect(Set(clean.entries.map(\.id)) == Set(entries.map(\.id)) && !clean.failed,
+                     "independent intervals survive concurrent saves and reloads")
+        let url = store.recordsURL.appendingPathComponent(entries[0].id.uuidString + ".json")
+        let mode = (try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions]) as? NSNumber
+        suite.expect(mode?.intValue == 0o600, "history is readable only by the current user")
+
+        let legacyEntry = snapshot.days.last!.entries[0]
+        var legacyRows = (try? JSONSerialization.jsonObject(with: JSONEncoder().encode([entries[0], legacyEntry]))) as? [Any] ?? []
+        legacyRows.append(["damaged": true])
+        if var invalidDate = legacyRows.first as? [String: Any] {
+            invalidDate["id"] = UUID().uuidString
+            invalidDate["completedAt"] = 1e20
+            legacyRows.append(invalidDate)
+        }
+        let legacyData = try? JSONSerialization.data(withJSONObject: legacyRows)
+        try? legacyData?.write(to: store.legacyURL)
+        try? Data("bad JSON".utf8).write(to: url)
+        let recovered = store.read()
+        suite.expect(recovered.failed && Set(recovered.entries.map(\.id)) == Set((entries + [legacyEntry]).map(\.id)),
+                     "valid legacy rows and independent records survive corruption without duplicates")
+        suite.expect((try? Data(contentsOf: store.legacyURL)) == legacyData && store.write(entries[0]),
+                     "an unreadable legacy row cannot block saving new intervals or overwrite the original")
+
+        let retryStore = NotchPomodoroHistory.Store(containerURL: directory.appendingPathComponent("retry", isDirectory: true))
+        _ = PrivateFileStore.createDirectory(at: retryStore.containerURL)
+        try? Data("blocks directory creation".utf8).write(to: retryStore.recordsURL)
+        let persistence = NotchPomodoroHistory.Persistence(store: retryStore, retryDelay: 0.025)
+        var observed: NotchPomodoroHistory.Snapshot?
+        persistence.load(calendar: snapshot.calendar) { observed = $0 }
+        persistence.record(entries[0])
+        persistence.flush()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.04))
+        suite.expect(observed?.writeFailed == true && observed?.days.first?.entries == [entries[0]],
+                     "a failed write leaves the completed interval visible and marks it as unsaved")
+        try? FileManager.default.removeItem(at: retryStore.recordsURL)
+        let deadline = Date(timeIntervalSinceNow: 1)
+        while observed?.storageUnavailable != false && Date() < deadline {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+        }
+        suite.expect(observed?.storageUnavailable == false && retryStore.read().entries == [entries[0]],
+                     "a recovered disk retries automatically and saves the interval once")
+
+        let destination = directory.appendingPathComponent("Pomodoro.csv")
+        var exportFailed = false
+        persistence.export(snapshot, to: destination) { exportFailed = true }
+        persistence.flush()
+        suite.expect(!exportFailed && (try? String(contentsOf: destination, encoding: .utf8))
+                       == NotchPomodoroHistory.csv(snapshot.days.flatMap(\.entries)),
+                     "export writes every interval before a normal quit can finish")
     }
 
     private static func stopwatchContracts(_ suite: TestSuite) {
