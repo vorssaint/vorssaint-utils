@@ -31,6 +31,47 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
     var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects }
 }
 
+struct NotchAgentCompletion: Equatable, Identifiable {
+    static let rowHeight: CGFloat = 26
+    static let visibleRowLimit = 3
+
+    static func listHeight(count: Int) -> CGFloat {
+        CGFloat(min(count, visibleRowLimit)) * rowHeight
+    }
+
+    let id = UUID()
+    let provider: AgentProvider
+    let project: String
+    let date: Date
+}
+
+struct NotchAgentCompletions {
+    private(set) var items: [NotchAgentCompletion] = []
+    private var viewed: Set<UUID> = []
+
+    var hasUnseen: Bool { items.contains { !viewed.contains($0.id) } }
+
+    mutating func append(_ completion: NotchAgentCompletion) {
+        items.insert(completion, at: 0)
+    }
+
+    @discardableResult
+    mutating func acknowledge(_ id: UUID) -> Bool {
+        guard items.contains(where: { $0.id == id }) else { return false }
+        return viewed.insert(id).inserted
+    }
+
+    mutating func discardViewed() {
+        items.removeAll { viewed.contains($0.id) }
+        viewed.removeAll()
+    }
+
+    mutating func retain(providers: [AgentProvider]) {
+        items.removeAll { !providers.contains($0.provider) }
+        viewed.formIntersection(items.map(\.id))
+    }
+}
+
 /// What the closed island shows beside the camera while an agent works.
 enum NotchAgentReadout: String, CaseIterable, Identifiable {
     case elapsed, tokens, cost, limit
@@ -193,6 +234,25 @@ enum NotchAgentSupport {
         guard defaults.object(forKey: DefaultsKey.notchAgentsFinishAlert) as? Bool ?? true else { return nil }
         let value = defaults.object(forKey: DefaultsKey.notchAgentsFinishMinimum) as? Double ?? defaultFinishMinimum
         return value.isFinite ? min(3600, max(0, value)) : defaultFinishMinimum
+    }
+
+    static func lidLogoCueEnabled(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchAgentsPulseLidLogo) && isEnabled(in: defaults)
+            && finishMinimum(in: defaults) != nil
+    }
+
+    static func breathesLidLogo(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchAgentsBreatheLidLogo) && isEnabled(in: defaults)
+    }
+
+    static func repeatsLidLogoCue(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchAgentsRepeatLidLogoCue) as? Bool ?? true
+    }
+
+    static func shouldPulseLidLogo(after duration: TimeInterval, in defaults: UserDefaults = .standard) -> Bool {
+        guard duration.isFinite, lidLogoCueEnabled(in: defaults), let minimum = finishMinimum(in: defaults)
+        else { return false }
+        return duration >= minimum
     }
 
     /// Percent used that earns a warning; nil while warnings are off.

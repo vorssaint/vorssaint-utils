@@ -7,6 +7,7 @@ import Foundation
 struct SettingsSearchState: Equatable {
     struct Hardware: Equatable {
         let battery, notchedDisplay, plainDisplay, keyboardLight, bluetoothSleep, brightnessOSD: Bool
+        var lidLogo = false
     }
 
     let hardware: Hardware
@@ -32,6 +33,7 @@ struct SettingsSearchState: Equatable {
             DefaultsKey.notchHideInFullscreen, DefaultsKey.notchHoverInFullscreen, DefaultsKey.notchOpenOnHover,
             DefaultsKey.notchHideUntilHover, DefaultsKey.notchHoverExpands, DefaultsKey.notchAgentsClaude,
             DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsLimitAlert,
+            DefaultsKey.notchAgentsPulseLidLogo,
             DefaultsKey.notchCommandBar, DefaultsKey.notchMascotVisits, DefaultsKey.monitorAlertCPU,
             DefaultsKey.monitorAlertCPUTemperature, DefaultsKey.monitorAlertDisk,
             DefaultsKey.monitorAlertBattery, DefaultsKey.monitorAlertBatteryTemperature,
@@ -48,7 +50,8 @@ extension SettingsSearchState {
             plainDisplay: NotchSupport.hasDisplayWithoutNotch, keyboardLight: BrightnessService.keyboardLightIsSupported,
             bluetoothSleep: BluetoothSleepService.isSupported,
             brightnessOSD: AppFeature.brightness.isAvailable && UserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled)
-                && BrightnessService.shared.brightnessOSDSupported))
+                && BrightnessService.shared.brightnessOSDSupported,
+            lidLogo: LidLogoCompletionCue.isSupported))
     }
 }
 
@@ -288,6 +291,14 @@ enum SettingsDirectory {
                    notchAgents.limitsAs, notchAgents.limitFocus, notchAgents.liveActivity, notchAgents.finishAlert,
                    notchAgents.limitAlert, notchAgents.budget, notchAgents.priceUpdates], feature: .notchAgents, notch: .module(.agents)),
             .init([notchAgents.readout], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLiveActivity)),
+            .init([notchAgents.breatheLidLogo], feature: .notchAgents, notch: .module(.agents),
+                  when: state.hardware.lidLogo),
+            .init([notchAgents.pulseLidLogo], feature: .notchAgents, notch: .module(.agents),
+                  when: state.on(DefaultsKey.notchAgentsFinishAlert) && state.hardware.lidLogo),
+            .init([notchAgents.repeatLidLogoCue],
+                  feature: .notchAgents, notch: .module(.agents),
+                  when: state.on(DefaultsKey.notchAgentsFinishAlert) && state.on(DefaultsKey.notchAgentsPulseLidLogo)
+                      && state.hardware.lidLogo),
             .init([notchAgents.finishAfter], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsFinishAlert)),
             .init([notchAgents.limitAt], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLimitAlert)),
             .init([FeatureStrings.claudeAccount(language).title], feature: .notchAgents,
