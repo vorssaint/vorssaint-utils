@@ -504,19 +504,41 @@ final class ProcessUsageService {
         cacheLock.unlock()
 
         let sampleStartedAt: UInt64? = AppFeature.killProcess.isAvailable ? mach_absolute_time() : nil
-        let result = Shell.run("/bin/ps", ["-Aceo", "pid,rss,comm", "-m"])
-        // ps enumerates and ranks the candidates; rss (KiB) is only the
-        // fallback value. The figure shown is the kernel's physical
-        // footprint, the same one Activity Monitor's Memory column uses —
-        // rss counts shared and purgeable pages and over-reports (issue #174).
+        let result = Shell.run("/bin/ps", ["-Aceo", "pid,ppid,rss,comm", "-m"])
         let rows = result.status == 0
-            ? groupedByApp(parsePS(result.output, maxRows: rawProcessRowLimit(for: limit)) { (Double($0) ?? 0) * 1024 }
-                .map { row in
-                    guard let footprint = Self.physicalFootprint(of: row.pid) else { return row }
-                    return ProcessUsage(pid: row.pid, name: row.name, value: footprint)
-                }, sampleStartedAt: sampleStartedAt)
+            ? memoryRows(from: result.output, limit: limit, sampleStartedAt: sampleStartedAt)
             : nil
         return finishMemory(rows, limit: limit)
+    }
+
+    private func memoryRows(from output: String, limit: Int, sampleStartedAt: UInt64?) -> [ProcessUsage] {
+        let candidateLimit = max(limit * 10, 120)
+        var rows: [ProcessUsage] = []
+        var parents: [pid_t: pid_t] = [:]
+        for line in output.split(separator: "\n").dropFirst() {
+            let columns = line.split(maxSplits: 3, whereSeparator: \.isWhitespace)
+            guard columns.count == 4, let pid = pid_t(columns[0]), let parent = pid_t(columns[1]) else { continue }
+            // Even processes outside the memory ranking can link a child to its app.
+            parents[pid] = parent
+            guard rows.count < candidateLimit, let rss = Double(columns[2]), rss > 0 else { continue }
+            // RSS ranks candidates and is a fallback for the physical footprint (issue #174).
+            let value = Self.physicalFootprint(of: pid) ?? rss * 1024
+            rows.append(ProcessUsage(pid: pid,
+                                     name: columns[3].trimmingCharacters(in: .whitespaces),
+                                     value: value))
+        }
+
+        return groupedByApp(rows, sampleStartedAt: sampleStartedAt) { pid in
+            // macOS can retain responsibility after launchd adopts a detached process.
+            let owner = ResponsibleProcess.owner(of: pid)
+            var ancestor = pid
+            var visited: Set<pid_t> = []
+            while ancestor > 1, ancestor != owner, visited.insert(ancestor).inserted {
+                guard let parent = parents[ancestor] else { return pid }
+                ancestor = parent
+            }
+            return ancestor == owner ? owner : pid
+        }
     }
 
     /// The kernel's physical memory footprint of a process, readable for any
@@ -533,39 +555,19 @@ final class ProcessUsageService {
         return Double(info.ri_phys_footprint)
     }
 
-    /// Lines look like "  437  12.5 WindowServer" (value column varies).
-    private func parsePS(_ output: String, maxRows: Int, transform: (String) -> Double) -> [ProcessUsage] {
-        var rows: [ProcessUsage] = []
-        for line in output.split(separator: "\n").dropFirst() {
-            let columns = line.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
-            guard columns.count == 3, let pid = pid_t(columns[0]) else { continue }
-            let value = transform(String(columns[1]))
-            guard value > 0 else { continue }
-            rows.append(ProcessUsage(pid: pid,
-                                     name: String(columns[2]).trimmingCharacters(in: .whitespaces),
-                                     value: value))
-            if rows.count >= maxRows { break }
-        }
-        return rows
-    }
-
-    private func rawProcessRowLimit(for limit: Int) -> Int {
-        max(limit * 10, 120)
-    }
-
     // MARK: - Consolidation
 
-    /// Sums per-process values under each process's responsible app and keeps
-    /// the heaviest `limit` rows. The row's pid becomes the responsible pid,
-    /// so the app's proper name and icon are shown.
-    private func groupedByApp(_ rows: [ProcessUsage], sampleStartedAt: UInt64?) -> [ProcessUsage] {
+    /// Sums per-process values by owner and sorts the heaviest rows first.
+    private func groupedByApp(_ rows: [ProcessUsage],
+                              sampleStartedAt: UInt64?,
+                              ownerForPID: (pid_t) -> pid_t = ResponsibleProcess.owner(of:)) -> [ProcessUsage] {
         var totals: [pid_t: Double] = [:]
         var fallbackNames: [pid_t: String] = [:]
         var unsafeOwners: Set<pid_t> = []
         let identityCutoff = AppFeature.killProcess.isAvailable ? sampleStartedAt : nil
 
         for row in rows {
-            let owner = ResponsibleProcess.owner(of: row.pid)
+            let owner = ownerForPID(row.pid)
             if let identityCutoff, !Self.processExisted(row.pid, before: identityCutoff) {
                 unsafeOwners.insert(owner)
             }
