@@ -4375,7 +4375,9 @@ final class NotchService: ObservableObject {
         switch event {
         case .finished(let provider, let duration, let cost, _, _):
             if !suspended, NotchAgentSupport.shouldPulseLidLogo(after: duration) {
-                MainActor.assumeIsolated { LidLogoCompletionCue.shared.play() }
+                MainActor.assumeIsolated {
+                    LidLogoCompletionCue.shared.play(NotchAgentSupport.lidLogoPattern())
+                }
             }
             show(NotchNotice(event: .agents, title: text.finished(provider.displayName),
                              detail: [AgentFormat.duration(duration, locale: locale), cost > 0 ? AgentFormat.cost(cost) : ""]

@@ -22,6 +22,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsFinishAlert) private var finishAlert = true
     @AppStorage(DefaultsKey.notchAgentsPulseLidLogo) private var pulseLidLogo = false
+    @AppStorage(DefaultsKey.notchAgentsLidLogoPattern) private var lidLogoPattern = LidLogoCuePattern.single
     @AppStorage(DefaultsKey.notchAgentsFinishMinimum) private var finishMinimum = NotchAgentSupport.defaultFinishMinimum
     @AppStorage(DefaultsKey.notchAgentsLimitAlert) private var limitAlert = true
     @AppStorage(DefaultsKey.notchAgentsLimitThreshold) private var limitThreshold = NotchAgentSupport.defaultLimitThreshold
@@ -122,6 +123,14 @@ struct NotchAgentsSettingsControls: View {
                 if LidLogoCompletionCue.isSupported {
                     switchRow("laptopcomputer", text.pulseLidLogo, isOn: $pulseLidLogo)
                         .padding(.leading, settingsRowTextInset)
+                    if pulseLidLogo {
+                        SettingsMenuRow(symbol: "waveform", title: text.lidLogoPattern, selection: $lidLogoPattern) {
+                            ForEach(LidLogoCuePattern.allCases) { pattern in
+                                Text(text.lidLogoTitle(pattern)).tag(pattern)
+                            }
+                        }
+                        .padding(.leading, settingsRowTextInset)
+                    }
                 }
             }
             switchRow("exclamationmark.triangle", text.limitAlert, isOn: $limitAlert)

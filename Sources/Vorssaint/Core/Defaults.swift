@@ -950,6 +950,7 @@ enum DefaultsKey {
     static let notchAgentsReadout = "notchAgentsReadout"
     static let notchAgentsFinishAlert = "notchAgentsFinishAlert"
     static let notchAgentsPulseLidLogo = "notchAgentsPulseLidLogo"
+    static let notchAgentsLidLogoPattern = "notchAgentsLidLogoPattern"
     static let notchAgentsFinishMinimum = "notchAgentsFinishMinimum"
     static let notchAgentsLimitAlert = "notchAgentsLimitAlert"
     static let notchAgentsLimitThreshold = "notchAgentsLimitThreshold"
@@ -1562,6 +1563,7 @@ enum Defaults {
         DefaultsKey.notchAgentsReadout: NotchAgentReadout.elapsed.rawValue,
         DefaultsKey.notchAgentsFinishAlert: true,
         DefaultsKey.notchAgentsPulseLidLogo: false,
+        DefaultsKey.notchAgentsLidLogoPattern: LidLogoCuePattern.single.rawValue,
         DefaultsKey.notchAgentsFinishMinimum: NotchAgentSupport.defaultFinishMinimum,
         DefaultsKey.notchAgentsLimitAlert: true,
         DefaultsKey.notchAgentsLimitThreshold: NotchAgentSupport.defaultLimitThreshold,

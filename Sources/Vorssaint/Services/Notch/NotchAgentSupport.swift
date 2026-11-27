@@ -31,6 +31,13 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
     var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects }
 }
 
+enum LidLogoCuePattern: String, CaseIterable, Identifiable {
+    case single, double
+
+    var id: Self { self }
+    var pulseCount: Int { self == .double ? 2 : 1 }
+}
+
 /// What the closed island shows beside the camera while an agent works.
 enum NotchAgentReadout: String, CaseIterable, Identifiable {
     case elapsed, tokens, cost, limit
@@ -193,6 +200,10 @@ enum NotchAgentSupport {
         guard defaults.object(forKey: DefaultsKey.notchAgentsFinishAlert) as? Bool ?? true else { return nil }
         let value = defaults.object(forKey: DefaultsKey.notchAgentsFinishMinimum) as? Double ?? defaultFinishMinimum
         return value.isFinite ? min(3600, max(0, value)) : defaultFinishMinimum
+    }
+
+    static func lidLogoPattern(in defaults: UserDefaults = .standard) -> LidLogoCuePattern {
+        LidLogoCuePattern(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsLidLogoPattern) ?? "") ?? .single
     }
 
     static func shouldPulseLidLogo(after duration: TimeInterval, in defaults: UserDefaults = .standard) -> Bool {

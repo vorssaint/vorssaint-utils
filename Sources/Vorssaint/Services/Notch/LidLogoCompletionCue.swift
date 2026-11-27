@@ -51,7 +51,7 @@ final class LidLogoCompletionCue {
         journal.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
     }
 
-    func play() {
+    func play(_ pattern: LidLogoCuePattern) {
         guard task == nil, ContinuousClock.now >= nextCue else { return }
         if restorePending { recover(); return }
         guard let driver = driver(), driver.canFade, mayControlLogo(), let journal,
@@ -62,12 +62,16 @@ final class LidLogoCompletionCue {
         // Record recovery before the first write. Never touch the persisted logo
         // on/off setting or change the screen's brightness.
         nextCue = ContinuousClock.now + .seconds(8)
+        startDip(using: driver, remainingDips: pattern.pulseCount)
+    }
+
+    private func startDip(using driver: any LidLogoFading, remainingDips: Int) {
         guard driver.fadeOut() else { recover(); return }
         task = Task { [weak self] in
             do { try await Task.sleep(for: .milliseconds(550)) } catch { return }
-            guard let self else { return }
+            guard let self, !Task.isCancelled else { return }
             task = nil
-            restore(duration: 0.85)
+            restore(duration: 0.85, followingDips: remainingDips - 1)
         }
     }
 
@@ -82,7 +86,7 @@ final class LidLogoCompletionCue {
         restore(duration: 0)
     }
 
-    private func restore(duration: Double) {
+    private func restore(duration: Double, followingDips: Int = 0) {
         guard let journal, restorePending else { return }
         observeWakeIfNeeded()
         guard let driver = driver(), driver.isAwake, mayControlLogo(),
@@ -91,9 +95,13 @@ final class LidLogoCompletionCue {
 
         task = Task { [weak self] in
             do { try await Task.sleep(for: .milliseconds(1100)) } catch { return }
-            guard let self else { return }
+            guard let self, !Task.isCancelled else { return }
             task = nil
             guard driver.isAtBaseline else { return }
+            if followingDips > 0, restorePending, driver.isAwake, driver.canFade, mayControlLogo() {
+                startDip(using: driver, remainingDips: followingDips)
+                return
+            }
             try? FileManager.default.removeItem(at: journal)
             if !restorePending {
                 let center = NSWorkspace.shared.notificationCenter

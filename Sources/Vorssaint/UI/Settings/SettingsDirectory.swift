@@ -32,6 +32,7 @@ struct SettingsSearchState: Equatable {
             DefaultsKey.notchHideInFullscreen, DefaultsKey.notchHoverInFullscreen, DefaultsKey.notchOpenOnHover,
             DefaultsKey.notchHideUntilHover, DefaultsKey.notchHoverExpands, DefaultsKey.notchAgentsClaude,
             DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsLimitAlert,
+            DefaultsKey.notchAgentsPulseLidLogo,
             DefaultsKey.notchCommandBar, DefaultsKey.notchMascotVisits, DefaultsKey.monitorAlertCPU,
             DefaultsKey.monitorAlertCPUTemperature, DefaultsKey.monitorAlertDisk,
             DefaultsKey.monitorAlertBattery, DefaultsKey.monitorAlertBatteryTemperature,
@@ -290,6 +291,10 @@ enum SettingsDirectory {
             .init([notchAgents.readout], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLiveActivity)),
             .init([notchAgents.pulseLidLogo], feature: .notchAgents, notch: .module(.agents),
                   when: state.on(DefaultsKey.notchAgentsFinishAlert) && LidLogoCompletionCue.hasLogoDevice),
+            .init([notchAgents.lidLogoPattern, notchAgents.lidLogoSingle, notchAgents.lidLogoDouble],
+                  feature: .notchAgents, notch: .module(.agents),
+                  when: state.on(DefaultsKey.notchAgentsFinishAlert) && state.on(DefaultsKey.notchAgentsPulseLidLogo)
+                      && LidLogoCompletionCue.hasLogoDevice),
             .init([notchAgents.finishAfter], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsFinishAlert)),
             .init([notchAgents.limitAt], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLimitAlert)),
             .init([FeatureStrings.claudeAccount(language).title], feature: .notchAgents,

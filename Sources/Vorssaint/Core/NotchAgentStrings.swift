@@ -63,6 +63,9 @@ struct NotchAgentStrings {
     let alerts: String
     let finishAlert: String
     let pulseLidLogo: String
+    let lidLogoPattern: String
+    let lidLogoSingle: String
+    let lidLogoDouble: String
     let finishAfter: String
     let anyLength: String
     let limitAlert: String
@@ -148,6 +151,13 @@ struct NotchAgentStrings {
         case .projects: return projectsCard
         case .activity: return activityCard
         case .resets: return resetsCard
+        }
+    }
+
+    func lidLogoTitle(_ pattern: LidLogoCuePattern) -> String {
+        switch pattern {
+        case .single: lidLogoSingle
+        case .double: lidLogoDouble
         }
     }
 
@@ -252,6 +262,9 @@ extension NotchAgentStrings {
         alerts: "Alerts",
         finishAlert: "When a task finishes",
         pulseLidLogo: "Pulse the lid logo",
+        lidLogoPattern: "Light pattern",
+        lidLogoSingle: "Single pulse",
+        lidLogoDouble: "Double pulse",
         finishAfter: "For tasks longer than",
         anyLength: "Any length",
         limitAlert: "Near a plan limit",
@@ -352,6 +365,9 @@ extension NotchAgentStrings {
         alerts: "Сповіщення",
         finishAlert: "Коли завдання завершено",
         pulseLidLogo: "Пульсація логотипа на кришці",
+        lidLogoPattern: "Ритм підсвічування",
+        lidLogoSingle: "Один імпульс",
+        lidLogoDouble: "Два імпульси",
         finishAfter: "Для завдань довших за",
         anyLength: "Будь-яка тривалість",
         limitAlert: "Поблизу ліміту плану",
@@ -452,6 +468,9 @@ extension NotchAgentStrings {
         alerts: "Alertas",
         finishAlert: "Quando uma tarefa terminar",
         pulseLidLogo: "Pulsar o logotipo da tampa",
+        lidLogoPattern: "Padrão da luz",
+        lidLogoSingle: "Um pulso",
+        lidLogoDouble: "Dois pulsos",
         finishAfter: "Para tarefas com mais de",
         anyLength: "Qualquer duração",
         limitAlert: "Perto de um limite do plano",
@@ -552,6 +571,9 @@ extension NotchAgentStrings {
         alerts: "Avisos",
         finishAlert: "Cuando termine una tarea",
         pulseLidLogo: "Hacer pulsar el logotipo de la tapa",
+        lidLogoPattern: "Patrón de luz",
+        lidLogoSingle: "Un pulso",
+        lidLogoDouble: "Dos pulsos",
         finishAfter: "Para tareas de más de",
         anyLength: "Cualquier duración",
         limitAlert: "Cerca de un límite del plan",
@@ -652,6 +674,9 @@ extension NotchAgentStrings {
         alerts: "Upozornenia",
         finishAlert: "Keď sa úloha dokončí",
         pulseLidLogo: "Pulzovanie loga na veku",
+        lidLogoPattern: "Vzor svetla",
+        lidLogoSingle: "Jeden pulz",
+        lidLogoDouble: "Dva pulzy",
         finishAfter: "Pri úlohách dlhších ako",
         anyLength: "Ľubovoľná dĺžka",
         limitAlert: "Blízko limitu plánu",
@@ -752,6 +777,9 @@ extension NotchAgentStrings {
         alerts: "Hinweise",
         finishAlert: "Wenn eine Aufgabe fertig ist",
         pulseLidLogo: "Logo am Deckel pulsieren lassen",
+        lidLogoPattern: "Lichtmuster",
+        lidLogoSingle: "Ein Impuls",
+        lidLogoDouble: "Zwei Impulse",
         finishAfter: "Bei Aufgaben länger als",
         anyLength: "Jede Dauer",
         limitAlert: "Nahe an einem Planlimit",
@@ -852,6 +880,9 @@ extension NotchAgentStrings {
         alerts: "Alertes",
         finishAlert: "Quand une tâche se termine",
         pulseLidLogo: "Faire pulser le logo du capot",
+        lidLogoPattern: "Motif lumineux",
+        lidLogoSingle: "Une pulsation",
+        lidLogoDouble: "Deux pulsations",
         finishAfter: "Pour les tâches de plus de",
         anyLength: "Toute durée",
         limitAlert: "Près d’une limite du forfait",
@@ -952,6 +983,9 @@ extension NotchAgentStrings {
         alerts: "Avvisi",
         finishAlert: "Quando un’attività finisce",
         pulseLidLogo: "Fai pulsare il logo sul coperchio",
+        lidLogoPattern: "Schema luminoso",
+        lidLogoSingle: "Un impulso",
+        lidLogoDouble: "Due impulsi",
         finishAfter: "Per attività più lunghe di",
         anyLength: "Qualsiasi durata",
         limitAlert: "Vicino a un limite del piano",
@@ -1052,6 +1086,9 @@ extension NotchAgentStrings {
         alerts: "Уведомления",
         finishAlert: "Когда задача завершена",
         pulseLidLogo: "Пульсация логотипа на крышке",
+        lidLogoPattern: "Ритм подсветки",
+        lidLogoSingle: "Один импульс",
+        lidLogoDouble: "Два импульса",
         finishAfter: "Для задач дольше",
         anyLength: "Любой длительности",
         limitAlert: "Около лимита тарифа",
@@ -1152,6 +1189,9 @@ extension NotchAgentStrings {
         alerts: "Uyarılar",
         finishAlert: "Bir görev bittiğinde",
         pulseLidLogo: "Kapaktaki logonun ışığını yakıp söndür",
+        lidLogoPattern: "Işık deseni",
+        lidLogoSingle: "Tek darbe",
+        lidLogoDouble: "Çift darbe",
         finishAfter: "Şundan uzun görevler için",
         anyLength: "Her süre",
         limitAlert: "Plan sınırına yaklaşınca",
@@ -1252,6 +1292,9 @@ extension NotchAgentStrings {
         alerts: "通知",
         finishAlert: "タスクが完了したとき",
         pulseLidLogo: "天板のロゴを明滅させる",
+        lidLogoPattern: "点滅パターン",
+        lidLogoSingle: "1回",
+        lidLogoDouble: "2回",
         finishAfter: "対象のタスクの長さ",
         anyLength: "すべて",
         limitAlert: "プラン上限に近づいたとき",
@@ -1352,6 +1395,9 @@ extension NotchAgentStrings {
         alerts: "알림",
         finishAlert: "작업이 끝났을 때",
         pulseLidLogo: "덮개 로고를 부드럽게 점멸",
+        lidLogoPattern: "조명 패턴",
+        lidLogoSingle: "한 번",
+        lidLogoDouble: "두 번",
         finishAfter: "다음보다 긴 작업",
         anyLength: "모든 길이",
         limitAlert: "플랜 한도에 가까울 때",
@@ -1452,6 +1498,9 @@ extension NotchAgentStrings {
         alerts: "提醒",
         finishAlert: "任务完成时",
         pulseLidLogo: "让顶盖标志缓慢闪烁",
+        lidLogoPattern: "灯光模式",
+        lidLogoSingle: "单次脉冲",
+        lidLogoDouble: "双次脉冲",
         finishAfter: "任务时长超过",
         anyLength: "任意时长",
         limitAlert: "接近套餐额度时",
@@ -1552,6 +1601,9 @@ extension NotchAgentStrings {
         alerts: "提醒",
         finishAlert: "任務完成時",
         pulseLidLogo: "讓上蓋標誌緩慢閃爍",
+        lidLogoPattern: "燈光模式",
+        lidLogoSingle: "單次脈衝",
+        lidLogoDouble: "雙次脈衝",
         finishAfter: "任務時間超過",
         anyLength: "任何長度",
         limitAlert: "接近方案額度時",
@@ -1652,6 +1704,9 @@ extension NotchAgentStrings {
         alerts: "提示",
         finishAlert: "任務完成時",
         pulseLidLogo: "讓上蓋標誌緩慢閃爍",
+        lidLogoPattern: "燈光模式",
+        lidLogoSingle: "單次脈衝",
+        lidLogoDouble: "雙次脈衝",
         finishAfter: "任務時間超過",
         anyLength: "任何長度",
         limitAlert: "接近計劃額度時",
