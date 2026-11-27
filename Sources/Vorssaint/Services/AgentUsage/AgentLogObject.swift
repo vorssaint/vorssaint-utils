@@ -11,7 +11,7 @@ struct AgentLogObject {
     private let data: Data
     private let fields: [String: Range<Int>]
 
-    init?(_ data: Data, range: Range<Int>? = nil) {
+    init?(_ data: Data, range: Range<Int>? = nil, firstArrayElement: Bool = false) {
         let range = range ?? 0..<data.count
         guard range.lowerBound >= 0, range.upperBound <= data.count else { return nil }
         let fields: [String: Range<Int>]? = data.withUnsafeBytes { raw in
@@ -64,6 +64,11 @@ struct AgentLogObject {
                 return position > start ? start..<position : nil
             }
             space()
+            if firstArrayElement {
+                guard position < range.upperBound, bytes[position] == 0x5B else { return nil }
+                position += 1
+                space()
+            }
             guard position < range.upperBound, bytes[position] == 0x7B else { return nil }
             position += 1
             space()
@@ -89,6 +94,10 @@ struct AgentLogObject {
             guard position < range.upperBound, bytes[position] == 0x7D else { return nil }
             position += 1
             space()
+            if firstArrayElement {
+                guard position < range.upperBound, [0x2C, 0x5D].contains(bytes[position]) else { return nil }
+                return fields
+            }
             return position == range.upperBound ? fields : nil
         }
         guard let fields else { return nil }
@@ -106,6 +115,18 @@ struct AgentLogObject {
         fields[key].flatMap { Self.string(data, range: $0) }
     }
 
+    /// Do not decode an oversized or nested value as response metadata.
+    func string(_ key: String, maxBytes: Int) -> String? {
+        guard let range = fields[key], range.count <= maxBytes + 2 else { return nil }
+        return Self.string(data, range: range)
+    }
+
+    func unsignedInteger(_ key: String) -> Int? {
+        guard let range = fields[key], (1...15).contains(range.count),
+              data[range].allSatisfy({ (48...57).contains($0) }) else { return nil }
+        return Int(String(decoding: data[range], as: UTF8.self))
+    }
+
     private static func string(_ data: Data, range: Range<Int>) -> String? {
         guard range.count >= 2, data[range.lowerBound] == 0x22, data[range.upperBound - 1] == 0x22 else { return nil }
         let contents = (range.lowerBound + 1)..<(range.upperBound - 1)
@@ -115,6 +136,18 @@ struct AgentLogObject {
 
     func object(_ key: String) -> AgentLogObject? {
         fields[key].flatMap { AgentLogObject(data, range: $0) }
+    }
+
+    func firstObject(inArray key: String) -> AgentLogObject? {
+        fields[key].flatMap { AgentLogObject(data, range: $0, firstArrayElement: true) }
+    }
+
+    /// The first bytes of a string in its on-disk JSON encoding. This lets a
+    /// reader inspect a short metadata tag without decoding the message body.
+    func stringPrefix(_ key: String, maxBytes: Int) -> Data? {
+        guard let range = fields[key], range.count >= 2, data[range.lowerBound] == 0x22, maxBytes >= 0 else { return nil }
+        let start = range.lowerBound + 1
+        return data[start..<(start + min(maxBytes, range.count - 2))]
     }
 
     func hasItems(_ key: String) -> Bool {

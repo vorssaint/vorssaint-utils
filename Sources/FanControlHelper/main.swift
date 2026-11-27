@@ -86,6 +86,7 @@ private final class FanControlController {
     private let ownership = FanControlOwnership()
     private var hardware: FanControlHardware?
     private var owner: UUID?
+    private var unregisterSession: UUID?
     private var isCooling = false
     private var isRecovering = false
     private var endsAt: Date?
@@ -117,12 +118,37 @@ private final class FanControlController {
             if self.owner == id, self.isCooling {
                 _ = self.performRestore(reason: .appDisconnected)
             }
+            if self.unregisterSession == id { self.unregisterSession = nil }
             self.scheduleExitIfIdle()
         }
     }
 
     func status(reply: @escaping (Data) -> Void) {
-        queue.async { reply(FanControlIPC.encode(self.statusResponse())) }
+        queue.async {
+            var response = self.statusResponse()
+            response.supportsUnregisterPreparation = true
+            reply(FanControlIPC.encode(response))
+        }
+    }
+
+    func prepareForUnregister(session id: UUID, reply: @escaping (Data) -> Void) {
+        queue.async {
+            guard self.unregisterSession == nil || self.unregisterSession == id,
+                  !self.isCooling, !self.isRecovering, self.ownership.acquire() else {
+                reply(FanControlIPC.encode(.failure(.alreadyControlled)))
+                return
+            }
+            let needsRecovery = self.ownership.markerExists()
+            self.ownership.release()
+            guard !needsRecovery else {
+                reply(FanControlIPC.encode(.failure(.controlFailed)))
+                return
+            }
+            // This daemon cannot accept a new owner until the caller either
+            // unregisters it or closes the connection to release the reservation.
+            self.unregisterSession = id
+            reply(FanControlIPC.encode(.success(.empty)))
+        }
     }
 
     func startLegacySession(_ id: UUID, reply: @escaping (Data) -> Void) {
@@ -167,8 +193,13 @@ private final class FanControlController {
         }
     }
 
-    func restore(reply: @escaping (Data) -> Void) {
+    func restore(session id: UUID? = nil, reply: @escaping (Data) -> Void) {
         queue.async {
+            if let id, !self.isCooling || self.owner != id {
+                let error: FanControlErrorCode = self.isCooling ? .alreadyControlled : .controlFailed
+                reply(FanControlIPC.encode(.failure(error, snapshot: self.currentSnapshot())))
+                return
+            }
             let succeeded = self.performRestore(reason: nil)
             let response = succeeded
                 ? FanControlResponse.success(self.currentSnapshot())
@@ -202,6 +233,7 @@ private final class FanControlController {
                 ? .success(currentSnapshot())
                 : .failure(.controlFailed, snapshot: currentSnapshot())
         }
+        guard unregisterSession == nil else { return .failure(.alreadyControlled) }
         if isCooling {
             guard owner == id else {
                 return .failure(.alreadyControlled, snapshot: currentSnapshot())
@@ -210,8 +242,6 @@ private final class FanControlController {
         }
         guard ownership.acquire() else { return .failure(.alreadyControlled) }
         if ownership.markerExists() {
-            isRecovering = true
-            startWatchdog()
             _ = performRestore(reason: .recovery)
             return .failure(.controlFailed, snapshot: currentSnapshot())
         }
@@ -236,13 +266,13 @@ private final class FanControlController {
         }
         guard ownership.createMarker() else {
             ownership.release()
-            return .failure(.controlFailed)
+            return .failure(.controlFailed, retryableApply: true)
         }
 
         do {
             guard let level = requestedLevel(for: configuration, hardware: control) else {
                 finishFailedStart(mayHaveChangedHardware: false)
-                return .failure(.controlFailed)
+                return .failure(.controlFailed, retryableApply: true)
             }
             _ = try control.startCooling(level: level)
             owner = id
@@ -259,7 +289,7 @@ private final class FanControlController {
             lastStopReason = nil
             startWatchdog()
             log.notice("Cooling session started")
-            return .success(currentSnapshot())
+            return .success(currentSnapshot(), supportsOwnedRestore: true)
         } catch FanControlHardwareError.noFans {
             finishFailedStart(mayHaveChangedHardware: false)
             return .failure(.noFans)
@@ -271,7 +301,8 @@ private final class FanControlController {
             return .failure(.unsupportedHardware)
         } catch {
             finishFailedStart(mayHaveChangedHardware: true)
-            return .failure(.controlFailed, snapshot: currentSnapshot())
+            return .failure(.controlFailed, snapshot: currentSnapshot(),
+                            localStopReason: isRecovering ? .recovery : nil, retryableApply: !isRecovering)
         }
     }
 
@@ -293,10 +324,10 @@ private final class FanControlController {
             verificationFailures = 0
             temperatureFailures = 0
             lastStopReason = nil
-            return .success(currentSnapshot())
+            return .success(currentSnapshot(), supportsOwnedRestore: true)
         } catch {
             _ = performRestore(reason: .hardwareChanged)
-            return .failure(.controlFailed, snapshot: currentSnapshot())
+            return .failure(.controlFailed, snapshot: currentSnapshot(), localStopReason: .hardwareChanged)
         }
     }
 
@@ -309,9 +340,11 @@ private final class FanControlController {
         case .manual:
             return configuration.manualLevel
         case .curve:
+            let sample = hardware.readTemperatures()
             return FanControlPolicy.curveCoolingLevel(
                 curves: configuration.curves,
-                temperatures: hardware.readTemperatures(),
+                temperatures: sample.readings,
+                gpuPoweredDown: sample.gpuPoweredDown,
                 previousLevel: previousLevel
             )
         }
@@ -319,6 +352,7 @@ private final class FanControlController {
 
     private func finishFailedStart(mayHaveChangedHardware: Bool) {
         if mayHaveChangedHardware, hardware?.restoreAutomatic() != true {
+            lastStopReason = .recovery
             isRecovering = true
             startWatchdog()
             return
@@ -339,25 +373,12 @@ private final class FanControlController {
             ownership.release()
             return true
         }
+        // Retrying the restore must preserve the reason the session ended.
+        if !isRecovering { lastStopReason = reason }
         if hardware == nil { hardware = FanControlHardware() }
-        guard hardware?.restoreAutomatic() == true,
-              ownership.removeMarker() else {
-            isRecovering = true
-            isCooling = false
-            owner = nil
-            coolingLevel = nil
-            activeConfiguration = nil
-            endsAt = nil
-            endsAtUptime = nil
-            verificationFailures = 0
-            temperatureFailures = 0
-            startWatchdog()
-            log.error("Automatic fan recovery will retry")
-            return false
-        }
-
+        let restored = hardware?.restoreAutomatic() == true && ownership.removeMarker()
+        isRecovering = !restored
         isCooling = false
-        isRecovering = false
         owner = nil
         coolingLevel = nil
         activeConfiguration = nil
@@ -365,10 +386,16 @@ private final class FanControlController {
         endsAtUptime = nil
         verificationFailures = 0
         temperatureFailures = 0
-        lastStopReason = reason
+        guard restored else {
+            startWatchdog()
+            log.error("Automatic fan recovery will retry: \(self.lastStopReason?.rawValue ?? "requested", privacy: .public)")
+            return false
+        }
         ownership.release()
         stopWatchdogIfIdle()
-        log.notice("Automatic fan control restored")
+        // The reason is the only trace of why a session ended; the app's card
+        // folds most of them into one generic message.
+        log.notice("Automatic fan control restored: \(self.lastStopReason?.rawValue ?? "requested", privacy: .public)")
         return true
     }
 
@@ -382,7 +409,6 @@ private final class FanControlController {
             scheduleExitIfIdle()
             return
         }
-        isRecovering = true
         hardware = FanControlHardware()
         if performRestore(reason: .recovery) {
             scheduleExitIfIdle()
@@ -411,37 +437,60 @@ private final class FanControlController {
             stopWatchdogIfIdle()
             return
         }
-        var controlIntact = false
-        if activeConfiguration?.mode == .curve,
-           let configuration = activeConfiguration,
-           let hardware {
-            if let requested = requestedLevel(for: configuration, hardware: hardware,
-                                              previousLevel: coolingLevel) {
+        var level = coolingLevel
+        if let configuration = activeConfiguration, configuration.mode == .curve {
+            if let hardware, let requested = requestedLevel(for: configuration, hardware: hardware,
+                                                           previousLevel: coolingLevel) {
                 temperatureFailures = 0
-                if requested == coolingLevel {
-                    controlIntact = hardware.coolingIsIntact()
-                } else {
-                    do {
-                        _ = try hardware.updateCooling(level: requested)
-                        coolingLevel = requested
-                        controlIntact = true
-                    } catch {
-                        _ = performRestore(reason: .hardwareChanged)
-                        return
-                    }
-                }
+                level = requested
             } else {
                 temperatureFailures += 1
-                controlIntact = hardware.coolingIsIntact()
             }
-        } else {
-            controlIntact = hardware?.coolingIsIntact() == true
         }
-        if controlIntact {
+        // Check the previous targets even when the curve is changing level.
+        // A successful write cannot prove that firmware will leave them in place.
+        let controlIntact = level != nil && hardware?.coolingIsIntact() == true
+        if !controlIntact { verificationFailures += 1 }
+        if let reason = watchdogStopReason() {
+            _ = performRestore(reason: reason)
+            return
+        }
+        // With a missing sensor, only the already-verified targets may stay in place.
+        // If firmware has taken any fan back, release all fans without a manual write.
+        if temperatureFailures > 0 {
+            if controlIntact {
+                verificationFailures = 0
+            } else {
+                _ = performRestore(reason: .temperatureUnavailable)
+            }
+            return
+        }
+        guard let hardware, let level else { return }
+        if controlIntact && level == coolingLevel {
             verificationFailures = 0
-        } else {
-            verificationFailures += 1
+            return
         }
+        do {
+            try hardware.holdCooling(level: level)
+            coolingLevel = level
+            if controlIntact {
+                verificationFailures = 0
+            } else {
+                log.info("Manual fan control reasserted")
+            }
+        } catch FanControlHardwareError.unsafeControlState {
+            log.error("Fan control write left the manual targets unverified")
+            _ = performRestore(reason: .hardwareChanged)
+            return
+        } catch {
+            if controlIntact { verificationFailures += 1 }
+            log.error("Fan control write failed (\(self.verificationFailures, privacy: .public) of \(FanControlPolicy.verificationFailureLimit, privacy: .public))")
+        }
+        // SMC retries can take time. Recheck deadlines and thermal pressure.
+        if let reason = watchdogStopReason() { _ = performRestore(reason: reason) }
+    }
+
+    private func watchdogStopReason() -> FanControlStopReason? {
         let nowUptime = ProcessInfo.processInfo.systemUptime
         let deadlineNow: Date
         if let endsAt, let endsAtUptime, nowUptime >= endsAtUptime {
@@ -449,7 +498,7 @@ private final class FanControlController {
         } else {
             deadlineNow = Date()
         }
-        let reason = FanControlPolicy.restoreReason(
+        return FanControlPolicy.restoreReason(
             now: deadlineNow,
             endsAt: endsAt,
             heartbeatAge: max(0, nowUptime - lastHeartbeatUptime),
@@ -457,7 +506,6 @@ private final class FanControlController {
             temperatureFailures: temperatureFailures,
             thermalState: ProcessInfo.processInfo.thermalState
         )
-        if let reason { _ = performRestore(reason: reason) }
     }
 
     private func stopWatchdogIfIdle() {
@@ -474,8 +522,6 @@ private final class FanControlController {
 
         guard ownership.acquire() else { return .failure(.alreadyControlled) }
         if ownership.markerExists() {
-            isRecovering = true
-            startWatchdog()
             _ = performRestore(reason: .recovery)
             return isRecovering ? .failure(.controlFailed, snapshot: currentSnapshot())
                                 : .success(currentSnapshot())
@@ -552,6 +598,14 @@ private final class FanControlSession: NSObject, FanControlXPCProtocol {
 
     func restoreAutomatic(withReply reply: @escaping (Data) -> Void) {
         controller.restore(reply: reply)
+    }
+
+    func restoreOwnedControl(withReply reply: @escaping (Data) -> Void) {
+        controller.restore(session: id, reply: reply)
+    }
+
+    func prepareForUnregister(withReply reply: @escaping (Data) -> Void) {
+        controller.prepareForUnregister(session: id, reply: reply)
     }
 }
 

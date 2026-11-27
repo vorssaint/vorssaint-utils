@@ -17,6 +17,10 @@ struct FanControlFeatureStrings {
     let unsupported: String
     let alreadyControlled: String
     let failed: String
+    let controlStopped: String
+    let applyFailed: String
+    let controlUnconfirmed: String
+    let awaitingSystemControl: String
     let safetyCaption: String
     let safetyStopped: String
     let menuBarTitle: String
@@ -45,6 +49,7 @@ struct FanControlFeatureStrings {
     let averageCPU: String
     let hottestCPU: String
     let hottestGPU: String
+    let gpuIdle: String
     let helperUnavailable: String
     let resumeAfterRestart: String
 }
@@ -86,6 +91,10 @@ extension FanControlFeatureStrings {
         unsupported: "Fan control is not available on this Mac.",
         alreadyControlled: "Another process is controlling the fans. Return it to system control first.",
         failed: "The fans returned to system control because the requested control could not be verified.",
+        controlStopped: "The system is controlling the fans. To resume custom control, apply your fan settings.",
+        applyFailed: "The requested fan settings could not be applied. The fans are back under system control.",
+        controlUnconfirmed: "Control unconfirmed",
+        awaitingSystemControl: "The fan controller has not yet confirmed the return to system control.",
         safetyCaption: "Control stays active until you return to System. It returns automatically if the app disconnects, the Mac sleeps, sensor readings fail or thermal pressure rises.",
         safetyStopped: "Returned to system control because fan control was interrupted.",
         menuBarTitle: "Fan speed",
@@ -114,6 +123,7 @@ extension FanControlFeatureStrings {
         averageCPU: "Average CPU",
         hottestCPU: "Hottest CPU",
         hottestGPU: "Hottest GPU",
+        gpuIdle: "GPU idle",
         helperUnavailable: "The protected fan controller is unavailable. Allow Vorssaint in Login Items, then try again.",
         resumeAfterRestart: "Resume after restart or sleep"
     )
@@ -132,6 +142,10 @@ extension FanControlFeatureStrings {
         unsupported: "O controle das ventoinhas não está disponível neste Mac.",
         alreadyControlled: "Outro processo está controlando as ventoinhas. Volte ao controle do sistema nele primeiro.",
         failed: "As ventoinhas voltaram ao sistema porque não foi possível confirmar o controle solicitado.",
+        controlStopped: "O sistema está controlando as ventoinhas. Para retomar o controle manual ou usar uma curva, aplique a configuração desejada.",
+        applyFailed: "Não foi possível aplicar a configuração das ventoinhas. O sistema voltou a controlá-las.",
+        controlUnconfirmed: "Controle não confirmado",
+        awaitingSystemControl: "O controlador das ventoinhas ainda não confirmou a devolução do controle ao sistema.",
         safetyCaption: "O controle fica ativo até você voltar ao Sistema. Ele é devolvido automaticamente se o app desconectar, o Mac repousar, os sensores falharem ou a pressão térmica subir.",
         safetyStopped: "Voltou ao controle do sistema porque o controle das ventoinhas foi interrompido.",
         menuBarTitle: "Velocidade das ventoinhas",
@@ -160,6 +174,7 @@ extension FanControlFeatureStrings {
         averageCPU: "Média da CPU",
         hottestCPU: "CPU mais quente",
         hottestGPU: "GPU mais quente",
+        gpuIdle: "GPU em repouso",
         helperUnavailable: "O controlador protegido das ventoinhas não está disponível. Permita o Vorssaint nos Itens de Início e tente novamente.",
         resumeAfterRestart: "Retomar depois de reiniciar ou repousar"
     )
@@ -178,6 +193,10 @@ extension FanControlFeatureStrings {
         unsupported: "Bu Mac’te fan denetimi kullanılamıyor.",
         alreadyControlled: "Fanları başka bir işlem denetliyor. Önce oradan sistem denetimine dönün.",
         failed: "İstenen denetim doğrulanamadığı için fanlar sistem denetimine döndü.",
+        controlStopped: "Fanları sistem denetliyor. Özel denetime dönmek için fan ayarlarınızı uygulayın.",
+        applyFailed: "İstenen fan ayarları uygulanamadı. Fanlar yeniden sistem denetiminde.",
+        controlUnconfirmed: "Denetim doğrulanmadı",
+        awaitingSystemControl: "Fan denetleyicisi, denetimin sisteme geri döndüğünü henüz doğrulamadı.",
         safetyCaption: "Sistem’e dönene kadar denetim etkin kalır. Uygulama bağlantısı kesilirse, Mac uyursa, sensör okumaları başarısız olursa veya termal basınç yükselirse otomatik olarak geri verilir.",
         safetyStopped: "Fan denetimi kesildiği için sistem denetimine dönüldü.",
         menuBarTitle: "Fan hızı",
@@ -206,6 +225,7 @@ extension FanControlFeatureStrings {
         averageCPU: "Ortalama CPU",
         hottestCPU: "En sıcak CPU",
         hottestGPU: "En sıcak GPU",
+        gpuIdle: "GPU boşta",
         helperUnavailable: "Korumalı fan denetleyicisi kullanılamıyor. Giriş Öğeleri’nde Vorssaint’e izin verip yeniden deneyin.",
         resumeAfterRestart: "Yeniden başlatma veya uykudan sonra sürdür"
     )
@@ -224,6 +244,10 @@ extension FanControlFeatureStrings {
         unsupported: "Управление вентиляторами недоступно на этом Mac.",
         alreadyControlled: "Вентиляторами управляет другой процесс. Сначала верните там управление системе.",
         failed: "Вентиляторы вернулись под управление системы, потому что запрос не удалось проверить.",
+        controlStopped: "Вентиляторами управляет система. Чтобы вернуться к своим настройкам, примените их снова.",
+        applyFailed: "Не удалось применить настройки вентиляторов. Система снова управляет вентиляторами.",
+        controlUnconfirmed: "Управление не подтверждено",
+        awaitingSystemControl: "Контроллер вентиляторов ещё не подтвердил возврат управления системе.",
         safetyCaption: "Управление действует до возврата в режим «Система». Оно возвращается автоматически при отключении приложения, сне Mac, сбое датчиков или росте тепловой нагрузки.",
         safetyStopped: "Управление возвращено системе из-за прерывания управления вентиляторами.",
         menuBarTitle: "Скорость вентилятора",
@@ -252,6 +276,7 @@ extension FanControlFeatureStrings {
         averageCPU: "Средняя CPU",
         hottestCPU: "Самая горячая CPU",
         hottestGPU: "Самая горячая GPU",
+        gpuIdle: "GPU в режиме ожидания",
         helperUnavailable: "Защищённый контроллер вентиляторов недоступен. Разрешите Vorssaint в Объектах входа и повторите попытку.",
         resumeAfterRestart: "Возобновлять после перезагрузки или сна"
     )
@@ -270,6 +295,10 @@ extension FanControlFeatureStrings {
         unsupported: "El control de ventiladores no está disponible en este Mac.",
         alreadyControlled: "Otro proceso controla los ventiladores. Devuélvelos primero al control del sistema.",
         failed: "Los ventiladores volvieron al sistema porque no se pudo verificar el control solicitado.",
+        controlStopped: "El sistema controla los ventiladores. Para volver a usar tu configuración, aplícala de nuevo.",
+        applyFailed: "No se pudo aplicar la configuración de los ventiladores. El sistema ha vuelto a controlarlos.",
+        controlUnconfirmed: "Control sin confirmar",
+        awaitingSystemControl: "El controlador de los ventiladores aún no ha confirmado que el sistema haya recuperado el control.",
         safetyCaption: "El control sigue activo hasta que vuelvas a Sistema. Se devuelve automáticamente si la app se desconecta, el Mac entra en reposo, fallan los sensores o aumenta la presión térmica.",
         safetyStopped: "Se devolvió el control al sistema porque se interrumpió el control de los ventiladores.",
         menuBarTitle: "Velocidad de ventiladores",
@@ -298,6 +327,7 @@ extension FanControlFeatureStrings {
         averageCPU: "Promedio de CPU",
         hottestCPU: "CPU más caliente",
         hottestGPU: "GPU más caliente",
+        gpuIdle: "GPU en reposo",
         helperUnavailable: "El controlador protegido de los ventiladores no está disponible. Permite Vorssaint en Ítems de inicio e inténtalo de nuevo.",
         resumeAfterRestart: "Reanudar tras reiniciar o salir del reposo"
     )
@@ -316,6 +346,10 @@ extension FanControlFeatureStrings {
         unsupported: "Ovládanie ventilátorov nie je na tomto Macu dostupné.",
         alreadyControlled: "Ventilátory ovláda iný proces. Najprv ho vráťte na systémové ovládanie.",
         failed: "Ventilátory sa vrátili na systémové ovládanie, pretože požadované ovládanie sa nepodarilo overiť.",
+        controlStopped: "Ventilátory ovláda systém. Ak chcete obnoviť vlastné ovládanie, použite svoje nastavenia.",
+        applyFailed: "Požadované nastavenia ventilátorov sa nepodarilo použiť. Ventilátory opäť ovláda systém.",
+        controlUnconfirmed: "Ovládanie nepotvrdené",
+        awaitingSystemControl: "Ovládač ventilátorov zatiaľ nepotvrdil, že systém opäť prevzal ich ovládanie.",
         safetyCaption: "Ovládanie zostáva aktívne, kým sa nevrátite na Systém. Automaticky sa vráti, ak sa aplikácia odpojí, Mac uspí, zlyhajú snímače alebo stúpne tepelný tlak.",
         safetyStopped: "Ovládanie sa vrátilo systému, pretože bolo ovládanie ventilátorov prerušené.",
         menuBarTitle: "Otáčky ventilátora",
@@ -344,6 +378,7 @@ extension FanControlFeatureStrings {
         averageCPU: "Priemer CPU",
         hottestCPU: "Najteplejší CPU",
         hottestGPU: "Najteplejší GPU",
+        gpuIdle: "GPU v pokoji",
         helperUnavailable: "Chránený ovládač ventilátorov nie je dostupný. Povoľte Vorssaint v časti Položky a rozšírenia spúšťané pri prihlásení a skúste to znova.",
         resumeAfterRestart: "Pokračovať po reštarte alebo spánku"
     )
@@ -362,6 +397,10 @@ extension FanControlFeatureStrings {
         unsupported: "Die Lüftersteuerung ist auf diesem Mac nicht verfügbar.",
         alreadyControlled: "Ein anderer Prozess steuert die Lüfter. Gib sie dort zuerst an das System zurück.",
         failed: "Die Lüfter wurden an das System zurückgegeben, weil die gewünschte Steuerung nicht bestätigt werden konnte.",
+        controlStopped: "Das System steuert die Lüfter. Um wieder deine Lüftereinstellungen zu verwenden, wende sie erneut an.",
+        applyFailed: "Die gewünschten Lüftereinstellungen konnten nicht angewendet werden. Das System steuert die Lüfter wieder.",
+        controlUnconfirmed: "Steuerung unbestätigt",
+        awaitingSystemControl: "Die Lüftersteuerung hat noch nicht bestätigt, dass das System die Steuerung wieder übernommen hat.",
         safetyCaption: "Die Steuerung bleibt bis zur Rückkehr zu System aktiv. Sie wird bei getrennter App, Ruhezustand, Sensorausfall oder steigendem thermischem Druck automatisch zurückgegeben.",
         safetyStopped: "Wegen einer Unterbrechung wurde die Lüftersteuerung an das System zurückgegeben.",
         menuBarTitle: "Lüftergeschwindigkeit",
@@ -390,6 +429,7 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU-Durchschnitt",
         hottestCPU: "Heißeste CPU",
         hottestGPU: "Heißeste GPU",
+        gpuIdle: "GPU im Leerlauf",
         helperUnavailable: "Die geschützte Lüftersteuerung ist nicht verfügbar. Erlaube Vorssaint unter Anmeldeobjekte und versuche es erneut.",
         resumeAfterRestart: "Nach Neustart oder Ruhezustand fortsetzen"
     )
@@ -408,6 +448,10 @@ extension FanControlFeatureStrings {
         unsupported: "Le contrôle des ventilateurs n’est pas disponible sur ce Mac.",
         alreadyControlled: "Un autre processus contrôle les ventilateurs. Rendez-les d’abord au système.",
         failed: "Les ventilateurs ont été rendus au système car le contrôle demandé n’a pas pu être vérifié.",
+        controlStopped: "Le système contrôle les ventilateurs. Pour reprendre le contrôle personnalisé, appliquez vos réglages.",
+        applyFailed: "Impossible d’appliquer les réglages demandés pour les ventilateurs. Le système en a repris le contrôle.",
+        controlUnconfirmed: "Contrôle non confirmé",
+        awaitingSystemControl: "Le contrôleur des ventilateurs n’a pas encore confirmé que le système a repris le contrôle.",
         safetyCaption: "Le contrôle reste actif jusqu’au retour à Système. Il est rendu automatiquement si l’app se déconnecte, si le Mac veille, si les capteurs échouent ou si la pression thermique augmente.",
         safetyStopped: "Le contrôle a été rendu au système car le contrôle des ventilateurs a été interrompu.",
         menuBarTitle: "Vitesse des ventilateurs",
@@ -436,6 +480,7 @@ extension FanControlFeatureStrings {
         averageCPU: "Moyenne du CPU",
         hottestCPU: "CPU le plus chaud",
         hottestGPU: "GPU le plus chaud",
+        gpuIdle: "GPU au repos",
         helperUnavailable: "Le contrôleur protégé des ventilateurs est indisponible. Autorisez Vorssaint dans Ouverture, puis réessayez.",
         resumeAfterRestart: "Reprendre après un redémarrage ou la veille"
     )
@@ -454,6 +499,10 @@ extension FanControlFeatureStrings {
         unsupported: "Il controllo ventole non è disponibile su questo Mac.",
         alreadyControlled: "Un altro processo controlla le ventole. Riportale prima al controllo di sistema.",
         failed: "Le ventole sono tornate al sistema perché non è stato possibile verificare il controllo richiesto.",
+        controlStopped: "Il sistema controlla le ventole. Per tornare al controllo personalizzato, applica le tue impostazioni.",
+        applyFailed: "Non è stato possibile applicare le impostazioni richieste per le ventole. Il sistema è tornato a controllarle.",
+        controlUnconfirmed: "Controllo non confermato",
+        awaitingSystemControl: "Il controller delle ventole non ha ancora confermato il ritorno al controllo di sistema.",
         safetyCaption: "Il controllo resta attivo finché non torni a Sistema. Viene restituito automaticamente se l’app si disconnette, il Mac va in stop, i sensori falliscono o aumenta la pressione termica.",
         safetyStopped: "Il controllo è tornato al sistema perché il controllo delle ventole è stato interrotto.",
         menuBarTitle: "Velocità ventole",
@@ -482,6 +531,7 @@ extension FanControlFeatureStrings {
         averageCPU: "Media CPU",
         hottestCPU: "CPU più calda",
         hottestGPU: "GPU più calda",
+        gpuIdle: "GPU a riposo",
         helperUnavailable: "Il controller protetto delle ventole non è disponibile. Consenti Vorssaint negli elementi di login e riprova.",
         resumeAfterRestart: "Riprendi dopo il riavvio o lo stop"
     )
@@ -500,6 +550,10 @@ extension FanControlFeatureStrings {
         unsupported: "このMacではファン制御を利用できません。",
         alreadyControlled: "別のプロセスがファンを制御しています。先にシステム制御へ戻してください。",
         failed: "要求した制御を確認できなかったため、ファンはシステム制御へ戻りました。",
+        controlStopped: "システムがファンを制御しています。手動制御やファン曲線を使うには、設定を適用してください。",
+        applyFailed: "指定したファン設定を適用できませんでした。ファンの制御はシステムに戻りました。",
+        controlUnconfirmed: "制御状態を未確認",
+        awaitingSystemControl: "ファンコントローラは、制御がシステムに戻ったことをまだ確認できていません。",
         safetyCaption: "システムへ戻すまで制御は有効です。アプリの切断、Macのスリープ、センサー障害、熱圧力の上昇時には自動でシステムへ戻ります。",
         safetyStopped: "ファン制御が中断されたため、システム制御へ戻りました。",
         menuBarTitle: "ファン速度",
@@ -528,6 +582,7 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU平均",
         hottestCPU: "最高CPU",
         hottestGPU: "最高GPU",
+        gpuIdle: "GPU はアイドル状態",
         helperUnavailable: "保護されたファンコントローラを利用できません。ログイン項目でVorssaintを許可してから、もう一度お試しください。",
         resumeAfterRestart: "再起動やスリープのあとに再開"
     )
@@ -546,6 +601,10 @@ extension FanControlFeatureStrings {
         unsupported: "이 Mac에서는 팬 제어를 사용할 수 없습니다.",
         alreadyControlled: "다른 프로세스가 팬을 제어하고 있습니다. 먼저 시스템 제어로 돌려놓으세요.",
         failed: "요청한 제어를 확인할 수 없어 팬이 시스템 제어로 돌아갔습니다.",
+        controlStopped: "시스템이 팬을 제어하고 있습니다. 수동 제어나 팬 곡선을 다시 사용하려면 설정을 적용하세요.",
+        applyFailed: "요청한 팬 설정을 적용할 수 없었습니다. 시스템이 다시 팬을 제어합니다.",
+        controlUnconfirmed: "제어 상태 미확인",
+        awaitingSystemControl: "팬 컨트롤러가 시스템 제어로 복귀했는지 아직 확인하지 못했습니다.",
         safetyCaption: "시스템으로 돌아갈 때까지 제어가 유지됩니다. 앱 연결 해제, Mac 잠자기, 센서 오류 또는 열 압력 상승 시 자동으로 시스템에 반환됩니다.",
         safetyStopped: "팬 제어가 중단되어 시스템 제어로 돌아갔습니다.",
         menuBarTitle: "팬 속도",
@@ -574,6 +633,7 @@ extension FanControlFeatureStrings {
         averageCPU: "평균 CPU",
         hottestCPU: "가장 뜨거운 CPU",
         hottestGPU: "가장 뜨거운 GPU",
+        gpuIdle: "GPU 유휴 상태",
         helperUnavailable: "보호된 팬 컨트롤러를 사용할 수 없습니다. 로그인 항목에서 Vorssaint를 허용한 다음 다시 시도하세요.",
         resumeAfterRestart: "재시작 또는 잠자기 후 다시 적용"
     )
@@ -592,6 +652,10 @@ extension FanControlFeatureStrings {
         unsupported: "这台Mac不支持风扇控制。",
         alreadyControlled: "另一个进程正在控制风扇。请先在那里恢复系统控制。",
         failed: "无法验证请求的控制，风扇已恢复系统控制。",
+        controlStopped: "风扇由系统控制。要恢复手动控制或使用风扇曲线，请应用所需设置。",
+        applyFailed: "无法应用所选的风扇设置。风扇已恢复系统控制。",
+        controlUnconfirmed: "控制状态尚未确认",
+        awaitingSystemControl: "风扇控制器尚未确认系统已重新接管风扇。",
         safetyCaption: "控制会保持到你恢复系统模式。App 断开、Mac睡眠、传感器失效或热压力升高时会自动交还系统。",
         safetyStopped: "风扇控制中断，已恢复系统控制。",
         menuBarTitle: "风扇转速",
@@ -620,6 +684,7 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU平均温度",
         hottestCPU: "CPU最高温度",
         hottestGPU: "GPU最高温度",
+        gpuIdle: "GPU 空闲",
         helperUnavailable: "受保护的风扇控制器不可用。请在登录项中允许 Vorssaint，然后重试。",
         resumeAfterRestart: "重新启动或睡眠后恢复"
     )
@@ -638,6 +703,10 @@ extension FanControlFeatureStrings {
         unsupported: "這台Mac不支援風扇控制。",
         alreadyControlled: "另一個程序正在控制風扇。請先在那裡恢復系統控制。",
         failed: "無法驗證要求的控制，風扇已恢復系統控制。",
+        controlStopped: "目前由系統控制風扇。若要恢復手動控制或使用風扇曲線，請套用所需設定。",
+        applyFailed: "無法套用所選的風扇設定。風扇已恢復系統控制。",
+        controlUnconfirmed: "控制狀態尚未確認",
+        awaitingSystemControl: "風扇控制器尚未確認系統已重新接管風扇。",
         safetyCaption: "控制會持續到你恢復系統模式。App中斷、Mac睡眠、感測器失效或熱壓力升高時會自動交還系統。",
         safetyStopped: "風扇控制中斷，已恢復系統控制。",
         menuBarTitle: "風扇轉速",
@@ -666,6 +735,7 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU平均溫度",
         hottestCPU: "CPU最高溫度",
         hottestGPU: "GPU最高溫度",
+        gpuIdle: "GPU 閒置",
         helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目中允許 Vorssaint，然後再試一次。",
         resumeAfterRestart: "重新開機或睡眠後恢復"
     )
@@ -684,6 +754,10 @@ extension FanControlFeatureStrings {
         unsupported: "這部Mac不支援風扇控制。",
         alreadyControlled: "另一個程序正在控制風扇。請先在那裡恢復系統控制。",
         failed: "無法驗證要求的控制，風扇已恢復系統控制。",
+        controlStopped: "風扇現由系統控制。如要恢復手動控制或使用風扇曲線，請套用所需設定。",
+        applyFailed: "無法套用所選的風扇設定。風扇已恢復系統控制。",
+        controlUnconfirmed: "控制狀態尚未確認",
+        awaitingSystemControl: "風扇控制器尚未確認系統已重新接管風扇。",
         safetyCaption: "控制會持續到你恢復系統模式。App中斷、Mac睡眠、感測器失效或熱壓力升高時會自動交還系統。",
         safetyStopped: "風扇控制中斷，已恢復系統控制。",
         menuBarTitle: "風扇轉速",
@@ -712,6 +786,7 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU平均溫度",
         hottestCPU: "CPU最高溫度",
         hottestGPU: "GPU最高溫度",
+        gpuIdle: "GPU 閒置",
         helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目允許 Vorssaint，然後再試一次。",
         resumeAfterRestart: "重新啟動或睡眠後恢復"
     )
@@ -729,6 +804,10 @@ extension FanControlFeatureStrings {
         unsupported: "Керування вентиляторами недоступне на цьому Mac.",
         alreadyControlled: "Інший процес керує вентиляторами. Спочатку поверніть його під системне керування.",
         failed: "Вентилятори повернулися під системне керування, оскільки запитане керування не вдалося перевірити.",
+        controlStopped: "Система керує вентиляторами. Щоб повернутися до власних налаштувань, застосуйте їх знову.",
+        applyFailed: "Не вдалося застосувати налаштування вентиляторів. Система знову керує вентиляторами.",
+        controlUnconfirmed: "Керування не підтверджено",
+        awaitingSystemControl: "Контролер вентиляторів ще не підтвердив повернення керування системі.",
         safetyCaption: "Керування залишається активним, поки ви не повернетесь до «Система». Воно повертається автоматично, якщо програма відключається, Mac засинає, датчики дають збій або зростає термічний тиск.",
         safetyStopped: "Повернуто під системне керування, оскільки керування вентиляторами було перервано.",
         menuBarTitle: "Швидкість вентилятора",
@@ -757,6 +836,7 @@ extension FanControlFeatureStrings {
         averageCPU: "Середній CPU",
         hottestCPU: "Найгарячіший CPU",
         hottestGPU: "Найгарячіший GPU",
+        gpuIdle: "GPU у стані спокою",
         helperUnavailable: "Захищений контролер вентиляторів недоступний. Дозвольте Vorssaint у розділі «Автозапуск» і спробуйте знову.",
         resumeAfterRestart: "Відновлювати після перезавантаження або сну"
     )

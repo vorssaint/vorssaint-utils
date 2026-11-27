@@ -15,6 +15,7 @@ enum SuperKeyTapContract {
     }
     enum Tap {
         static var requests: [Request] = []
+        static func enable(tap: CFMachPort, enable: Bool) {}
         static func create(tap: CGEventTapLocation, place: CGEventTapPlacement, options: CGEventTapOptions,
                            eventsOfInterest: CGEventMask, callback: CGEventTapCallBack,
                            userInfo: UnsafeMutableRawPointer?) -> CFMachPort? {
@@ -25,9 +26,17 @@ enum SuperKeyTapContract {
     final class Queue {
         static let main = Queue()
         var pending: [() -> Void] = []
+        var delayed: [DispatchWorkItem] = []
         func async(execute: @escaping () -> Void) { pending.append(execute) }
+        func asyncAfter(deadline: DispatchTime, execute work: DispatchWorkItem) { delayed.append(work) }
+        func sync(execute: () -> Void) { drain(); execute() }
         func drain() {
             while !pending.isEmpty { pending.removeFirst()() }
+        }
+        func advance() {
+            let due = delayed
+            delayed.removeAll()
+            for work in due where !work.isCancelled { work.perform() }
         }
     }
     enum Clock {
@@ -35,6 +44,18 @@ enum SuperKeyTapContract {
         static var systemUptime: TimeInterval = 100
     }
     final class EventSystemClient {}
+    struct MappingGuard {
+        let source: SuperKeySource
+        static func start(source: SuperKeySource) -> Self? { Self(source: source) }
+        func stop() -> Bool { true }
+    }
+    final class MappingDefaults {
+        private var values: [String: Any] = [:]
+        func bool(forKey key: String) -> Bool { values[key] as? Bool ?? false }
+        func string(forKey key: String) -> String? { values[key] as? String }
+        func set(_ value: Any, forKey key: String) { values[key] = value }
+        func removeObject(forKey key: String) { values.removeValue(forKey: key) }
+    }
     final class Keyboard {
         weak var client: EventSystemClient?
         static let superMapping = [["HIDKeyboardModifierMappingSrc": NSNumber(value: SuperKeySource.capsLock.usage),
@@ -70,9 +91,12 @@ enum SuperKeyTapContract {
         var tapRunLoop: CFRunLoop?
         var tapThread: Thread?
         var shouldStopTapThread = false
+        var pendingTapRestart = false
+        var wakeObserver: NSObjectProtocol?
         var tap: CFMachPort?
         var mouseTap: CFMachPort?
         var mouseTapRefusals = 0
+        var capturesMappedKeys = true
         var isRunning = true
         var mappingFailure: SuperKeyMappingFailure?
         var clearedMappings = 0
@@ -82,7 +106,18 @@ enum SuperKeyTapContract {
         var soloCapsLockWrite: (generation: UInt, count: UInt, on: Bool)?
         var lastMappingAt = Clock.systemUptime
         let mappingRepairInterval: TimeInterval = 3
+        let hidutilPath = "/usr/bin/hidutil"
+        let keyboardMatch = "keyboard"
+        var hidutilReads = 0
         var repairs = 0
+        var onMappingWrite: (() -> Void)?
+        var presenceChecks = 0
+        var presenceReadable = true
+        let defaults = MappingDefaults()
+        var pendingMappingEnableCount = 0
+        var mappingGuard: MappingGuard?
+        var keyboardRetry: DispatchWorkItem?
+        var keyboardRetryDelay: TimeInterval = 0.25
         var keyboards: [Keyboard] = []
         typealias IOHIDServiceClient = Keyboard
         let kHIDPage_GenericDesktop = 1
@@ -97,20 +132,34 @@ enum SuperKeyTapContract {
         func syncWithPreferences() {}
         func clearEventTapThread() -> Bool { false }
         func startOnMain() {}
-        func clearLeftoverMapping() { clearedMappings += 1 }
-        func tapDidStart(_ tap: CFMachPort) {}
+        func clearLeftoverMapping(synchronously: Bool = false) { clearedMappings += 1 }
         func forgetHeldKey() { state.reset() }
         func armHeldKeyWatchdog() {}
         func cancelHeldKeyWatchdog() {}
         func observeWake() {}
-        func confirmMapping(for tap: CFMachPort, generation: UInt, publishingRunState: Bool) {
-            lastMappingAt = Clock.systemUptime
-            mappingQueue.async {
-                self.repairs += 1
-                for keyboard in self.keyboards where keyboard.mapping == nil {
-                    keyboard.mapping = Keyboard.superMapping
+        static func hasKeyboardService() -> Bool? {
+            shared.presenceChecks += 1
+            return shared.presenceReadable ? !shared.keyboards.isEmpty : nil
+        }
+        func runHidutil(_ path: String, _ arguments: [String]) -> (status: Int32, output: String) {
+            if arguments.contains("--get") {
+                hidutilReads += 1
+                let blocks = keyboards.enumerated().map { index, keyboard in
+                    let entries = (keyboard.mapping ?? []).map { entry in
+                        "{ " + entry.map { "\($0.key) = \($0.value);" }.joined(separator: " ") + " }"
+                    }
+                    return "\(index) UserKeyMapping (\(entries.joined(separator: " ")))"
                 }
+                return (0, blocks.joined(separator: "\n"))
             }
+            guard arguments.contains("--set"), let argument = arguments.last,
+                  let properties = (try? JSONSerialization.jsonObject(with: Data(argument.utf8)))
+                    as? [String: [[String: NSNumber]]],
+                  let mappings = properties[SuperKeySupport.userMappingProperty] else { return (1, "") }
+            repairs += 1
+            onMappingWrite?()
+            for keyboard in keyboards { keyboard.mapping = mappings }
+            return (0, "")
         }
         func IOHIDEventSystemClientCreateSimpleClient(_ allocator: CFAllocator?) -> EventSystemClient {
             EventSystemClient()
@@ -225,6 +274,7 @@ enum SuperKeyTapContract {
         defer {
             Tap.requests = []
             Queue.main.pending = []
+            Queue.main.delayed = []
             State.shared = State()
             State.isEngaged = false
             State.inputSourceChanges = 0
@@ -387,11 +437,148 @@ enum SuperKeyTapContract {
             }
         }
         checkCapsLock(suite, request: request)
+        checkKeyboardWait(suite)
+    }
+
+    private static func checkKeyboardWait(_ suite: TestSuite) {
+        let service = SuperKeyService()
+        guard let port = CFMachPortCreate(nil, { _, _, _, _ in }, nil, nil) else {
+            suite.expect(false, "a local port represents the Super key tap waiting for a keyboard")
+            return
+        }
+        defer { CFMachPortInvalidate(port) }
+        service.tap = port
+        service.tapThread = Thread {}
+        service.mappingGeneration = 1
+        State.shared = service
+        State.isEngaged = false
+        service.isRunning = false
+        service.capturesMappedKeys = false
+
+        func drainMapping() {
+            service.mappingQueue.drain()
+            Queue.main.drain()
+        }
+        service.tapDidStart(port)
+        drainMapping()
+        suite.expect(service.tap === port && !service.shouldStopTapThread && !service.isRunning
+                     && !State.isEngaged && service.mappingFailure == nil,
+                     "a launch without a keyboard keeps the tap available and reports no conflict")
+
+        let trigger = SuperKeySupport.triggerKeyCode
+        let down = key(trigger)
+        let chord = key(8)
+        let up = key(trigger, down: false)
+        let raw = key(service.source.keyCode)
+        raw.type = .flagsChanged
+        let keysPassed = [down, chord, up, raw].allSatisfy {
+            service.handle(type: $0.type, event: $0)?.takeUnretainedValue() === $0
+        }
+        var captured: [Int64] = []
+        ShortcutRecordingTap.handler = { code, _, _ in captured.append(code) }
+        _ = ShortcutRecordingTap.handle(type: .keyDown, event: down)
+        _ = ShortcutRecordingTap.handle(type: .keyUp, event: up)
+        ShortcutRecordingTap.handler = nil
+        suite.expect(keysPassed && chord.flags.isEmpty && !service.state.isHeld
+                     && service.keyboardTapForRecording == nil && captured == [trigger],
+                     "an unverified keyboard keeps its native modifier and F18, including when recording a shortcut")
+        service.mappingDidFinish(.applied, for: port, generation: 0, publishingRunState: true)
+        suite.expect(!service.isRunning && !State.isEngaged && service.soloWrites.isEmpty,
+                     "a confirmation from another generation cannot activate the waiting tap")
+        func fireRetry() {
+            Queue.main.advance()
+            drainMapping()
+        }
+        fireRetry()
+        suite.expect(service.presenceChecks == 1 && service.keyboardRetry != nil
+                     && service.hidutilReads == 1 && service.repairs == 0 && !service.isRunning
+                     && service.mappingFailure == nil,
+                     "an absent HID keyboard keeps the service waiting without launching another mapping command")
+        service.keyboards = [Keyboard(mapped: false)]
+        service.presenceReadable = false
+        var capturedDuringWrite = false
+        service.onMappingWrite = {
+            let modified = key(8)
+            let intercepted = service.handle(type: .keyDown, event: down) == nil
+            _ = service.handle(type: .keyDown, event: modified)
+            _ = service.handle(type: .keyUp, event: up)
+            capturedDuringWrite = intercepted && modified.flags == service.eventModifiers.cgFlags
+                && service.keyboardTapForRecording === port && !service.isRunning
+        }
+        fireRetry()
+        service.onMappingWrite = nil
+        suite.expect(service.presenceChecks == 2 && service.keyboardRetry == nil
+                     && capturedDuringWrite && service.isRunning && State.isEngaged
+                     && service.soloWrites == [false],
+                     "when the HID probe is unreadable the late keyboard is checked, armed before writing and activated without a raw press")
+        service.presenceReadable = true
+
+        var recordedModifiers: [GlobalShortcutModifiers] = []
+        ShortcutRecordingTap.handler = { _, modifiers, _ in recordedModifiers.append(modifiers) }
+        _ = ShortcutRecordingTap.handle(type: .keyDown, event: down)
+        func wakeWithoutKeyboard() {
+            service.keyboards = []
+            service.confirmMapping(for: port, generation: service.mappingGeneration, publishingRunState: false)
+            drainMapping()
+        }
+        wakeWithoutKeyboard()
+        suite.expect(!service.isRunning && !State.isEngaged && service.keyboardTapForRecording == nil
+                     && service.tap === port && service.keyboardRetry != nil,
+                     "waking before the keyboard clears active status and releases F18 while waiting")
+        service.keyboards = [Keyboard(mapped: false)]
+        fireRetry()
+        _ = ShortcutRecordingTap.handle(type: .keyDown, event: chord)
+        ShortcutRecordingTap.handler = nil
+        suite.expect(service.isRunning && service.soloWrites == [false, false] && recordedModifiers == [[]],
+                     "reconnecting after wake completes startup and a recorder hold from the old keyboard is forgotten")
+
+        wakeWithoutKeyboard()
+        service.keyboards = [Keyboard(mapped: false)]
+        service.onMappingWrite = { service.keyboards = [] }
+        fireRetry()
+        service.onMappingWrite = nil
+        suite.expect(!service.capturesMappedKeys && service.keyboardRetry != nil
+                     && !service.isRunning && service.mappingFailure == nil,
+                     "disconnecting between write and readback releases F18 and returns to waiting")
+        let writesBeforeConflict = service.repairs
+        let foreign = Keyboard(mapped: false)
+        foreign.mapping = [["HIDKeyboardModifierMappingSrc": NSNumber(value: service.source.usage),
+                            "HIDKeyboardModifierMappingDst": NSNumber(value: 0x700000029)]]
+        service.keyboards = [foreign]
+        Queue.main.advance()
+        service.mappingQueue.drain()
+        suite.expect(!service.capturesMappedKeys && service.repairs == writesBeforeConflict,
+                     "a conflict on the arriving device never arms the tap or reaches a mapping write")
+        Queue.main.drain()
+        suite.expect(!service.isRunning && service.mappingFailure == .foreignMapping
+                     && service.keyboardTapForRecording == nil && service.keyboardRetry == nil,
+                     "a keyboard arriving with a conflicting mapping is refused without capturing F18")
+        let reads = service.hidutilReads
+        fireRetry()
+        suite.expect(service.hidutilReads == reads && !service.isRunning,
+                     "a refused activation does not keep retrying after it stops")
+
+        for alreadyQueued in [false, true] {
+            let disabled = SuperKeyService()
+            State.shared = disabled
+            disabled.tap = port
+            disabled.mappingDidFinish(.noKeyboard, for: port, generation: 0, publishingRunState: true)
+            let scheduled = disabled.keyboardRetry
+            if alreadyQueued { Queue.main.advance() }
+            disabled.stop()
+            Queue.main.advance()
+            disabled.mappingQueue.drain()
+            suite.expect(scheduled?.isCancelled == true && disabled.presenceChecks == 0
+                         && disabled.repairs == 0 && !disabled.isRunning,
+                         "disabling cancels a pending keyboard check, including one already on the mapping queue")
+        }
     }
 
     private static func checkCapsLock(_ suite: TestSuite, request: Request) {
         let service = SuperKeyService()
         service.soloAction = .capsLock
+        service.defaults.set(true, forKey: DefaultsKey.superKeyMappingApplied)
+        service.defaults.set(SuperKeySource.capsLock.rawValue, forKey: DefaultsKey.superKeyMappedSource)
         guard let port = CFMachPortCreate(nil, { _, _, _, _ in }, nil, nil) else {
             suite.expect(false, "a local port represents the live tap in the Caps Lock contract")
             return
@@ -448,9 +635,16 @@ enum SuperKeyTapContract {
                "an unmapped keyboard still gets its own reset when the lock read fails and remapping is throttled")
         Clock.systemUptime += service.mappingRepairInterval
         native.lockOn = true
+        var resetBeforeMapping = false
+        service.onMappingWrite = { resetBeforeMapping = !native.lockOn }
         _ = flagsChanged(.capsLock, .maskAlphaShift)
         service.mappingQueue.drain()
-        suite.expect(native.deviceWrites == [false, false] && native.mapping != nil && service.repairs == 1
+        service.onMappingWrite = nil
+        let attachWrites = native.deviceWrites
+        // An unreadable native lock is reset on each raw event and again
+        // when performMapping checks the device immediately before the write.
+        suite.expect(resetBeforeMapping && attachWrites == [false, false, false]
+                && native.mapping != nil && service.repairs == 1
                 && first.deviceWrites.isEmpty && second.deviceWrites.isEmpty,
                "a raw press on a new keyboard is neutralized before its mapping is installed")
 
@@ -462,7 +656,7 @@ enum SuperKeyTapContract {
         _ = flagsChanged(.rightCommand, .maskAlphaShift)
         service.mappingQueue.drain()
         suite.expect(passes != nil && service.soloWrites == [true, false, true, false]
-                && first.deviceWrites.isEmpty && native.deviceWrites == [false, false],
+                && first.deviceWrites.isEmpty && native.deviceWrites == attachWrites,
                "a right Command solo tap can toggle capitals from the event flags and its raw key leaves the lock alone")
 
         service.eventSource = .capsLock
@@ -474,7 +668,7 @@ enum SuperKeyTapContract {
         Queue.main.drain()
         service.mappingQueue.drain()
         suite.expect(native.lockOn && service.soloWrites == [true, false, true, false]
-                && native.deviceWrites == [false, false],
+                && native.deviceWrites == attachWrites,
                "queued solo and raw Caps Lock work cannot change the keyboard after that tap has stopped")
 
         native.lockOn = false

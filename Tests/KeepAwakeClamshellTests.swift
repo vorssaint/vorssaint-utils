@@ -14,6 +14,7 @@ extension KeepAwakeLidSleepContract {
         static let sleepDisabledFlag = "disabled"
         static let keepAwakePauseWhenLocked = "pause"
         static let clamshellMuteOnClose = "muteOnClose"
+        static let keepAwakePowerDisconnectDelay = "powerDisconnectDelay"
         static let dimScreenOnLidClose = "dimScreen"
         static let dimmedDisplaySavedBrightness = "dimmedDisplaySavedBrightness"
         static let defaultDuration = "defaultDuration"

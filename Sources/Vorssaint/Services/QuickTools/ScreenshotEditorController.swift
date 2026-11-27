@@ -28,7 +28,15 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private var expansionStartPoint: CGPoint?
 
     @Published var selectedID: UUID?
-    @Published var editingTextID: UUID?
+    @Published var editingTextID: UUID? {
+        didSet {
+            guard editingTextID != oldValue else { return }
+            editingText = editingTextID.flatMap { id in
+                annotations.first { $0.id == id }?.text
+            } ?? ""
+        }
+    }
+    @Published var editingText = ""
     @Published var tool: ScreenshotSupport.Tool {
         didSet {
             UserDefaults.standard.set(tool.rawValue, forKey: DefaultsKey.screenshotLastTool)
@@ -169,8 +177,14 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// from the visible scale even in fit mode. Plain var on purpose: the
     /// view writes it during layout.
     var currentDisplayZoom: CGFloat = 0.5
-    @Published private(set) var canUndo = false
-    @Published private(set) var canRedo = false
+    // The toolbar commits the active caption before stepping through history.
+    var canUndo: Bool {
+        !undoStack.isEmpty || hasPendingTextChanges
+    }
+
+    var canRedo: Bool {
+        !redoStack.isEmpty && !hasPendingTextChanges
+    }
     /// True while there is work that never left the app: closing then asks.
     @Published private(set) var isDirty = false
 
@@ -616,7 +630,6 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         undoStack.append((baseImage, previous))
         redoStack.removeAll()
         trimHistory(afterUndo: false)
-        refreshUndoFlags()
         isDirty = true
     }
 
@@ -691,13 +704,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         editingTextID = nil
         newTextID = nil
         cropDraft = nil
-        refreshUndoFlags()
         refreshDirtyState()
-    }
-
-    private func refreshUndoFlags() {
-        canUndo = !undoStack.isEmpty
-        canRedo = !redoStack.isEmpty
     }
 
     func markExported() {
@@ -1261,16 +1268,26 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         annotations = ScreenshotSupport.renumberingCounters(reordered)
     }
 
-    func commitText(_ id: UUID, text: String) {
-        guard let index = annotations.firstIndex(where: { $0.id == id }) else { return }
+    private var trimmedEditingText: String {
+        editingText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var hasPendingTextChanges: Bool {
+        guard let editingTextID,
+              let annotation = annotations.first(where: { $0.id == editingTextID }) else { return false }
+        return trimmedEditingText != annotation.text
+    }
+
+    func commitText(_ id: UUID) {
+        guard editingTextID == id,
+              let index = annotations.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = trimmedEditingText
         editingTextID = nil
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let isNew = newTextID == id
         if isNew, trimmed.isEmpty {
             annotations.remove(at: index)
             if selectedID == id { selectedID = nil }
             newTextID = nil
-            refreshUndoFlags()
             refreshDirtyState()
             return
         }
@@ -1867,7 +1884,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     // MARK: NSWindowDelegate
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        guard model.isDirty else { return true }
+        guard model.isDirty || model.hasPendingTextChanges else { return true }
         let alert = NSAlert()
         alert.messageText = strings.discardTitle
         alert.informativeText = strings.discardMessage

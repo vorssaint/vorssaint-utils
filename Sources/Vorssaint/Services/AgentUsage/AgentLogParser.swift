@@ -28,6 +28,17 @@ enum AgentLogEntry: Equatable {
     case reset(Date)
 }
 
+/// A reply without usable counters, identified across stream updates and transcript copies.
+struct CursorUnmeteredResponse: Equatable {
+    var minute: Int?
+    var model = ""
+    var undatedThrough: Date?
+
+    var observation: Date {
+        minute.map { Date(timeIntervalSince1970: Double($0) * 60) } ?? undatedThrough ?? .distantPast
+    }
+}
+
 /// Per-file context carried from line to line.
 struct AgentLogState: Equatable {
     var session = ""
@@ -38,8 +49,8 @@ struct AgentLogState: Equatable {
     /// running totals, which are the fallback until a record appears.
     var sawUsageRecords = false
     var lastTotal: AgentTokens?
-    /// Codex runs the thread on the fast tier, which bills at a premium.
-    var fast = false
+    /// The service tier from the latest Codex thread settings.
+    var serviceTier: AgentServiceTier?
     /// A Codex subagent, review or memory task owns no turn. Only the log's
     /// metadata says so: a reverted thread goes on in a log named after both
     /// the thread and a new rollout.
@@ -61,6 +72,20 @@ struct AgentLogState: Equatable {
     var copilotReportedRequests: [String: Int] = [:]
     var copilotTurnID: String?
     var copilotFinalResponse = false
+    /// The prompt ordinal and optional timestamp identify the turn when Cursor rewrites the file.
+    var cursorPromptCount = 0
+    var cursorPromptTimestamp: Date?
+    var cursorLastActivity: Date?
+    /// Absolute minutes with an explicitly dated reply that supplied no usable counters.
+    var cursorUnmeteredMinutes = IndexSet()
+    /// Latest dated gap for each model explicitly named by an unmetered reply.
+    var cursorUnmeteredModelMinutes: [String: Int] = [:]
+    /// A file observation only bounds an undated reply; it cannot place it in a chart cell.
+    var cursorUndatedResponseThrough: Date?
+    /// An identified reply can report counters in a later update or a second copy.
+    private(set) var cursorUnmeteredResponses: [String: CursorUnmeteredResponse] = [:]
+    /// Derived from the responses; a usual append need not inspect them all for expiry.
+    private(set) var cursorEarliestUnmeteredResponse: Date?
     /// The parent session when a database row belongs to a subagent.
     var parentSession = ""
     /// OpenCode stores all sessions in one database, tracking per-session state.
@@ -68,6 +93,44 @@ struct AgentLogState: Equatable {
     /// Claude's shell commands still waiting for their result, by tool call.
     /// They run on the Mac, so the turn goes on without the network.
     var runningCommands: Set<String> = []
+
+    mutating func setUnmeteredResponse(_ response: CursorUnmeteredResponse?, id: String) {
+        let previous = cursorUnmeteredResponses[id]
+        guard previous != response else { return }
+        cursorUnmeteredResponses[id] = response
+        if let previous, previous.observation == cursorEarliestUnmeteredResponse,
+           response.map({ $0.observation > previous.observation }) ?? true {
+            cursorEarliestUnmeteredResponse = cursorUnmeteredResponses.values.lazy.map(\.observation).min()
+        } else if let response {
+            cursorEarliestUnmeteredResponse = min(cursorEarliestUnmeteredResponse ?? response.observation, response.observation)
+        }
+    }
+
+    mutating func restoreUnmeteredResponses(_ responses: [String: CursorUnmeteredResponse]) {
+        cursorUnmeteredResponses = responses
+        cursorEarliestUnmeteredResponse = responses.values.lazy.map(\.observation).min()
+    }
+
+    @discardableResult
+    mutating func dropCursorCoverage(before horizon: Date) -> Bool {
+        var changed = false
+        let cutoff = Int((horizon.timeIntervalSince1970 / 60).rounded(.down))
+        if let first = cursorUnmeteredMinutes.first, first < cutoff {
+            cursorUnmeteredMinutes.remove(integersIn: 0..<cutoff)
+            cursorUnmeteredModelMinutes = cursorUnmeteredModelMinutes.filter { $0.value >= cutoff }
+            changed = true
+        }
+        let firstMinute = Date(timeIntervalSince1970: Double(cutoff) * 60)
+        if let earliest = cursorEarliestUnmeteredResponse, earliest < firstMinute {
+            restoreUnmeteredResponses(cursorUnmeteredResponses.filter { $0.value.observation >= firstMinute })
+            changed = true
+        }
+        if let through = cursorUndatedResponseThrough, through < horizon {
+            cursorUndatedResponseThrough = nil
+            return true
+        }
+        return changed
+    }
 }
 
 /// Per-session turn and model tracking for OpenCode databases.
@@ -151,9 +214,13 @@ enum AgentLogParser {
                            output: int(usage["output_tokens"]), reasoning: int(usage["reasoning_output_tokens"]))
     }
 
-    /// Fast mode, named priority before July 2026.
-    static func fastTier(_ tier: String) -> Bool {
-        ["fast", "priority"].contains(tier.lowercased())
+    static func serviceTier(_ tier: String) -> AgentServiceTier {
+        switch tier.lowercased() {
+        case "default", "standard": return .standard
+        case "fast", "priority": return .fast
+        case "ultrafast": return .ultrafast
+        default: return .unknown
+        }
     }
 
     // MARK: OpenCode
@@ -174,6 +241,60 @@ enum AgentLogParser {
     /// decoded; prompts, replies, reasoning and tool arguments are ignored.
     static func parseCopilot(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         CopilotReader().parse(line, state: &state, now: now)
+    }
+
+    // MARK: Cursor
+
+    /// Cursor agent transcripts under `~/.cursor/projects`. Only turn edges
+    /// and the project folder name are taken; prompts and replies are not.
+    static func parseCursor(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        CursorReader().parse(line, state: &state, now: now)
+    }
+
+    /// The workspace folder Cursor encodes in
+    /// `~/.cursor/projects/<slug>/agent-transcripts/…`.
+    static func cursorProject(from path: String) -> String {
+        let transcript = CursorTranscriptFiles(path: path)
+        let directory = transcript.flat.deletingLastPathComponent()
+        guard directory.lastPathComponent == "agent-transcripts" else { return "" }
+        let project = directory.deletingLastPathComponent()
+        let slug = project.lastPathComponent
+        // Home is taken from the transcript path, not this Mac's account, so
+        // fixtures and other users' copied logs still name the project.
+        let projects = project.deletingLastPathComponent()
+        let cursor = projects.deletingLastPathComponent()
+        guard projects.lastPathComponent == "projects", cursor.lastPathComponent == ".cursor" else { return native(slug) }
+        let homePath = cursor.deletingLastPathComponent().path
+        let encodedHome = homePath.split(separator: "/").joined(separator: "-")
+        if slug == encodedHome { return projectName(homePath) }
+        if !encodedHome.isEmpty, slug.hasPrefix(encodedHome + "-") {
+            let rest = String(slug.dropFirst(encodedHome.count + 1))
+            if let resolved = resolveHyphenatedPath(base: homePath, encoded: rest) {
+                return projectName(resolved)
+            }
+            return native(rest)
+        }
+        return native(slug)
+    }
+
+    /// Cursor replaces both separators and literal hyphens with the same
+    /// character. Only accept a reconstruction when the full directory exists.
+    private static func resolveHyphenatedPath(base: String, encoded: String) -> String? {
+        let tokens = encoded.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
+        return resolveHyphenatedPath(base: base, tokens: ArraySlice(tokens))
+    }
+
+    private static func resolveHyphenatedPath(base: String, tokens: ArraySlice<String>) -> String? {
+        guard !tokens.isEmpty else { return base }
+        for length in (1...tokens.count).reversed() {
+            let name = tokens.prefix(length).joined(separator: "-")
+            guard !name.isEmpty, name != ".", name != ".." else { continue }
+            let next = (base as NSString).appendingPathComponent(name)
+            var directory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: next, isDirectory: &directory), directory.boolValue,
+               let found = resolveHyphenatedPath(base: next, tokens: tokens.dropFirst(length)) { return found }
+        }
+        return nil
     }
 
     static func copilotEvent(_ type: String) -> Bool {
