@@ -14,6 +14,7 @@ final class NotchLockScreenModel: ObservableObject {
         var downloads = false
         var countdown = false
         var timeLeft = false
+        var joins = false
     }
 
     @Published var gates = Gates()
@@ -329,7 +330,11 @@ struct NotchLockScreenActivities: View {
         return NotchLockScreenSupport.activities(
             timer: gates.timer && timer.session.hasSession,
             calendar: calendar.countdown.map {
-                ($0.ongoing ? gates.timeLeft : gates.countdown || calendar.isChosen($0.event)) && $0.isShown(at: date, leadTime: calendar.countdownLeadTime)
+                let follows = $0.ongoing
+                    ? gates.timeLeft || (gates.joins && $0.event.meetingURL != nil)
+                    : gates.countdown || calendar.isChosen($0.event)
+                return follows && $0.isShown(at: date, leadTime: calendar.countdownLeadTime,
+                                             joinsThroughEnd: gates.joins)
             } == true,
             agents: gates.agents && !usage.snapshot.live.isEmpty,
             downloads: gates.downloads && downloads.items.contains { $0.active && !$0.completed })

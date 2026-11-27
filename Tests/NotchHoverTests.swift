@@ -108,6 +108,7 @@ enum NotchHoverTests {
         var presentedMusic: NotchCompactMusicSnapshot?
         var heldMusic: NotchCompactMusicSnapshot?
         var musicStripPointer: NotchMusicStripPart?
+        var calendarJoinHovered = false
         var musicStripNamed = false
         var musicStripRequest: Bool?
         var musicStripHeldSong: NotchPlaybackContext?
