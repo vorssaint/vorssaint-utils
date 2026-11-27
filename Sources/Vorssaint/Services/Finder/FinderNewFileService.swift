@@ -9,9 +9,13 @@ import Security
 /// No watcher or polling is needed: Finder invokes the feature on demand.
 enum FinderNewFileService {
     private static var replayGuard = FinderNewFileReplayGuard()
+    // Main-thread state: don't accept a queued Finder action while permissions
+    // or the app itself are being removed.
+    private static var tearingDown = false
 
     static var enabled: Bool {
-        AppFeature.finderNewFile.isAvailable && UserDefaults.standard.bool(forKey: DefaultsKey.finderNewFileEnabled)
+        !tearingDown && AppFeature.finderNewFile.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.finderNewFileEnabled)
     }
 
     static var items: [FinderNewFileItem] { configuredItems() }
@@ -28,6 +32,33 @@ enum FinderNewFileService {
 
     static func suspend() {
         publish(enabled: false)
+    }
+
+    static func beginSystemTeardown() {
+        tearingDown = true
+        suspend()
+    }
+
+    static func endSystemTeardown() {
+        tearingDown = false
+        syncWithPreferences()
+    }
+
+    /// Finder Sync enablement is a PlugInKit user election, not a TCC grant.
+    /// Only an explicit Clear all permissions/uninstall may change it.
+    static func clearExtensionPermission() -> Bool {
+        guard extensionEnabled else { return true }
+        #if VORSSAINT_DEVELOPMENT
+        let id = "com.vorssaint.utils.dev.finder-new-file"
+        #else
+        let id = "com.vorssaint.utils.finder-new-file"
+        #endif
+        let result = Shell.run("/usr/bin/pluginkit", ["-e", "ignore", "-i", id])
+        guard result.status == 0, !extensionEnabled else {
+            NSLog("Vorssaint could not confirm that its Finder extension was disabled: %@", result.output)
+            return false
+        }
+        return true
     }
 
     private static func publish(enabled: Bool) {

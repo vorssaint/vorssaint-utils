@@ -181,6 +181,17 @@ fi
 echo "▸ Resetting permissions (Accessibility, Screen Recording)…"
 tccutil reset All "$BUNDLE" >/dev/null 2>&1 || true
 
+# Finder extension elections are separate from TCC. Scope this to the
+# release extension, never the Developer app or other Finder extensions.
+finder_extension_id="$BUNDLE.finder-new-file"
+if [[ -n "$(/usr/bin/pluginkit -m -i "$finder_extension_id" 2>/dev/null)" ]]; then
+    if ! /usr/bin/pluginkit -e ignore -i "$finder_extension_id" >/dev/null 2>&1; then
+        print -u2 "Could not disable the Finder extension. Disable it in System Settings and retry."
+        exit 1
+    fi
+fi
+defaults delete "$BUNDLE.finder-new-file-menu" >/dev/null 2>&1 || true
+
 echo "▸ Removing app, preferences, saved state and stored data (clipboard history, shelf files, share links)…"
 rm -rf "$APP" "$LEGACY_APP"
 defaults delete "$BUNDLE" >/dev/null 2>&1 || true

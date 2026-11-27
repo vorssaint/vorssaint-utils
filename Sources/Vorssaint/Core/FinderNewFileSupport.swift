@@ -299,6 +299,15 @@ enum FinderNewFileExchange {
         else { throw CocoaError(.fileWriteUnknown) }
     }
 
+    /// Remove only this variant's shared presentation data on full uninstall.
+    static func removeSnapshot() {
+        CFPreferencesSetValue(snapshotKey, nil, menuDomain,
+                              kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+        if !CFPreferencesSynchronize(menuDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) {
+            NSLog("Vorssaint Finder menu preferences could not be removed")
+        }
+    }
+
     static func snapshot() -> FinderNewFileSnapshot? {
         CFPreferencesSynchronize(menuDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
         guard let data = CFPreferencesCopyValue(snapshotKey, menuDomain,
