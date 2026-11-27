@@ -50,8 +50,8 @@ struct FanControlCurveEditor: View {
 
                 Spacer(minLength: 4)
 
-                if let temperature = temperature(for: curve.wrappedValue.sensor) {
-                    Text(formattedTemperature(temperature))
+                if let reading = readingText(for: curve.wrappedValue) {
+                    Text(reading)
                         .font(.system(size: 10, weight: .semibold).monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -71,7 +71,9 @@ struct FanControlCurveEditor: View {
             }
 
             FanControlCurveGraph(points: curve.points,
+                                 operatingPoint: operatingPoint(for: curve.wrappedValue),
                                  accessibilityLabel: strings.curveGraph,
+                                 accessibilityValue: readingText(for: curve.wrappedValue),
                                  disabled: disabled)
                 .frame(height: 92)
 
@@ -216,6 +218,29 @@ struct FanControlCurveEditor: View {
         snapshot.temperatures?.first { $0.source == source }?.celsius
     }
 
+    private func operatingPoint(for curve: FanControlCurve) -> (temperature: Double, level: Double)? {
+        guard let temperature = temperature(for: curve.sensor) else { return nil }
+        return FanControlPolicy.curveOperatingPoint(points: curve.points, temperature: temperature)
+    }
+
+    /// The sensor reading and the speed this curve asks for at it. A sleeping
+    /// GPU has no reading; its curve then asks for its first point.
+    private func readingText(for curve: FanControlCurve) -> String? {
+        guard let first = curve.points.first else { return nil }
+        if let temperature = temperature(for: curve.sensor) {
+            guard FanControlPolicy.validTemperature(temperature) else {
+                return formattedTemperature(temperature)
+            }
+            let level = FanControlPolicy.interpolatedCoolingLevel(points: curve.points,
+                                                                  temperature: temperature)
+            return "\(formattedTemperature(temperature)) · \(level)%"
+        }
+        if curve.sensor == .hottestGPU, snapshot.gpuPoweredDown == true {
+            return "\(strings.gpuIdle) · \(first.coolingLevel)%"
+        }
+        return nil
+    }
+
     private func formattedTemperature(_ celsius: Double) -> String {
         MetricFormat.temperature(celsius, unit: temperatureUnit)
     }
@@ -233,7 +258,9 @@ struct FanControlCurveEditor: View {
 
 private struct FanControlCurveGraph: View {
     @Binding var points: [FanControlCurvePoint]
+    let operatingPoint: (temperature: Double, level: Double)?
     let accessibilityLabel: String
+    let accessibilityValue: String?
     let disabled: Bool
     @State private var draggedPoint: Int?
 
@@ -262,6 +289,15 @@ private struct FanControlCurveGraph: View {
                 .stroke(Color.cyan,
                         style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
 
+                // The live reading: drawn under the editable points and never
+                // picked up by a drag, which only looks for the nearest point.
+                if let operatingPoint {
+                    FanControlCurveMarker(position: position(temperature: operatingPoint.temperature,
+                                                             level: operatingPoint.level,
+                                                             in: geometry.size),
+                                          height: geometry.size.height)
+                }
+
                 ForEach(points.indices, id: \.self) { index in
                     Circle()
                         .fill(Color.cyan)
@@ -285,15 +321,22 @@ private struct FanControlCurveGraph: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(accessibilityValue ?? "")
     }
 
     private func position(for point: FanControlCurvePoint, in size: CGSize) -> CGPoint {
+        position(temperature: Double(point.temperature),
+                 level: Double(point.coolingLevel),
+                 in: size)
+    }
+
+    private func position(temperature: Double, level: Double, in size: CGSize) -> CGPoint {
         let width = max(1, size.width - 12)
         let height = max(1, size.height - 12)
-        let x = Double(point.temperature - FanControlPolicy.minimumCurveTemperature)
+        let x = (temperature - Double(FanControlPolicy.minimumCurveTemperature))
             / Double(FanControlPolicy.maximumCurveTemperature
                      - FanControlPolicy.minimumCurveTemperature)
-        let y = 1 - Double(point.coolingLevel) / Double(FanControlPolicy.maximumCoolingLevel)
+        let y = 1 - level / Double(FanControlPolicy.maximumCoolingLevel)
         return CGPoint(x: 6 + CGFloat(x) * width, y: 6 + CGFloat(y) * height)
     }
 
@@ -337,5 +380,26 @@ private struct FanControlCurveGraph: View {
         level = min(FanControlPolicy.maximumCoolingLevel,
                     max(FanControlPolicy.minimumCoolingLevel, level))
         points[index] = FanControlCurvePoint(temperature: temperature, coolingLevel: level)
+    }
+}
+
+/// The current reading on a curve: a dashed line at its temperature and a dot
+/// where the curve crosses it.
+private struct FanControlCurveMarker: View {
+    let position: CGPoint
+    let height: CGFloat
+
+    var body: some View {
+        Path { path in
+            path.move(to: CGPoint(x: position.x, y: 6))
+            path.addLine(to: CGPoint(x: position.x, y: height - 6))
+        }
+        .stroke(Color.orange.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
+
+        Circle()
+            .fill(Color.orange)
+            .overlay(Circle().stroke(Color.white.opacity(0.9), lineWidth: 1))
+            .frame(width: 7, height: 7)
+            .position(position)
     }
 }

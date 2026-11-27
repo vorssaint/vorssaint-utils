@@ -362,6 +362,33 @@ enum FanControlPolicy {
         return last.coolingLevel
     }
 
+    /// Where a reading sits on a curve as the editor draws it: the reading held
+    /// to the graph's axis and the unrounded level on the line between points.
+    /// The level the curve asks for is still `interpolatedCoolingLevel`.
+    static func curveOperatingPoint(points: [FanControlCurvePoint],
+                                    temperature: Double) -> (temperature: Double, level: Double)? {
+        guard let first = points.first, let last = points.last,
+              validTemperature(temperature) else { return nil }
+        let axisTemperature = min(Double(maximumCurveTemperature),
+                                  max(Double(minimumCurveTemperature), temperature))
+        if temperature <= Double(first.temperature) {
+            return (axisTemperature, Double(first.coolingLevel))
+        }
+        if temperature >= Double(last.temperature) {
+            return (axisTemperature, Double(last.coolingLevel))
+        }
+        for index in 1..<points.count where temperature <= Double(points[index].temperature) {
+            let lower = points[index - 1]
+            let upper = points[index]
+            let progress = (temperature - Double(lower.temperature))
+                / Double(upper.temperature - lower.temperature)
+            let level = Double(lower.coolingLevel)
+                + Double(upper.coolingLevel - lower.coolingLevel) * progress
+            return (axisTemperature, level)
+        }
+        return (axisTemperature, Double(last.coolingLevel))
+    }
+
     static func validTemperature(_ value: Double) -> Bool {
         value.isFinite && value >= 1 && value < 125
     }
