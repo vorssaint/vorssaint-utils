@@ -195,6 +195,13 @@ enum NotchAgentSupport {
         return value.isFinite ? min(3600, max(0, value)) : defaultFinishMinimum
     }
 
+    static func shouldPulseLidLogo(after duration: TimeInterval, in defaults: UserDefaults = .standard) -> Bool {
+        guard duration.isFinite, defaults.bool(forKey: DefaultsKey.notchAgentsPulseLidLogo),
+              isEnabled(in: defaults), let minimum = finishMinimum(in: defaults)
+        else { return false }
+        return duration >= minimum
+    }
+
     /// Percent used that earns a warning; nil while warnings are off.
     static func limitThreshold(in defaults: UserDefaults = .standard) -> Double? {
         guard defaults.object(forKey: DefaultsKey.notchAgentsLimitAlert) as? Bool ?? true else { return nil }

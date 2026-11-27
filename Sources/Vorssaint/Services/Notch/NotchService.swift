@@ -1184,6 +1184,10 @@ final class NotchService: ObservableObject {
         // Paused while the island is away, the section still stops at once
         // when it is turned off.
         if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop() }
+        if !NotchAgentSupport.isEnabled() || !UserDefaults.standard.bool(forKey: DefaultsKey.notchAgentsPulseLidLogo)
+            || NotchAgentSupport.finishMinimum() == nil {
+            MainActor.assumeIsolated { LidLogoCompletionCue.shared.cancel() }
+        }
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
             else { NotchTimerService.shared.suspend() }
@@ -1284,6 +1288,7 @@ final class NotchService: ObservableObject {
     }
 
     func stop(restoreCapture: Bool = true) {
+        MainActor.assumeIsolated { LidLogoCompletionCue.shared.cancel() }
         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
         hotkey.unregister()
         if shortcutRegistrationFailed { shortcutRegistrationFailed = false }
@@ -3923,6 +3928,9 @@ final class NotchService: ObservableObject {
         // none of the sources an island that returns takes back.
         if wasLocked, !session.locked { NotchLockScreenService.shared.sync(session) }
         if couldPresent != session.canPresent {
+            if !session.canPresent {
+                MainActor.assumeIsolated { LidLogoCompletionCue.shared.cancel() }
+            }
             if session.canPresent {
                 syncWithPreferences()
             } else {
@@ -4366,6 +4374,9 @@ final class NotchService: ObservableObject {
         }
         switch event {
         case .finished(let provider, let duration, let cost, _, _):
+            if !suspended, NotchAgentSupport.shouldPulseLidLogo(after: duration) {
+                MainActor.assumeIsolated { LidLogoCompletionCue.shared.play() }
+            }
             show(NotchNotice(event: .agents, title: text.finished(provider.displayName),
                              detail: [AgentFormat.duration(duration, locale: locale), cost > 0 ? AgentFormat.cost(cost) : ""]
                                 .filter { !$0.isEmpty }.joined(separator: " · "),
