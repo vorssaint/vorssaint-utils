@@ -2406,6 +2406,12 @@ def main():
           + declaration(selection, "    private func confirmSelectionWithKeyboard()")
           + declaration(selection, "    private func installKeyMonitor()")
           + "}\n}\n")
+    gesture = "Sources/Vorssaint/Services/InstantSpaces/InstantSpacesGesture.swift"
+    write("InstantSpacesGesturePreferences.swift", "import CoreGraphics\nimport Darwin\nimport Foundation\n"
+          + "extension InstantSpacesTests.GesturePreferences {\n"
+          + declaration(gesture, "enum InstantSpacesGesture {")
+          + "}\n"
+          + declaration(gesture, "private extension Data {"))
     write("InstantSpacesKeyboard.swift", "import CoreGraphics\nimport Foundation\n"
           + "extension InstantSpacesTests {\nfinal class KeyboardHost: KeyboardFixture {\n"
           + declaration("Sources/Vorssaint/Services/InstantSpaces/InstantSpacesService.swift",

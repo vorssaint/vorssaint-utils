@@ -1,5 +1,6 @@
 Space Rabbit — https://github.com/Tahul/space-rabbit
 Revision: 54d6eb40574a04be678f943132aa0117c9078ba5
+Horizontal flicker fix: 65aff06a47e8a505d3c77c72bfc172a71de4b44a
 
 Copyright (C) 2026 Yaël Guilloux & Valerian Saliou and Space Rabbit contributors.
 Modifications Copyright (C) 2026 Vorssaint.

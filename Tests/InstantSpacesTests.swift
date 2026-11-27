@@ -15,6 +15,17 @@ enum InstantSpacesTests {
     }
 
     enum ShortcutCapture { static var isCapturing = false }
+    enum GesturePreferences {
+        static var reads = 0
+        @discardableResult
+        static func CFPreferencesSynchronize(_ application: CFString, _ user: CFString, _ host: CFString) -> Bool {
+            true
+        }
+        static func CFPreferencesCopyAppValue(_ key: CFString, _ application: CFString) -> CFPropertyList? {
+            reads += 1
+            return reads.isMultiple(of: 2) ? kCFBooleanFalse : kCFBooleanTrue
+        }
+    }
     enum CGEventSource {
         static var dragging = false
         static func buttonState(_ state: CGEventSourceStateID, button: CGMouseButton) -> Bool { dragging }
@@ -129,6 +140,17 @@ enum InstantSpacesTests {
                 suite.expect(events.allSatisfy {
                     $0.getIntegerValueField(.eventSourceUserData) == InstantSpacesGesture.marker
                 }, "rebuilt synthetic events bypass physical-swipe interception")
+                if InstantSpacesGesture.augmented {
+                    let dockEvents = events.filter { $0.type.rawValue == 30 }
+                    let progress = dockEvents.map { $0.getDoubleValueField(CGEventField(rawValue: 124)!) }
+                    suite.expect(progress.allSatisfy { abs($0) >= 1.0 / 65536 && abs($0) < 0.001 },
+                                 "instant phases carry representable near-zero travel instead of a sliding frame")
+                    let velocity = dockEvents.map { $0.getDoubleValueField(CGEventField(rawValue: 129)!) }
+                    suite.expect(velocity.dropLast().allSatisfy { $0 == 0 }
+                        && abs(velocity.last ?? 0) >= 9999
+                        && velocity.last?.sign == progress.last?.sign,
+                                 "only terminal velocity commits the switch, in the gesture's direction")
+                }
                 if let terminal = events.dropLast().last,
                    let cleanup = InstantSpacesGesture.cleanup(terminal) {
                     suite.expect(cleanup.getDoubleValueField(CGEventField(rawValue: 124)!) == 0
@@ -138,6 +160,18 @@ enum InstantSpacesTests {
                 } else {
                     suite.expect(false, "a terminal gesture can be rebuilt for cleanup")
                 }
+            }
+            if InstantSpacesGesture.augmented {
+                GesturePreferences.reads = 0
+                defer { GesturePreferences.reads = 0 }
+                let events = GesturePreferences.InstantSpacesGesture.events(direction: 1)
+                suite.expect(events != nil && GesturePreferences.reads == 1,
+                             "one gesture samples Natural scrolling once even when the preference changes between reads")
+                let progress = events?.filter { $0.type.rawValue == 30 }.map {
+                    $0.getDoubleValueField(CGEventField(rawValue: 124)!)
+                } ?? []
+                suite.expect(progress.count == 3 && progress.allSatisfy { $0 < 0 },
+                             "all three phases keep the initially sampled direction")
             }
         }
 

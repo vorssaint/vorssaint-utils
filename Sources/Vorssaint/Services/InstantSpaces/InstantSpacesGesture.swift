@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0 OR GPL-3.0-or-later
 // Copyright (C) 2026 Yaël Guilloux & Valerian Saliou and Space Rabbit contributors
 // Modifications Copyright (C) 2026 Vorssaint
-// Adapted from Space Rabbit (54d6eb4), App/SpaceSwitching.swift and PrivateAPI.swift.
+// Adapted from Space Rabbit (54d6eb4, 65aff06), App/SpaceSwitching.swift
+// and PrivateAPI.swift.
 // Distributed with Vorssaint under MPL-2.0 and GPL-3.0-or-later, under MPL
 // section 3.3. Recipients may use this file under either license.
 // See Resources/Licenses/SpaceRabbit.txt.
@@ -25,7 +26,9 @@ enum InstantSpacesGesture {
     private static let kCGSGesturePhaseBegan: Int64 = 1
     private static let kCGSGesturePhaseEnded: Int64 = 4
     private static let kGestureMotionHorizontal: Int64 = 1
-    private static let kMissionControlEpsilon = 1.0 / 65536.0
+    // Near-zero travel avoids drawing an intermediate slide, but remains
+    // representable in the 16.16 HID payload so its direction survives.
+    private static let kInstantTravelMagnitude = 0.0001
     private static let kIOHIDGestureFlavorDockPrimary: UInt16 = 3
     private static let kIOHIDFluidTouchGestureDataSize: UInt32 = 40
     private static let kIOHIDVelocityEventDataSize: UInt32 = 28
@@ -58,11 +61,12 @@ enum InstantSpacesGesture {
             CFPreferencesSynchronize(kCFPreferencesAnyApplication,
                                      kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
         }
+        let sign = augmented ? augmentedHorizontalSign(isRight: direction > 0) : Double(direction)
         var events: [CGEvent] = []
         for phase: Int64 in augmented ? [1, 2, 4] : [1, 4] {
             let dock: CGEvent
             if augmented {
-                guard let raw = makeAugmentedDockEvent(phase: phase, isRight: direction > 0,
+                guard let raw = makeAugmentedDockEvent(phase: phase, sign: sign,
                                                        velocity: 9999),
                       let rebuilt = augmentDockSwipeEvent(raw) else { return nil }
                 dock = rebuilt
@@ -253,18 +257,18 @@ enum InstantSpacesGesture {
         return appendingBinaryField(fieldID, to: result, with: payload)
     }
 
-    private static func makeAugmentedDockEvent(phase: Int64, isRight: Bool,
+    private static func makeAugmentedDockEvent(phase: Int64, sign fullSign: Double,
                                         velocity: Double) -> CGEvent? {
         guard let ev = CGEvent(source: nil) else { return nil }
 
-        let fullSign = augmentedHorizontalSign(isRight: isRight)
-        let sign = phase == kCGSGesturePhaseBegan
-            ? fullSign * kMissionControlEpsilon : fullSign
+        // Terminal velocity commits the switch. Full Changed or Ended travel
+        // would expose an intermediate sliding frame on macOS 27.
+        let progress = fullSign * kInstantTravelMagnitude
 
         ev.setIntegerValueField(kCGSEventTypeField,          value: kCGSEventDockControl)
         ev.setIntegerValueField(kCGEventGestureHIDType,      value: kIOHIDEventTypeDockSwipe)
         ev.setIntegerValueField(kCGEventGesturePhase,        value: phase)
-        ev.setDoubleValueField(kCGEventGestureSwipeProgress, value: sign)
+        ev.setDoubleValueField(kCGEventGestureSwipeProgress, value: progress)
         ev.setIntegerValueField(kCGEventGestureSwipeMotion,  value: kGestureMotionHorizontal)
         ev.setIntegerValueField(kCGEventGesturePhase2,       value: phase)
         ev.setDoubleValueField(kCGEventGestureFlavor,        value: Double(kIOHIDGestureFlavorDockPrimary))

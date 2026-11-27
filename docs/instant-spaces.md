@@ -35,6 +35,9 @@ backup; no Dock preferences are changed.
 `InstantSpacesGesture` isolates the event encoding adapted from Space Rabbit at
 revision `54d6eb40574a04be678f943132aa0117c9078ba5`. The macOS 27 path includes the
 serialized HID payload absent from older synthetic-gesture implementations.
+It also carries the horizontal flicker fix from `65aff06a47e8a505d3c77c72bfc172a71de4b44a`:
+all three phases use near-zero travel and one sampled direction, committing the
+switch through terminal velocity instead of exposing an intermediate slide.
 Attribution and distribution terms are in
 [the bundled notice](../Resources/Licenses/SpaceRabbit.txt). The rest of the
 integration follows the repository's GPL-3.0-or-later license.
