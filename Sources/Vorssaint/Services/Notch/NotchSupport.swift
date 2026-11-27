@@ -344,6 +344,7 @@ enum NotchLayout {
     /// The Pomodoro's breaks and sessions as one line of readouts under the ruler.
     static let timerSettingsRowHeight: CGFloat = 28
     static let timerRulerHeight: CGFloat = 82
+    static let timerHistoryHeight: CGFloat = 224
     static let timerMinimumRulerHeight: CGFloat = 56
     /// Start sits in the island's top row with the modes.
     static let timerStartHeight: CGFloat = 28
@@ -2735,6 +2736,7 @@ struct NotchGeometry: Equatable {
                       fileMediaHeight: CGFloat? = nil, systemCards: Int = 6, toolCount: Int? = 8,
                       capturePreviewHeight: CGFloat? = nil,
                       timerHasSession: Bool = false, timerMode: NotchTimerMode = .timer,
+                      timerHistoryVisible: Bool = false,
                       agentsHeight: CGFloat? = nil) -> CGSize {
         let budget = contentBudget
         let showsCapturePreview = module == .captures && !detail && capturePreviewHeight != nil
@@ -2783,7 +2785,8 @@ struct NotchGeometry: Equatable {
                 contentHeight = min(budget, toolCount == 0 ? NotchLayout.emptyHeight
                     : NotchLayout.railHeight(rows: toolRows(count: toolCount), rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing))
             case .timer:
-                contentHeight = min(budget, NotchLayout.timer(mode: timerMode, hasSession: timerHasSession, height: budget))
+                contentHeight = min(budget, timerHistoryVisible ? NotchLayout.timerHistoryHeight
+                    : NotchLayout.timer(mode: timerMode, hasSession: timerHasSession, height: budget))
             case .agents:
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)

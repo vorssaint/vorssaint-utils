@@ -90,6 +90,7 @@ enum NotchMusicVisibilityTests {
         var noticeWork: DispatchWorkItem?
         var dragPlaceholder = false
         var hasTimerActivity = false
+        func closeTimerHistory() {}
         var hasWatchActivity = false
         var hasDownloadActivity = false
         var downloadName: String?

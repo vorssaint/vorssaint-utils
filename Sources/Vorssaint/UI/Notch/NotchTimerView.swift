@@ -2,10 +2,12 @@
 // Copyright (C) 2026 Vorssaint
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct NotchTimerView: View {
     let size: CGSize
     @ObservedObject private var service = NotchTimerService.shared
+    @ObservedObject private var island = NotchService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchTimerMode) private var mode: NotchTimerMode = .timer
     @AppStorage(DefaultsKey.notchPomodoroFocusMinutes) private var focusMinutes = 25
@@ -17,9 +19,24 @@ struct NotchTimerView: View {
     @Namespace private var modeSelection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.notchBand) private var band
+    @Environment(\.notchSettingsPreview) private var preview
     private var text: NotchActivityStrings { FeatureStrings.notchActivities(l10n.language) }
+    private var historyText: NotchPomodoroHistoryStrings { FeatureStrings.notchPomodoroHistory(l10n.language) }
 
     var body: some View {
+        if island.timerHistoryVisible, !preview {
+            TimelineView(.everyMinute) { context in
+                NotchPomodoroHistoryView(snapshot: service.history,
+                    now: context.date, language: l10n.language, onExport: exportHistory,
+                    onClose: { island.setTimerHistoryVisible(false) })
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in service.loadHistory() }
+        } else {
+            timerPage
+        }
+    }
+
+    private var timerPage: some View {
         Group {
             if service.session.hasSession { activeTimer }
             else { setup }
@@ -73,9 +90,30 @@ struct NotchTimerView: View {
             }
             .frame(height: rulerHeight)
             if mode == .pomodoro {
-                pomodoroSettings
-                    .frame(height: NotchLayout.timerSettingsRowHeight)
+                HStack(spacing: 6) {
+                    pomodoroSettings
+                    historyButton
+                }
+                .frame(height: NotchLayout.timerSettingsRowHeight)
             }
+        }
+    }
+
+    private var historyButton: some View {
+        NotchIconButton(symbol: "clock.arrow.circlepath", title: historyText.title) {
+            island.setTimerHistoryVisible(true)
+        }
+    }
+
+    private func exportHistory() {
+        guard let history = service.history, !history.days.isEmpty else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = "Pomodoro.csv"
+        guard panel.runAboveIsland() == .OK, let destination = panel.url else { return }
+        let failure = FeatureStrings.scratchpad(l10n.language).exportFailed
+        service.exportHistory(history, to: destination) {
+            QuickToolHUD.show(icon: "exclamationmark.triangle", message: failure)
         }
     }
 
@@ -259,6 +297,7 @@ struct NotchTimerView: View {
                 }
             }
             .scrollIndicators(.hidden)
+            .notchScrollEdgeFade(.horizontal)
         }
     }
 

@@ -9,6 +9,9 @@ import Combine
 final class NotchTimerService: ObservableObject {
     static let shared = NotchTimerService()
     @Published private(set) var session = NotchTimerSession()
+    @Published private(set) var history: NotchPomodoroHistory.Snapshot?
+    private let historyPersistence = NotchPomodoroHistory.Persistence(
+        store: PrivateFileStore.containerURL.map { .init(containerURL: $0) })
     private let origin = ContinuousClock.now
     private var completionTask: Task<Void, Never>?
     /// Wakes for the last seconds of a countdown, which the companion watches.
@@ -41,9 +44,10 @@ final class NotchTimerService: ObservableObject {
 
     func pauseOrResume() {
         guard !suspended, NotchTimerSupport.isEnabled() else { return }
-        finishIfDue()
-        if session.isRunning { session.pause(at: now) }
-        else if session.isPaused { session.resume(at: now) }
+        let instant = now
+        finishIfDue(at: instant)
+        if session.isRunning { session.pause(at: instant) }
+        else if session.isPaused { session.resume(at: instant) }
         scheduleCompletion()
     }
 
@@ -57,6 +61,7 @@ final class NotchTimerService: ObservableObject {
     }
 
     func cancel() {
+        if session.mode == .pomodoro { finishIfDue(notify: false) }
         alert.stop()
         completionTask?.cancel(); completionTask = nil
         countdownTask?.cancel(); countdownTask = nil
@@ -74,8 +79,25 @@ final class NotchTimerService: ObservableObject {
 
     func stop() { suspend(); cancel() }
 
-    private func finishIfDue() {
-        guard session.finishIfDue(at: now) else { return }
+    func loadHistory() {
+        historyPersistence.load { [weak self] snapshot in self?.history = snapshot }
+    }
+
+    func flushHistory() { historyPersistence.flush() }
+
+    func exportHistory(_ snapshot: NotchPomodoroHistory.Snapshot, to destination: URL,
+                       onFailure: @escaping () -> Void) {
+        historyPersistence.export(snapshot, to: destination, onFailure: onFailure)
+    }
+
+    private func finishIfDue(at instant: TimeInterval? = nil, notify: Bool = true) {
+        let instant = instant ?? now
+        guard let deadline = session.deadline, session.finishIfDue(at: instant) else { return }
+        let completedAt = Date().addingTimeInterval(deadline - instant)
+        if let entry = NotchPomodoroHistory.Entry(session: session, completedAt: completedAt) {
+            historyPersistence.record(entry)
+        }
+        guard notify else { return }
         alert.stop()
         // The notice takes the strip it watched from.
         NotchService.shared.endMascotCountdown(retreating: false)
