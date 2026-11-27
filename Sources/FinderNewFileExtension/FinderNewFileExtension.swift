@@ -7,8 +7,7 @@ import FinderSync
 @objc(FinderNewFileExtension)
 final class FinderNewFileExtension: FIFinderSync {
     private struct Action {
-        let kind: FinderNewFileKind?
-        let customID: UUID?
+        let id: UUID
         let directory: URL
     }
 
@@ -33,33 +32,20 @@ final class FinderNewFileExtension: FIFinderSync {
 
         // Never expose a default/stale menu when settings could not be read.
         guard let snapshot = FinderNewFileExchange.snapshot(), snapshot.enabled else { return nil }
-        let kinds = snapshot.kinds
-        let custom = snapshot.customMenu
-        guard !kinds.isEmpty || !custom.isEmpty else { return nil }
+        guard !snapshot.entries.isEmpty else { return nil }
         let strings = FinderNewFileStrings.localized(snapshot.language)
         if actions.count > 256 { actions.removeAll() }
         let menu = NSMenu()
         let parent = NSMenuItem(title: strings.title, action: nil, keyEquivalent: "")
         parent.image = NSImage(systemSymbolName: "doc.badge.plus", accessibilityDescription: nil)
         let submenu = NSMenu()
-        for kind in kinds {
+        for entry in snapshot.entries {
             guard nextTag < Int.max else { break }
-            let item = NSMenuItem(title: kind.title(strings), action: #selector(create(_:)), keyEquivalent: "")
-            item.image = NSImage(systemSymbolName: kind.symbol, accessibilityDescription: nil)
+            let item = NSMenuItem(title: entry.title, action: #selector(create(_:)), keyEquivalent: "")
+            item.image = NSImage(systemSymbolName: entry.symbol, accessibilityDescription: nil)
             item.target = self
             item.tag = nextTag
-            actions[nextTag] = Action(kind: kind, customID: nil, directory: directory)
-            nextTag += 1
-            submenu.addItem(item)
-        }
-        if !kinds.isEmpty && !custom.isEmpty { submenu.addItem(.separator()) }
-        for customItem in custom {
-            guard nextTag < Int.max else { break }
-            let item = NSMenuItem(title: customItem.title, action: #selector(create(_:)), keyEquivalent: "")
-            item.image = NSImage(systemSymbolName: "doc", accessibilityDescription: nil)
-            item.target = self
-            item.tag = nextTag
-            actions[nextTag] = Action(kind: nil, customID: customItem.id, directory: directory)
+            actions[nextTag] = Action(id: entry.id, directory: directory)
             nextTag += 1
             submenu.addItem(item)
         }
@@ -86,13 +72,9 @@ final class FinderNewFileExtension: FIFinderSync {
 
     @objc private func create(_ item: NSMenuItem) {
         guard let action = actions.removeValue(forKey: item.tag) else { return }
-        guard let snapshot = FinderNewFileExchange.snapshot(), snapshot.enabled else { return }
-        let request: FinderNewFileRequest
-        if let kind = action.kind, snapshot.kinds.contains(kind) {
-            request = FinderNewFileRequest(kind: kind, directory: action.directory)
-        } else if let id = action.customID, snapshot.customMenu.contains(where: { $0.id == id }) {
-            request = FinderNewFileRequest(customID: id, directory: action.directory)
-        } else { return }
+        guard let snapshot = FinderNewFileExchange.snapshot(), snapshot.enabled,
+              snapshot.entries.contains(where: { $0.id == action.id }) else { return }
+        let request = FinderNewFileRequest(customID: action.id, directory: action.directory)
         guard request.isValid() else { return }
         guard let url = request.url else { return }
 

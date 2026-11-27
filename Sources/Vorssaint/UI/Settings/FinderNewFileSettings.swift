@@ -4,19 +4,22 @@
 import AppKit
 import Combine
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// A section of the existing Finder settings page, not a separate utility UI.
 struct FinderNewFileSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.finderNewFileEnabled) private var enabled = false
-    @AppStorage(DefaultsKey.finderNewFileKinds) private var selection = FinderNewFileKind.defaultSelection
-    @AppStorage(DefaultsKey.finderNewFileCustomItems) private var customRaw = "[]"
-    @State private var editing: FinderNewFileCustomItem?
+    @AppStorage(DefaultsKey.finderNewFileItems) private var raw = ""
+    @State private var editing: FinderNewFileItem?
+    @State private var dragging: UUID?
 
-    private var customItems: [FinderNewFileCustomItem] { FinderNewFileCustomItem.decode(customRaw) }
+    private var strings: FinderNewFileStrings { FeatureStrings.finderNewFile(l10n.language) }
 
-    private var strings: FinderNewFileStrings {
-        FeatureStrings.finderNewFile(l10n.language)
+    private var items: [FinderNewFileItem] {
+        FinderNewFileItem.items(raw,
+            legacySelection: UserDefaults.standard.string(forKey: DefaultsKey.finderNewFileKinds),
+            legacyCustom: UserDefaults.standard.string(forKey: DefaultsKey.finderNewFileCustomItems) ?? "[]")
     }
 
     var body: some View {
@@ -28,18 +31,23 @@ struct FinderNewFileSettings: View {
                 .foregroundStyle(.secondary)
             FinderNewFileExtensionStatus()
             if enabled {
-                ForEach(FinderNewFileKind.allCases, id: \.self) { kind in
-                    Toggle(isOn: binding(for: kind)) {
-                        Label(kind.title(strings), systemImage: kind.symbol)
+                VStack(spacing: 0) {
+                    ForEach(items) { item in
+                        row(item)
+                            .onDrop(of: [UTType.text], delegate: FinderNewFileOrderDropDelegate(
+                                target: item.id, dragging: $dragging, move: move))
+                        if item.id != items.last?.id { Divider().padding(.leading, 24) }
                     }
                 }
-                customDocuments
+                Button(strings.addItem) {
+                    editing = FinderNewFileItem()
+                }
+                .disabled(items.filter(\.canDelete).count >= FinderNewFileItem.maximum)
             }
         } header: {
             Text(strings.title)
         }
         .settingsFormSectionAnchor(.finderNewFile)
-        .onChange(of: selection) { _, _ in FinderNewFileService.syncWithPreferences() }
         .sheet(item: $editing) { item in
             FinderNewFileCustomEditor(draft: item) { saved in
                 save(saved)
@@ -50,98 +58,158 @@ struct FinderNewFileSettings: View {
         }
     }
 
-    private var customDocuments: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(strings.customTitle).font(.subheadline.weight(.medium))
-            ForEach(customItems) { item in
-                HStack(spacing: 8) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(item.title)
-                        Text(item.outputName + " · " + (item.template?.name ?? strings.emptyTemplate))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    Spacer()
-                    Button { editing = item } label: { Image(systemName: "pencil") }
-                        .buttonStyle(.plain)
-                        .help(l10n.s.menuEdit)
-                        .accessibilityLabel(l10n.s.menuEdit + ": " + item.title)
-                    Button { remove(item) } label: { Image(systemName: "minus.circle") }
-                        .buttonStyle(.plain)
-                        .help(l10n.s.actionRemove)
-                        .accessibilityLabel(l10n.s.actionRemove + ": " + item.title)
+    private func row(_ item: FinderNewFileItem) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .frame(width: 14)
+                .contentShape(Rectangle())
+                .onDrag {
+                    dragging = item.id
+                    return NSItemProvider(object: item.id.uuidString as NSString)
                 }
+            Image(systemName: item.symbol).frame(width: 18)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.menuTitle(strings))
+                Text(item.outputName + " · " + (item.template?.name ??
+                    (item.hasBuiltInContent ? strings.defaultContent : strings.emptyTemplate)))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
-            Button(strings.addItem) { editing = FinderNewFileCustomItem() }
-                .disabled(customItems.count >= FinderNewFileCustomItem.maximum)
+            Spacer()
+            Button { editing = item } label: { Image(systemName: "pencil") }
+                .buttonStyle(.plain)
+                .help(l10n.s.menuEdit)
+                .accessibilityLabel(l10n.s.menuEdit + ": " + item.displayName(strings))
+            if item.canDelete {
+                Button { remove(item) } label: { Image(systemName: "trash") }
+                    .buttonStyle(.plain)
+                    .help(l10n.s.actionRemove)
+                    .accessibilityLabel(l10n.s.actionRemove + ": " + item.displayName(strings))
+                    .frame(width: 18)
+            } else {
+                Color.clear.frame(width: 18, height: 1).accessibilityHidden(true)
+            }
+            Toggle(isOn: Binding(get: {
+                items.first(where: { $0.id == item.id })?.isEnabled ?? false
+            }, set: { value in
+                var updated = items
+                guard let index = updated.firstIndex(where: { $0.id == item.id }) else { return }
+                updated[index].enabled = value
+                persist(updated)
+            })) {
+                Text(item.displayName(strings))
+            }
+            .labelsHidden()
+            .toggleStyle(.switch)
+        }
+        .padding(.vertical, 5)
+        .contentShape(Rectangle())
+    }
+
+    private func persist(_ items: [FinderNewFileItem]) {
+        raw = FinderNewFileItem.encode(items)
+        FinderNewFileService.syncWithPreferences()
+    }
+
+    private func move(_ source: UUID, _ target: UUID) {
+        var updated = items
+        guard source != target,
+              let from = updated.firstIndex(where: { $0.id == source }),
+              let to = updated.firstIndex(where: { $0.id == target }) else { return }
+        withAnimation(.easeInOut(duration: 0.12)) {
+            updated.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+            persist(updated)
         }
     }
 
-    private func save(_ item: FinderNewFileCustomItem) {
-        var items = customItems
-        var previous: FinderNewFileCustomItem.Template?
-        if let index = items.firstIndex(where: { $0.id == item.id }) {
-            previous = items[index].template
-            items[index] = item
+    private func save(_ item: FinderNewFileItem) {
+        var updated = items
+        var previous: FinderNewFileItem.Template?
+        if let index = updated.firstIndex(where: { $0.id == item.id }) {
+            previous = updated[index].template
+            updated[index] = item
         } else {
-            items.append(item)
+            guard item.canDelete, updated.filter(\.canDelete).count < FinderNewFileItem.maximum else { return }
+            updated.append(item)
         }
-        customRaw = FinderNewFileCustomItem.encode(items)
-        FinderNewFileService.syncWithPreferences()
+        persist(updated)
         if let previous, previous.id != item.template?.id,
-           !items.contains(where: { $0.template?.id == previous.id }) {
+           !updated.contains(where: { $0.template?.id == previous.id }) {
             FinderNewFileTemplateStore.remove(previous)
         }
     }
 
-    private func remove(_ item: FinderNewFileCustomItem) {
-        let items = customItems.filter { $0.id != item.id }
-        customRaw = FinderNewFileCustomItem.encode(items)
-        FinderNewFileService.syncWithPreferences()
+    private func remove(_ item: FinderNewFileItem) {
+        guard item.canDelete else { return }
+        let updated = items.filter { $0.id != item.id }
+        persist(updated)
         if let template = item.template,
-           !items.contains(where: { $0.template?.id == template.id }) {
+           !updated.contains(where: { $0.template?.id == template.id }) {
             FinderNewFileTemplateStore.remove(template)
         }
     }
+}
 
-    private func binding(for kind: FinderNewFileKind) -> Binding<Bool> {
-        Binding(get: { FinderNewFileKind.selection(selection).contains(kind) },
-                set: { value in
-                    var kinds = Set(FinderNewFileKind.selection(selection))
-                    if value { kinds.insert(kind) } else { kinds.remove(kind) }
-                    selection = FinderNewFileKind.allCases.filter { kinds.contains($0) }
-                        .map(\.rawValue).joined(separator: ",")
-                })
+private struct FinderNewFileOrderDropDelegate: DropDelegate {
+    let target: UUID
+    @Binding var dragging: UUID?
+    let move: (UUID, UUID) -> Void
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging, dragging != target else { return }
+        move(dragging, target)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: dragging == nil ? .forbidden : .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard dragging != nil else { return false }
+        dragging = nil
+        return true
     }
 }
 
 /// Edits a draft, committing preferences and template imports only on Save.
 private struct FinderNewFileCustomEditor: View {
     @ObservedObject private var l10n = L10n.shared
-    @State private var draft: FinderNewFileCustomItem
+    @State private var draft: FinderNewFileItem
+    @State private var menuName: String
     @State private var selectedFile: URL?
     @State private var error: String?
-    let save: (FinderNewFileCustomItem) -> Void
+    let save: (FinderNewFileItem) -> Void
     let cancel: () -> Void
 
-    init(draft: FinderNewFileCustomItem, save: @escaping (FinderNewFileCustomItem) -> Void,
+    init(draft: FinderNewFileItem, save: @escaping (FinderNewFileItem) -> Void,
          cancel: @escaping () -> Void) {
         _draft = State(initialValue: draft)
+        _menuName = State(initialValue: draft.displayName(FeatureStrings.finderNewFile(L10n.shared.language)))
         self.save = save
         self.cancel = cancel
     }
 
     private var strings: FinderNewFileStrings { FeatureStrings.finderNewFile(l10n.language) }
 
+    private var candidate: FinderNewFileItem? {
+        var item = draft
+        let name = menuName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return nil }
+        item.title = name == draft.builtIn?.name(strings) ? "" : name
+        return item.normalized
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(strings.customTitle).font(.system(size: 15, weight: .semibold))
-            field(strings.menuName, text: $draft.title)
+            Text(strings.menuName).font(.system(size: 15, weight: .semibold))
+            field(strings.menuName, text: $menuName)
             field(strings.fileName, text: $draft.filename)
             field(strings.suffixLabel, text: $draft.suffix)
-            if let valid = draft.normalized {
+            if let valid = candidate {
                 Text(valid.outputName)
                     .font(.caption).foregroundStyle(.secondary)
             } else {
@@ -150,16 +218,26 @@ private struct FinderNewFileCustomEditor: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(strings.templateLabel).font(.caption).foregroundStyle(.secondary)
                 HStack(spacing: 8) {
-                    Text(selectedFile?.lastPathComponent ?? draft.template?.name ?? strings.emptyTemplate)
+                    Text(selectedFile?.lastPathComponent ?? draft.template?.name ??
+                         (draft.hasBuiltInContent ? strings.defaultContent : strings.emptyTemplate))
                         .lineLimit(1).truncationMode(.middle)
                     Spacer()
                     Button(FeatureStrings.radialMenu(l10n.language).chooseButton) { chooseFile() }
-                    if selectedFile != nil || draft.template != nil {
+                    if selectedFile != nil || draft.template != nil || draft.hasBuiltInContent {
                         Button(l10n.s.actionRemove) {
                             selectedFile = nil
                             draft.template = nil
+                            draft.useBuiltInContent = false
                             error = nil
                         }
+                    }
+                }
+                if draft.builtIn != nil && (selectedFile != nil || !draft.hasBuiltInContent) {
+                    Button(strings.defaultContent) {
+                        selectedFile = nil
+                        draft.template = nil
+                        draft.useBuiltInContent = true
+                        error = nil
                     }
                 }
                 Text(strings.templateHelp)
@@ -174,7 +252,7 @@ private struct FinderNewFileCustomEditor: View {
                 Button(strings.cancel, action: cancel).keyboardShortcut(.cancelAction)
                 Button(FeatureStrings.snippets(l10n.language).saveButton) { commit() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(draft.normalized == nil)
+                    .disabled(candidate == nil)
             }
         }
         .padding(20)
@@ -197,16 +275,17 @@ private struct FinderNewFileCustomEditor: View {
         selectedFile = url
         error = nil
         let base = url.deletingPathExtension().lastPathComponent
-        if draft.title.isEmpty { draft.title = base }
+        if menuName.isEmpty { menuName = base }
         if draft.filename == "Untitled" || draft.filename.isEmpty { draft.filename = base }
         if draft.suffix.isEmpty { draft.suffix = url.pathExtension }
     }
 
     private func commit() {
-        guard var item = draft.normalized else { return }
+        guard var item = candidate else { return }
         do {
             if let selectedFile {
                 item.template = try FinderNewFileTemplateStore.importFile(selectedFile)
+                item.useBuiltInContent = false
             }
             save(item)
         } catch {

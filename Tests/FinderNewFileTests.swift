@@ -25,7 +25,7 @@ enum FinderNewFileTests {
                          && !strings.customTitle.isEmpty && !strings.addItem.isEmpty
                          && !strings.menuName.isEmpty && !strings.fileName.isEmpty && !strings.suffixLabel.isEmpty
                          && !strings.templateLabel.isEmpty && !strings.emptyTemplate.isEmpty
-                         && !strings.templateHelp.isEmpty && !strings.invalidItem.isEmpty,
+                         && !strings.templateHelp.isEmpty && !strings.invalidItem.isEmpty && !strings.defaultContent.isEmpty,
                          "localized Finder labels are complete: \(language)")
         }
 
@@ -60,7 +60,7 @@ enum FinderNewFileTests {
             } catch {
                 suite.expect(true, "missing document template rejected")
             }
-            var custom = FinderNewFileCustomItem(title: "Python", filename: "main", suffix: ".py")
+            var custom = FinderNewFileItem(title: "Python", filename: "main", suffix: ".py")
             guard let normalized = custom.normalized else {
                 suite.expect(false, "valid custom item"); return
             }
@@ -80,21 +80,40 @@ enum FinderNewFileTests {
             compound.suffix = "local.json"
             let compoundFile = try FinderNewFileCreator.create(compound, in: directory, templateDirectory: nil)
             suite.expect(compoundFile.lastPathComponent == "config.local.json", "compound suffix supported")
-            let oldSnapshot = Data(#"{"enabled":true,"language":"en-US","selection":"txt"}"#.utf8)
-            let old = try JSONDecoder().decode(FinderNewFileSnapshot.self, from: oldSnapshot)
-            suite.expect(old.customMenu.isEmpty && old.kinds == [.text], "old menu snapshots remain readable")
-            let snapshot = FinderNewFileSnapshot(enabled: true, language: "en-US", selection: "",
-                                                  customItems: [custom.menuItem])
+            let migrated = FinderNewFileItem.items("", legacySelection: "txt",
+                legacyCustom: FinderNewFileItem.encode([custom]))
+            suite.expect(migrated.count == FinderNewFileKind.allCases.count + 1
+                         && migrated.filter(\.isEnabled).map(\.id) == [FinderNewFileKind.text.itemID, custom.id],
+                         "legacy configuration migrates built-ins and custom entries")
+            var edited = migrated.first { $0.builtIn == .word }!
+            edited.filename = "Report"
+            edited.enabled = true
+            let ordered = [custom, edited] + migrated.filter { $0.id != custom.id && $0.id != edited.id }
+            let restored = FinderNewFileItem.items(FinderNewFileItem.encode(ordered))
+            suite.expect(restored.map(\.id) == ordered.map(\.id), "mixed order survives persistence")
+            suite.expect(restored[1].filename == "Report" && !restored[1].canDelete,
+                         "built-in edits preserve identity")
+            suite.expect(FinderNewFileItem.items(FinderNewFileItem.encode([custom])).count == migrated.count,
+                         "missing built-in entries restored")
+            let strings = FinderNewFileStrings.localized("en-US")
+            let snapshot = FinderNewFileSnapshot(enabled: true, language: "en-US",
+                entries: restored.filter(\.isEnabled).map { $0.menuItem(strings) })
             let snapshotData = try JSONEncoder().encode(snapshot)
             suite.expect(!String(decoding: snapshotData, as: UTF8.self).contains("filename"),
                          "extension snapshot contains presentation fields only")
+            suite.expect(snapshot.entries.first?.id == custom.id, "Finder receives the same mixed order")
+            let report = try FinderNewFileCreator.create(edited, in: directory, templateDirectory: nil,
+                                                        bundledTemplates: templates)
+            suite.expect(report.lastPathComponent == "Report.docx"
+                         && (try Data(contentsOf: report)) == (try Data(contentsOf: templates.appendingPathComponent("Blank.docx"))),
+                         "renaming a built-in retains its bundled template")
             var invalid = custom
             invalid.filename = "../outside"
             suite.expect(invalid.normalized == nil, "reject path traversal in custom filename")
             invalid = custom
             invalid.suffix = "/txt"
             suite.expect(invalid.normalized == nil, "reject path separators in custom suffix")
-            suite.expect(FinderNewFileCustomItem.decode(FinderNewFileCustomItem.encode([custom, custom, invalid])) == [custom],
+            suite.expect(FinderNewFileItem.items(FinderNewFileItem.encode([custom, custom, invalid])).filter(\.canDelete) == [custom],
                          "custom settings round trip and reject duplicate/invalid entries")
             let customRequest = FinderNewFileRequest(customID: custom.id, directory: directory)
             suite.expect(customRequest.url.flatMap { FinderNewFileRequest.decode($0) } == customRequest,

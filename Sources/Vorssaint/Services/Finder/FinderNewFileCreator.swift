@@ -7,24 +7,28 @@ enum FinderNewFileCreator {
     /// Exclusive creation is also used by MenuWish. Never truncate an
     /// existing document, even when another process wins a naming race.
     static func create(_ kind: FinderNewFileKind, in directory: URL, templates: URL?) throws -> URL {
-        let contents: Data
-        if kind.usesTemplate {
-            guard let templates else { throw CocoaError(.fileReadNoSuchFile) }
-            contents = try Data(contentsOf: templates.appendingPathComponent("Blank.\(kind.rawValue)"))
-            guard !contents.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
-        } else {
-            contents = kind == .json ? Data("{}\n".utf8) : Data()
-        }
-        return try create(contents, filename: "Untitled", suffix: kind.rawValue, in: directory)
+        try create(builtInContents(kind, templates: templates), filename: "Untitled", suffix: kind.rawValue, in: directory)
     }
 
-    static func create(_ item: FinderNewFileCustomItem, in directory: URL,
-                       templateDirectory: URL?) throws -> URL {
+    private static func builtInContents(_ kind: FinderNewFileKind, templates: URL?) throws -> Data {
+        if kind.usesTemplate {
+            guard let templates else { throw CocoaError(.fileReadNoSuchFile) }
+            let data = try Data(contentsOf: templates.appendingPathComponent("Blank.\(kind.rawValue)"))
+            guard !data.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
+            return data
+        }
+        return kind == .json ? Data("{}\n".utf8) : Data()
+    }
+
+    static func create(_ item: FinderNewFileItem, in directory: URL,
+                       templateDirectory: URL?, bundledTemplates: URL? = nil) throws -> URL {
         guard let item = item.normalized else { throw CocoaError(.fileWriteInvalidFileName) }
         let contents: Data
         if let template = item.template {
             guard let templateDirectory else { throw CocoaError(.fileReadNoSuchFile) }
             contents = try FinderNewFileTemplateStore.read(templateDirectory.appendingPathComponent(template.id.uuidString))
+        } else if item.hasBuiltInContent, let kind = item.builtIn {
+            contents = try builtInContents(kind, templates: bundledTemplates)
         } else {
             contents = Data()
         }
@@ -64,11 +68,11 @@ enum FinderNewFileTemplateStore {
         let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
         guard values.isRegularFile == true, values.isSymbolicLink != true,
               let size = values.fileSize else { throw CocoaError(.fileReadUnknown) }
-        guard size <= FinderNewFileCustomItem.maximumTemplateBytes else { throw CocoaError(.fileReadTooLarge) }
+        guard size <= FinderNewFileItem.maximumTemplateBytes else { throw CocoaError(.fileReadTooLarge) }
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
         var data = Data()
-        let limit = FinderNewFileCustomItem.maximumTemplateBytes
+        let limit = FinderNewFileItem.maximumTemplateBytes
         while let chunk = try handle.read(upToCount: min(1024 * 1024, limit - data.count + 1)),
               !chunk.isEmpty {
             data.append(chunk)
@@ -78,12 +82,12 @@ enum FinderNewFileTemplateStore {
     }
 
     static func importFile(_ source: URL, into root: URL? = directory,
-                           container: URL? = PrivateFileStore.containerURL) throws -> FinderNewFileCustomItem.Template {
+                           container: URL? = PrivateFileStore.containerURL) throws -> FinderNewFileItem.Template {
         guard let root else { throw CocoaError(.fileWriteNoPermission) }
         let accessing = source.startAccessingSecurityScopedResource()
         defer { if accessing { source.stopAccessingSecurityScopedResource() } }
         let contents = try read(source.resolvingSymlinksInPath())
-        let template = FinderNewFileCustomItem.Template(id: UUID(), name: source.lastPathComponent)
+        let template = FinderNewFileItem.Template(id: UUID(), name: source.lastPathComponent)
         guard PrivateFileStore.createDirectory(at: root, container: container),
               PrivateFileStore.write(contents, to: root.appendingPathComponent(template.id.uuidString)) else {
             throw CocoaError(.fileWriteUnknown)
@@ -91,7 +95,7 @@ enum FinderNewFileTemplateStore {
         return template
     }
 
-    static func remove(_ template: FinderNewFileCustomItem.Template, from root: URL? = directory) {
+    static func remove(_ template: FinderNewFileItem.Template, from root: URL? = directory) {
         guard let root else { return }
         try? FileManager.default.removeItem(at: root.appendingPathComponent(template.id.uuidString))
     }

@@ -29,7 +29,7 @@ enum FinderNewFileKind: String, CaseIterable, Codable {
         }
     }
 
-    func title(_ strings: FinderNewFileStrings) -> String {
+    func name(_ strings: FinderNewFileStrings) -> String {
         let name: String
         switch self {
         case .text: name = strings.text
@@ -42,13 +42,34 @@ enum FinderNewFileKind: String, CaseIterable, Codable {
         case .numbers: name = "Numbers"
         case .keynote: name = "Keynote"
         }
-        return "\(name) (.\(rawValue))"
+        return name
+    }
+
+    func title(_ strings: FinderNewFileStrings) -> String {
+        "\(name(strings)) (.\(rawValue))"
+    }
+
+    /// Stable identifiers are independent of the order of allCases.
+    var itemID: UUID {
+        let number: Int
+        switch self {
+        case .text: number = 1
+        case .markdown: number = 2
+        case .json: number = 3
+        case .word: number = 4
+        case .excel: number = 5
+        case .powerpoint: number = 6
+        case .pages: number = 7
+        case .numbers: number = 8
+        case .keynote: number = 9
+        }
+        return UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", number))!
     }
 }
 
 /// User-editable definitions live only in the host's preferences. The menu
 /// snapshot contains a separate, minimal projection with no template data.
-struct FinderNewFileCustomItem: Codable, Identifiable, Equatable {
+struct FinderNewFileItem: Codable, Identifiable, Equatable {
     struct Template: Codable, Equatable {
         let id: UUID
         let name: String
@@ -59,6 +80,23 @@ struct FinderNewFileCustomItem: Codable, Identifiable, Equatable {
     var filename = "Untitled"
     var suffix = ""
     var template: Template?
+    var builtIn: FinderNewFileKind?
+    // Optional for decoding custom entries from the previous settings format.
+    var enabled: Bool?
+    var useBuiltInContent: Bool?
+
+    var isEnabled: Bool { enabled ?? true }
+    var canDelete: Bool { builtIn == nil }
+    var hasBuiltInContent: Bool { template == nil && builtIn != nil && (useBuiltInContent ?? true) }
+    var symbol: String { FinderNewFileKind(rawValue: suffix.lowercased())?.symbol ?? "doc" }
+
+    func displayName(_ strings: FinderNewFileStrings) -> String {
+        title.isEmpty ? (builtIn?.name(strings) ?? "") : title
+    }
+
+    func menuTitle(_ strings: FinderNewFileStrings) -> String {
+        displayName(strings) + (suffix.isEmpty ? "" : " (.\(suffix))")
+    }
 
     static let maximum = 32
     static let maximumTemplateBytes = 64 * 1024 * 1024
@@ -69,7 +107,8 @@ struct FinderNewFileCustomItem: Codable, Identifiable, Equatable {
         item.filename = filename.trimmingCharacters(in: .whitespacesAndNewlines)
         item.suffix = suffix.trimmingCharacters(in: .whitespacesAndNewlines)
         if item.suffix.hasPrefix(".") { item.suffix.removeFirst() }
-        guard !item.title.isEmpty, item.title.utf8.count <= 120,
+        if let kind = item.builtIn { item.id = kind.itemID }
+        guard (!item.title.isEmpty || item.builtIn != nil), item.title.utf8.count <= 120,
               !item.title.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
               Self.validComponent(item.filename),
               item.suffix.isEmpty || Self.validComponent(item.suffix),
@@ -90,15 +129,46 @@ struct FinderNewFileCustomItem: Codable, Identifiable, Equatable {
 
     var outputName: String { filename + (suffix.isEmpty ? "" : "." + suffix) }
 
-    var menuItem: FinderNewFileCustomMenuItem {
-        FinderNewFileCustomMenuItem(id: id, title: title)
+    func menuItem(_ strings: FinderNewFileStrings) -> FinderNewFileMenuItem {
+        FinderNewFileMenuItem(id: id, title: menuTitle(strings), symbol: symbol)
     }
 
-    static func decode(_ raw: String) -> [Self] {
-        guard raw.utf8.count <= 128 * 1024,
-              let items = try? JSONDecoder().decode([Self].self, from: Data(raw.utf8)) else { return [] }
-        var ids = Set<UUID>()
-        return Array(items.compactMap(\.normalized).filter { ids.insert($0.id).inserted }.prefix(maximum))
+    private static func decoded(_ raw: String) -> [Self]? {
+        guard raw.utf8.count <= 256 * 1024,
+              let items = try? JSONDecoder().decode([Self].self, from: Data(raw.utf8)) else { return nil }
+        return items.compactMap(\.normalized)
+    }
+
+    static func defaults(_ selection: String?) -> [Self] {
+        let selected = Set(FinderNewFileKind.selection(selection))
+        return FinderNewFileKind.allCases.map {
+            Self(id: $0.itemID, suffix: $0.rawValue, builtIn: $0, enabled: selected.contains($0),
+                 useBuiltInContent: true)
+        }
+    }
+
+    /// A single ordered list is authoritative. The previous selection and
+    /// custom-list preferences are read only for migration.
+    static func items(_ raw: String, legacySelection: String? = nil,
+                      legacyCustom: String = "[]") -> [Self] {
+        let defaults = defaults(legacySelection)
+        let stored = decoded(raw) ?? (defaults + (decoded(legacyCustom) ?? []).filter(\.canDelete))
+        let reserved = Set(FinderNewFileKind.allCases.map(\.itemID))
+        var seen = Set<UUID>()
+        var customCount = 0
+        var result: [Self] = []
+        for item in stored {
+            if item.canDelete {
+                guard !reserved.contains(item.id), customCount < maximum else { continue }
+            }
+            guard seen.insert(item.id).inserted else { continue }
+            if item.canDelete { customCount += 1 }
+            result.append(item)
+        }
+        // Built-in entries cannot be deleted, including by a malformed or
+        // incomplete settings backup. Restore any missing default entries.
+        result += defaults.filter { !seen.contains($0.id) }
+        return result
     }
 
     static func encode(_ items: [Self]) -> String {
@@ -107,22 +177,16 @@ struct FinderNewFileCustomItem: Codable, Identifiable, Equatable {
     }
 }
 
-struct FinderNewFileCustomMenuItem: Codable, Equatable {
+struct FinderNewFileMenuItem: Codable, Equatable {
     let id: UUID
     let title: String
+    let symbol: String
 }
 
 struct FinderNewFileSnapshot: Codable {
     let enabled: Bool
     let language: String
-    let selection: String
-    var customItems: [FinderNewFileCustomMenuItem]? = nil
-
-    var customMenu: [FinderNewFileCustomMenuItem] {
-        Array((customItems ?? []).prefix(FinderNewFileCustomItem.maximum))
-    }
-
-    var kinds: [FinderNewFileKind] { FinderNewFileKind.selection(selection) }
+    let entries: [FinderNewFileMenuItem]
 }
 
 /// A short-lived request carries the selected directory and a built-in kind or custom item ID.

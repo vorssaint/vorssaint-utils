@@ -6,7 +6,7 @@ The menu appears on a supported folder background (including the Desktop) or a s
 
 ## Custom documents
 
-Add a custom document in the Finder settings section. Set the menu name, base filename and optional suffix (with or without the leading dot). Choose a regular file as a template, or leave it empty to create a zero-byte file. Menu entries can be edited and removed. Existing files are never overwritten; a repeated filename gets a numbered suffix.
+Add a custom document in the Finder settings section. Set the menu name, base filename and optional suffix (with or without the leading dot). Choose a regular file as a template, or leave it empty to create a zero-byte file. All entries share one ordered list and can be enabled, disabled, edited and reordered by dragging their handles. Only custom entries can be removed. Built-in entries can use their original content, an imported template or an empty file. The Finder menu follows the same order with no separator. Previous selection and custom preferences are migrated when the unified list is first saved. Existing files are never overwritten; a repeated filename gets a numbered suffix.
 
 Up to 32 custom entries are supported. Each template can be up to 64 MB. The host imports a private copy via the existing PrivateFileStore, so moving or deleting the original template does not affect creation. Templates are stored under the app variant's Application Support directory, not in its signed bundle. Only menu IDs and labels are shared with the extension. The normal settings backup includes custom entry definitions, not the user's private template contents. After moving settings to another Mac, reselect any missing templates; creation fails rather than silently writing an empty file.
 
