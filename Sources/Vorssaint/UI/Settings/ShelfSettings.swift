@@ -16,6 +16,8 @@ struct ShelfSettings: View {
     @AppStorage(DefaultsKey.shelfEdgeDragEnabled) private var edgeDrag = false
     @AppStorage(DefaultsKey.shelfCloseAfterDrop) private var closeAfterDrop = false
     @AppStorage(DefaultsKey.shelfRemoveAfterDrop) private var removeAfterDrop = true
+    @AppStorage(DefaultsKey.shelfDropInMode) private var dropInMode = ShelfDropInMode.copy.rawValue
+    @AppStorage(DefaultsKey.shelfDragOutMode) private var dragOutMode = ShelfDragOutMode.auto.rawValue
     @AppStorage(DefaultsKey.shelfClearOnClose) private var clearOnClose = false
     @AppStorage(DefaultsKey.notchShelf) private var opensInIsland = true
     @State private var showingAppPicker = false
@@ -146,6 +148,25 @@ struct ShelfSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Toggle(l10n.s.shelfRemoveAfterDrop, isOn: $removeAfterDrop)
                         Text(l10n.s.shelfRemoveAfterDropCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Picker(l10n.s.shelfDropInMode, selection: $dropInMode) {
+                            Text(l10n.s.shelfDropInCopy).tag(ShelfDropInMode.copy.rawValue)
+                            Text(l10n.s.shelfDropInCut).tag(ShelfDropInMode.cut.rawValue)
+                        }
+                        Text(l10n.s.shelfDropInCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Picker(l10n.s.shelfDragOutMode, selection: $dragOutMode) {
+                            Text(l10n.s.shelfDragOutAuto).tag(ShelfDragOutMode.auto.rawValue)
+                            Text(l10n.s.shelfDragOutCopy).tag(ShelfDragOutMode.copy.rawValue)
+                            Text(l10n.s.shelfDragOutMove).tag(ShelfDragOutMode.move.rawValue)
+                        }
+                        Text(l10n.s.shelfDragOutCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

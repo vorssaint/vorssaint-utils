@@ -778,7 +778,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
         // A non-empty operation means the drop was accepted somewhere — pull the
         // dragged tiles out of the shelf. A cancelled drag leaves them.
         DispatchQueue.main.async {
-            ShelfService.shared.completeInternalDrag(dropAccepted: operation != [])
+            ShelfService.shared.completeInternalDrag(dropAccepted: operation != [], moved: operation == .move)
             ShelfService.shared.absorbOwnDrag()
         }
     }

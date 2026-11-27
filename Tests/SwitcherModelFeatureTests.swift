@@ -2592,6 +2592,9 @@ enum SwitcherModelFeatureTests {
                "closing after a drop is new behavior and must arrive off in an update")
         suite.expect(registeredDefaults[DefaultsKey.shelfRemoveAfterDrop] as? Bool == true,
                "shelf removes accepted items after a drop by default")
+        suite.expect(registeredDefaults[DefaultsKey.shelfDropInMode] as? String == ShelfDropInMode.copy.rawValue
+                && registeredDefaults[DefaultsKey.shelfDragOutMode] as? String == ShelfDragOutMode.auto.rawValue,
+               "the shelf keeps copying in and lets the destination decide on the way out by default")
         suite.expect(registeredDefaults[DefaultsKey.shelfClearOnClose] as? Bool == false
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.shelfClearOnClose),
                "clearing the shelf on close is opt-in and travels with settings backups")

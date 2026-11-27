@@ -743,6 +743,15 @@ struct Strings {
     let shelfCloseAfterDropCaption: String
     let shelfRemoveAfterDrop: String
     let shelfRemoveAfterDropCaption: String
+    let shelfDropInMode: String
+    let shelfDropInCopy: String
+    let shelfDropInCut: String
+    let shelfDropInCaption: String
+    let shelfDragOutMode: String
+    let shelfDragOutAuto: String
+    let shelfDragOutCopy: String
+    let shelfDragOutMove: String
+    let shelfDragOutCaption: String
     let shelfExclusionsTitle: String
     let shelfExclusionsEmpty: String
     let shelfExclusionsCaption: String
@@ -1911,6 +1920,15 @@ extension Strings {
         shelfCloseAfterDropCaption: "Fecha a área quando o destino aceita os itens. O alfinete no painel a mantém aberta.",
         shelfRemoveAfterDrop: "Remover itens depois de soltar",
         shelfRemoveAfterDropCaption: "Itens aceitos por outro app saem da área. Desative para manter uma cópia nela. Itens fixados sempre ficam.",
+        shelfDropInMode: "Ao adicionar arquivos",
+        shelfDropInCopy: "Manter original",
+        shelfDropInCut: "Recortar",
+        shelfDropInCaption: "Recortar funciona como no Finder: o arquivo fica na pasta até você arrastá-lo para fora da área, e então é movido.",
+        shelfDragOutMode: "Ao arrastar arquivos para fora",
+        shelfDragOutAuto: "Deixar o destino decidir",
+        shelfDragOutCopy: "Sempre copiar",
+        shelfDragOutMove: "Sempre mover",
+        shelfDragOutCaption: "Por padrão, com “Remover itens depois de soltar” ativado, o Finder move arquivos no mesmo disco e copia para outro; caso contrário, copia. Um arquivo movido sai da área. Itens fixados e arquivos dentro do pacote de um app são sempre copiados.",
         shelfExclusionsTitle: "Exceções automáticas",
         shelfExclusionsEmpty: "Nenhum app adicionado.",
         shelfExclusionsCaption: "Sacudir e a área da barra de menus não abrem durante arrastes iniciados nesses apps. O atalho e Abrir agora continuam funcionando.",
@@ -3047,6 +3065,15 @@ extension Strings {
         shelfCloseAfterDropCaption: "Closes the shelf when the destination accepts the items. The pin in the panel keeps it open.",
         shelfRemoveAfterDrop: "Remove items after dropping",
         shelfRemoveAfterDropCaption: "Items accepted by another app leave the shelf. Turn this off to keep a copy there. Pinned items always stay.",
+        shelfDropInMode: "When adding files",
+        shelfDropInCopy: "Keep original",
+        shelfDropInCut: "Cut",
+        shelfDropInCaption: "Cut works like Cut in Finder: the file stays in its folder until you drag it out of the shelf, then it moves there.",
+        shelfDragOutMode: "When dragging files out",
+        shelfDragOutAuto: "Let the destination decide",
+        shelfDragOutCopy: "Always copy",
+        shelfDragOutMove: "Always move",
+        shelfDragOutCaption: "By default, with “Remove items after dropping” on, Finder moves files on the same disk and copies them to another one; otherwise it copies. A moved file leaves the shelf. Pinned items and files inside an app’s package are always copied.",
         shelfExclusionsTitle: "Automatic exceptions",
         shelfExclusionsEmpty: "No apps added.",
         shelfExclusionsCaption: "Shake and the menu bar drop zone stay off for drags started in these apps. The shortcut and Open now still work.",

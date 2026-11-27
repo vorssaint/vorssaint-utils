@@ -18,6 +18,7 @@ enum ShelfDragCompletionContract {
     typealias ShelfTileView = Tile
     struct NSEvent {
         static var pressedMouseButtons = 1
+        static var modifierFlags: AppKit.NSEvent.ModifierFlags = []
         let locationInWindow = NSPoint(x: 10, y: 10)
         let clickCount = 1
         let modifierFlags: AppKit.NSEvent.ModifierFlags = []
@@ -81,6 +82,10 @@ enum ShelfDragCompletionContract {
         struct Store {
             var closeAfterDrop = true
             var removeAfterDrop = true
+            var dragOutMode: String?
+            func string(forKey key: String) -> String? {
+                key == DefaultsKey.shelfDragOutMode ? dragOutMode : nil
+            }
             func bool(forKey key: String) -> Bool {
                 key == DefaultsKey.shelfCloseAfterDrop ? closeAfterDrop
                     : key == DefaultsKey.shelfRemoveAfterDrop && removeAfterDrop
@@ -113,6 +118,7 @@ enum ShelfDragCompletionContract {
         NotchService.shared = NotchService()
         Service.shared = Service()
         NSEvent.pressedMouseButtons = 1
+        NSEvent.modifierFlags = []
     }
 }
 
@@ -193,6 +199,52 @@ enum ShelfDragCompletionTests {
         pinnedService.completeInternalDrag(dropAccepted: true)
         suite.expect(pinnedService.removed == [looseID],
                "a pinned shelf item survives a drag-out that removes the rest")
+
+        // A move-only drag takes the files away, so their tiles leave even
+        // when automatic removal is off; a copy keeps them.
+        for (mode, cut, option, moves) in [(ShelfDragOutMode.copy, false, false, false), (.copy, true, false, true),
+                                           (.move, false, false, true), (.auto, false, false, false),
+                                           (.move, false, true, false), (.copy, true, true, false)] {
+            Context.reset()
+            let service = Context.Service()
+            if option { Context.NSEvent.modifierFlags = .option }
+            Context.UserDefaults.standard.removeAfterDrop = false
+            Context.UserDefaults.standard.dragOutMode = mode.rawValue
+            let fileID = UUID()
+            if cut { service.cutIDs = [fileID] }
+            let file = Context.Service.Item(id: fileID, payload: .file(URL(fileURLWithPath: "/tmp/cut.txt")),
+                                            title: "cut.txt", icon: NSImage(), isImage: false)
+            service.beginInternalDrag(items: [file], from: Context.window(), containsPackageContent: false)
+            suite.expect(service.sourceOperationMask(for: .outsideApplication) == (moves ? .move : .copy),
+                   "the drag-out setting and a cut file decide what the drag offers outside the app")
+            service.completeInternalDrag(dropAccepted: true, moved: moves)
+            suite.expect(service.removed == (moves ? [fileID] : []) && !service.internalDragIsCut,
+                   "a file moved out leaves the shelf even with automatic removal off")
+        }
+
+        // A move onto one of Vorssaint's own windows moved nothing out, and a
+        // text tile under always move keeps the shipped offer.
+        do {
+            Context.reset()
+            let service = Context.Service()
+            Context.UserDefaults.standard.removeAfterDrop = false
+            Context.UserDefaults.standard.dragOutMode = ShelfDragOutMode.move.rawValue
+            let fileID = UUID()
+            let file = Context.Service.Item(id: fileID, payload: .file(URL(fileURLWithPath: "/tmp/in-app.txt")),
+                                            title: "in-app.txt", icon: NSImage(), isImage: false)
+            service.beginInternalDrag(items: [file], from: Context.window(), containsPackageContent: false)
+            _ = service.sourceOperationMask(for: .withinApplication)
+            service.completeInternalDrag(dropAccepted: true, moved: true)
+            suite.expect(service.removed.isEmpty, "a move onto Vorssaint's own window keeps the tile")
+
+            let note = Context.Service.Item(id: UUID(), payload: .text("note"), title: "note",
+                                            icon: NSImage(), isImage: false)
+            service.beginInternalDrag(items: [note], from: Context.window(), containsPackageContent: false)
+            suite.expect(service.sourceOperationMask(for: .outsideApplication) == .copy,
+                   "always move leaves text tiles with the shipped offer")
+            service.completeInternalDrag(dropAccepted: true)
+            suite.expect(service.removed.isEmpty, "a copied text tile stays with automatic removal off")
+        }
 
         for changedSurface in 0..<5 {
             Context.reset()

@@ -138,6 +138,41 @@ enum ShelfFeatureTests {
         suite.expect(!ShelfInteractionSupport.offersMoveOutside(removeAfterDrop: true, dragIncludesPinned: false,
                                                                 dragIncludesPackageContent: true),
                "a drag holding package content only offers a copy outside the app")
+        func offer(_ mode: ShelfDragOutMode, removeAfterDrop: Bool = true, pinned: Bool = false,
+                   package: Bool = false, files: Bool = true, cut: Bool = false,
+                   option: Bool = false) -> ShelfDragOutOffer {
+            ShelfInteractionSupport.dragOutOffer(mode: mode, removeAfterDrop: removeAfterDrop,
+                                                 dragIncludesPinned: pinned,
+                                                 dragIncludesPackageContent: package,
+                                                 dragHoldsOnlyFiles: files, dragIsCut: cut,
+                                                 optionHeld: option)
+        }
+        suite.expect(offer(.auto) == .copyOrMove && offer(.auto, removeAfterDrop: false) == .copy,
+               "letting the destination decide keeps the shipped drag-out behavior")
+        suite.expect(offer(.copy) == .copy && offer(.move) == .move
+                && offer(.move, removeAfterDrop: false) == .move,
+               "always copy and always move offer only that operation, whatever automatic removal says")
+        suite.expect(offer(.auto, cut: true) == .move && offer(.copy, cut: true) == .move,
+               "a file cut in from Finder always moves on its way out")
+        suite.expect(offer(.move, option: true) == .copy && offer(.auto, cut: true, option: true) == .copy
+                && offer(.auto, option: true) == .copyOrMove,
+               "holding Option still copies instead of a move-only offer the destination would refuse")
+        suite.expect(offer(.move, files: false) == .copyOrMove && offer(.move, removeAfterDrop: false, files: false) == .copy
+                && offer(.copy, files: false) == .copy,
+               "text, links and mixed drags keep the shipped offer under always move")
+        suite.expect([ShelfDragOutMode.auto, .copy, .move].allSatisfy { mode in
+            offer(mode, pinned: true) == .copy && offer(mode, package: true) == .copy
+                && offer(mode, pinned: true, cut: true) == .copy && offer(mode, package: true, cut: true) == .copy
+        }, "pinned items and package contents stay copy-only under every drag-out setting, cut or not")
+        suite.expect(ShelfDragOutOffer.copy.operation == .copy
+                && ShelfDragOutOffer.copyOrMove.operation == [.copy, .move]
+                && ShelfDragOutOffer.move.operation == .move,
+               "each drag-out offer maps to its AppKit operation mask")
+        let cutFileID = UUID(), copiedFileID = UUID()
+        suite.expect(ShelfInteractionSupport.dragIsCut(fileIDs: [cutFileID], cutIDs: [cutFileID])
+                && !ShelfInteractionSupport.dragIsCut(fileIDs: [cutFileID, copiedFileID], cutIDs: [cutFileID])
+                && !ShelfInteractionSupport.dragIsCut(fileIDs: [], cutIDs: [cutFileID]),
+               "a drag moves as cut only when every file in it was cut in")
         let packages: (URL) -> Bool = { ["photoslibrary", "app"].contains($0.pathExtension) }
         suite.expect(ShelfInteractionSupport.isInsidePackage(URL(fileURLWithPath:
             "/Users/me/Pictures/Photos Library.photoslibrary/resources/derivatives/E/photo.jpeg"),
@@ -635,7 +670,7 @@ enum ShelfFeatureTests {
         // and read with nothing else complaining.
         let shelfFullItem = ShelfPersistedItem(id: UUID(), kind: .file, title: "t", text: "x",
                                                url: "https://example.com/u", path: "/tmp/p",
-                                               bookmark: Data([1]), children: [], pinned: true)
+                                               bookmark: Data([1]), children: [], pinned: true, cut: true)
         let shelfFullRound = (try? JSONEncoder().encode(shelfFullItem))
             .flatMap { try? JSONDecoder().decode(ShelfPersistedItem.self, from: $0) }
         suite.expect(shelfFullRound == shelfFullItem,
@@ -654,6 +689,14 @@ enum ShelfFeatureTests {
         suite.expect(ShelfPersistenceSupport.sanitized([pinnedShelfBatch]) { _ in true } == [pinnedShelfBatch]
                 && ShelfPersistenceSupport.sanitized([pinnedShelfBatch]) { _ in false }.first?.pinned == true,
                "a pinned shelf pile keeps its pin, and passes it to the item it collapses to")
+        suite.expect(ShelfPersistedItem(id: UUID(), kind: .file, title: "f", path: "/tmp/f", cut: false).cut == nil
+                && (try? JSONDecoder().decode(ShelfPersistedItem.self,
+                                              from: Data(#"{"kind":"file","path":"/tmp/f"}"#.utf8)))?.cut == nil,
+               "a copied shelf file and a store written before cut both read as not cut")
+        let cutShelfFile = ShelfPersistedItem(id: UUID(), kind: .file, title: "notes.pdf",
+                                              path: "/tmp/notes.pdf", cut: true)
+        suite.expect(ShelfPersistenceSupport.sanitized([cutShelfFile]) { _ in true } == [cutShelfFile],
+               "a file cut in from Finder stays cut through restore")
         suite.expect(ShelfPersistenceSupport.sanitized([shelfFile, shelfText, shelfLink]) { _ in true }
                    == [shelfFile, shelfText, shelfLink],
                "healthy shelf items pass sanitizing untouched")
