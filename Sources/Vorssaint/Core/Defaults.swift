@@ -494,6 +494,7 @@ enum DefaultsKey {
     static let monitorNetApps = "monitorNetApps"
     static let monitorNetTotals = "monitorNetTotals"
     static let monitorNetAddresses = "monitorNetAddresses"
+    static let monitorNetUsage = "monitorNetUsage"
     static let monitorNetTest = "monitorNetTest"
     static let networkSpeedUnit = "networkSpeedUnit" // bytes | bits, for every live network speed readout
     static let monitorDiskUsage = "monitorDiskUsage"
@@ -1783,6 +1784,7 @@ enum Defaults {
         DefaultsKey.monitorNetApps: true,
         DefaultsKey.monitorNetTotals: true,
         DefaultsKey.monitorNetAddresses: true,
+        DefaultsKey.monitorNetUsage: true,
         DefaultsKey.monitorNetTest: true,
         DefaultsKey.networkSpeedUnit: NetworkSpeedUnit.bytes.rawValue,
         DefaultsKey.monitorDiskUsage: true,

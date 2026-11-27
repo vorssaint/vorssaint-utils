@@ -9,6 +9,7 @@ struct NetworkSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var monitor = SystemMonitor.shared
     @ObservedObject private var speed = SpeedTest.shared
+    @ObservedObject private var usage = NetworkUsageRecorder.shared
     @StateObject private var addresses = NetworkAddressService()
     @Environment(\.colorScheme) private var colorScheme
     var collapsible = true
@@ -18,6 +19,8 @@ struct NetworkSection: View {
     @AppStorage(DefaultsKey.monitorNetTotals) private var netTotals = true
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
     @AppStorage(DefaultsKey.monitorNetAddresses) private var netAddresses = true
+    @AppStorage(DefaultsKey.monitorNetUsage) private var netUsage = true
+    @State private var confirmUsageReset = false
     @AppStorage(DefaultsKey.panelNetworkOrder) private var networkOrderRaw = ""
     @AppStorage(DefaultsKey.networkSpeedUnit) private var speedUnit = NetworkSpeedUnit.bytes
     @State private var draggingBlock: Block?
@@ -56,6 +59,7 @@ struct NetworkSection: View {
                 startNetworkMonitoringIfNeeded()
             }
             refreshAppRows(force: true, delay: 0.2)
+            if netUsage { usage.refresh() }
         }
         .onReceive(monitor.$snapshot) { _ in
             refreshAppRows(force: false, delay: 0.2)
@@ -79,7 +83,7 @@ struct NetworkSection: View {
         }
     }
 
-    private enum Block: String, PanelOrderItem { case speed, apps, totals, addresses, test }
+    private enum Block: String, PanelOrderItem { case speed, apps, totals, usage, addresses, test }
 
     private var visibleBlocks: [Block] {
         orderedBlocks.filter(isVisible)
@@ -107,6 +111,7 @@ struct NetworkSection: View {
         case .speed: return netSpeed
         case .apps: return netApps
         case .totals: return netTotals
+        case .usage: return netUsage
         case .addresses: return netAddresses
         case .test: return netTest
         }
@@ -118,6 +123,7 @@ struct NetworkSection: View {
         netSpeed = true
         netApps = true
         netTotals = true
+        netUsage = true
         netAddresses = true
         netTest = true
     }
@@ -128,6 +134,7 @@ struct NetworkSection: View {
         case .speed: speedBlock(editing: editing)
         case .apps: appUsageBlock(editing: editing)
         case .totals: totalsRow(editing: editing)
+        case .usage: usageBlock(editing: editing)
         case .addresses: NetworkAddressBlock(service: addresses, isVisible: $netAddresses, editing: editing)
         case .test: speedTestRow(editing: editing)
         }
@@ -285,6 +292,84 @@ struct NetworkSection: View {
                 }
             }
         }
+    }
+
+    /// Daily usage: today, last 7 and 30 days, and one bar per day.
+    @ViewBuilder
+    private func usageBlock(editing: Bool) -> some View {
+        let text = NetworkUsageStrings.current(l10n.language)
+        if !netUsage {
+            PanelHiddenItemRow(title: text.title,
+                               systemImage: "calendar",
+                               isVisible: $netUsage)
+        } else {
+            let now = Date()
+            let ledger = usage.ledger
+            let daily = ledger.daily(lastDays: 30, today: now)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Text(text.title)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                    Spacer(minLength: 0)
+                    if editing {
+                        PanelInlineHideButton(isVisible: $netUsage)
+                    }
+                }
+                usageRow(text.today, ledger.total(lastDays: 1, today: now))
+                usageRow(text.last7Days, ledger.total(lastDays: 7, today: now))
+                usageRow(text.last30Days, ledger.total(lastDays: 30, today: now))
+                usageBars(daily)
+                HStack {
+                    Text(text.footnote)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.tertiary)
+                    Spacer(minLength: 0)
+                    Button(text.reset) { confirmUsageReset = true }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .confirmationDialog(text.resetQuestion, isPresented: $confirmUsageReset) {
+                Button(text.reset, role: .destructive) { usage.reset() }
+            }
+        }
+    }
+
+    private func usageRow(_ label: String, _ total: (down: UInt64, up: UInt64)) -> some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text("↓\(MetricFormat.bytes(total.down))  ↑\(MetricFormat.bytes(total.up))")
+                .font(.system(size: 10.5, weight: .medium))
+                .monospacedDigit()
+        }
+    }
+
+    /// One bar per day, oldest left; download filled, upload stacked on top.
+    private func usageBars(_ days: [NetworkUsageDay]) -> some View {
+        let peak = max(days.map { Double($0.down) + Double($0.up) }.max() ?? 0, 1)
+        let green = PanelMetricColor.green(for: colorScheme)
+        return HStack(alignment: .bottom, spacing: 2) {
+            ForEach(days, id: \.day) { day in
+                let downHeight = 34 * Double(day.down) / peak
+                let upHeight = 34 * Double(day.up) / peak
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    Rectangle().fill(green).frame(height: upHeight)
+                    Rectangle().fill(Color.accentColor).frame(height: downHeight)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 36)
+                .background(Color.primary.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 1.5))
+                .help("\(day.day)  ↓\(MetricFormat.bytes(day.down))  ↑\(MetricFormat.bytes(day.up))")
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     /// On-demand internet speed test (latency, download, upload).
