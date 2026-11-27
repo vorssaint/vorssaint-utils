@@ -54,8 +54,7 @@ struct FinderNewFileSettings: View {
 /// when the feature switch is off, so the user can disable the extension.
 struct FinderNewFileExtensionStatus: View {
     @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var observation = FinderNewFileExtensionObservation.shared
-    @State private var demandID = UUID()
+    @State private var extensionEnabled: Bool?
 
     private var strings: FinderNewFileStrings {
         FinderNewFileStrings.localized(l10n.language.rawValue)
@@ -64,7 +63,7 @@ struct FinderNewFileExtensionStatus: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                if let enabled = observation.extensionEnabled {
+                if let enabled = extensionEnabled {
                     Image(systemName: enabled ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                         .foregroundStyle(enabled ? .green : .orange)
                 } else {
@@ -72,13 +71,13 @@ struct FinderNewFileExtensionStatus: View {
                 }
                 Text(strings.extensionName)
                 Spacer()
-                if let enabled = observation.extensionEnabled {
+                if let enabled = extensionEnabled {
                     Text(enabled ? strings.extensionEnabled : strings.extensionDisabled)
                         .font(.caption)
                         .foregroundStyle(enabled ? .green : .orange)
                 }
             }
-            if observation.extensionEnabled == false {
+            if extensionEnabled == false {
                 Text(strings.extensionHelp)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -86,65 +85,23 @@ struct FinderNewFileExtensionStatus: View {
             }
             Button(strings.manage) {
                 FinderNewFileService.openExtensionSettings()
-                observation.refresh()
             }
             .controlSize(.small)
         }
-        .onAppear { observation.setVisible(demandID, true) }
-        .onDisappear { observation.setVisible(demandID, false) }
+        .onAppear { refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            observation.refresh()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
-            observation.refresh()
-        }
-    }
-}
-
-/// Like the existing permission observation, use one shared timer only while
-/// a status surface is visible. Poll even while System Settings is frontmost
-/// so toggling the extension can update the status before returning. The
-/// synchronous system query is serialized off the UI thread.
-private final class FinderNewFileExtensionObservation: ObservableObject {
-    static let shared = FinderNewFileExtensionObservation()
-
-    @Published private(set) var extensionEnabled: Bool?
-    private var demands: Set<UUID> = []
-    private var timer: Timer?
-    private var inFlight = false
-
-    func setVisible(_ id: UUID, _ visible: Bool) {
-        if visible {
-            demands.insert(id)
             refresh()
-            if timer == nil {
-                let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-                    self?.refresh()
-                }
-                timer.tolerance = 0.15
-                RunLoop.main.add(timer, forMode: .common)
-                self.timer = timer
-            }
-        } else {
-            demands.remove(id)
-            if demands.isEmpty {
-                timer?.invalidate()
-                timer = nil
-            }
         }
     }
 
-    func refresh() {
-        guard !demands.isEmpty, !inFlight else { return }
-        inFlight = true
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+    private func refresh() {
+        // Match WindowLayoutSettings' appearance/activation refresh policy.
+        // Like the permission portal's automation check, keep the system
+        // query off the UI thread. No separate periodic monitor is needed.
+        DispatchQueue.global(qos: .userInitiated).async {
             let enabled = FinderNewFileService.extensionEnabled
             DispatchQueue.main.async {
-                guard let self else { return }
-                self.inFlight = false
-                if self.extensionEnabled != enabled {
-                    self.extensionEnabled = enabled
-                }
+                extensionEnabled = enabled
             }
         }
     }
