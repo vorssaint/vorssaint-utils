@@ -1558,6 +1558,16 @@ def main():
           + "extension ProcessForceQuitTests {\n"
           + declaration(usage, "struct ProcessUsage:")
           + "final class Service {\nprivate let maximumCachedRows = 60\n"
+          + declaration(usage, "    private struct CachedRows {")
+          + "private let cacheLock = NSLock()\nprivate let memoryCacheFreshSeconds: TimeInterval = 8\n"
+          + "private let staleCacheSeconds: TimeInterval = 18\n"
+          + "private var memoryCache: CachedRows?\nprivate var memoryLoading = false\n"
+          + declaration(usage, "    func topMemory(")
+          + declaration(usage, "    private func memoryRows(")
+          + declaration(usage, "    private static func physicalFootprint(")
+          + declaration(usage, "    private func finishMemory(")
+          + declaration(usage, "    private func cachedRows(")
+          + declaration(usage, "    private func limitedRows(")
           + declaration(usage, "    func canForceQuit(")
           + declaration(usage, "    private static func executableName(")
           + declaration(usage, "    private func withForceQuitIdentity(").replace("private func", "func", 1)

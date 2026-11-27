@@ -4,7 +4,7 @@
 import Darwin
 import Foundation
 
-/// Run the real identity binding and eligibility guards; no process is signalled.
+/// Exercise the process rows and eligibility guards without force-quitting a row.
 enum ProcessForceQuitTests {
     enum ResponsibleProcess {
         static var owners: [pid_t: pid_t] = [:]
@@ -21,6 +21,26 @@ enum ProcessForceQuitTests {
         }
     }
 
+    enum Shell {
+        static func run(_ command: String, _ arguments: [String]) -> (status: Int32, output: String) {
+            let includesParent = arguments.contains("pid,ppid,rss,comm")
+            let header = includesParent ? "PID PPID RSS COMM" : "PID RSS COMM"
+            let processes = [
+                (2_000_010, 1, 900, "Ghostty"),
+                (2_000_020, 1, 800, "colima VM"),
+                (2_000_030, 2_000_050, 700, "tmux session"),
+                (2_000_040, 2_000_060, 600, "terminal tab command"),
+                (2_000_050, 1, 50, "tmux server"),
+                (2_000_070, 1, 40, "daemon after terminal exit"),
+                (2_000_060, 2_000_010, 0, "tab shell"),
+            ]
+            let rows = processes.map { pid, parent, rss, name in
+                includesParent ? "\(pid) \(parent) \(rss) \(name)" : "\(pid) \(rss) \(name)"
+            }
+            return (0, ([header] + rows).joined(separator: "\n"))
+        }
+    }
+
     static func run(_ suite: TestSuite) {
         let defaults = UserDefaults.standard
         let featureKey = AppFeature.killProcess.availabilityKey
@@ -32,6 +52,16 @@ enum ProcessForceQuitTests {
             KillProcessService.lookups = 0
             ResponsibleProcess.owners = [:]
         }
+
+        let terminal: pid_t = 2_000_010
+        ResponsibleProcess.owners = [2_000_020: terminal, 2_000_030: terminal,
+                                     2_000_040: terminal, 2_000_050: terminal, 2_000_070: 2_000_080]
+        let memoryRows = Service().topMemory()
+        suite.expect(memoryRows.map(\.pid) == [terminal, 2_000_020, 2_000_030, 2_000_050, 2_000_070]
+                     && memoryRows.map(\.value) == [1_500, 800, 700, 50, 40].map { Double($0) * 1024 }
+                     && memoryRows[1].name == "colima VM",
+                     "memory lists detached processes separately and groups live terminal descendants")
+        ResponsibleProcess.owners = [:]
 
         let sampleStartedAt = mach_absolute_time()
         let victim = Process()
