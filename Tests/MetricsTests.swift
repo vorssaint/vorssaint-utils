@@ -40,6 +40,7 @@ struct MetricsTests {
             ("scroll-modifier", {
                 ScrollHorizontalModifierTests.run(suite)
                 ScrollZoomFocusTests.run(suite)
+                DragSelectionWheelTests.run(suite)
             }),
             ("scroll-speed", { ScrollSpeedTests.run(suite) }),
             ("linear-scroll", { LinearScrollTapTests.run(suite) }),
