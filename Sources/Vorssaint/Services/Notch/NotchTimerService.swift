@@ -7,6 +7,8 @@ import Combine
 /// Session state is intentionally memory-only: a settings restore or relaunch
 /// must never resurrect a timer from a different day or another Mac.
 final class NotchTimerService: ObservableObject {
+    enum StartResult { case started, alreadyActive, unavailable }
+
     static let shared = NotchTimerService()
     @Published private(set) var session = NotchTimerSession()
     private let origin = ContinuousClock.now
@@ -30,13 +32,16 @@ final class NotchTimerService: ObservableObject {
         scheduleCompletion()
     }
 
-    func start(mode: NotchTimerMode, minutes: Int) {
-        guard !suspended, NotchTimerSupport.isEnabled() else { return }
-        guard !session.hasSession else { return }
+    @discardableResult
+    func start(mode: NotchTimerMode, minutes: Int? = nil) -> StartResult {
+        guard !suspended, NotchTimerSupport.isEnabled() else { return .unavailable }
+        guard !session.hasSession else { return .alreadyActive }
         alert.stop()
+        let minutes = minutes ?? UserDefaults.standard.integer(forKey: DefaultsKey.notchTimerMinutes)
         session.start(mode: mode, minutes: minutes, now: now, configuration: .load())
         scheduleCompletion()
         NotchService.shared.reactMascot(.ready)
+        return .started
     }
 
     func pauseOrResume() {

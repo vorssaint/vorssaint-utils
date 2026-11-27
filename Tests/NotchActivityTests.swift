@@ -22,6 +22,39 @@ enum NotchActivityTests {
         NotchAccessoryConnectionTests.run(suite)
         PeripheralBatteryLifecycleTests.run(suite)
         gateContracts(suite)
+        timerAutomationContracts(suite)
+    }
+
+    private static func timerAutomationContracts(_ suite: TestSuite) {
+        MainActor.assumeIsolated {
+            let automation = NotchTimerAutomation()
+            var entered = 0
+            var resumed = 0
+            func waitFor(_ condition: () -> Bool) {
+                let deadline = Date().addingTimeInterval(2)
+                while !condition(), Date() < deadline {
+                    RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+                }
+            }
+            func request() {
+                Task { @MainActor in
+                    entered += 1
+                    await automation.waitForStartup()
+                    resumed += 1
+                }
+            }
+
+            request()
+            request()
+            waitFor { entered == 2 }
+            suite.expect(entered == 2 && resumed == 0, "cold Shortcuts actions wait for startup")
+            automation.finishLaunching()
+            waitFor { resumed == 2 }
+            suite.expect(resumed == 2, "startup releases every pending Shortcuts action")
+            request()
+            waitFor { resumed == 3 }
+            suite.expect(resumed == 3, "a later Shortcuts action uses the already running timer")
+        }
     }
 
     /// Keep Awake as an activity: off until turned on, gated like the others,
