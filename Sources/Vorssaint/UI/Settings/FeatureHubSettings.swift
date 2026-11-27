@@ -731,7 +731,7 @@ private struct FeatureHubRow: View {
                 installAction
             }
             if feature == .finderNewFile, installed {
-                FinderNewFileExtensionStatus(missingOnly: true)
+                FinderNewFileExtensionStatus()
             }
         }
         .padding(.vertical, 7)

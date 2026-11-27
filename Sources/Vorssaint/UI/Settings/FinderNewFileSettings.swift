@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Combine
 import SwiftUI
 
 /// A section of the existing Finder settings page, not a separate utility UI.
@@ -21,8 +22,8 @@ struct FinderNewFileSettings: View {
             Text(strings.description)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            FinderNewFileExtensionStatus()
             if enabled {
-                FinderNewFileExtensionStatus()
                 ForEach(FinderNewFileKind.allCases, id: \.self) { kind in
                     Toggle(isOn: binding(for: kind)) {
                         Label(kind.title(strings), systemImage: kind.symbol)
@@ -49,51 +50,102 @@ struct FinderNewFileSettings: View {
 
 
 /// Mirrors PermissionRow's status and actions without treating a Finder
-/// extension as a TCC permission. Only visible settings surfaces check it.
+/// extension as a TCC permission. The management entry stays available even
+/// when the feature switch is off, so the user can disable the extension.
 struct FinderNewFileExtensionStatus: View {
     @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.finderNewFileEnabled) private var enabled = false
-    @State private var extensionEnabled: Bool?
-    var missingOnly = false
+    @ObservedObject private var observation = FinderNewFileExtensionObservation.shared
+    @State private var demandID = UUID()
 
     private var strings: FinderNewFileStrings {
         FinderNewFileStrings.localized(l10n.language.rawValue)
     }
 
     var body: some View {
-        Group {
-            if enabled, let extensionEnabled, !missingOnly || !extensionEnabled {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: extensionEnabled ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                            .foregroundStyle(extensionEnabled ? .green : .orange)
-                        Text(strings.extensionName)
-                        Spacer()
-                        Text(extensionEnabled ? strings.extensionEnabled : strings.extensionDisabled)
-                            .font(.caption)
-                            .foregroundStyle(extensionEnabled ? .green : .orange)
-                    }
-                    if !extensionEnabled {
-                        Text(strings.extensionHelp)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Button(strings.manage) {
-                        FinderNewFileService.openExtensionSettings()
-                    }
-                    .controlSize(.small)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                if let enabled = observation.extensionEnabled {
+                    Image(systemName: enabled ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                        .foregroundStyle(enabled ? .green : .orange)
+                } else {
+                    ProgressView().controlSize(.small)
+                }
+                Text(strings.extensionName)
+                Spacer()
+                if let enabled = observation.extensionEnabled {
+                    Text(enabled ? strings.extensionEnabled : strings.extensionDisabled)
+                        .font(.caption)
+                        .foregroundStyle(enabled ? .green : .orange)
                 }
             }
+            if observation.extensionEnabled == false {
+                Text(strings.extensionHelp)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button(strings.manage) {
+                FinderNewFileService.openExtensionSettings()
+                observation.refresh()
+            }
+            .controlSize(.small)
         }
-        .onAppear { refresh() }
-        .onChange(of: enabled) { _, _ in refresh() }
+        .onAppear { observation.setVisible(demandID, true) }
+        .onDisappear { observation.setVisible(demandID, false) }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            observation.refresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            observation.refresh()
+        }
+    }
+}
+
+/// Like the existing permission observation, use one shared timer only while
+/// a status surface is visible. Poll even while System Settings is frontmost
+/// so toggling the extension can update the status before returning. The
+/// synchronous system query is serialized off the UI thread.
+private final class FinderNewFileExtensionObservation: ObservableObject {
+    static let shared = FinderNewFileExtensionObservation()
+
+    @Published private(set) var extensionEnabled: Bool?
+    private var demands: Set<UUID> = []
+    private var timer: Timer?
+    private var inFlight = false
+
+    func setVisible(_ id: UUID, _ visible: Bool) {
+        if visible {
+            demands.insert(id)
             refresh()
+            if timer == nil {
+                let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+                    self?.refresh()
+                }
+                timer.tolerance = 0.15
+                RunLoop.main.add(timer, forMode: .common)
+                self.timer = timer
+            }
+        } else {
+            demands.remove(id)
+            if demands.isEmpty {
+                timer?.invalidate()
+                timer = nil
+            }
         }
     }
 
-    private func refresh() {
-        extensionEnabled = enabled ? FinderNewFileService.extensionEnabled : nil
+    func refresh() {
+        guard !demands.isEmpty, !inFlight else { return }
+        inFlight = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let enabled = FinderNewFileService.extensionEnabled
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.inFlight = false
+                if self.extensionEnabled != enabled {
+                    self.extensionEnabled = enabled
+                }
+            }
+        }
     }
 }
