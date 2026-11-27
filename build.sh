@@ -828,28 +828,13 @@ xattr -c -r "$STAGE" 2>/dev/null || true
 #      designated requirement across their local builds.
 #   3. Ad-hoc — fresh clone with no identity at all.
 DEVID="$(developer_id_identity)"
-# A same-team app group allows the sandboxed Finder extension to exchange
-# small menu snapshots and one-use requests with the containing app.
+# Both builds use the same read-only domain for menu presentation; only
+# the bundle identifier differs. File requests are authenticated separately.
 cp "$ENTITLEMENTS" "$STAGE/Contents/Resources/Signing.entitlements"
-cp Resources/FinderNewFileExtension/Entitlements.plist "$FINDER_EXTENSION/Contents/Resources/Signing.entitlements"
-if [[ -n "$DEVID" ]]; then
-    FINDER_TEAM="${DEVID##*\(}"
-    FINDER_TEAM="${FINDER_TEAM%\)}"
-    if [[ "$FINDER_TEAM" =~ '^[A-Z0-9]{10}$' ]]; then
-        FINDER_GROUP="$FINDER_TEAM.$APP_BUNDLE_ID.finder-new-file"
-        for bundle in "$STAGE" "$FINDER_EXTENSION"; do
-            /usr/libexec/PlistBuddy -c "Add :FinderNewFileAppGroup string $FINDER_GROUP" "$bundle/Contents/Info.plist"
-            /usr/libexec/PlistBuddy -c 'Add :com.apple.security.application-groups array' "$bundle/Contents/Resources/Signing.entitlements"
-            /usr/libexec/PlistBuddy -c "Add :com.apple.security.application-groups:0 string $FINDER_GROUP" "$bundle/Contents/Resources/Signing.entitlements"
-        done
-    fi
-else
-    # Local builds share only menu presentation, never write authority. The
-    # dedicated domain contains no paths or private application preferences.
-    LOCAL_MENU_ENTITLEMENTS="$FINDER_EXTENSION/Contents/Resources/Signing.entitlements"
-    /usr/libexec/PlistBuddy -c 'Add :com.apple.security.temporary-exception.shared-preference.read-only array' "$LOCAL_MENU_ENTITLEMENTS"
-    /usr/libexec/PlistBuddy -c "Add :com.apple.security.temporary-exception.shared-preference.read-only:0 string $APP_BUNDLE_ID.finder-new-file-menu" "$LOCAL_MENU_ENTITLEMENTS"
-fi
+FINDER_MENU_ENTITLEMENTS="$FINDER_EXTENSION/Contents/Resources/Signing.entitlements"
+cp Resources/FinderNewFileExtension/Entitlements.plist "$FINDER_MENU_ENTITLEMENTS"
+/usr/libexec/PlistBuddy -c 'Add :com.apple.security.temporary-exception.shared-preference.read-only array' "$FINDER_MENU_ENTITLEMENTS"
+/usr/libexec/PlistBuddy -c "Add :com.apple.security.temporary-exception.shared-preference.read-only:0 string $APP_BUNDLE_ID.finder-new-file-menu" "$FINDER_MENU_ENTITLEMENTS"
 codesign_app() {
     local target="$1"
     if [[ -n "$DEVID" ]]; then

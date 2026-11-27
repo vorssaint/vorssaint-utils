@@ -3,10 +3,12 @@
 
 import AppKit
 import FinderSync
+import Carbon
+import Security
 
 /// No watcher or polling is needed: Finder invokes the feature on demand.
 enum FinderNewFileService {
-    private static var isConfirming = false
+    private static var replayGuard = FinderNewFileReplayGuard()
 
     static var enabled: Bool {
         AppFeature.finderNewFile.isAvailable && UserDefaults.standard.bool(forKey: DefaultsKey.finderNewFileEnabled)
@@ -35,23 +37,9 @@ enum FinderNewFileService {
         FIFinderSyncController.showExtensionManagementInterface()
     }
 
-    static func handle(_ url: URL) {
-        guard enabled, FIFinderSyncController.isExtensionEnabled,
-              let route = FinderNewFileRequest.route(url) else { return }
-        let request: FinderNewFileRequest
-        switch route {
-        case .queued(let id):
-            guard let queued = FinderNewFileExchange.consume(id) else { return }
-            request = queued
-        case .confirmation(let untrusted):
-            guard kinds.contains(untrusted.kind), confirm(untrusted) else { return }
-            request = untrusted
-        }
-
-        // Recheck after a confirmation dialog, and never accept an arbitrary
-        // filename, template path, script or overwrite flag from the URL.
+    static func handle(_ request: FinderNewFileRequest) {
         guard enabled, FIFinderSyncController.isExtensionEnabled, kinds.contains(request.kind),
-              request.isValid() else { return }
+              replayGuard.accept(request) else { return }
         do {
             _ = try FinderNewFileCreator.create(request.kind, in: request.directory,
                 templates: Bundle.main.resourceURL?.appendingPathComponent("FinderNewFileTemplates", isDirectory: true))
@@ -67,21 +55,38 @@ enum FinderNewFileService {
         }
     }
 
-    /// On local/legacy signing or macOS 14, a URL is never authorization for
-    /// file creation. Show the exact directory and document type before writing.
-    private static func confirm(_ request: FinderNewFileRequest) -> Bool {
-        guard !isConfirming else { return false }
-        isConfirming = true
-        defer { isConfirming = false }
-        let strings = FinderNewFileStrings.localized(L10n.shared.language.rawValue)
-        let alert = NSAlert()
-        alert.messageText = strings.title + ": " + request.kind.title(strings)
-        alert.informativeText = strings.folder + ": " + request.directory.path
-        alert.addButton(withTitle: strings.cancel)
-        alert.addButton(withTitle: strings.confirm)
-        alert.buttons.first?.keyEquivalent = "\r"
-        alert.buttons.last?.keyEquivalent = ""
-        NSApp.activate(ignoringOtherApps: true)
-        return alert.runModal() == .alertSecondButtonReturn
+}
+
+/// Authenticate the sender while AppKit is still handling the Apple event.
+/// A bundle identifier or a PID supplied in a URL is not proof of identity.
+/// The read-only sender audit token is supplied by the OS, and the running
+/// code must match the exact signed extension embedded in this installation.
+/// This works with stable local, ad-hoc and Developer ID signatures alike.
+enum FinderNewFileSender {
+    static func isEmbeddedExtension() -> Bool {
+        guard let event = NSAppleEventManager.shared().currentAppleEvent,
+              let token = event.attributeDescriptor(forKeyword: AEKeyword(keySenderAuditTokenAttr))?.data,
+              token.count == 32,
+              let plugIns = Bundle.main.builtInPlugInsURL else { return false }
+        let extensionURL = plugIns.appendingPathComponent("VorssaintFinderNewFile.appex", isDirectory: true)
+        let flags = SecCSFlags(rawValue: 0)
+        var expected: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(extensionURL as CFURL, flags, &expected) == errSecSuccess,
+              let expected,
+              SecStaticCodeCheckValidity(expected, flags, nil) == errSecSuccess else { return false }
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(expected, SecCSFlags(rawValue: kSecCSSigningInformation),
+                                             &info) == errSecSuccess,
+              let hash = (info as? [String: Any])?[kSecCodeInfoUnique as String] as? Data,
+              !hash.isEmpty else { return false }
+        let hex = hash.map { String(format: "%02x", $0) }.joined()
+        var requirement: SecRequirement?
+        guard SecRequirementCreateWithString(("cdhash H\"\(hex)\"" as CFString), flags, &requirement) == errSecSuccess,
+              let requirement else { return false }
+        var sender: SecCode?
+        let attributes = [kSecGuestAttributeAudit as String: token] as CFDictionary
+        guard SecCodeCopyGuestWithAttributes(nil, attributes, flags, &sender) == errSecSuccess,
+              let sender else { return false }
+        return SecCodeCheckValidity(sender, flags, requirement) == errSecSuccess
     }
 }

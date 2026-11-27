@@ -54,8 +54,8 @@ struct FinderNewFileSnapshot: Codable {
     var kinds: [FinderNewFileKind] { FinderNewFileKind.selection(selection) }
 }
 
-/// The URL is a wake-up signal, not authority to write a file. Only a one-use
-/// request in the protected, same-team app group can authorize direct creation.
+/// A short-lived request carries only the selected directory and document kind.
+/// The host separately authenticates the system-provided Apple event sender.
 struct FinderNewFileRequest: Codable, Equatable {
     let id: UUID
     let kind: FinderNewFileKind
@@ -93,67 +93,36 @@ struct FinderNewFileRequest: Codable, Equatable {
         #endif
     }
 
-    enum Route {
-        case queued(UUID)
-        case confirmation(FinderNewFileRequest)
-    }
-
-    var wakeURL: URL? {
-        var parts = URLComponents()
-        parts.scheme = Self.scheme
-        parts.host = "queued"
-        parts.queryItems = [URLQueryItem(name: "id", value: id.uuidString)]
-        return parts.url
-    }
-
-    var confirmationURL: URL? {
+    var url: URL? {
         guard isValid(), let data = try? JSONEncoder().encode(self),
               data.count <= Self.maximumPayloadBytes else { return nil }
         var parts = URLComponents()
         parts.scheme = Self.scheme
-        parts.host = "confirm"
+        parts.host = "create"
         parts.queryItems = [URLQueryItem(name: "request", value: data.base64EncodedString())]
-        return parts.url
+        guard let url = parts.url, url.absoluteString.utf8.count <= 32_768 else { return nil }
+        return url
     }
 
-    static func route(_ url: URL, now: Date = Date()) -> Route? {
+    static func decode(_ url: URL, now: Date = Date()) -> Self? {
         guard url.absoluteString.utf8.count <= 32_768,
               let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              parts.scheme == scheme, parts.path.isEmpty, parts.fragment == nil,
-              parts.user == nil, parts.password == nil, parts.port == nil,
-              let query = parts.queryItems, query.count == 1,
-              let value = query[0].value else { return nil }
-        switch (parts.host, query[0].name) {
-        case ("queued", "id"):
-            return UUID(uuidString: value).map(Route.queued)
-        case ("confirm", "request"):
-            guard let data = Data(base64Encoded: value), data.count <= maximumPayloadBytes,
-                  let request = try? JSONDecoder().decode(Self.self, from: data),
-                  request.isValid(now: now) else { return nil }
-            return .confirmation(request)
-        default: return nil
-        }
+              parts.scheme == scheme, parts.host == "create", parts.path.isEmpty,
+              parts.fragment == nil, parts.user == nil, parts.password == nil, parts.port == nil,
+              let query = parts.queryItems, query.count == 1, query[0].name == "request",
+              let value = query[0].value, let data = Data(base64Encoded: value),
+              data.count <= maximumPayloadBytes,
+              let request = try? JSONDecoder().decode(Self.self, from: data),
+              request.isValid(now: now) else { return nil }
+        return request
     }
+
 }
 
-/// The containing app and its sandboxed extension share only menu preferences
-/// and short-lived requests. No directory paths are exported in settings backup.
+/// Presentation preferences only. This domain is readable by the sandboxed
+/// extension but never grants the authority to write a file.
 enum FinderNewFileExchange {
-    static var groupIdentifier: String? {
-        Bundle.main.object(forInfoDictionaryKey: "FinderNewFileAppGroup") as? String
-    }
-
-    static var supportsTrustedRequests: Bool {
-        // macOS 15 protects same-team app group containers even when the
-        // containing application itself is not sandboxed.
-        if #available(macOS 15, *) { return groupIdentifier != nil }
-        return false
-    }
-
-    // Local signing cannot use a protected same-team container. Share only
-    // presentation data through a dedicated read-only preference domain.
-    // It is never trusted to authorize a file mutation.
-    private static var localMenuDomain: CFString {
+    private static var menuDomain: CFString {
         #if VORSSAINT_DEVELOPMENT
         return "com.vorssaint.utils.dev.finder-new-file-menu" as CFString
         #else
@@ -163,87 +132,33 @@ enum FinderNewFileExchange {
 
     private static let snapshotKey = "snapshot" as CFString
 
-    private static var root: URL? {
-        guard let groupIdentifier else { return nil }
-        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupIdentifier)?
-            .appendingPathComponent("FinderNewFile", isDirectory: true)
-    }
-
     static func publish(_ snapshot: FinderNewFileSnapshot) throws {
         let data = try JSONEncoder().encode(snapshot)
-        if groupIdentifier == nil {
-            CFPreferencesSetValue(snapshotKey, data as CFData, localMenuDomain,
-                                  kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-            guard CFPreferencesSynchronize(localMenuDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-            else { throw CocoaError(.fileWriteUnknown) }
-            return
-        }
-        guard let root else { throw CocoaError(.fileWriteNoPermission) }
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        try data.write(to: root.appendingPathComponent("menu.json"), options: .atomic)
+        CFPreferencesSetValue(snapshotKey, data as CFData, menuDomain,
+                              kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+        guard CFPreferencesSynchronize(menuDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+        else { throw CocoaError(.fileWriteUnknown) }
     }
 
     static func snapshot() -> FinderNewFileSnapshot? {
-        let data: Data?
-        if groupIdentifier == nil {
-            CFPreferencesSynchronize(localMenuDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-            data = CFPreferencesCopyValue(snapshotKey, localMenuDomain,
-                                          kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? Data
-        } else if let root {
-            data = try? Data(contentsOf: root.appendingPathComponent("menu.json"))
-        } else {
-            data = nil
-        }
-        guard let data, data.count <= 4_096 else { return nil }
+        CFPreferencesSynchronize(menuDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+        guard let data = CFPreferencesCopyValue(snapshotKey, menuDomain,
+                                                kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? Data,
+              data.count <= 4_096 else { return nil }
         return try? JSONDecoder().decode(FinderNewFileSnapshot.self, from: data)
     }
+}
 
-    private static func requestsDirectory() throws -> URL {
-        guard let root else { throw CocoaError(.fileNoSuchFile) }
-        let directory = root.appendingPathComponent("Requests", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        return directory
-    }
+/// Bounded in-memory replay protection, used on the main thread after sender
+/// authentication. Never evict a still-valid ID to make room for a new request.
+struct FinderNewFileReplayGuard {
+    private var seen: [UUID: Date] = [:]
 
-    static func enqueue(_ request: FinderNewFileRequest) throws {
-        guard supportsTrustedRequests, request.isValid() else { throw CocoaError(.fileWriteNoPermission) }
-        let directory = try requestsDirectory()
-        let manager = FileManager.default
-        // Bound storage; expired requests left by a failed launch are discarded.
-        let entries = try manager.contentsOfDirectory(at: directory,
-            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey])
-        var pending = 0
-        for entry in entries where entry.pathExtension == "json"
-            && UUID(uuidString: entry.deletingPathExtension().lastPathComponent) != nil {
-            guard let values = try? entry.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey]),
-                  values.isRegularFile == true else { continue }
-            if let modified = values.contentModificationDate,
-               Date().timeIntervalSince(modified) > FinderNewFileRequest.maximumAge {
-                try? manager.removeItem(at: entry)
-            } else {
-                pending += 1
-            }
-        }
-        guard pending < 64 else { throw CocoaError(.fileWriteUnknown) }
-        let data = try JSONEncoder().encode(request)
-        guard data.count <= FinderNewFileRequest.maximumPayloadBytes else { throw CocoaError(.fileWriteUnknown) }
-        // The wake signal is sent only after the exclusive write completes.
-        try data.write(to: directory.appendingPathComponent(request.id.uuidString + ".json"),
-                       options: .withoutOverwriting)
-    }
-
-    static func consume(_ id: UUID) -> FinderNewFileRequest? {
-        guard supportsTrustedRequests, let root else { return nil }
-        let url = root.appendingPathComponent("Requests", isDirectory: true)
-            .appendingPathComponent(id.uuidString + ".json")
-        guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
-              values.isRegularFile == true, values.isSymbolicLink != true,
-              let size = values.fileSize, size <= FinderNewFileRequest.maximumPayloadBytes,
-              let data = try? Data(contentsOf: url) else { return nil }
-        // Consume before acting. Replayed wake URLs cannot create another file.
-        do { try FileManager.default.removeItem(at: url) } catch { return nil }
-        guard let request = try? JSONDecoder().decode(FinderNewFileRequest.self, from: data),
-              request.id == id, request.isValid() else { return nil }
-        return request
+    mutating func accept(_ request: FinderNewFileRequest, now: Date = Date()) -> Bool {
+        guard request.isValid(now: now) else { return false }
+        seen = seen.filter { $0.value >= now }
+        guard seen[request.id] == nil, seen.count < 1_024 else { return false }
+        seen[request.id] = request.createdAt.addingTimeInterval(FinderNewFileRequest.maximumAge)
+        return true
     }
 }

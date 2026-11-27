@@ -15,7 +15,7 @@ enum FinderNewFileTests {
         for language in AppLanguage.allCases {
             let strings = FinderNewFileStrings.localized(language.rawValue)
             suite.expect(!strings.title.isEmpty && !strings.description.isEmpty
-                         && !strings.manage.isEmpty && !strings.localNote.isEmpty,
+                         && !strings.manage.isEmpty && !strings.error.isEmpty,
                          "localized Finder labels are complete: \(language)")
         }
 
@@ -51,16 +51,25 @@ enum FinderNewFileTests {
                 suite.expect(true, "missing document template rejected")
             }
             let request = FinderNewFileRequest(kind: .excel, directory: directory)
-            if let url = request.confirmationURL, case .confirmation(let decoded)? = FinderNewFileRequest.route(url) {
-                suite.expect(decoded == request, "confirmation URL round trips")
+            if let url = request.url {
+                suite.expect(FinderNewFileRequest.decode(url) == request, "creation request round trips")
+                var oldRoute = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+                oldRoute.host = "confirm"
+                suite.expect(FinderNewFileRequest.decode(oldRoute.url!) == nil, "old confirmation route rejected")
+                oldRoute.host = "queued"
+                suite.expect(FinderNewFileRequest.decode(oldRoute.url!) == nil, "old queue route rejected")
+                var invalid = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+                invalid.queryItems?.append(URLQueryItem(name: "extra", value: "1"))
+                suite.expect(FinderNewFileRequest.decode(invalid.url!) == nil, "unexpected URL fields rejected")
             } else {
-                suite.expect(false, "confirmation URL decodes")
+                suite.expect(false, "creation URL encodes")
             }
-            if let url = request.wakeURL, case .queued(let id)? = FinderNewFileRequest.route(url) {
-                suite.expect(id == request.id, "wake URL carries only a UUID")
-            } else {
-                suite.expect(false, "wake URL decodes")
-            }
+            var replay = FinderNewFileReplayGuard()
+            suite.expect(replay.accept(request), "fresh request accepted")
+            suite.expect(!replay.accept(request), "duplicate request rejected")
+            suite.expect(!replay.accept(FinderNewFileRequest(kind: .text, directory: directory,
+                                                            createdAt: Date(timeIntervalSinceNow: -120))),
+                         "expired requests rejected by replay guard")
             suite.expect(!FinderNewFileRequest(kind: .text, directory: directory,
                                                 createdAt: Date(timeIntervalSinceNow: -120)).isValid(),
                          "expired request rejected")

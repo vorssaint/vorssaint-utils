@@ -77,23 +77,11 @@ final class FinderNewFileExtension: FIFinderSync {
               snapshot.kinds.contains(action.kind) else { return }
         let request = FinderNewFileRequest(kind: action.kind, directory: action.directory)
         guard request.isValid() else { return }
-        let url: URL?
-        if FinderNewFileExchange.supportsTrustedRequests {
-            do {
-                try FinderNewFileExchange.enqueue(request)
-                url = request.wakeURL
-            } catch {
-                // If shared storage is unavailable, the only fallback is an
-                // explicit confirmation in the containing application.
-                url = request.confirmationURL
-            }
-        } else {
-            url = request.confirmationURL
-        }
+        guard let url = request.url else { return }
 
         let appURL = Bundle.main.bundleURL.deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-        guard let url, appURL.pathExtension == "app" else { return }
+        guard appURL.pathExtension == "app" else { return }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = false
         configuration.addsToRecentItems = false

@@ -22,11 +22,6 @@ struct FinderNewFileSettings: View {
                 .foregroundStyle(.secondary)
             if enabled {
                 Button(strings.manage) { FinderNewFileService.openExtensionSettings() }
-                if !FinderNewFileExchange.supportsTrustedRequests {
-                    Text(strings.localNote)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
                 ForEach(FinderNewFileKind.allCases, id: \.self) { kind in
                     Toggle(isOn: binding(for: kind)) {
                         Label(kind.title(strings), systemImage: kind.symbol)
