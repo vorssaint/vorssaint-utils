@@ -299,7 +299,7 @@ enum SettingsDirectory {
             .init([notchLights.style, notchLights.outlineTheme, notchLights.restingOutline, notchLights.armWidth,
                    notchLights.thickness, notchLights.entry, notchLights.motion, notchLights.transition,
                    notchLights.edgeWave, notchLights.lightSurface, notchLights.levelBars, notchLights.agentActivity,
-                   notchLights.musicActivity, notchLights.copySweep, notchLights.notices, notchLights.preview],
+                   notchLights.musicActivity, notchLights.copySweep, notchLights.notices, notchLights.fullWidthLine, notchLights.preview],
                   notch: .activity, when: state.on(DefaultsKey.notchLightsEnabled)),
             .init([notchLowBattery.title], feature: .monitorPower, notch: .activity, when: batteryRest),
             .init([notchLowBattery.threshold, notchLowBattery.early, notchLowBattery.menuBar],

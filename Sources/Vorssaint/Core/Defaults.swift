@@ -974,6 +974,12 @@ enum DefaultsKey {
     static let notchOutlineTheme = "notchOutlineTheme"
     static let notchLightsRestingOutline = "notchLightsRestingOutline"
     static let notchLightsLevelBars = "notchLightsLevelBars"
+    static let notchLightsFullWidthLevelBars = "notchLightsFullWidthLevelBars"
+    static let notchLightsFullWidthAgents = "notchLightsFullWidthAgents"
+    static let notchLightsFullWidthMusic = "notchLightsFullWidthMusic"
+    static let notchLightsFullWidthCopy = "notchLightsFullWidthCopy"
+    static let notchLightsFullWidthNotices = "notchLightsFullWidthNotices"
+    static let notchLightsFullWidthResting = "notchLightsFullWidthResting"
     static let notchLowBatteryEarly = "notchLowBatteryEarly"
     static let notchLowBatteryEarlyThreshold = "notchLowBatteryEarlyThreshold"
     static let notchLowBatteryMenuBar = "notchLowBatteryMenuBar"
@@ -1595,6 +1601,12 @@ enum Defaults {
         DefaultsKey.notchOutlineTheme: NotchOutlineTheme.adaptive.rawValue,
         DefaultsKey.notchLightsRestingOutline: false,
         DefaultsKey.notchLightsLevelBars: true,
+        DefaultsKey.notchLightsFullWidthLevelBars: true,
+        DefaultsKey.notchLightsFullWidthAgents: true,
+        DefaultsKey.notchLightsFullWidthMusic: true,
+        DefaultsKey.notchLightsFullWidthCopy: true,
+        DefaultsKey.notchLightsFullWidthNotices: true,
+        DefaultsKey.notchLightsFullWidthResting: true,
         DefaultsKey.notchOpenOnHover: false,
         DefaultsKey.notchShortcutEnabled: false,
         DefaultsKey.notchShortcut: GlobalShortcut.notchDefault.storageValue,

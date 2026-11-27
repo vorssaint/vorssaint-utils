@@ -25,12 +25,30 @@ enum NotchHaloArmWidth: String, CaseIterable, Identifiable, Equatable {
         case .extraWide: return min(520, 440)
         }
     }
+
+    var glowSpread: Double {
+        switch self {
+        case .narrow: return 0.62
+        case .medium: return 1.00
+        case .wide: return 1.42
+        case .extraWide: return 1.88
+        }
+    }
 }
 
 enum NotchHaloEntryMode: String, CaseIterable, Identifiable, Equatable {
     case sweep, trace, blast
 
     var id: String { rawValue }
+
+    func duration(fast: Bool) -> TimeInterval {
+        let scale = fast ? 0.68 : 1.0
+        switch self {
+        case .sweep: return 0.24 * scale
+        case .trace: return 0.28 * scale
+        case .blast: return 0.22 * scale
+        }
+    }
 }
 
 enum NotchHaloMotion: String, CaseIterable, Identifiable, Equatable {
@@ -43,6 +61,21 @@ enum NotchHaloTransitionEffect: String, CaseIterable, Identifiable, Equatable {
     case hybrid, whiteFlash, hueSlide, shockwave, pulse, supernova, rings, prism, strobe, bigBang, off
 
     var id: String { rawValue }
+
+    func duration(fast: Bool) -> TimeInterval {
+        let base: TimeInterval
+        switch self {
+        case .off: return 0
+        case .whiteFlash: base = 0.22
+        case .strobe: base = 0.24
+        case .shockwave: base = 0.26
+        case .hueSlide, .hybrid: base = 0.28
+        case .pulse: base = 0.30
+        case .supernova, .prism: base = 0.32
+        case .rings, .bigBang: base = 0.34
+        }
+        return fast ? base * 0.80 : base
+    }
 }
 
 enum NotchLightSurfaceStyle: String, CaseIterable, Identifiable, Equatable {
@@ -114,6 +147,35 @@ struct NotchLevelPrismPalette: Equatable {
     let trail: NotchHaloRGB
     let core: NotchHaloRGB
 
+    init(lead: NotchHaloRGB, trail: NotchHaloRGB, core: NotchHaloRGB) {
+        self.lead = lead
+        self.trail = trail
+        self.core = core
+    }
+
+    init(halo: NotchHaloPalette) {
+        self.lead = halo.primary
+        self.trail = halo.secondary
+        self.core = halo.core
+    }
+
+    func blended(with other: NotchLevelPrismPalette, amount: Double) -> NotchLevelPrismPalette {
+        NotchLevelPrismPalette(
+            lead: lead.blended(with: other.lead, amount: amount),
+            trail: trail.blended(with: other.trail, amount: amount),
+            core: core.blended(with: other.core, amount: amount)
+        )
+    }
+
+    func adapted(lightSurface: Bool, style: NotchLightSurfaceStyle) -> NotchLevelPrismPalette {
+        guard lightSurface else { return self }
+        return NotchLevelPrismPalette(
+            lead: lead.adaptedForLightSurface(style),
+            trail: trail.adaptedForLightSurface(style),
+            core: core.adaptedForLightSurface(style)
+        )
+    }
+
     /// Cyan to electric indigo prism palette for volume levels
     static let volume = NotchLevelPrismPalette(
         lead: NotchHaloRGB(r: 0.10, g: 0.91, b: 1.00),
@@ -162,6 +224,8 @@ struct NotchHaloRGB: Equatable {
 
     func blended(with other: NotchHaloRGB, amount: Double) -> NotchHaloRGB {
         let t = min(1, max(0, amount))
+        if t <= 0 { return self }
+        if t >= 1 { return other }
         return NotchHaloRGB(
             r: r + (other.r - r) * t,
             g: g + (other.g - g) * t,
@@ -373,6 +437,50 @@ enum NotchLightsSupport {
         isEnabled(in: defaults) && (restingOutline(in: defaults) || defaults.bool(forKey: DefaultsKey.notchOutlineEnabled))
     }
 
+    static func fullWidthLevelBars(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchLightsFullWidthLevelBars) as? Bool ?? true
+    }
+
+    static func fullWidthAgents(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchLightsFullWidthAgents) as? Bool ?? true
+    }
+
+    static func fullWidthMusic(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchLightsFullWidthMusic) as? Bool ?? true
+    }
+
+    static func fullWidthCopy(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchLightsFullWidthCopy) as? Bool ?? true
+    }
+
+    static func fullWidthNotices(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchLightsFullWidthNotices) as? Bool ?? true
+    }
+
+    static func fullWidthResting(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchLightsFullWidthResting) as? Bool ?? true
+    }
+
+    static func fullWidth(for owner: NotchContourLineOwner, in defaults: UserDefaults = .standard) -> Bool {
+        switch owner {
+        case .level: return fullWidthLevelBars(in: defaults)
+        case .clipboard: return fullWidthCopy(in: defaults)
+        case .preview, .notice: return fullWidthNotices(in: defaults)
+        case .agent: return fullWidthAgents(in: defaults)
+        case .music: return fullWidthMusic(in: defaults)
+        case .resting: return fullWidthResting(in: defaults)
+        }
+    }
+
+    static func anyFullWidthEnabled(in defaults: UserDefaults = .standard) -> Bool {
+        fullWidthLevelBars(in: defaults)
+            || fullWidthAgents(in: defaults)
+            || fullWidthMusic(in: defaults)
+            || fullWidthCopy(in: defaults)
+            || fullWidthNotices(in: defaults)
+            || fullWidthResting(in: defaults)
+    }
+
     static func fract(_ x: Double) -> Double {
         x - floor(x)
     }
@@ -419,7 +527,8 @@ enum NotchLightsSupport {
     }
 
     static func overlayLayout(islandScreenRect: CGRect, floatingGap: CGFloat?, armRun: CGFloat,
-                              thicknessScale: Double, screenScale: CGFloat = 2.0) -> NotchHaloOverlayLayout {
+                              thicknessScale: Double, screenScale: CGFloat = 2.0,
+                              screenFrame: CGRect? = nil, fullWidth: Bool = false) -> NotchHaloOverlayLayout {
         let clampedArm = min(maxArmRun, max(40.0, armRun))
         let scale = clampedThickness(thicknessScale)
         let backingScale = max(1.0, screenScale)
@@ -435,12 +544,22 @@ enum NotchLightsSupport {
         let bottomBloom = snap(CGFloat(92.0 * scale))
         let topPad: CGFloat = floatingGap != nil ? snap(CGFloat(36.0 * scale)) : 0
 
-        let overlayScreenRect = CGRect(
-            x: snap(snappedIsland.minX - sidePad),
-            y: snap(snappedIsland.minY - bottomBloom),
-            width: snap(snappedIsland.width + sidePad * 2.0),
-            height: snap(snappedIsland.height + bottomBloom + topPad)
-        )
+        let overlayScreenRect: CGRect
+        if fullWidth, let screenFrame {
+            overlayScreenRect = CGRect(
+                x: snap(screenFrame.minX),
+                y: snap(snappedIsland.minY - bottomBloom),
+                width: snap(max(snappedIsland.width, screenFrame.width)),
+                height: snap(snappedIsland.height + bottomBloom + topPad)
+            )
+        } else {
+            overlayScreenRect = CGRect(
+                x: snap(snappedIsland.minX - sidePad),
+                y: snap(snappedIsland.minY - bottomBloom),
+                width: snap(snappedIsland.width + sidePad * 2.0),
+                height: snap(snappedIsland.height + bottomBloom + topPad)
+            )
+        }
 
         // Convert AppKit bottom-up screen rect to SwiftUI top-down local rect inside overlayScreenRect.
         let localOriginY = snap(overlayScreenRect.maxY - snappedIsland.maxY)
@@ -695,5 +814,308 @@ struct NotchBrightnessChangeDetector: Equatable {
             return clamped
         }
         return nil
+    }
+}
+
+/// Identifies which signal currently owns the single notch-hugging / full-screen contour bar.
+enum NotchContourLineOwner: Equatable {
+    case level(kind: NotchLevelBarKind, muted: Bool)
+    case clipboard
+    case preview
+    case notice
+    case agent
+    case music
+    case resting
+
+    var priority: Int {
+        switch self {
+        case .level: return 6
+        case .clipboard: return 5
+        case .preview: return 4
+        case .notice: return 3
+        case .agent: return 2
+        case .music: return 1
+        case .resting: return 0
+        }
+    }
+
+    var isLevel: Bool {
+        if case .level = self { return true }
+        return false
+    }
+
+    var isTrimmedLevel: Bool {
+        if case .level(_, let muted) = self { return !muted }
+        return false
+    }
+
+    var isClipboard: Bool {
+        self == .clipboard
+    }
+
+    var isAmbientResting: Bool {
+        self == .resting
+    }
+}
+
+/// Lifecycle transition event emitted by `NotchContourLineState.update(...)`.
+enum NotchContourLineChange: Equatable {
+    case none
+    case entered
+    case transitioned
+    case exited
+}
+
+/// Instantaneous sampled visual state of the unified contour line.
+struct NotchContourLineSample: Equatable {
+    let palette: NotchLevelPrismPalette
+    let opacity: Double
+    let fillExtent: Double
+    let railOpacity: Double
+    let armSpan: Double
+    let isActive: Bool
+}
+
+/// Manages single-owner priority arbitration and smooth color / trim / opacity / width
+/// handoffs across volume, brightness, keyboard backlight, copy sweeps, previews,
+/// notices, agents, music playback, and resting outline.
+struct NotchContourLineState: Equatable {
+    private(set) var targetOwner: NotchContourLineOwner?
+    private(set) var startPalette: NotchLevelPrismPalette = .volume
+    private(set) var targetPalette: NotchLevelPrismPalette = .volume
+    private(set) var startOpacity: Double = 0
+    private(set) var targetOpacity: Double = 0
+    private(set) var startExtent: Double = 1
+    private(set) var targetUsesLevel: Bool = false
+    private(set) var frozenTargetExtent: Double = 1
+    private(set) var startRailOpacity: Double = 0
+    private(set) var targetRailOpacity: Double = 0
+    private(set) var startArmSpan: Double = 0
+    private(set) var targetArmSpan: Double = 0
+    private(set) var transitionStart: TimeInterval = 0
+    private(set) var transitionDuration: TimeInterval = 0.18
+
+    static func resolveOwner(levelKind: NotchLevelBarKind?, levelMuted: Bool,
+                             clipboardActive: Bool, previewActive: Bool,
+                             noticeActive: Bool, agentActive: Bool,
+                             musicActive: Bool, restingActive: Bool) -> NotchContourLineOwner? {
+        if let levelKind { return .level(kind: levelKind, muted: levelMuted) }
+        if clipboardActive { return .clipboard }
+        if previewActive { return .preview }
+        if noticeActive { return .notice }
+        if agentActive { return .agent }
+        if musicActive { return .music }
+        if restingActive { return .resting }
+        return nil
+    }
+
+    static func palette(for owner: NotchContourLineOwner,
+                        clipboardPalette: NotchHaloPalette,
+                        previewPalette: NotchHaloPalette,
+                        noticePalette: NotchHaloPalette,
+                        agentPalette: NotchHaloPalette,
+                        musicPalette: NotchHaloPalette,
+                        restingPalette: NotchHaloPalette) -> NotchLevelPrismPalette {
+        switch owner {
+        case .level(let kind, let muted):
+            return NotchLevelPrismPalette.palette(for: kind, muted: muted)
+        case .clipboard:
+            return NotchLevelPrismPalette(halo: clipboardPalette)
+        case .preview:
+            return NotchLevelPrismPalette(halo: previewPalette)
+        case .notice:
+            return NotchLevelPrismPalette(halo: noticePalette)
+        case .agent:
+            return NotchLevelPrismPalette(halo: agentPalette)
+        case .music:
+            return NotchLevelPrismPalette(halo: musicPalette)
+        case .resting:
+            return NotchLevelPrismPalette(halo: restingPalette)
+        }
+    }
+
+    @discardableResult
+    mutating func update(owner: NotchContourLineOwner?, palette: NotchLevelPrismPalette?,
+                         fullWidth: Bool = false, liveLevel: Double,
+                         at now: TimeInterval, reduceMotion: Bool = false) -> NotchContourLineChange {
+        let clampedLevel = max(0.012, min(1.0, liveLevel.isFinite ? liveLevel : 0))
+        let current = sample(at: now, liveLevel: clampedLevel, reduceMotion: reduceMotion)
+        let newArmSpan = fullWidth ? 1.0 : 0.0
+
+        if owner == nil && targetOwner == nil {
+            return .none
+        }
+        if owner == targetOwner && palette == targetPalette && abs(newArmSpan - targetArmSpan) < 0.0001 {
+            return .none
+        }
+
+        let wasVisible = current.opacity > 0.001
+
+        if let owner, let palette {
+            let newUsesLevel = owner.isTrimmedLevel
+            let newRail = newUsesLevel ? 1.0 : 0.0
+            let change: NotchContourLineChange
+
+            if !wasVisible {
+                startPalette = palette
+                targetPalette = palette
+                startOpacity = 0
+                targetOpacity = 1
+                startExtent = newUsesLevel ? clampedLevel : 1.0
+                targetUsesLevel = newUsesLevel
+                frozenTargetExtent = 1.0
+                startRailOpacity = newRail
+                targetRailOpacity = newRail
+                startArmSpan = newArmSpan
+                targetArmSpan = newArmSpan
+                if owner.isClipboard {
+                    transitionDuration = 0.10
+                } else if owner.isTrimmedLevel {
+                    transitionDuration = 0.12
+                } else {
+                    transitionDuration = 0.18
+                }
+                change = .entered
+            } else {
+                let previousOwner = targetOwner
+                let previousWasTrimmed = targetUsesLevel
+                let widthOnlyToggle = previousOwner == owner
+                    && palette == targetPalette
+                    && abs(newArmSpan - current.armSpan) > 0.001
+
+                startPalette = current.palette
+                targetPalette = palette
+                startOpacity = current.opacity
+                targetOpacity = 1.0
+                startExtent = (previousWasTrimmed && newUsesLevel) ? clampedLevel : current.fillExtent
+                targetUsesLevel = newUsesLevel
+                frozenTargetExtent = 1.0
+                startRailOpacity = current.railOpacity
+                targetRailOpacity = newRail
+                startArmSpan = current.armSpan
+                targetArmSpan = newArmSpan
+
+                if previousOwner == nil {
+                    transitionDuration = owner.isClipboard ? 0.10 : (owner.isLevel ? 0.12 : 0.18)
+                    change = .entered
+                } else if owner.isClipboard {
+                    transitionDuration = 0.10
+                    change = .transitioned
+                } else if previousOwner?.isClipboard == true {
+                    transitionDuration = 0.16
+                    change = .none
+                } else if owner.isLevel {
+                    transitionDuration = 0.14
+                    change = .none
+                } else if previousWasTrimmed {
+                    transitionDuration = 0.26
+                    change = .none
+                } else if widthOnlyToggle {
+                    transitionDuration = 0.22
+                    change = .none
+                } else if let previousOwner, previousOwner == owner {
+                    transitionDuration = 0.26
+                    change = .transitioned
+                } else if let previousOwner, owner.priority > previousOwner.priority {
+                    transitionDuration = 0.18
+                    change = .transitioned
+                } else {
+                    transitionDuration = 0.22
+                    change = .none
+                }
+            }
+            targetOwner = owner
+            transitionStart = now
+            return change
+        } else {
+            if !wasVisible {
+                targetOwner = nil
+                startOpacity = 0
+                targetOpacity = 0
+                transitionDuration = 0
+                return .none
+            }
+            let wasClipboard = targetOwner?.isClipboard == true
+            startPalette = current.palette
+            targetPalette = current.palette
+            startExtent = current.fillExtent
+            targetUsesLevel = false
+            frozenTargetExtent = current.fillExtent
+            startRailOpacity = current.railOpacity
+            targetRailOpacity = current.railOpacity
+            startArmSpan = current.armSpan
+            targetArmSpan = current.armSpan
+            startOpacity = current.opacity
+            targetOpacity = 0.0
+            targetOwner = nil
+            transitionStart = now
+            transitionDuration = wasClipboard ? 0.18 : 0.30
+            return .exited
+        }
+    }
+
+    func usesFullWidth(at now: TimeInterval) -> Bool {
+        targetArmSpan > 0.001 || (startArmSpan > 0.001 && now < transitionStart + transitionDuration)
+    }
+
+    func sample(at now: TimeInterval, liveLevel: Double, reduceMotion: Bool = false) -> NotchContourLineSample {
+        let clampedLevel = max(0.012, min(1.0, liveLevel.isFinite ? liveLevel : 0))
+        let rawT = (reduceMotion || transitionDuration <= 0)
+            ? 1.0
+            : min(1.0, max(0.0, (now - transitionStart) / transitionDuration))
+        let targetExtent = targetUsesLevel ? clampedLevel : frozenTargetExtent
+        if rawT <= 0.0 {
+            return NotchContourLineSample(
+                palette: startPalette,
+                opacity: startOpacity,
+                fillExtent: startExtent,
+                railOpacity: startRailOpacity,
+                armSpan: startArmSpan,
+                isActive: startOpacity > 0.001
+            )
+        }
+        if rawT >= 1.0 {
+            return NotchContourLineSample(
+                palette: targetPalette,
+                opacity: targetOpacity,
+                fillExtent: targetExtent,
+                railOpacity: targetRailOpacity,
+                armSpan: targetArmSpan,
+                isActive: targetOpacity > 0.001
+            )
+        }
+        let eased = 1.0 - pow(1.0 - rawT, 3.0)
+
+        let palette = startPalette.blended(with: targetPalette, amount: eased)
+        let opacity = startOpacity + (targetOpacity - startOpacity) * eased
+        let fillExtent = startExtent + (targetExtent - startExtent) * eased
+        let railOpacity = startRailOpacity + (targetRailOpacity - startRailOpacity) * eased
+        let armSpan = startArmSpan + (targetArmSpan - startArmSpan) * eased
+
+        return NotchContourLineSample(
+            palette: palette,
+            opacity: opacity,
+            fillExtent: fillExtent,
+            railOpacity: railOpacity,
+            armSpan: armSpan,
+            isActive: opacity > 0.001
+        )
+    }
+
+    mutating func reset() {
+        targetOwner = nil
+        startPalette = .volume
+        targetPalette = .volume
+        startOpacity = 0
+        targetOpacity = 0
+        startExtent = 1
+        targetUsesLevel = false
+        frozenTargetExtent = 1
+        startRailOpacity = 0
+        targetRailOpacity = 0
+        startArmSpan = 0
+        targetArmSpan = 0
+        transitionStart = 0
+        transitionDuration = 0.22
     }
 }

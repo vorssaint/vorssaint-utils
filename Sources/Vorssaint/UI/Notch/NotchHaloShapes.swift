@@ -9,6 +9,7 @@ import SwiftUI
 struct NotchBottomUShape: Shape {
     var islandRect: CGRect
     var armRun: CGFloat
+    var fullWidthSpan: CGFloat = 0
     var floatingGap: CGFloat?
 
     private static let tangent: CGFloat = 0.55228475
@@ -16,14 +17,22 @@ struct NotchBottomUShape: Shape {
     func path(in rect: CGRect) -> Path {
         if let floatingGap {
             let capsule = Path(NotchLayout.capsulePath(in: islandRect, gap: floatingGap))
-            guard armRun > 0 else { return capsule }
             let body = NotchLayout.capsuleBody(in: islandRect, gap: floatingGap)
-            var p = capsule
+            let span = min(1, max(0, fullWidthSpan))
+            let leftArm = fullWidthSpan > 0 ? max(0, body.minX - rect.minX) * span : armRun
+            let rightArm = fullWidthSpan > 0 ? max(0, rect.maxX - body.maxX) * span : armRun
+            guard leftArm > 0 || rightArm > 0 else { return capsule }
+            var p = Path()
             let midY = body.midY
-            p.move(to: CGPoint(x: max(rect.minX, body.minX - armRun), y: midY))
-            p.addLine(to: CGPoint(x: body.minX, y: midY))
-            p.move(to: CGPoint(x: body.maxX, y: midY))
-            p.addLine(to: CGPoint(x: min(rect.maxX, body.maxX + armRun), y: midY))
+            if leftArm > 0 {
+                p.move(to: CGPoint(x: max(rect.minX, body.minX - leftArm), y: midY))
+                p.addLine(to: CGPoint(x: body.minX, y: midY))
+            }
+            p.addPath(capsule)
+            if rightArm > 0 {
+                p.move(to: CGPoint(x: body.maxX, y: midY))
+                p.addLine(to: CGPoint(x: min(rect.maxX, body.maxX + rightArm), y: midY))
+            }
             return p
         }
 
@@ -39,9 +48,13 @@ struct NotchBottomUShape: Shape {
         let minY = islandRect.minY
         let maxY = islandRect.maxY
 
+        let span = min(1, max(0, fullWidthSpan))
+        let leftArm = fullWidthSpan > 0 ? max(0, minX - rect.minX) * span : armRun
+        let rightArm = fullWidthSpan > 0 ? max(0, rect.maxX - maxX) * span : armRun
+
         var p = Path()
-        if armRun > 0 {
-            p.move(to: CGPoint(x: minX - armRun, y: minY))
+        if leftArm > 0 {
+            p.move(to: CGPoint(x: max(rect.minX, minX - leftArm), y: minY))
             p.addLine(to: CGPoint(x: minX, y: minY))
         } else {
             p.move(to: CGPoint(x: minX, y: minY))
@@ -78,8 +91,8 @@ struct NotchBottomUShape: Shape {
             control2: CGPoint(x: maxX - shoulder * t, y: minY)
         )
 
-        if armRun > 0 {
-            p.addLine(to: CGPoint(x: maxX + armRun, y: minY))
+        if rightArm > 0 {
+            p.addLine(to: CGPoint(x: min(rect.maxX, maxX + rightArm), y: minY))
         }
         return p
     }
@@ -116,59 +129,5 @@ struct NotchOutsideShellMask: View {
                 .blendMode(.destinationOut)
         }
         .compositingGroup()
-    }
-}
-
-/// Tapered trapezoidal light beam used for Organic Rays.
-struct NotchRayTrapezoid: Shape {
-    var topInset: CGFloat = 0.3
-    var bottomInset: CGFloat = 0.0
-
-    func path(in rect: CGRect) -> Path {
-        let topHalfInset = rect.width * topInset * 0.5
-        let botHalfInset = rect.width * bottomInset * 0.5
-        var p = Path()
-        p.move(to: CGPoint(x: rect.minX + topHalfInset, y: rect.minY))
-        p.addLine(to: CGPoint(x: rect.maxX - topHalfInset, y: rect.minY))
-        p.addLine(to: CGPoint(x: rect.maxX - botHalfInset, y: rect.maxY))
-        p.addLine(to: CGPoint(x: rect.minX + botHalfInset, y: rect.maxY))
-        p.closeSubpath()
-        return p
-    }
-}
-
-/// Crisp four-point prismatic corner star flare.
-struct NotchPrismCornerFlare: View {
-    let color: Color
-    let coreColor: Color
-    let scale: CGFloat
-    let opacity: Double
-
-    var body: some View {
-        ZStack {
-            Capsule(style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [.clear, color.opacity(0.85), coreColor, color.opacity(0.85), .clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .frame(width: 24 * scale, height: 1.6 * max(0.7, scale * 0.85))
-            Capsule(style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [.clear, color.opacity(0.85), coreColor, color.opacity(0.85), .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: 1.6 * max(0.7, scale * 0.85), height: 22 * scale)
-            Circle()
-                .fill(coreColor.opacity(0.9))
-                .frame(width: 4 * scale, height: 4 * scale)
-                .blur(radius: 1.5)
-        }
-        .opacity(opacity)
     }
 }

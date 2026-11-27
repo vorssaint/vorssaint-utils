@@ -3,563 +3,669 @@
 
 import SwiftUI
 
-struct NotchHaloRenderParams {
-    let palette: NotchHaloPalette
-    let islandRect: CGRect
-    let floatingGap: CGFloat?
-    let armRun: CGFloat
+/// Parameters driving the unified on-bar light renderer across styles and motions.
+struct NotchContourBarRenderParams {
+    let shape: NotchBottomUShape
+    let palette: NotchLevelPrismPalette
+    let fillExtent: Double
+    let armWidth: NotchHaloArmWidth
     let thicknessScale: Double
-    let intensity: Double
     let time: TimeInterval
     let motion: NotchHaloMotion
+    let motionStrength: Double
+    let energy: Double
+    let isTrimmedLevel: Bool
+    let reduceMotion: Bool
 
-    var shoulder: CGFloat {
-        floatingGap == nil ? NotchLayout.shoulder(height: islandRect.height) : 0
+    var clampedExtent: Double {
+        min(1.0, max(0.012, fillExtent))
     }
 
-    var cornerRadius: CGFloat {
-        NotchLayout.surfaceRadius(height: islandRect.height)
+    var scale: CGFloat {
+        CGFloat(thicknessScale)
     }
 
-    var bodyLeftX: CGFloat {
-        if let floatingGap {
-            return NotchLayout.capsuleBody(in: islandRect, gap: floatingGap).minX
-        }
-        return islandRect.minX + shoulder
+    var spread: CGFloat {
+        CGFloat(armWidth.glowSpread)
     }
 
-    var bodyRightX: CGFloat {
-        if let floatingGap {
-            return NotchLayout.capsuleBody(in: islandRect, gap: floatingGap).maxX
-        }
-        return islandRect.maxX - shoulder
+    var springEnergy: Double {
+        reduceMotion ? 0.0 : min(1.0, max(0.0, energy))
     }
 
-    var bodyBottomY: CGFloat {
-        if let floatingGap {
-            return NotchLayout.capsuleBody(in: islandRect, gap: floatingGap).maxY
-        }
-        return islandRect.maxY
-    }
-
-    var wingY: CGFloat {
-        if let floatingGap {
-            return NotchLayout.capsuleBody(in: islandRect, gap: floatingGap).midY
-        }
-        return islandRect.minY
-    }
-
-    func motionMultiplier(atX normalizedX: Double, seed: Double = 0) -> Double {
+    var ambientBreath: Double {
+        guard !reduceMotion, motion != .none else { return 1.0 }
         switch motion {
+        case .ondulation:
+            return 1.0 - 0.10 * motionStrength + 0.10 * motionStrength * (0.5 + 0.5 * sin(time * 2.1))
+        case .flux, .ripple, .shimmer:
+            return 1.0 - 0.05 * motionStrength + 0.05 * motionStrength * (0.5 + 0.5 * sin(time * 2.6))
         case .none:
             return 1.0
-        case .ondulation:
-            return 0.78 + 0.22 * sin(time * 2.1 + normalizedX * 3.4 + seed)
-        case .flux:
-            let phase = NotchLightsSupport.fract(normalizedX * 0.5 - time * 0.35 + 10.0)
-            let wave = 0.5 + 0.5 * cos((phase - 0.5) * .pi * 2.0)
-            return 0.65 + 0.45 * wave
-        case .ripple:
-            return 0.74 + 0.26 * sin(abs(normalizedX) * 6.0 - time * 3.6)
-        case .shimmer:
-            return 0.76 + 0.24 * sin(time * 5.2 + seed * 1.7) * cos(time * 3.1 + normalizedX * 4.0)
         }
     }
 
-    func contourMask(size: CGSize) -> some View {
-        let halfW = islandRect.width * 0.5 + armRun
+    var barGradient: LinearGradient {
+        if isTrimmedLevel {
+            return LinearGradient(
+                colors: [palette.trail.color, palette.lead.color, palette.core.color],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
+        let drift: Double
+        if reduceMotion {
+            drift = 0.5
+        } else {
+            switch motion {
+            case .ondulation:
+                drift = 0.5 + 0.22 * sin(time * 1.9)
+            case .flux:
+                drift = 0.22 + 0.56 * NotchLightsSupport.fract(time * 0.42)
+            case .none, .ripple, .shimmer:
+                drift = 0.5
+            }
+        }
+        let leftStop = max(0.08, drift - 0.24)
+        let rightStop = min(0.92, drift + 0.24)
         return LinearGradient(
             stops: [
-                .init(color: .clear, location: 0.0),
-                .init(color: .white.opacity(0.76), location: max(0.06, 0.5 - Double(halfW * 0.88 / max(1, size.width)))),
-                .init(color: .white, location: 0.5),
-                .init(color: .white.opacity(0.76), location: min(0.94, 0.5 + Double(halfW * 0.88 / max(1, size.width)))),
-                .init(color: .clear, location: 1.0)
+                .init(color: palette.trail.color, location: 0.0),
+                .init(color: palette.lead.color, location: leftStop),
+                .init(color: palette.core.color, location: drift),
+                .init(color: palette.lead.color, location: rightStop),
+                .init(color: palette.trail.color, location: 1.0)
             ],
             startPoint: .leading,
             endPoint: .trailing
         )
     }
+
+    func trimmedBounds(center: Double, halfWidth: Double) -> (from: Double, to: Double)? {
+        let maxE = clampedExtent
+        let c = min(maxE, max(0.0, center))
+        let lo = max(0.0, c - halfWidth)
+        let hi = min(maxE, c + halfWidth)
+        guard hi - lo > 0.002 else { return nil }
+        return (lo, hi)
+    }
 }
 
-/// Active style dispatcher across all 7 halo modes.
-struct NotchHaloStyleRenderer: View {
+/// Active style dispatcher rendering all 7 laser styles strictly along `NotchBottomUShape`.
+struct NotchContourStyleLayer: View {
     let style: NotchHaloStyle
-    let params: NotchHaloRenderParams
+    let params: NotchContourBarRenderParams
 
     var body: some View {
         switch style {
         case .classic:
-            NotchClassicHaloView(params: params)
+            NotchClassicBarStyleView(params: params)
         case .pixelated:
-            NotchPixelatedHaloView(params: params)
+            NotchPixelatedBarStyleView(params: params)
         case .volumetric:
-            NotchVolumetricHaloView(params: params)
+            NotchVolumetricBarStyleView(params: params)
         case .rays:
-            NotchOrganicRaysHaloView(params: params)
+            NotchRaysBarStyleView(params: params)
         case .bioluminescent:
-            NotchBioluminescentHaloView(params: params)
+            NotchBioluminescentBarStyleView(params: params)
         case .prism:
-            NotchCrystallinePrismHaloView(params: params)
+            NotchPrismBarStyleView(params: params)
         case .nimbus:
-            NotchNimbusHaloView(params: params)
+            NotchNimbusBarStyleView(params: params)
         }
     }
 }
 
-// MARK: 1. Classic Organic Running Light
+// MARK: - 1. Classic Neon Laser Tube
 
-struct NotchClassicHaloView: View {
-    let params: NotchHaloRenderParams
-
-    var body: some View {
-        GeometryReader { proxy in
-            let shape = NotchBottomUShape(
-                islandRect: params.islandRect,
-                armRun: params.armRun,
-                floatingGap: params.floatingGap
-            )
-            let travel = sin(params.time * 1.45) * Double(params.armRun * 0.45)
-            let scale = CGFloat(params.thicknessScale)
-
-            ZStack {
-                shape
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                .clear,
-                                params.palette.secondary.color.opacity(0.85),
-                                params.palette.primary.color,
-                                params.palette.core.color,
-                                params.palette.primary.color,
-                                params.palette.secondary.color.opacity(0.85),
-                                .clear
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ),
-                        style: StrokeStyle(lineWidth: 11 * scale, lineCap: .round, lineJoin: .round)
-                    )
-                    .blur(radius: 12 * scale)
-
-                Ellipse()
-                    .fill(
-                        RadialGradient(
-                            colors: [params.palette.core.color.opacity(0.9), params.palette.primary.color.opacity(0.45), .clear],
-                            center: .center,
-                            startRadius: 2,
-                            endRadius: (params.islandRect.width * 0.58) * scale
-                        )
-                    )
-                    .frame(width: (params.islandRect.width + params.armRun * 0.85) * scale, height: 32 * scale)
-                    .position(x: params.islandRect.midX + travel, y: params.bodyBottomY + 8 * scale)
-                    .blur(radius: 10 * scale)
-
-                shape
-                    .stroke(params.palette.core.color.opacity(0.92), style: StrokeStyle(lineWidth: 2.8 * scale, lineCap: .round, lineJoin: .round))
-                    .blur(radius: 2.2 * scale)
-            }
-            .mask(params.contourMask(size: proxy.size))
-            .opacity(min(1, params.intensity * params.motionMultiplier(atX: 0)))
-        }
-    }
-}
-
-// MARK: 2. Pixelated Bayer 8x8 Halo
-
-struct NotchPixelatedHaloView: View {
-    let params: NotchHaloRenderParams
+private struct NotchClassicBarStyleView: View {
+    let params: NotchContourBarRenderParams
 
     var body: some View {
-        Canvas { context, size in
-            let midX = Double(params.islandRect.midX)
-            let leftWall = Double(params.bodyLeftX)
-            let rightWall = Double(params.bodyRightX)
-            let bodyHalfW = (rightWall - leftWall) * 0.5
-            let topY = Double(params.wingY)
-            let bottomY = Double(params.bodyBottomY)
-            let arm = Double(params.armRun)
-            let spread = 26.0 * params.thicknessScale
-            let step = 3.0
-            let minX = max(0, Double(params.islandRect.minX) - arm)
-            let maxX = min(Double(size.width), Double(params.islandRect.maxX) + arm)
-            let minY = params.floatingGap == nil ? Double(params.islandRect.minY) : max(0, Double(params.islandRect.minY) - spread)
-            let maxY = min(Double(size.height), bottomY + spread * 1.4)
+        let scale = params.scale
+        let spread = params.spread
+        let extent = params.clampedExtent
+        let energy = params.springEnergy
+        let gradient = params.barGradient
+        let runnerCenter = params.reduceMotion
+            ? extent * 0.5
+            : extent * (0.12 + 0.76 * (0.5 + 0.5 * sin(params.time * 1.85)))
+        let runnerHalf = min(extent * 0.35, 0.075 * min(1.4, Double(spread)))
 
-            var gx = 0
-            var x = minX
-            while x < maxX {
-                var gy = 0
-                var y = minY
-                while y < maxY {
-                    let insideNotch = x > leftWall && x < rightWall && y >= Double(params.islandRect.minY) && y < bottomY
-                    if !insideNotch {
-                        let dxSide = max(0, abs(x - midX) - bodyHalfW)
-                        let dArm = hypot(max(0, dxSide - arm), abs(y - topY))
-                        let clampedY = min(bottomY, max(Double(params.islandRect.minY), y))
-                        let wallD = hypot(dxSide, y - clampedY)
-                        let bottomD = abs(x - midX) <= bodyHalfW ? abs(y - bottomY) : wallD
-                        let d = min(bottomD, dxSide > 0 ? min(wallD, dArm) : bottomD)
-                        let armFade = max(0, 1.0 - max(0, abs(x - midX) - bodyHalfW) / max(1, arm))
-                        let falloff = max(0, 1.0 - d / spread) * armFade * params.intensity
-                        let nx = (x - midX) / max(1, bodyHalfW + arm)
-                        let mod = falloff * params.motionMultiplier(atX: nx, seed: Double(gx + gy) * 0.1)
-                        let threshold = NotchLightsSupport.bayer8x8[(gx & 7) + ((gy & 7) << 3)]
-                        if mod > threshold + 0.06 {
-                            let color = mod > 0.68 ? params.palette.core.color : (mod > 0.36 ? params.palette.primary.color : params.palette.secondary.color)
-                            context.fill(
-                                Path(CGRect(x: x, y: y, width: step - 0.5, height: step - 0.5)),
-                                with: .color(color.opacity(min(1.0, 0.45 + mod * 0.55)))
-                            )
-                        }
-                    }
-                    y += step
-                    gy += 1
-                }
-                x += step
-                gx += 1
-            }
-        }
-    }
-}
-
-// MARK: 3. Volumetric Multi-Layer Glow
-
-struct NotchVolumetricHaloView: View {
-    let params: NotchHaloRenderParams
-
-    var body: some View {
-        GeometryReader { proxy in
-            let scale = CGFloat(params.thicknessScale)
-            let shape = NotchBottomUShape(
-                islandRect: params.islandRect,
-                armRun: params.armRun,
-                floatingGap: params.floatingGap
-            )
-            let pulse = params.motionMultiplier(atX: 0)
-
-            ZStack {
-                shape
-                    .stroke(params.palette.secondary.color.opacity(0.45), style: StrokeStyle(lineWidth: 22 * scale, lineCap: .round, lineJoin: .round))
-                    .blur(radius: 24 * scale)
-                shape
-                    .stroke(params.palette.rim.color.opacity(0.65), style: StrokeStyle(lineWidth: 14 * scale, lineCap: .round, lineJoin: .round))
-                    .blur(radius: 14 * scale)
-                shape
-                    .stroke(params.palette.primary.color.opacity(0.85), style: StrokeStyle(lineWidth: 7 * scale, lineCap: .round, lineJoin: .round))
-                    .blur(radius: 6 * scale)
-                shape
-                    .stroke(params.palette.core.color.opacity(0.95), style: StrokeStyle(lineWidth: 2.4 * scale, lineCap: .round, lineJoin: .round))
-                    .blur(radius: 2.2 * scale)
-            }
-            .mask(params.contourMask(size: proxy.size))
-            .opacity(min(1, params.intensity * pulse))
-        }
-    }
-}
-
-// MARK: 4. Organic Rays + Fog + Humidity Particles
-
-struct NotchOrganicRaysHaloView: View {
-    let params: NotchHaloRenderParams
-
-    var body: some View {
-        GeometryReader { proxy in
-            let scale = CGFloat(params.thicknessScale)
-            let shape = NotchBottomUShape(
-                islandRect: params.islandRect,
-                armRun: params.armRun,
-                floatingGap: params.floatingGap
-            )
-
-            ZStack {
-                shape
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                .clear,
-                                params.palette.secondary.color.opacity(0.5),
-                                params.palette.primary.color.opacity(0.78),
-                                params.palette.secondary.color.opacity(0.5),
-                                .clear
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ),
-                        style: StrokeStyle(lineWidth: 10 * scale, lineCap: .round, lineJoin: .round)
-                    )
-                    .blur(radius: 11 * scale)
-                    .mask(params.contourMask(size: proxy.size))
-
-                ForEach([-1.0, 1.0], id: \.self) { sign in
-                    armRayGroup(sign: sign)
-                }
-
-                ForEach(0..<7, id: \.self) { index in
-                    bottomRayView(index: index, scale: scale)
-                }
-
-                shape
-                    .stroke(params.palette.core.color.opacity(0.88 * params.intensity), style: StrokeStyle(lineWidth: 2.0 * scale, lineCap: .round, lineJoin: .round))
-                    .blur(radius: 1.8 * scale)
-                    .mask(params.contourMask(size: proxy.size))
-
-                NotchRayHumidityParticles(
-                    palette: params.palette,
-                    islandRect: params.islandRect,
-                    bodyLeftX: params.bodyLeftX,
-                    bodyRightX: params.bodyRightX,
-                    bodyBottomY: params.bodyBottomY,
-                    wingY: params.wingY,
-                    armRun: params.armRun,
-                    thicknessScale: params.thicknessScale,
-                    time: params.time,
-                    intensity: params.intensity
+        ZStack {
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    gradient.opacity(0.44 + 0.24 * energy),
+                    style: StrokeStyle(lineWidth: (9.0 + 3.2 * energy) * scale * spread, lineCap: .round, lineJoin: .round)
                 )
-            }
-            .drawingGroup()
-        }
-    }
+                .blur(radius: (8.5 + 2.0 * energy) * scale * spread)
 
-    @ViewBuilder
-    private func armRayGroup(sign: Double) -> some View {
-        let rays = NotchLightsSupport.armRays(
-            armRun: params.armRun,
-            thicknessScale: params.thicknessScale,
-            intensity: params.intensity,
-            sign: sign
-        )
-        let edgeX = sign < 0 ? params.bodyLeftX : params.bodyRightX
-        let gradient = LinearGradient(
-            colors: [
-                params.palette.core.color.opacity(0.95),
-                params.palette.primary.color.opacity(0.85),
-                params.palette.secondary.color.opacity(0.32),
-                .clear
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        ForEach(rays, id: \.index) { ray in
-            let nx = Double(ray.xOffset / max(1, params.armRun))
-            let flicker = params.motionMultiplier(atX: nx, seed: ray.phase)
-            let beamWidth = CGFloat(ray.width) * 2.2
-            let beamHeight = CGFloat(ray.length) * CGFloat(0.85 + 0.15 * flicker)
-            let blurRadius = CGFloat(max(1.2, ray.width * 0.85))
-            let alpha = min(1.0, ray.opacity * params.intensity * 3.1 * flicker)
-            NotchRayTrapezoid(topInset: 0.3, bottomInset: 0.0)
-                .fill(gradient)
-                .frame(width: beamWidth, height: beamHeight)
-                .blur(radius: blurRadius)
-                .rotationEffect(.degrees(ray.angleDegrees), anchor: .top)
-                .position(x: edgeX + ray.xOffset, y: params.wingY + beamHeight * 0.45)
-                .opacity(alpha)
-        }
-    }
-
-    @ViewBuilder
-    private func bottomRayView(index: Int, scale: CGFloat) -> some View {
-        let frac = Double(index) / 6.0 - 0.5
-        let usableSpan = max(24, (params.bodyRightX - params.bodyLeftX) - params.cornerRadius * 0.8)
-        let x = params.islandRect.midX + CGFloat(frac) * usableSpan
-        let centerMod = params.motionMultiplier(atX: frac * 0.4, seed: Double(index) * 1.3)
-        let rHeight = (36.0 + 18.0 * NotchLightsSupport.hash(Double(index) + 41.9)) * params.thicknessScale
-        let gradient = LinearGradient(
-            colors: [params.palette.core.color.opacity(0.92), params.palette.primary.color.opacity(0.75), .clear],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        let alpha = min(1.0, (0.36 + 0.14 * (1.0 - abs(frac))) * params.intensity * centerMod)
-        NotchRayTrapezoid(topInset: 0.3, bottomInset: 0.0)
-            .fill(gradient)
-            .frame(width: 4.2 * scale, height: CGFloat(rHeight))
-            .blur(radius: 3.5 * scale)
-            .rotationEffect(.degrees(frac * 18.0), anchor: .top)
-            .position(x: x, y: params.bodyBottomY + CGFloat(rHeight) * 0.44)
-            .opacity(alpha)
-    }
-}
-
-struct NotchRayHumidityParticles: View {
-    let palette: NotchHaloPalette
-    let islandRect: CGRect
-    let bodyLeftX: CGFloat
-    let bodyRightX: CGFloat
-    let bodyBottomY: CGFloat
-    let wingY: CGFloat
-    let armRun: CGFloat
-    let thicknessScale: Double
-    let time: TimeInterval
-    let intensity: Double
-
-    var body: some View {
-        Canvas { context, _ in
-            let midX = Double(islandRect.midX)
-            let span = Double(islandRect.width * 0.5 + armRun * 0.85)
-            let count = 28
-            for i in 0..<count {
-                let s = Double(i)
-                let rx = NotchLightsSupport.fract(sin(s * 12.9898 + 336.402) * 43758.5)
-                let ry = NotchLightsSupport.fract(sin((s + 17.0) * 12.9898 + 336.402) * 43758.5)
-                let rp = NotchLightsSupport.fract(sin((s + 53.0) * 12.9898 + 336.402) * 43758.5)
-                let drift = sin(time * (0.7 + rp * 0.9) + s) * 8.0
-                let fall = (time * (8.0 + rp * 10.0) + ry * 54.0).truncatingRemainder(dividingBy: 56.0)
-                let x = midX + (rx * 2.0 - 1.0) * span + drift
-                let underBody = x >= Double(bodyLeftX - 4) && x <= Double(bodyRightX + 4)
-                let baseY = underBody ? Double(bodyBottomY) : Double(wingY + 2)
-                let y = baseY + fall * thicknessScale
-                let fade = sin(min(.pi, (fall / 56.0) * .pi)) * (0.4 + 0.6 * ry) * intensity
-                let r = (0.9 + rp * 1.4) * thicknessScale
-                context.fill(
-                    Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)),
-                    with: .color(palette.core.color.opacity(min(0.85, fade * 0.72)))
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    gradient.opacity(0.92),
+                    style: StrokeStyle(lineWidth: 4.0 * scale, lineCap: .round, lineJoin: .round)
                 )
-            }
-        }
-    }
-}
+                .blur(radius: 2.6 * scale)
 
-// MARK: 5. Bioluminescent Plankton Halo
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    gradient,
+                    style: StrokeStyle(lineWidth: 1.9 * scale, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 0.45)
 
-struct NotchBioluminescentHaloView: View {
-    let params: NotchHaloRenderParams
-
-    var body: some View {
-        GeometryReader { proxy in
-            let shape = NotchBottomUShape(
-                islandRect: params.islandRect,
-                armRun: params.armRun,
-                floatingGap: params.floatingGap
-            )
-            ZStack {
-                shape
-                    .stroke(params.palette.secondary.color.opacity(0.35 * params.intensity),
-                            style: StrokeStyle(lineWidth: 10 * CGFloat(params.thicknessScale), lineCap: .round, lineJoin: .round))
-                    .blur(radius: 10)
-                    .mask(params.contourMask(size: proxy.size))
-
-                Canvas { context, _ in
-                    let midX = Double(params.islandRect.midX)
-                    let leftWall = Double(params.bodyLeftX)
-                    let rightWall = Double(params.bodyRightX)
-                    let halfBody = (rightWall - leftWall) * 0.5
-                    let topY = Double(params.wingY)
-                    let bottomY = Double(params.bodyBottomY)
-                    let arm = Double(params.armRun)
-                    let count = 64
-
-                    for i in 0..<count {
-                        let u = Double(i) / Double(max(1, count - 1)) * 2.0 - 1.0
-                        let xAnchor = midX + u * (halfBody + arm * 0.92)
-                        let s = Double(i)
-                        let r1 = NotchLightsSupport.hash(s + 11.3)
-                        let r2 = NotchLightsSupport.hash(s + 29.7)
-                        let r3 = NotchLightsSupport.hash(s + 47.1)
-                        let dx = (r1 - 0.5) * 14.0 + sin(params.time * (0.9 + r3) + s) * 4.5
-                        let x = xAnchor + dx
-                        let onNotchBottom = x >= leftWall - 2 && x <= rightWall + 2
-                        let contourY = onNotchBottom ? bottomY : topY + 2.0
-                        let y = contourY + (r2 * 22.0 + 1.0) * params.thicknessScale + cos(params.time * (1.1 + r1) + s) * 2.5
-                        let glow = (0.35 + 0.65 * (sin(params.time * (1.8 + r2 * 2.4) + s * 1.9) * 0.5 + 0.5))
-                        let armFade = max(0.05, 1.0 - max(0.0, abs(x - midX) - halfBody) / max(1.0, arm))
-                        let radius = (1.3 + r3 * 2.8) * params.thicknessScale
-                        let color = r1 > 0.65 ? params.palette.core.color : (r1 > 0.25 ? params.palette.primary.color : params.palette.secondary.color)
-                        context.fill(
-                            Path(ellipseIn: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)),
-                            with: .color(color.opacity(min(1.0, glow * armFade * params.intensity)))
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-// MARK: 6. Crystalline Prism + 4 Corner Cross Flares
-
-struct NotchCrystallinePrismHaloView: View {
-    let params: NotchHaloRenderParams
-
-    var body: some View {
-        GeometryReader { proxy in
-            let scale = CGFloat(params.thicknessScale)
-            let shape = NotchBottomUShape(
-                islandRect: params.islandRect,
-                armRun: params.armRun,
-                floatingGap: params.floatingGap
-            )
-            let flarePulse = params.motionMultiplier(atX: 0.25)
-            let cornerInset = min(params.cornerRadius * 0.35, 8)
-            let corners: [CGPoint] = [
-                CGPoint(x: params.bodyLeftX, y: params.wingY + 2),
-                CGPoint(x: params.bodyRightX, y: params.wingY + 2),
-                CGPoint(x: params.bodyLeftX + cornerInset, y: params.bodyBottomY),
-                CGPoint(x: params.bodyRightX - cornerInset, y: params.bodyBottomY)
-            ]
-
-            ZStack {
-                shape
-                    .stroke(params.palette.rim.color.opacity(0.62), style: StrokeStyle(lineWidth: 4.2 * scale, lineCap: .round, lineJoin: .round))
-                    .offset(x: -1.8, y: 1.5)
-                    .blur(radius: 3.5 * scale)
-                shape
-                    .stroke(params.palette.secondary.color.opacity(0.65), style: StrokeStyle(lineWidth: 4.2 * scale, lineCap: .round, lineJoin: .round))
-                    .offset(x: 1.8, y: 1.5)
-                    .blur(radius: 3.5 * scale)
-                shape
-                    .stroke(params.palette.core.color.opacity(0.95), style: StrokeStyle(lineWidth: 2.0 * scale, lineCap: .round, lineJoin: .round))
+            if !params.reduceMotion, let span = params.trimmedBounds(center: runnerCenter, halfWidth: runnerHalf) {
+                params.shape
+                    .trim(from: span.from, to: span.to)
+                    .stroke(
+                        params.palette.core.color.opacity(0.82),
+                        style: StrokeStyle(lineWidth: 2.8 * scale, lineCap: .round, lineJoin: .round)
+                    )
                     .blur(radius: 1.4 * scale)
-
-                ForEach(0..<corners.count, id: \.self) { idx in
-                    NotchPrismCornerFlare(
-                        color: idx.isMultiple(of: 2) ? params.palette.primary.color : params.palette.secondary.color,
-                        coreColor: params.palette.core.color,
-                        scale: scale * CGFloat(0.85 + 0.15 * sin(params.time * 2.5 + Double(idx) * 1.4)),
-                        opacity: min(1.0, params.intensity * flarePulse)
-                    )
-                    .position(corners[idx])
-                }
             }
-            .mask(params.contourMask(size: proxy.size))
-            .opacity(params.intensity)
         }
     }
 }
 
-// MARK: 7. Photoreal Nimbus Cloud Halo
+// MARK: - 2. Pixelated Bayer Segmented Bar
 
-struct NotchNimbusHaloView: View {
-    let params: NotchHaloRenderParams
+private struct NotchPixelatedBarStyleView: View {
+    let params: NotchContourBarRenderParams
 
     var body: some View {
-        GeometryReader { proxy in
-            let lobes = 9
-            ZStack {
-                ForEach(0..<lobes, id: \.self) { idx in
-                    let frac = Double(idx) / Double(lobes - 1) - 0.5
-                    let drift = sin(params.time * 0.8 + Double(idx) * 1.1) * 10.0
-                    let x = params.islandRect.midX + CGFloat(frac) * (params.islandRect.width + params.armRun * 1.4) + drift
-                    let underNotch = x >= params.bodyLeftX - 10 && x <= params.bodyRightX + 10
-                    let y = (underNotch ? params.bodyBottomY : params.wingY + 4) + CGFloat(5.0 * params.thicknessScale)
-                    let radius = (32.0 + 18.0 * NotchLightsSupport.hash(Double(idx) + 19.4)) * params.thicknessScale
-                    let color = idx.isMultiple(of: 2) ? params.palette.primary.color : params.palette.secondary.color
-                    Ellipse()
-                        .fill(
-                            RadialGradient(
-                                colors: [params.palette.core.color.opacity(0.45), color.opacity(0.62), .clear],
-                                center: .center,
-                                startRadius: 2,
-                                endRadius: radius
-                            )
+        let scale = params.scale
+        let spread = params.spread
+        let extent = params.clampedExtent
+        let energy = params.springEnergy
+        let gradient = params.barGradient
+        let stepFrame = params.reduceMotion ? 0 : Int(floor(params.time * 12.0))
+        let cellPitch = 7.0 * scale
+        let blockStyle = StrokeStyle(
+            lineWidth: 3.2 * scale,
+            lineCap: .butt,
+            lineJoin: .miter,
+            dash: [4.5 * scale, 2.5 * scale]
+        )
+
+        ZStack {
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    gradient.opacity(0.48 + 0.22 * energy),
+                    style: StrokeStyle(
+                        lineWidth: (7.5 + 2.0 * energy) * scale * spread,
+                        lineCap: .butt,
+                        lineJoin: .miter,
+                        dash: [4.5 * scale, 2.5 * scale]
+                    )
+                )
+                .blur(radius: 5.0 * scale * spread)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(gradient.opacity(0.96), style: blockStyle)
+
+            ForEach(0..<4, id: \.self) { lane in
+                let bayerIdx = (stepFrame + lane * 11) & 63
+                let threshold = NotchLightsSupport.bayer8x8[bayerIdx]
+                let activeOpacity = threshold < 0.58 ? (0.45 + 0.45 * (1.0 - threshold)) : 0.14
+                params.shape
+                    .trim(from: 0, to: extent)
+                    .stroke(
+                        params.palette.core.color.opacity(activeOpacity),
+                        style: StrokeStyle(
+                            lineWidth: 2.2 * scale,
+                            lineCap: .butt,
+                            lineJoin: .miter,
+                            dash: [2.2 * scale, cellPitch * 3.0 - 2.2 * scale],
+                            dashPhase: CGFloat(lane) * cellPitch
                         )
-                        .frame(width: radius * 2.4, height: radius * 1.25)
-                        .position(x: x, y: y)
-                        .blur(radius: 12 * CGFloat(params.thicknessScale))
-                        .opacity(params.motionMultiplier(atX: frac * 1.6, seed: Double(idx)))
+                    )
+            }
+        }
+    }
+}
+
+// MARK: - 3. Volumetric Velvet Multi-Layer Bar
+
+private struct NotchVolumetricBarStyleView: View {
+    let params: NotchContourBarRenderParams
+
+    var body: some View {
+        let scale = params.scale
+        let spread = params.spread
+        let extent = params.clampedExtent
+        let energy = params.springEnergy
+
+        ZStack {
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    params.palette.trail.color.opacity(0.36 + 0.16 * energy),
+                    style: StrokeStyle(lineWidth: (18.0 + 3.0 * energy) * scale * spread, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 18.0 * scale * spread)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    params.palette.lead.color.opacity(0.58 + 0.18 * energy),
+                    style: StrokeStyle(lineWidth: 11.5 * scale * spread, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 10.0 * scale * spread)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    params.barGradient.opacity(0.90),
+                    style: StrokeStyle(lineWidth: 5.2 * scale, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 3.6 * scale)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    params.palette.core.color.opacity(0.96),
+                    style: StrokeStyle(lineWidth: 2.4 * scale, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 0.9 * scale)
+        }
+    }
+}
+
+// MARK: - 4. Electric Faceted Laser Rays on Bar
+
+private struct NotchRaysBarStyleView: View {
+    let params: NotchContourBarRenderParams
+
+    var body: some View {
+        let scale = params.scale
+        let spread = params.spread
+        let extent = params.clampedExtent
+        let energy = params.springEnergy
+        let phase = params.reduceMotion ? 0.0 : -params.time * 56.0
+
+        ZStack {
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    params.barGradient.opacity(0.46 + 0.22 * energy),
+                    style: StrokeStyle(lineWidth: (7.5 + 2.5 * energy) * scale * spread, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 6.5 * scale * spread)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    params.barGradient,
+                    style: StrokeStyle(lineWidth: 2.0 * scale, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 0.35)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    params.palette.core.color.opacity(0.68),
+                    style: StrokeStyle(
+                        lineWidth: 1.4 * scale,
+                        lineCap: .round,
+                        lineJoin: .round,
+                        dash: [14.0 * scale, 18.0 * scale],
+                        dashPhase: CGFloat(phase) * scale
+                    )
+                )
+                .blur(radius: 0.5)
+
+            if !params.reduceMotion {
+                ForEach(0..<6, id: \.self) { idx in
+                    let s = Double(idx)
+                    let forward = idx.isMultiple(of: 2)
+                    let speed = 0.42 + 0.16 * NotchLightsSupport.hash(s + 19.3)
+                    let rawU = NotchLightsSupport.fract(params.time * speed + NotchLightsSupport.hash(s + 41.7))
+                    let u = forward ? rawU : (1.0 - rawU)
+                    let halfW = (0.020 + 0.025 * NotchLightsSupport.hash(s + 73.1)) * min(1.3, Double(spread))
+                    let envelope = sin(rawU * .pi)
+                    if envelope > 0.03, let span = params.trimmedBounds(center: u * extent, halfWidth: halfW) {
+                        params.shape
+                            .trim(from: span.from, to: span.to)
+                            .stroke(
+                                (idx.isMultiple(of: 3) ? Color.white : params.palette.core.color).opacity(0.88 * envelope),
+                                style: StrokeStyle(lineWidth: 3.1 * scale, lineCap: .round, lineJoin: .round)
+                            )
+                            .blur(radius: 1.1)
+                    }
                 }
             }
-            .mask(params.contourMask(size: proxy.size))
-            .opacity(min(1, params.intensity * 0.92))
+        }
+    }
+}
+
+// MARK: - 5. Bioluminescent Living Plasma Ribbon
+
+private struct NotchBioluminescentBarStyleView: View {
+    let params: NotchContourBarRenderParams
+
+    var body: some View {
+        let scale = params.scale
+        let spread = params.spread
+        let extent = params.clampedExtent
+        let energy = params.springEnergy
+
+        ZStack {
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    params.palette.trail.color.opacity(0.42 + 0.18 * energy),
+                    style: StrokeStyle(lineWidth: 11.5 * scale * spread, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 11.0 * scale * spread)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    params.barGradient.opacity(0.86),
+                    style: StrokeStyle(lineWidth: 3.6 * scale, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 2.2 * scale)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    params.palette.core.color.opacity(0.58),
+                    style: StrokeStyle(lineWidth: 1.3 * scale, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 0.5)
+
+            ForEach(0..<8, id: \.self) { idx in
+                let s = Double(idx)
+                let baseU = (s + 0.5) / 8.0
+                let drift = params.reduceMotion ? 0.0 : sin(params.time * (0.75 + 0.25 * NotchLightsSupport.hash(s + 9.2)) + s * 1.4) * 0.045
+                let pulse = params.reduceMotion ? 0.8 : (0.35 + 0.65 * (0.5 + 0.5 * sin(params.time * (2.2 + NotchLightsSupport.hash(s + 31.1)) + s * 1.9)))
+                let center = (baseU + drift) * extent
+                if let span = params.trimmedBounds(center: center, halfWidth: 0.011) {
+                    params.shape
+                        .trim(from: span.from, to: span.to)
+                        .stroke(
+                            params.palette.lead.color.opacity(0.48 * pulse),
+                            style: StrokeStyle(lineWidth: (6.5 * spread) * scale, lineCap: .round, lineJoin: .round)
+                        )
+                        .blur(radius: 4.5 * scale)
+                    params.shape
+                        .trim(from: span.from, to: span.to)
+                        .stroke(
+                            params.palette.core.color.opacity(0.95 * pulse),
+                            style: StrokeStyle(lineWidth: (2.6 + 2.0 * pulse) * scale, lineCap: .round, lineJoin: .round)
+                        )
+                        .blur(radius: 1.2 * scale)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 6. Crystalline Prism Dispersion Bar
+
+private struct NotchPrismBarStyleView: View {
+    let params: NotchContourBarRenderParams
+
+    var body: some View {
+        let scale = params.scale
+        let spread = params.spread
+        let extent = params.clampedExtent
+        let energy = params.springEnergy
+        let phase = params.reduceMotion ? 0.0 : 0.06 * sin(params.time * 1.4)
+        let prismGradient = LinearGradient(
+            stops: [
+                .init(color: params.palette.trail.color, location: 0.0),
+                .init(color: Color(red: 0.22, green: 0.86, blue: 1.00), location: max(0.06, 0.22 + phase)),
+                .init(color: params.palette.core.color, location: 0.50),
+                .init(color: Color(red: 0.96, green: 0.42, blue: 0.88), location: min(0.94, 0.78 - phase)),
+                .init(color: params.palette.lead.color, location: 1.0)
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+
+        ZStack {
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    prismGradient.opacity(0.55 + 0.20 * energy),
+                    style: StrokeStyle(lineWidth: 10.5 * scale * spread, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 9.5 * scale * spread)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    Color(red: 0.16, green: 0.90, blue: 1.00).opacity(0.76),
+                    style: StrokeStyle(lineWidth: 2.3 * scale, lineCap: .round, lineJoin: .round)
+                )
+                .offset(y: 0.7 * scale)
+                .blur(radius: 1.5 * scale)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    Color(red: 0.98, green: 0.36, blue: 0.82).opacity(0.68),
+                    style: StrokeStyle(lineWidth: 2.3 * scale, lineCap: .round, lineJoin: .round)
+                )
+                .offset(y: 1.5 * scale)
+                .blur(radius: 1.5 * scale)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    prismGradient.opacity(0.86),
+                    style: StrokeStyle(lineWidth: 3.4 * scale, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 1.8 * scale)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    Color.white.opacity(0.95),
+                    style: StrokeStyle(lineWidth: 1.8 * scale, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 0.35)
+        }
+    }
+}
+
+// MARK: - 7. Pearlescent Nimbus Satin Bar
+
+private struct NotchNimbusBarStyleView: View {
+    let params: NotchContourBarRenderParams
+
+    var body: some View {
+        let scale = params.scale
+        let spread = params.spread
+        let extent = params.clampedExtent
+        let energy = params.springEnergy
+        let driftA = params.reduceMotion ? 0.5 : 0.5 + 0.28 * sin(params.time * 0.9)
+        let driftB = 1.0 - driftA
+        let satinA = LinearGradient(
+            stops: [
+                .init(color: params.palette.trail.color.opacity(0.45), location: 0.0),
+                .init(color: params.palette.core.color, location: driftA),
+                .init(color: params.palette.lead.color.opacity(0.55), location: 1.0)
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        let satinB = LinearGradient(
+            stops: [
+                .init(color: params.palette.lead.color.opacity(0.50), location: 0.0),
+                .init(color: params.palette.core.color, location: driftB),
+                .init(color: params.palette.trail.color.opacity(0.45), location: 1.0)
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+
+        ZStack {
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    params.palette.trail.color.opacity(0.48 + 0.14 * energy),
+                    style: StrokeStyle(lineWidth: 16.0 * scale * spread, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 15.0 * scale * spread)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    satinA.opacity(0.66),
+                    style: StrokeStyle(lineWidth: 7.5 * scale, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 5.5 * scale)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    satinB.opacity(0.48),
+                    style: StrokeStyle(lineWidth: 6.0 * scale, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 5.0 * scale)
+
+            params.shape
+                .trim(from: 0, to: extent)
+                .stroke(
+                    params.palette.core.color.opacity(0.82),
+                    style: StrokeStyle(lineWidth: 2.8 * scale, lineCap: .round, lineJoin: .round)
+                )
+                .blur(radius: 1.8 * scale)
+        }
+    }
+}
+
+// MARK: - On-Bar Ongoing Motion Modes
+
+/// Modulates traveling highlights, waves, ripples, and sparkles strictly along `NotchBottomUShape`.
+struct NotchContourMotionLayer: View {
+    let params: NotchContourBarRenderParams
+
+    var body: some View {
+        if !params.reduceMotion && params.motion != .none {
+            switch params.motion {
+            case .none:
+                EmptyView()
+            case .ondulation:
+                ondulationView
+            case .flux:
+                fluxView
+            case .ripple:
+                rippleView
+            case .shimmer:
+                shimmerView
+            }
+        }
+    }
+
+    private var ondulationView: some View {
+        let extent = params.clampedExtent
+        let strength = params.motionStrength
+        let center = extent * (0.5 + 0.42 * sin(params.time * 1.9))
+        let halfW = min(extent * 0.35, 0.12 * min(1.35, Double(params.spread)))
+        return Group {
+            if let span = params.trimmedBounds(center: center, halfWidth: halfW) {
+                params.shape
+                    .trim(from: span.from, to: span.to)
+                    .stroke(
+                        params.palette.core.color.opacity(0.62 * strength),
+                        style: StrokeStyle(lineWidth: 4.8 * params.scale, lineCap: .round, lineJoin: .round)
+                    )
+                    .blur(radius: 3.4 * params.scale)
+                params.shape
+                    .trim(from: span.from, to: span.to)
+                    .stroke(
+                        Color.white.opacity(0.55 * strength),
+                        style: StrokeStyle(lineWidth: 2.0 * params.scale, lineCap: .round, lineJoin: .round)
+                    )
+                    .blur(radius: 0.9)
+            }
+        }
+    }
+
+    private var fluxView: some View {
+        let extent = params.clampedExtent
+        let strength = params.motionStrength
+        let halfW = min(extent * 0.25, 0.065 * min(1.35, Double(params.spread)))
+        return ForEach(0..<2, id: \.self) { idx in
+            let u = NotchLightsSupport.fract(params.time * 0.55 + Double(idx) * 0.5)
+            let fade = sin(u * .pi)
+            if fade > 0.03, let span = params.trimmedBounds(center: u * extent, halfWidth: halfW) {
+                params.shape
+                    .trim(from: span.from, to: span.to)
+                    .stroke(
+                        params.palette.core.color.opacity(0.75 * fade * strength),
+                        style: StrokeStyle(lineWidth: 4.2 * params.scale, lineCap: .round, lineJoin: .round)
+                    )
+                    .blur(radius: 2.6 * params.scale)
+                params.shape
+                    .trim(from: span.from, to: span.to)
+                    .stroke(
+                        Color.white.opacity(0.70 * fade * strength),
+                        style: StrokeStyle(lineWidth: 1.8 * params.scale, lineCap: .round, lineJoin: .round)
+                    )
+                    .blur(radius: 0.7)
+            }
+        }
+    }
+
+    private var rippleView: some View {
+        let extent = params.clampedExtent
+        let strength = params.motionStrength
+        let mid = extent * 0.5
+        let halfW = min(extent * 0.14, 0.045 * min(1.35, Double(params.spread)))
+        return ForEach(0..<2, id: \.self) { idx in
+            let r = NotchLightsSupport.fract(params.time * 0.62 + Double(idx) * 0.5)
+            let fade = sin(r * .pi)
+            if fade > 0.03 {
+                if let rightSpan = params.trimmedBounds(center: mid + r * mid, halfWidth: halfW) {
+                    params.shape
+                        .trim(from: rightSpan.from, to: rightSpan.to)
+                        .stroke(
+                            params.palette.core.color.opacity(0.78 * fade * strength),
+                            style: StrokeStyle(lineWidth: 3.6 * params.scale, lineCap: .round, lineJoin: .round)
+                        )
+                        .blur(radius: 2.0 * params.scale)
+                }
+                if let leftSpan = params.trimmedBounds(center: mid - r * mid, halfWidth: halfW) {
+                    params.shape
+                        .trim(from: leftSpan.from, to: leftSpan.to)
+                        .stroke(
+                            params.palette.core.color.opacity(0.78 * fade * strength),
+                            style: StrokeStyle(lineWidth: 3.6 * params.scale, lineCap: .round, lineJoin: .round)
+                        )
+                        .blur(radius: 2.0 * params.scale)
+                }
+            }
+        }
+    }
+
+    private var shimmerView: some View {
+        let extent = params.clampedExtent
+        let strength = params.motionStrength
+        return ForEach(0..<7, id: \.self) { idx in
+            let s = Double(idx)
+            let posU = (s + 0.5 + (NotchLightsSupport.hash(s + 12.4) - 0.5) * 0.35) / 7.0
+            let freq = 2.8 + NotchLightsSupport.hash(s + 57.9) * 3.4
+            let phase = NotchLightsSupport.hash(s + 93.1) * .pi * 2.0
+            let wave = 0.5 + 0.5 * sin(params.time * freq + phase)
+            let glint = wave * wave * wave
+            if glint > 0.08, let span = params.trimmedBounds(center: posU * extent, halfWidth: 0.012) {
+                params.shape
+                    .trim(from: span.from, to: span.to)
+                    .stroke(
+                        Color.white.opacity(0.92 * glint * strength),
+                        style: StrokeStyle(lineWidth: (2.2 + 1.8 * glint) * params.scale, lineCap: .round, lineJoin: .round)
+                    )
+                    .blur(radius: 0.9 * params.scale)
+            }
         }
     }
 }

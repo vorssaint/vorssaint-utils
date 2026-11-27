@@ -24,6 +24,12 @@ struct NotchLightsSettingsCard: View {
     @AppStorage(DefaultsKey.notchLightsCopySweep) private var copySweep = true
     @AppStorage(DefaultsKey.notchLightsNotices) private var notices = true
     @AppStorage(DefaultsKey.notchLightsLevelBars) private var levelBars = true
+    @AppStorage(DefaultsKey.notchLightsFullWidthLevelBars) private var fullWidthLevelBars = true
+    @AppStorage(DefaultsKey.notchLightsFullWidthAgents) private var fullWidthAgents = true
+    @AppStorage(DefaultsKey.notchLightsFullWidthMusic) private var fullWidthMusic = true
+    @AppStorage(DefaultsKey.notchLightsFullWidthCopy) private var fullWidthCopy = true
+    @AppStorage(DefaultsKey.notchLightsFullWidthNotices) private var fullWidthNotices = true
+    @AppStorage(DefaultsKey.notchLightsFullWidthResting) private var fullWidthResting = true
 
     var body: some View {
         let lights = NotchLightsStrings.localized(l10n.language)
@@ -124,6 +130,20 @@ struct NotchLightsSettingsCard: View {
                         .toggleStyle(.switch)
                 }
                 Divider()
+                SettingsRow(symbol: "arrow.left.and.right.square", title: lights.fullWidthLine, caption: lights.fullWidthLineHint) {
+                    EmptyView()
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle(lights.levelBars, isOn: $fullWidthLevelBars)
+                    Toggle(lights.agentActivity, isOn: $fullWidthAgents)
+                    Toggle(lights.musicActivity, isOn: $fullWidthMusic)
+                    Toggle(lights.copySweep, isOn: $fullWidthCopy)
+                    Toggle(lights.notices, isOn: $fullWidthNotices)
+                    Toggle(lights.restingOutline, isOn: $fullWidthResting)
+                }
+                .toggleStyle(.checkbox)
+                .padding(.leading, settingsRowTextInset)
+                Divider()
                 SettingsRow(symbol: "play.circle", title: lights.preview) {
                     HStack(spacing: 8) {
                         Button(lights.previewHalo) {
@@ -145,7 +165,9 @@ struct NotchLightsSettingsCard: View {
         .onChange(of: [
             String(lightsEnabled), haloStyle, outlineTheme, String(restingOutline), armWidth, String(thickness),
             entryMode, motion, transition, String(edgeWaveEnabled), lightSurfaceStyle,
-            String(agentActivity), String(musicActivity), String(copySweep), String(notices), String(levelBars)
+            String(agentActivity), String(musicActivity), String(copySweep), String(notices), String(levelBars),
+            String(fullWidthLevelBars), String(fullWidthAgents), String(fullWidthMusic),
+            String(fullWidthCopy), String(fullWidthNotices), String(fullWidthResting)
         ]) { _, _ in
             NotchHaloController.shared.syncWithPreferences()
         }
