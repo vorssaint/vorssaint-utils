@@ -507,13 +507,12 @@ enum SettingsDirectory {
                                         (.pastePlain, [s.pastePlainName]),
                                        ]),
                 SettingsDirectoryItem(page: .cutPaste,
-                                       title: finderNewFile.page,
+                                       title: FeatureStrings.finderRename(language).pageTitle,
                                        icon: "filemenu.and.selection",
                                        featureKeywords: [
                                         (.finderCutPaste, [s.cutPasteEnable]),
                                         (.finderRename,
-                                         [FeatureStrings.finderRename(language).enableLabel,
-                                           FeatureStrings.finderRename(language).pageTitle]),
+                                         [FeatureStrings.finderRename(language).enableLabel]),
                                          (.finderNewFile,
                                           [finderNewFile.title, finderNewFile.enable, finderNewFile.manage,
                                             finderNewFile.extensionName]

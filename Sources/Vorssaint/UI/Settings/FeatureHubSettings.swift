@@ -706,32 +706,14 @@ private struct FeatureHubRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                if opensSettings {
-                    Button {
-                        SettingsRouter.shared.request(feature.settingsDestination,
-                                                      sidebarFeature: feature)
-                    } label: {
-                        rowContent(showsChevron: true)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
-                    .accessibilityAddTraits(.isLink)
-                    .accessibilityRemoveTraits(.isButton)
-                } else {
-                    rowContent(showsChevron: false)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
-                        .opacity(unsupportedReason == nil ? 1 : 0.4)
-                        .saturation(unsupportedReason == nil ? 1 : 0)
-                }
-                metadata
-                installAction
-            }
+        Group {
             if feature == .finderNewFile, installed {
-                FinderNewFileExtensionStatus()
+                VStack(alignment: .leading, spacing: 8) {
+                    primaryRow
+                    FinderNewFileExtensionStatus()
+                }
+            } else {
+                primaryRow
             }
         }
         .padding(.vertical, 7)
@@ -746,6 +728,32 @@ private struct FeatureHubRow: View {
             Text(String(format: hub.notchUninstallMessageFormat,
                         installedExtensions.map { $0.hubTitle(l10n.s, hub: hub) }
                             .joined(separator: ", ")))
+        }
+    }
+
+    private var primaryRow: some View {
+        HStack(spacing: 12) {
+            if opensSettings {
+                Button {
+                    SettingsRouter.shared.request(feature.settingsDestination,
+                                                  sidebarFeature: feature)
+                } label: {
+                    rowContent(showsChevron: true)
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
+                .accessibilityAddTraits(.isLink)
+                .accessibilityRemoveTraits(.isButton)
+            } else {
+                rowContent(showsChevron: false)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
+                    .opacity(unsupportedReason == nil ? 1 : 0.4)
+                    .saturation(unsupportedReason == nil ? 1 : 0)
+            }
+            metadata
+            installAction
         }
     }
 

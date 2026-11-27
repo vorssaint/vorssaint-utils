@@ -4,7 +4,7 @@
 import Foundation
 
 enum FeatureStrings {
-    /// The extension also compiles this catalog, without the host's L10n.
+    /// Use the same localized strings as the embedded Finder extension.
     static func finderNewFile(_ language: AppLanguage) -> FinderNewFileStrings {
         FinderNewFileStrings.localized(language.rawValue)
     }

@@ -62,9 +62,21 @@ struct FinderNewFileExtensionStatus: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SystemCapabilityStatusRow(name: strings.extensionName, granted: extensionEnabled,
-                                      grantedTitle: strings.extensionEnabled,
-                                      missingTitle: strings.extensionDisabled)
+            HStack(spacing: 8) {
+                if let enabled = extensionEnabled {
+                    Image(systemName: enabled ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                        .foregroundStyle(enabled ? .green : .orange)
+                } else {
+                    ProgressView().controlSize(.small)
+                }
+                Text(strings.extensionName)
+                Spacer()
+                if let enabled = extensionEnabled {
+                    Text(enabled ? strings.extensionEnabled : strings.extensionDisabled)
+                        .font(.caption)
+                        .foregroundStyle(enabled ? .green : .orange)
+                }
+            }
             if extensionEnabled == false {
                 Text(strings.extensionHelp)
                     .font(.caption)
