@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 
 /// A section of the existing Finder settings page, not a separate utility UI.
 struct FinderNewFileSettings: View {
+    private static let reorderType = UTType(exportedAs: "com.vorssaint.utils.finder-new-file.reorder")
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.finderNewFileEnabled) private var enabled = false
     @AppStorage(DefaultsKey.finderNewFileItems) private var raw = ""
@@ -34,7 +35,7 @@ struct FinderNewFileSettings: View {
                 VStack(spacing: 0) {
                     ForEach(items) { item in
                         row(item)
-                            .onDrop(of: [UTType.text], delegate: FinderNewFileOrderDropDelegate(
+                            .onDrop(of: [Self.reorderType], delegate: FinderNewFileOrderDropDelegate(
                                 target: item.id, dragging: $dragging, move: move))
                         if item.id != items.last?.id { Divider().padding(.leading, 24) }
                     }
@@ -48,8 +49,9 @@ struct FinderNewFileSettings: View {
             Text(strings.title)
         }
         .settingsFormSectionAnchor(.finderNewFile)
+        .onDisappear { dragging = nil }
         .sheet(item: $editing) { item in
-            FinderNewFileCustomEditor(draft: item) { saved in
+            FinderNewFileDocumentEditor(draft: item, isNew: !items.contains(where: { $0.id == item.id })) { saved in
                 save(saved)
                 editing = nil
             } cancel: {
@@ -67,7 +69,13 @@ struct FinderNewFileSettings: View {
                 .contentShape(Rectangle())
                 .onDrag {
                     dragging = item.id
-                    return NSItemProvider(object: item.id.uuidString as NSString)
+                    let provider = NSItemProvider()
+                    provider.registerDataRepresentation(forTypeIdentifier: Self.reorderType.identifier,
+                                                        visibility: .ownProcess) { completion in
+                        completion(Data(item.id.uuidString.utf8), nil)
+                        return nil
+                    }
+                    return provider
                 }
             Image(systemName: item.symbol).frame(width: 18)
             VStack(alignment: .leading, spacing: 3) {
@@ -176,19 +184,21 @@ private struct FinderNewFileOrderDropDelegate: DropDelegate {
 }
 
 /// Edits a draft, committing preferences and template imports only on Save.
-private struct FinderNewFileCustomEditor: View {
+private struct FinderNewFileDocumentEditor: View {
     @ObservedObject private var l10n = L10n.shared
     @State private var draft: FinderNewFileItem
     @State private var menuName: String
     @State private var selectedFile: URL?
     @State private var error: String?
+    let isNew: Bool
     let save: (FinderNewFileItem) -> Void
     let cancel: () -> Void
 
-    init(draft: FinderNewFileItem, save: @escaping (FinderNewFileItem) -> Void,
+    init(draft: FinderNewFileItem, isNew: Bool, save: @escaping (FinderNewFileItem) -> Void,
          cancel: @escaping () -> Void) {
         _draft = State(initialValue: draft)
         _menuName = State(initialValue: draft.displayName(FeatureStrings.finderNewFile(L10n.shared.language)))
+        self.isNew = isNew
         self.save = save
         self.cancel = cancel
     }
@@ -205,7 +215,7 @@ private struct FinderNewFileCustomEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(strings.menuName).font(.system(size: 15, weight: .semibold))
+            Text(isNew ? strings.addItem : l10n.s.menuEdit).font(.system(size: 15, weight: .semibold))
             field(strings.menuName, text: $menuName)
             field(strings.fileName, text: $draft.filename)
             field(strings.suffixLabel, text: $draft.suffix)
@@ -275,9 +285,12 @@ private struct FinderNewFileCustomEditor: View {
         selectedFile = url
         error = nil
         let base = url.deletingPathExtension().lastPathComponent
-        if menuName.isEmpty { menuName = base }
-        if draft.filename == "Untitled" || draft.filename.isEmpty { draft.filename = base }
-        if draft.suffix.isEmpty { draft.suffix = url.pathExtension }
+        // Changing a template on an existing entry must not change its name.
+        if isNew {
+            if menuName.isEmpty { menuName = base }
+            if draft.filename == "Untitled" || draft.filename.isEmpty { draft.filename = base }
+            if draft.suffix.isEmpty { draft.suffix = url.pathExtension }
+        }
     }
 
     private func commit() {

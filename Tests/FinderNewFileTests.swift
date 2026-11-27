@@ -104,9 +104,20 @@ enum FinderNewFileTests {
             suite.expect(snapshot.entries.first?.id == custom.id, "Finder receives the same mixed order")
             let report = try FinderNewFileCreator.create(edited, in: directory, templateDirectory: nil,
                                                         bundledTemplates: templates)
-            suite.expect(report.lastPathComponent == "Report.docx"
-                         && (try Data(contentsOf: report)) == (try Data(contentsOf: templates.appendingPathComponent("Blank.docx"))),
+            let reportContents = try Data(contentsOf: report)
+            let originalContents = try Data(contentsOf: templates.appendingPathComponent("Blank.docx"))
+            suite.expect(report.lastPathComponent == "Report.docx" && reportContents == originalContents,
                          "renaming a built-in retains its bundled template")
+            var disabled = restored[0]
+            disabled.enabled = false
+            let switched = FinderNewFileItem.items(FinderNewFileItem.encode([disabled] + Array(restored.dropFirst())))
+            suite.expect(!switched[0].isEnabled && switched.map(\.id) == restored.map(\.id),
+                         "disabling a custom entry preserves its position")
+            var emptyBuiltIn = edited
+            emptyBuiltIn.useBuiltInContent = false
+            emptyBuiltIn.filename = "Empty"
+            let empty = try FinderNewFileCreator.create(emptyBuiltIn, in: directory, templateDirectory: nil)
+            suite.expect(try Data(contentsOf: empty).isEmpty, "built-in content can be explicitly replaced with empty content")
             var invalid = custom
             invalid.filename = "../outside"
             suite.expect(invalid.normalized == nil, "reject path traversal in custom filename")

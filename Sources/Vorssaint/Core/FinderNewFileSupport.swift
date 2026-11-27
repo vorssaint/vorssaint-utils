@@ -189,7 +189,8 @@ struct FinderNewFileSnapshot: Codable {
     let entries: [FinderNewFileMenuItem]
 }
 
-/// A short-lived request carries the selected directory and a built-in kind or custom item ID.
+/// A short-lived request carries the selected directory and a stable item ID.
+/// The older built-in kind field is accepted only for wire compatibility.
 /// The host separately authenticates the system-provided Apple event sender.
 struct FinderNewFileRequest: Codable, Equatable {
     let id: UUID
