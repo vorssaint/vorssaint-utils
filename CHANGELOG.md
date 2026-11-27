@@ -6,11 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.4.5] - 2026-11-25
+
 ### Summary
 This update reduces the work Vorssaint does at startup and improves window switching, microphone and display controls, clipboard history and screenshots. Cleaner also protects data it can match to installed audio plugins. Keep Awake can wait through brief power interruptions, and the Command Bar can calculate with units.
 
 ### Added
-- The Command Bar calculator can use quantities in arithmetic, convert rates and reuse a conversion in the next calculation. It also accepts expressions such as `2 to the power sqrt(9)` and `5 ft 11 in in cm`. Unit conversions accept uppercase `A` in Portuguese and display whole feet without leftover inches caused by rounding. Thanks to @iva-zhu and @andy-kelly.
+- The Command Bar calculator handles arithmetic with units, including rates such as `100 km / 2 h to km/h` and mixed measurements such as `5 ft 11 in in cm`. You can reuse the result in the next calculation. Thanks to @iva-zhu and @andy-kelly.
 - Keep Awake can keep an automatic session active through a brief charger interruption. Choose a delay of up to 60 seconds in the Power rule. The default is zero. Thanks to @ywu73 and @Backware.
 - Save current preferences to the XDG settings file from Settings > Advanced > Backup. The confirmation shows where the file will be saved. Saved settings and exported backups are readable only by their owner. Use a destination that supports private files. Thanks to @whizzzkid.
 - Dynamic Island can show Cursor's active project, new turns and completion notices from local transcripts. Thanks to @Arhurpro77.
@@ -18,12 +20,13 @@ This update reduces the work Vorssaint does at startup and improves window switc
 
 ### Changed
 - Clipboard history searches index the start of long entries and search the remaining text in the background. Searches in different panels keep their own results. Thanks to @iva-zhu.
-- The window switcher keeps a list of windows in the background so repeated shortcuts can open it sooner. The current-app shortcut checks the app’s windows and focus when you press it. All Windows and the ungrouped app switcher also take newly reported windows into account when choosing the previous window. Esc cancels the wait. Current Space filtering and windowless Finder selections are preserved. Moving a Vorssaint window to another display updates its listing. Opening the switcher refreshes titles for windows that cannot report title changes. Closing it stops its thumbnail captures while Dock Preview can keep loading its own. Thanks to @LeLocTai.
+- The window switcher opens faster on repeated shortcuts and follows the most recently focused window, even when it has just opened. Press Esc to cancel while the switcher checks for new windows. Thanks to @LeLocTai.
 - Vorssaint starts without loading unused Shelf, display and Command Bar services. Active shortcuts and recovery for displays previously left off still work. Thanks to @iva-zhu.
 - Window move gestures and edge snapping share pointer events. Starting another drag or handing it to macOS with Option cancels a pending snap. Thanks to @iva-zhu.
 - Low disk space alerts repeat at most once every six hours per volume, with an earlier alert if free space drops below half the warning threshold. Thanks to @ywu73.
 
 ### Fixed
+- AI Agents includes GPT-6.2 Astra, Sol and Astra Law usage in API cost estimates and budget alerts when a rate is available. Thanks to @CommanderCRM for reporting the missing estimates.
 - Camera Preview fits the camera image inside the floating mirror and Dynamic Island, including wide and portrait video. Thanks to @iva-zhu and @amithm7.
 - The Homebrew installed-package filter fits the menu panel with long labels and package counts. The selected option keeps keyboard focus when the filter changes layout. Thanks to @blakster and @andrewcdelaney.
 - Dynamic Island keeps the Explore search text when a query has no matches, so typing and deleting continue from the cursor. Thanks to @imuhammadnadeem and @kaiwenfa.
@@ -36,15 +39,15 @@ This update reduces the work Vorssaint does at startup and improves window switc
 - When Show over the menus is off, Dynamic Island leaves room for menu bar icons on macOS 27, including on displays without a camera notch. If an app is slow to respond, the island checks the space on the selected display. Thanks to @razeenwasif.
 - Drop images or videos from Finder onto the open Media tool in Dynamic Island. A new drop leaves an active conversion running. Thanks to @KushagraIndurkhya.
 - The disk image installer skips hidden mounts, temporary build images and folders marked with `.vorssaint-no-install`. For images outside Downloads that have no quarantine flag, the option to move the image to the Trash starts unchecked. Thanks to @Zekuath.
-- Mic Mute limits repeated writes to unresponsive virtual inputs, including the Teams loopback driver. It checks even a small positive gain and warns when silence cannot be confirmed. If older settings do not identify the microphone or control that was muted, check its levels in the mixer. Adjusting an input in the mixer during a pending restoration gives you control of all its channels. Microphones stay muted if a headset reconnects while another device appears. With call-app following enabled, you can unmute from the call once the headset is ready. Thanks to @JosueM1109, @howardyu60211 and @hash00.
+- Mic Mute limits repeated writes to unresponsive virtual inputs, including the Teams loopback driver. It checks even a small positive gain and warns when silence cannot be confirmed. If older settings do not identify the microphone or control that was muted, check its levels in the mixer. Adjusting an input in the mixer during a pending restoration gives you control of all its channels. Microphones stay muted if a headset reconnects while another device appears. Thanks to @JosueM1109, @howardyu60211 and @hash00.
 - The volume mixer gives regular apps launched by another app their own controls and saved levels, including Steam games. Thanks to @binjamshid.
 - Clicking a control in the menu bar panel from another app activates the control and keeps the panel open. Thanks to @nodegan.
 - Window Layout still snaps a normal drag when macOS Option-drag tiling is enabled. Holding Option hands that drag to macOS. Thanks to @iva-zhu.
 - Shelf stays responsive while it prepares a file drag from iCloud or another slow volume. Files inside a package remain protected from moves. A thumbnail update during a drag preserves the gesture. Thanks to @iva-zhu.
 - Click a window in the frozen screenshot picker to capture its current contents, including visible video, without capturing overlapping apps. Dragging a region still uses the frozen image. Thanks to @iva-zhu.
-- The screenshot editor limits image memory across undo and redo, preserves history after a canceled drawing, and avoids keeping a full capture for a small crop. Closing the editor asks before discarding a typed caption, even before you press Return. Thanks to @iva-zhu.
+- The screenshot editor uses less memory for crops and undo history. Canceling a drawing preserves earlier edits. You can use Undo while typing a caption, and closing the editor asks before discarding it. Thanks to @iva-zhu.
 - Audio device priority recognizes a returning AirPlay receiver when its session identifier changes and merges its existing duplicates. Other audio devices keep their saved priorities, including devices with the same name. Unavailable entries can be removed from either list. Thanks to @EugeneCarldotme and @TC-Virtuoso.
-- When a call app unmutes a microphone, Mic Mute can restore the saved levels for every microphone it muted. Enable this in Settings > Quick panel. It is off by default because an automatic gain change during recording can also trigger it. Thanks to @Narangor.
+- When a call app unmutes a microphone, Mic Mute can restore the saved levels for every microphone it muted. Enable this in Settings > Sound > Mute microphone. It is off by default because an automatic gain change during recording can also trigger it. Thanks to @Narangor.
 - Clipboard history saves copied spreadsheet cells as text and preserves the tabs and line breaks supplied by the spreadsheet. Image and file copies keep their original types. Thanks to @ego1s1.
 - macOS handles app switching while an exclusive full-screen game covers the window switcher. Vorssaint resumes its shortcuts when the game leaves full screen. Thanks to @nh4ttruong.
 - If macOS pauses the window switcher's input filter, the switcher waits until it can dismiss the interrupted session before filtering keys and clicks again. Thanks to @GeezusChrotch.
@@ -53,7 +56,7 @@ This update reduces the work Vorssaint does at startup and improves window switc
 - On the 14-inch M1 Pro MacBook Pro (MacBookPro18,3), Fan Control can keep a custom curve active while the GPU sleeps. It returns the fans to system control when it cannot verify a safe configuration. Thanks to @STUXKY.
 
 ### Contributors
-Thanks to @13v13reddy, @amithm7, @andrewcdelaney, @andy-kelly, @Arhurpro77, @Backware, @binjamshid, @blakster, @davidmessem, @ego1s1, @EugeneCarldotme, @GeezusChrotch, @hash00, @heisdanne, @howardyu60211, @imuhammadnadeem, @iva-zhu, @JosueM1109, @kaiwenfa, @KushagraIndurkhya, @LeLocTai, @Narangor, @nh4ttruong, @nodegan, @razeenwasif, @retomi, @royhenengel, @salvatoremiceli, @SanRive, @Snrlx-Media, @STUXKY, @TC-Virtuoso, @trenaryja, @whizzzkid, @ywu73 and @Zekuath.
+Thanks to @13v13reddy, @amithm7, @andrewcdelaney, @andy-kelly, @Arhurpro77, @Backware, @binjamshid, @blakster, @CommanderCRM, @davidmessem, @ego1s1, @EugeneCarldotme, @GeezusChrotch, @hash00, @heisdanne, @howardyu60211, @imuhammadnadeem, @iva-zhu, @JosueM1109, @kaiwenfa, @KushagraIndurkhya, @LeLocTai, @Narangor, @nh4ttruong, @nodegan, @razeenwasif, @retomi, @royhenengel, @salvatoremiceli, @SanRive, @Snrlx-Media, @STUXKY, @TC-Virtuoso, @trenaryja, @whizzzkid, @ywu73 and @Zekuath.
 
 ## [3.4.4] - 2026-11-11
 
