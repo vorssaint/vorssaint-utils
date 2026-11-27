@@ -30,8 +30,8 @@ struct FinderNewFileStrings {
     static func localized(_ code: String) -> Self {
         let normalized = code.replacingOccurrences(of: "_", with: "-")
         if let exact = table[normalized] { return exact }
+        if normalized.hasPrefix("zh-HK") || normalized.hasPrefix("zh-Hant-HK") { return table["zh-HK"]! }
         if normalized.hasPrefix("zh-Hant") || normalized.hasPrefix("zh-TW") { return table["zh-TW"]! }
-        if normalized.hasPrefix("zh-HK") { return table["zh-HK"]! }
         if normalized.hasPrefix("zh") { return table["zh-Hans"]! }
         if normalized.hasPrefix("pt") { return table["pt-BR"]! }
         return table[String(normalized.split(separator: "-").first ?? "")] ?? table["en-US"]!

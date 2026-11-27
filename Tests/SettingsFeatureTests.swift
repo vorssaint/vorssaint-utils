@@ -503,6 +503,10 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.finderRenameEnabled)
                 && backupKeys.contains(DefaultsKey.finderRenameShortcut),
                "the Finder rename choice and shortcut travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.finderNewFileEnabled)
+                     && backupKeys.contains(DefaultsKey.finderNewFileKinds)
+                     && backupKeys.contains(AppFeature.finderNewFile.availabilityKey),
+                     "new file choices and availability travel with settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.textSnippets)
                 && backupKeys.contains(DefaultsKey.textSnippetsEnabled),
                "snippets travel with the settings backup")

@@ -134,6 +134,10 @@ struct CutPasteSettings: View {
                 .settingsFormSectionAnchor(.finderRename)
             }
 
+            if AppFeature.finderNewFile.isAvailable {
+                FinderNewFileSettings()
+            }
+
             if needsAccessibility, !permissions.accessibility {
                 Section(l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)

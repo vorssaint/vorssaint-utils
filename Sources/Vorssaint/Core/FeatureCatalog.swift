@@ -19,7 +19,7 @@ enum AppFeature: String, CaseIterable {
     case scrollInverter, scrollHorizontal, scrollZoom, focusFollowsMouse, smoothScroll, linearScroll, scrollSpeed, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
          mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
     // Clipboard and files
-    case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner,
+    case clipboardHistory, pastePlain, finderCutPaste, finderRename, finderNewFile, shelf, urlCleaner,
          diskImageInstaller
     // Sound
     case mixer, soundOutputSwitcher, audioPriority, micMute, musicBlock
@@ -83,7 +83,7 @@ extension AppFeature {
         // Watch asks when an area is chosen and checks on every reading. The
         // companion uses no permission at all.
         case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder, .wallpaper, .notchWatch,
-             .notchMascot:
+             .notchMascot, .finderNewFile:
             return false
         default:
             return true
@@ -106,7 +106,7 @@ extension AppFeature {
         case .scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .scrollSpeed, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
             return .mouseKeyboard
-        case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
+        case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .finderNewFile, .shelf, .urlCleaner,
              .diskImageInstaller:
             return .clipboardFiles
         case .mixer, .soundOutputSwitcher, .audioPriority, .micMute, .musicBlock:
@@ -159,6 +159,7 @@ extension AppFeature {
         case .pastePlain: return "doc.plaintext"
         case .finderCutPaste: return "scissors"
         case .finderRename: return "pencil"
+        case .finderNewFile: return "doc.badge.plus"
         case .shelf: return "tray.full"
         case .urlCleaner: return "link"
         case .diskImageInstaller: return "externaldrive.badge.plus"
@@ -281,6 +282,7 @@ extension AppFeature {
         case .finderCutPaste: return [DefaultsKey.finderCutPasteEnabled,
                                       DefaultsKey.finderPasteImageAsFile]
         case .finderRename: return [DefaultsKey.finderRenameEnabled]
+        case .finderNewFile: return [DefaultsKey.finderNewFileEnabled]
         case .shelf: return [DefaultsKey.shelfEnabled]
         case .urlCleaner: return [DefaultsKey.urlCleanerEnabled]
         case .soundOutputSwitcher: return [DefaultsKey.soundOutputSwitcherEnabled]
@@ -364,6 +366,9 @@ extension AppFeature {
             return [.accessibility]
         case .finderCutPaste: return [.accessibility, .automationFinder]
         case .finderRename: return [.accessibility]
+        // Finder extension approval is handled in its settings section; file
+        // access is contextual and macOS enforces it for the selected folder.
+        case .finderNewFile: return [.filesAndFolders]
         // Only emptying the Trash asks the Finder; every other quick toggle
         // (dark mode included) works without a permission.
         case .quickToggles: return [.automationFinder]
@@ -491,7 +496,7 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .scrollZoom, .linearScroll, .scrollSpeed, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps:
+             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps, .finderNewFile:
             return false
         }
     }

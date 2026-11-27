@@ -95,6 +95,7 @@ enum ReleaseChangeAliases {
         case .pastePlain: return ["paste as plain text", "paste plain text"]
         case .finderCutPaste: return ["cut & paste", "cut and paste", "cut files", "finder cut", "cut operations"]
         case .finderRename: return ["finder shortcuts", "rename shortcut", "renames selected files"]
+        case .finderNewFile: return ["finder new file", "new file from finder", "new file context menu"]
         case .shelf: return [.exact("Shelf"), .island("shelf"), "drop zone", "docked shelf", "temporary shelf",
             "on the shelf", "shelf files"]
         case .urlCleaner: return ["clean url", "url cleaner", "url cleaning"]
