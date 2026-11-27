@@ -25,7 +25,6 @@ enum FinderNewFileService {
     }
 
     private static func publish(enabled: Bool) {
-        guard FinderNewFileExchange.groupIdentifier != nil else { return }
         let snapshot = FinderNewFileSnapshot(enabled: enabled,
             language: L10n.shared.language.rawValue, selection: kinds.map(\.rawValue).joined(separator: ","))
         do { try FinderNewFileExchange.publish(snapshot) }

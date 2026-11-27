@@ -30,15 +30,11 @@ final class FinderNewFileExtension: FIFinderSync {
         guard let directory = destination(for: menuKind, controller: controller),
               FinderNewFileRequest.isLocalDirectoryURL(directory) else { return nil }
 
-        let snapshot = FinderNewFileExchange.snapshot()
-        // A signed build must not expose a stale/default menu before the host
-        // publishes settings. Unsigned builds can only offer a confirmation
-        // request, and the host enforces the actual enable and file-type gates.
-        if FinderNewFileExchange.groupIdentifier != nil && snapshot == nil { return nil }
-        if snapshot?.enabled == false { return nil }
-        let kinds = snapshot?.kinds ?? FinderNewFileKind.allCases
+        // Never expose a default/stale menu when settings could not be read.
+        guard let snapshot = FinderNewFileExchange.snapshot(), snapshot.enabled else { return nil }
+        let kinds = snapshot.kinds
         guard !kinds.isEmpty else { return nil }
-        let strings = FinderNewFileStrings.localized(snapshot?.language ?? Locale.preferredLanguages.first ?? "en-US")
+        let strings = FinderNewFileStrings.localized(snapshot.language)
         if actions.count > 256 { actions.removeAll() }
         let menu = NSMenu()
         let parent = NSMenuItem(title: strings.title, action: nil, keyEquivalent: "")
@@ -77,10 +73,8 @@ final class FinderNewFileExtension: FIFinderSync {
 
     @objc private func create(_ item: NSMenuItem) {
         guard let action = actions.removeValue(forKey: item.tag) else { return }
-        let snapshot = FinderNewFileExchange.snapshot()
-        if FinderNewFileExchange.groupIdentifier != nil {
-            guard let snapshot, snapshot.enabled, snapshot.kinds.contains(action.kind) else { return }
-        }
+        guard let snapshot = FinderNewFileExchange.snapshot(), snapshot.enabled,
+              snapshot.kinds.contains(action.kind) else { return }
         let request = FinderNewFileRequest(kind: action.kind, directory: action.directory)
         guard request.isValid() else { return }
         let url: URL?

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import CoreFoundation
 
 enum FinderNewFileKind: String, CaseIterable, Codable {
     case text = "txt", markdown = "md", json
@@ -149,6 +150,19 @@ enum FinderNewFileExchange {
         return false
     }
 
+    // Local signing cannot use a protected same-team container. Share only
+    // presentation data through a dedicated read-only preference domain.
+    // It is never trusted to authorize a file mutation.
+    private static var localMenuDomain: CFString {
+        #if VORSSAINT_DEVELOPMENT
+        return "com.vorssaint.utils.dev.finder-new-file-menu" as CFString
+        #else
+        return "com.vorssaint.utils.finder-new-file-menu" as CFString
+        #endif
+    }
+
+    private static let snapshotKey = "snapshot" as CFString
+
     private static var root: URL? {
         guard let groupIdentifier else { return nil }
         return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupIdentifier)?
@@ -156,14 +170,31 @@ enum FinderNewFileExchange {
     }
 
     static func publish(_ snapshot: FinderNewFileSnapshot) throws {
-        guard let root else { return }
+        let data = try JSONEncoder().encode(snapshot)
+        if groupIdentifier == nil {
+            CFPreferencesSetValue(snapshotKey, data as CFData, localMenuDomain,
+                                  kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            guard CFPreferencesSynchronize(localMenuDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            else { throw CocoaError(.fileWriteUnknown) }
+            return
+        }
+        guard let root else { throw CocoaError(.fileWriteNoPermission) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        try JSONEncoder().encode(snapshot).write(to: root.appendingPathComponent("menu.json"), options: .atomic)
+        try data.write(to: root.appendingPathComponent("menu.json"), options: .atomic)
     }
 
     static func snapshot() -> FinderNewFileSnapshot? {
-        guard let root, let data = try? Data(contentsOf: root.appendingPathComponent("menu.json")),
-              data.count <= 4_096 else { return nil }
+        let data: Data?
+        if groupIdentifier == nil {
+            CFPreferencesSynchronize(localMenuDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            data = CFPreferencesCopyValue(snapshotKey, localMenuDomain,
+                                          kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? Data
+        } else if let root {
+            data = try? Data(contentsOf: root.appendingPathComponent("menu.json"))
+        } else {
+            data = nil
+        }
+        guard let data, data.count <= 4_096 else { return nil }
         return try? JSONDecoder().decode(FinderNewFileSnapshot.self, from: data)
     }
 

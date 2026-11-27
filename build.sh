@@ -843,6 +843,12 @@ if [[ -n "$DEVID" ]]; then
             /usr/libexec/PlistBuddy -c "Add :com.apple.security.application-groups:0 string $FINDER_GROUP" "$bundle/Contents/Resources/Signing.entitlements"
         done
     fi
+else
+    # Local builds share only menu presentation, never write authority. The
+    # dedicated domain contains no paths or private application preferences.
+    LOCAL_MENU_ENTITLEMENTS="$FINDER_EXTENSION/Contents/Resources/Signing.entitlements"
+    /usr/libexec/PlistBuddy -c 'Add :com.apple.security.temporary-exception.shared-preference.read-only array' "$LOCAL_MENU_ENTITLEMENTS"
+    /usr/libexec/PlistBuddy -c "Add :com.apple.security.temporary-exception.shared-preference.read-only:0 string $APP_BUNDLE_ID.finder-new-file-menu" "$LOCAL_MENU_ENTITLEMENTS"
 fi
 codesign_app() {
     local target="$1"
