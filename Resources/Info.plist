@@ -89,6 +89,17 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Vorssaint</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.vorssaint.utils.finder-new-file.reorder</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>
