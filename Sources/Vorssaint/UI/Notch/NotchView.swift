@@ -598,8 +598,13 @@ struct NotchView: View {
             case .tools: QuickLauncherView(notchSize: pageSize)
             case .scratchpad: NotchScratchpadView(service: service)
             case .agents:
-                NotchAgentsView(size: pageSize, completion: service.lastAgentCompletion)
-                    .onAppear { LidLogoCompletionCue.shared.stopReminders() }
+                NotchAgentsView(size: pageSize, completions: service.agentCompletions,
+                                completionPageVisible: service.agentsPageVisible,
+                                acknowledgeCompletion: service.acknowledgeAgentCompletion)
+                    .onChange(of: service.agentsPageVisible, initial: true) {
+                        service.stopAgentCompletionReminders()
+                    }
+                    .onDisappear { service.discardViewedAgentCompletions() }
             case .watch: NotchWatchView(size: pageSize)
             }
         }

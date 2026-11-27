@@ -31,12 +31,45 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
     var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects }
 }
 
-struct NotchAgentCompletion: Equatable {
+struct NotchAgentCompletion: Equatable, Identifiable {
     static let rowHeight: CGFloat = 26
+    static let visibleRowLimit = 3
 
+    static func listHeight(count: Int) -> CGFloat {
+        CGFloat(min(count, visibleRowLimit)) * rowHeight
+    }
+
+    let id = UUID()
     let provider: AgentProvider
     let project: String
     let date: Date
+}
+
+struct NotchAgentCompletions {
+    private(set) var items: [NotchAgentCompletion] = []
+    private var viewed: Set<UUID> = []
+
+    var hasUnseen: Bool { items.contains { !viewed.contains($0.id) } }
+
+    mutating func append(_ completion: NotchAgentCompletion) {
+        items.insert(completion, at: 0)
+    }
+
+    @discardableResult
+    mutating func acknowledge(_ id: UUID) -> Bool {
+        guard items.contains(where: { $0.id == id }) else { return false }
+        return viewed.insert(id).inserted
+    }
+
+    mutating func discardViewed() {
+        items.removeAll { viewed.contains($0.id) }
+        viewed.removeAll()
+    }
+
+    mutating func retain(providers: [AgentProvider]) {
+        items.removeAll { !providers.contains($0.provider) }
+        viewed.formIntersection(items.map(\.id))
+    }
 }
 
 /// What the closed island shows beside the camera while an agent works.

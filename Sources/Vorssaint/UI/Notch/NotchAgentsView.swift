@@ -6,7 +6,10 @@ import SwiftUI
 /// The AI page: cards the person picked, paired across the strip.
 struct NotchAgentsView: View {
     let size: CGSize
-    var completion: NotchAgentCompletion? = nil
+    var completions: [NotchAgentCompletion] = []
+    var completionPageVisible = false
+    var acknowledgeCompletion: (UUID) -> Void = { _ in }
+    @State private var visibleCompletions: Set<UUID> = []
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var accounts = CodexProfileLimitsService.shared
     @ObservedObject private var l10n = L10n.shared
@@ -51,7 +54,7 @@ struct NotchAgentsView: View {
 
     var body: some View {
         VStack(spacing: NotchAgentSupport.spacing) {
-            if let completion { completionRow(completion) }
+            if !completions.isEmpty { completionList }
             cards
         }
         .frame(width: size.width, height: size.height, alignment: .top)
@@ -68,7 +71,7 @@ struct NotchAgentsView: View {
     }
 
     @ViewBuilder private var cards: some View {
-        let reserved = completion == nil ? 0 : NotchAgentCompletion.rowHeight + NotchAgentSupport.spacing
+        let reserved = completions.isEmpty ? 0 : completionListHeight + NotchAgentSupport.spacing
         Group {
             if !usage.snapshot.loaded && codexAccounts.isEmpty {
                 VStack(spacing: 10) {
@@ -97,6 +100,41 @@ struct NotchAgentsView: View {
                 })
             }
         }
+    }
+
+    private var completionListHeight: CGFloat {
+        let fittingRows = max(1, Int(size.height / 2 / NotchAgentCompletion.rowHeight))
+        return NotchAgentCompletion.listHeight(count: min(completions.count, fittingRows))
+    }
+
+    private var completionList: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(completions) { completion in
+                    completionRow(completion)
+                        .onGeometryChange(for: Bool.self) { geometry in
+                            let frame = geometry.frame(in: .named("agentCompletions"))
+                            return frame.minY >= -0.5 && frame.maxY <= completionListHeight + 0.5
+                        } action: { visible in
+                            if visible {
+                                visibleCompletions.insert(completion.id)
+                            } else {
+                                visibleCompletions.remove(completion.id)
+                            }
+                        }
+                        .task(id: completionPageVisible && visibleCompletions.contains(completion.id)) {
+                            guard completionPageVisible, visibleCompletions.contains(completion.id) else { return }
+                            do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
+                            guard !Task.isCancelled else { return }
+                            acknowledgeCompletion(completion.id)
+                        }
+                        .onDisappear { visibleCompletions.remove(completion.id) }
+                }
+            }
+        }
+        .coordinateSpace(name: "agentCompletions")
+        .scrollIndicators(.automatic)
+        .frame(height: completionListHeight)
     }
 
     private func completionRow(_ completion: NotchAgentCompletion) -> some View {

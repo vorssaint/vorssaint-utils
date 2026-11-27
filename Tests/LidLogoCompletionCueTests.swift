@@ -11,7 +11,8 @@ enum LidLogoCompletionCueTests {
         unsupportedHardware(suite)
         unavailableDuringStart(suite)
         resumesRecoveryAfterControllerQuits(suite)
-        slowBreath(suite)
+        doublePulse(suite)
+        unseenCompletions(suite)
         reminders(suite)
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -100,7 +101,7 @@ enum LidLogoCompletionCueTests {
                      "quitting the competing app retries recovery without a reminder")
     }
 
-    private static func slowBreath(_ suite: TestSuite) {
+    private static func doublePulse(_ suite: TestSuite) {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder) }
         let journal = folder.appendingPathComponent("lid-logo-restore")
@@ -109,11 +110,36 @@ enum LidLogoCompletionCueTests {
         let cue = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true }, timing: timing)
         cue.play()
         suite.expect(driver.dims == [0.02] && driver.hasJournal,
-                     "the breath starts fading down with recovery armed")
-        suite.expect(waitUntil { !driver.hasJournal } && driver.restores == [0.03] && driver.fades == 1
-                        && driver.finishedRestores == 1,
-                     "one breath fades back up and clears its verified recovery record")
+                     "the first pulse starts fading down with recovery armed")
+        suite.expect(waitUntil { driver.finishedRestores == 2 } && driver.restores == [0.03, 0.03]
+                        && driver.fades == 2 && !driver.hasJournal,
+                     "a completion fades down and restores twice, verifying the baseline after each pulse")
         cue.cancel()
+    }
+
+    private static func unseenCompletions(_ suite: TestSuite) {
+        let first = NotchAgentCompletion(provider: .codex, project: "first", date: Date())
+        let second = NotchAgentCompletion(provider: .claude, project: "second", date: Date())
+        let third = NotchAgentCompletion(provider: .codex, project: "third", date: Date())
+        var completions = NotchAgentCompletions()
+        completions.append(first)
+        completions.append(second)
+        suite.expect(completions.items.map(\.id) == [second.id, first.id] && completions.hasUnseen,
+                     "independent finishes all remain available in newest-first order")
+        suite.expect(completions.acknowledge(second.id) && !completions.acknowledge(second.id)
+                        && completions.hasUnseen,
+                     "viewing one row does not acknowledge another row")
+        completions.append(third)
+        completions.discardViewed()
+        suite.expect(completions.items.map(\.id) == [third.id, first.id],
+                     "a newly arrived completion and unseen overflow survive closing the page")
+        completions.acknowledge(first.id)
+        completions.acknowledge(third.id)
+        suite.expect(!completions.hasUnseen, "viewing the final unread row clears unseen work")
+        completions.discardViewed()
+        completions.append(second)
+        suite.expect(completions.hasUnseen && completions.items == [second],
+                     "a later finish is unseen again")
     }
 
     private static func reminders(_ suite: TestSuite) {
@@ -121,47 +147,56 @@ enum LidLogoCompletionCueTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         let journal = folder.appendingPathComponent("lid-logo-restore")
         let driver = Driver(journal: journal)
-        let timing = LidLogoCompletionCue.Timing(dim: 0.02, brighten: 0.03, settle: 0.02,
-            cooldown: .milliseconds(100), reminderInterval: .milliseconds(240), reminderLifetime: .milliseconds(650))
-
-        let cue = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true }, timing: timing)
-        cue.play(repeatReminders: true)
-        suite.expect(waitUntil { !driver.hasJournal }, "the initial breath finishes before any reminder")
-        cue.play(repeatReminders: true)
-        suite.expect(driver.fades == 1, "a second completion shares the pending reminder")
-        spin(for: 0.77)
-        suite.expect(driver.fades == 3 && driver.restores == [0.03, 0.03, 0.03] && !driver.hasJournal,
-                     "reminders end after the original window and every breath restores")
-
-        let acknowledged = LidLogoCompletionCue(driver: { driver }, journal: journal,
-                                                mayControlLogo: { true }, timing: timing)
-        acknowledged.play(repeatReminders: true)
-        suite.expect(waitUntil { driver.fades == 5 } && driver.hasJournal,
-                     "one reminder is playing when the user opens AI Agents")
-        acknowledged.stopReminders()
-        spin(for: 0.54)
-        suite.expect(driver.fades == 5 && driver.restores.last == 0 && !driver.hasJournal,
-                     "acknowledgment restores an active reminder and prevents the next one")
+        let timing = LidLogoCompletionCue.Timing(dim: 0.02, brighten: 0.03, settle: 0.01,
+            cooldown: .milliseconds(200), reminderInterval: .milliseconds(460), reminderLifetime: .milliseconds(1100))
 
         var enabled = true
-        let disabled = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true }, timing: timing)
-        disabled.play(repeatReminders: true, remindersEnabled: { enabled })
+        let cue = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true }, timing: timing)
+        cue.play(repeatReminders: true, remindersEnabled: { enabled })
+        cue.play(repeatReminders: true, remindersEnabled: { enabled })
+        suite.expect(waitUntil { driver.finishedRestores == 2 } && driver.fades == 2,
+                     "overlapping completions share the initial pair")
+        suite.expect(waitUntil { driver.fades == 3 } && driver.hasJournal,
+                     "a first reminder begins while an unseen completion remains")
+        cue.stopReminders()
+        suite.expect(driver.restores.last == 0, "opening AI Agents restores an active reminder")
+        cue.play(repeatReminders: true, remindersEnabled: { enabled })
+        suite.expect(waitUntil { driver.finishedRestores == 5 } && driver.fades == 5 && !driver.hasJournal,
+                     "a new finish queues a fresh pair even during completion cooldown")
+        spin(for: 1.08)
+        suite.expect(driver.fades == 9 && !driver.hasJournal,
+                     "a later finish rearms reminders and they expire after the bounded window")
+
+        enabled = true
+        cue.play(repeatReminders: true, remindersEnabled: { enabled })
         enabled = false
-        spin(for: 0.36)
-        suite.expect(driver.fades == 6 && !driver.hasJournal,
+        spin(for: 0.58)
+        suite.expect(driver.fades == 11 && !driver.hasJournal,
                      "a changed preference is checked before the next hardware write")
 
-        let sleeping = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true }, timing: timing)
-        sleeping.play(repeatReminders: true)
+        cue.play(repeatReminders: true)
         driver.isAwake = false
-        sleeping.cancel()
-        spin(for: 0.28)
-        suite.expect(driver.fades == 7 && driver.hasJournal, "sleep cancels reminders and leaves recovery pending")
+        cue.cancel()
+        spin(for: 0.30)
+        suite.expect(driver.fades == 12 && driver.hasJournal, "sleep cancels reminders and leaves recovery pending")
         driver.isAwake = true
-        sleeping.recover()
+        cue.recover()
         suite.expect(waitUntil { !driver.hasJournal }, "wake restores before any new cue")
-        spin(for: 0.28)
-        suite.expect(driver.fades == 7, "wake does not replay missed reminders")
+        spin(for: 0.30)
+        suite.expect(driver.fades == 12, "wake does not replay missed reminders")
+
+        let overflow = LidLogoCompletionCue(driver: { driver }, journal: journal,
+                                             mayControlLogo: { true }, timing: timing)
+        let priorFades = driver.fades
+        overflow.play(repeatReminders: true, remindersEnabled: { true })
+        suite.expect(waitUntil { driver.fades == priorFades + 2 }, "the original finish starts its pair")
+        overflow.stopReminders()
+        spin(for: 0.60)
+        suite.expect(driver.fades == priorFades + 2 && !driver.hasJournal,
+                     "opening and leaving AI Agents permanently stops that stream even with unread overflow")
+
+        suite.expect(LidLogoCompletionCue.Timing().reminderLifetime == .seconds(30 * 60),
+                     "completion reminders remain eligible for 30 minutes")
     }
 
     private static func spin(for seconds: TimeInterval) {

@@ -39,7 +39,7 @@ final class LidLogoCompletionCue {
         var settle: Double = 0.55
         var cooldown: Duration = .seconds(8)
         var reminderInterval: Duration = .seconds(25)
-        var reminderLifetime: Duration = .seconds(300)
+        var reminderLifetime: Duration = .seconds(30 * 60)
     }
 
     private let timing: Timing
@@ -49,7 +49,11 @@ final class LidLogoCompletionCue {
     private let recoveryCenter: NotificationCenter
     private var breath: Task<Void, Never>?
     private var reminders: Task<Void, Never>?
-    private var playingReminder = false
+    private enum CueKind { case completion, reminder }
+
+    private var playing: CueKind?
+    private var queuedCompletion: CueKind?
+    private var queuedStart: Task<Void, Never>?
     private var nextCue = ContinuousClock.now
     private var recoveryObservers: [NSObjectProtocol] = []
 
@@ -69,23 +73,64 @@ final class LidLogoCompletionCue {
     }
 
     func play(repeatReminders: Bool = false, remindersEnabled: @escaping () -> Bool = { true }) {
-        guard reminders == nil, startBreath(reminder: false), repeatReminders else { return }
+        _ = startCompletion(.completion)
+        guard repeatReminders else { return }
+        clearReminderTimer()
         let expires = ContinuousClock.now + timing.reminderLifetime
         let interval = timing.reminderInterval
         reminders = Task { [weak self] in
             defer { if !Task.isCancelled { self?.reminders = nil } }
-            while ContinuousClock.now + interval < expires {
-                do { try await Task.sleep(for: interval) } catch { return }
-                guard !Task.isCancelled, ContinuousClock.now < expires, remindersEnabled(),
-                      self?.startBreath(reminder: true) == true
-                else { return }
+            var nextReminder = ContinuousClock.now + interval
+            while nextReminder < expires {
+                do { try await ContinuousClock().sleep(until: nextReminder) } catch { return }
+                guard !Task.isCancelled, ContinuousClock.now < expires, remindersEnabled() else { return }
+                _ = self?.startCompletion(.reminder)
+                nextReminder = ContinuousClock.now + interval
             }
         }
     }
 
+    private func startCompletion(_ kind: CueKind) -> Bool {
+        if playing == .completion { return false } // Nearby finishes share the active pair.
+        if kind == .reminder && queuedCompletion == .completion { return false }
+        if ContinuousClock.now < nextCue {
+            if kind == .completion {
+                queuedCompletion = kind
+                if queuedStart == nil {
+                    let deadline = nextCue
+                    queuedStart = Task { [weak self] in
+                        do { try await ContinuousClock().sleep(until: deadline) } catch { return }
+                        self?.queuedStart = nil
+                        self?.startQueuedCompletion()
+                    }
+                }
+            }
+            return false
+        }
+        if breath != nil {
+            queuedCompletion = kind
+            return true
+        }
+        guard startBreath(kind, timing: timing, pulses: 2) else { return false }
+        nextCue = ContinuousClock.now + timing.cooldown
+        return true
+    }
+
+    private func startQueuedCompletion() {
+        guard let queuedCompletion else { return }
+        self.queuedCompletion = nil
+        _ = startCompletion(queuedCompletion)
+    }
+
+    private func clearQueuedCompletion() {
+        queuedCompletion = nil
+        queuedStart?.cancel()
+        queuedStart = nil
+    }
+
     @discardableResult
-    private func startBreath(reminder: Bool) -> Bool {
-        guard breath == nil, ContinuousClock.now >= nextCue else { return false }
+    private func startBreath(_ kind: CueKind, timing: Timing, pulses: Int) -> Bool {
+        guard breath == nil else { return false }
         if restorePending { recover(); return false }
         guard let driver = driver(), driver.canFade, mayControlLogo(), let journal,
               PrivateFileStore.createDirectory(at: journal.deletingLastPathComponent()),
@@ -103,27 +148,38 @@ final class LidLogoCompletionCue {
             recover()
             return false
         case .started:
-            nextCue = ContinuousClock.now + timing.cooldown
-            playingReminder = reminder
+            playing = kind
         }
         breath = Task { [weak self] in
             guard let self else { return }
             do { try await Task.sleep(for: .seconds(timing.dim)) } catch { return }
             guard !Task.isCancelled else { return }
             breath = nil
-            restore(duration: timing.brighten)
+            restore(duration: timing.brighten, timing: timing, remainingPulses: pulses - 1)
         }
         return true
     }
 
     func stopReminders() {
         clearReminderTimer()
-        if playingReminder { cancel() }
+        if queuedCompletion == .reminder { clearQueuedCompletion() }
+        if playing == .reminder { stopBreath() }
+    }
+
+    func cancelCompletion() {
+        stopReminders()
+        clearQueuedCompletion()
+        if playing == .completion { stopBreath() }
     }
 
     func cancel() {
         clearReminderTimer()
-        playingReminder = false
+        clearQueuedCompletion()
+        stopBreath()
+    }
+
+    private func stopBreath() {
+        playing = nil
         breath?.cancel()
         breath = nil
         recover()
@@ -131,7 +187,7 @@ final class LidLogoCompletionCue {
 
     func recover() {
         guard breath == nil else { return }
-        restore(duration: 0)
+        restore(duration: 0, timing: timing)
     }
 
     private func clearReminderTimer() {
@@ -139,12 +195,12 @@ final class LidLogoCompletionCue {
         reminders = nil
     }
 
-    private func restore(duration: Double) {
+    private func restore(duration: Double, timing: Timing, remainingPulses: Int = 0) {
         guard restorePending, let driver = driver() else { return }
         observeRecoveryIfNeeded()
         guard driver.isAwake, mayControlLogo(), driver.restore(duration: duration) else {
-            playingReminder = false
-            clearReminderTimer()
+            playing = nil
+            clearQueuedCompletion()
             return
         }
 
@@ -160,11 +216,17 @@ final class LidLogoCompletionCue {
             } catch { return }
             guard !Task.isCancelled else { return }
             breath = nil
-            playingReminder = false
-            if driver.isAtBaseline, mayControlLogo(), driver.finishRestore() {
-                clearRecoveryRecord()
-            } else {
-                clearReminderTimer()
+            let finished = playing
+            playing = nil
+            guard driver.isAtBaseline, mayControlLogo(), driver.finishRestore() else {
+                clearQueuedCompletion()
+                return
+            }
+            clearRecoveryRecord()
+            if let finished, remainingPulses > 0 {
+                startBreath(finished, timing: timing, pulses: remainingPulses)
+            } else if queuedStart == nil {
+                startQueuedCompletion()
             }
         }
     }
