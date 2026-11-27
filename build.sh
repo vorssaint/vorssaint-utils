@@ -142,7 +142,8 @@ write_swift_output_file_map() {
             print -r -- ","
             print -r -- "  \"$source\": {"
             print -r -- "    \"object\": \"$object_dir/$artifact.o\","
-            print -r -- "    \"swift-dependencies\": \"$object_dir/$artifact.swiftdeps\""
+            print -r -- "    \"swift-dependencies\": \"$object_dir/$artifact.swiftdeps\","
+            print -r -- "    \"const-values\": \"$object_dir/$artifact.swiftconstvalues\""
             print -r -- "  }"
         done
         print -r -- "}"
@@ -275,6 +276,7 @@ if (( TEST )); then
         Sources/Vorssaint/UI/Notch/NotchIslandAlert.swift
         Sources/Vorssaint/Services/Notch/NotchAccessorySupport.swift
         Sources/Vorssaint/Services/Notch/NotchAccessoryConnectionMonitor.swift
+        Sources/Vorssaint/Services/Notch/NotchTimerAutomation.swift
         Sources/Vorssaint/Services/QuickTools/CameraPreviewSupport.swift
         Sources/Vorssaint/Core/NotchMusicExtrasStrings.swift
         Sources/Vorssaint/Core/NotchClipboardSizeStrings.swift
@@ -628,6 +630,12 @@ if (( TEST )); then
     exit $test_status
 fi
 
+APP_INTENTS_PROCESSOR="$(xcrun --find appintentsmetadataprocessor 2>/dev/null || true)"
+if [[ -z "$APP_INTENTS_PROCESSOR" && "${VORSSAINT_REQUIRE_APP_INTENTS:-0}" == 1 ]]; then
+    echo "This build requires full Xcode to generate the Shortcuts actions catalog" >&2
+    exit 1
+fi
+
 echo "▸ Compiling ($BUILD_CONFIGURATION) against $(basename "$SDK")…"
 APP_SOURCES=(Sources/Vorssaint/**/*.swift)
 if (( ! DEV )); then
@@ -641,12 +649,15 @@ APP_OBJECT_DIR="build/objects/$EXECUTABLE"
 mkdir -p build "$APP_OBJECT_DIR"
 APP_OUTPUT_FILE_MAP="$APP_OBJECT_DIR/output-file-map.json"
 write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
+APP_INTENT_PROTOCOLS="$APP_OBJECT_DIR/app-intent-protocols.json"
+printf '%s\n' '["AppIntent"]' > "$APP_INTENT_PROTOCOLS"
 # Without -j the driver compiles one file at a time, and without batch mode
 # each file's compiler parses the whole module again: a clean release took a
 # quarter of an hour. Batches share that work and run on every core, and the
 # optimization stays per file, as before.
 swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -enable-batch-mode -j "$(sysctl -n hw.logicalcpu)" \
-    -output-file-map "$APP_OUTPUT_FILE_MAP" \
+    -module-name "$EXECUTABLE" -output-file-map "$APP_OUTPUT_FILE_MAP" \
+    -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend "$APP_INTENT_PROTOCOLS" \
     -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
     "${CORE_AUDIO_TAP_FLAGS[@]}" "${GIF_CODEC_FLAGS[@]}" \
     "${BUILD_VARIANT_FLAGS[@]}" \
@@ -774,6 +785,40 @@ fi
 if [[ -d Resources/Images ]]; then
     mkdir -p "$STAGE/Contents/Resources/Images"
     cp Resources/Images/* "$STAGE/Contents/Resources/Images/"
+fi
+
+if [[ -n "$APP_INTENTS_PROCESSOR" ]]; then
+    echo "▸ Extracting App Intents metadata…"
+    APP_INTENTS_SOURCE_LIST="$APP_OBJECT_DIR/app-intents-sources.list"
+    APP_INTENTS_VALUES_LIST="$APP_OBJECT_DIR/app-intents-values.list"
+    printf '%s\n' "${APP_SOURCES[@]}" > "$APP_INTENTS_SOURCE_LIST"
+    python3 -c 'import json, sys; print(*[files["const-values"] for source, files in json.load(open(sys.argv[1])).items() if source], sep="\n")' \
+        "$APP_OUTPUT_FILE_MAP" > "$APP_INTENTS_VALUES_LIST"
+    APP_INTENTS_TOOLCHAIN="$(cd "$(dirname "$APP_INTENTS_PROCESSOR")/../.." && pwd)"
+    XCODE_BUILD_VERSION="$(xcrun xcodebuild -version | awk '/^Build version / { print $3 }')"
+    "$APP_INTENTS_PROCESSOR" --toolchain-dir "$APP_INTENTS_TOOLCHAIN" \
+        --module-name "$EXECUTABLE" --sdk-root "$SDK" --xcode-version "$XCODE_BUILD_VERSION" \
+        --platform-family macOS --deployment-target "${TARGET##*macosx}" --target-triple "$TARGET" \
+        --bundle-identifier "$APP_BUNDLE_ID" --binary-file "$STAGE/Contents/MacOS/$EXECUTABLE" \
+        --output "$STAGE/Contents/Resources" --source-file-list "$APP_INTENTS_SOURCE_LIST" \
+        --swift-const-vals-list "$APP_INTENTS_VALUES_LIST" --compile-time-extraction --no-app-shortcuts-localization
+    python3 - "$STAGE/Contents/Resources/Metadata.appintents/extract.actionsdata" <<'PY'
+import json
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as catalog:
+        metadata = json.load(catalog)
+except (OSError, ValueError) as error:
+    sys.exit(f"Could not read the Shortcuts actions catalog: {error}")
+actions = metadata.get("actions") if isinstance(metadata, dict) else None
+action = actions.get("StartPomodoroIntent") if isinstance(actions, dict) else None
+if (not isinstance(action, dict) or action.get("identifier") != "StartPomodoroIntent"
+        or action.get("isDiscoverable") is not True):
+    sys.exit("The Shortcuts actions catalog is missing the discoverable Start Pomodoro action")
+PY
+else
+    echo "  App Intents catalog skipped: appintentsmetadataprocessor requires full Xcode"
 fi
 xattr -c -r "$STAGE" 2>/dev/null || true
 

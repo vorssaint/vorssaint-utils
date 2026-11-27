@@ -6,6 +6,7 @@ under GPL-3.0-or-later unless stated otherwise.
 ## Getting started
 
 You need macOS 14 or newer, Apple Silicon and the Xcode Command Line Tools.
+To test Vorssaint’s actions in Shortcuts, select a full Xcode install for the build so its App Intents metadata processor can generate the actions catalog.
 The project builds with `build.sh`, without an Xcode project or external package
 dependencies. `Package.swift` supports editor indexing; it does not assemble or
 sign the app bundle.

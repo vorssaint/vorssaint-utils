@@ -70,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     // MARK: - Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        defer { NotchTimerAutomation.shared.finishLaunching() }
         NSApp.setActivationPolicy(.accessory)
         // Before any window exists, so nothing is ever built with the wrong
         // appearance and then repainted.

@@ -120,6 +120,8 @@ jobs:
         run: ./Tools/ci-setup-signing.sh
 
       - name: Build
+        env:
+          VORSSAINT_REQUIRE_APP_INTENTS: "1"
         run: ./build.sh
 
       - name: Verify release signature
@@ -193,6 +195,8 @@ jobs:
           REQUIREMENT='identifier "com.vorssaint.utils" and anchor apple generic and certificate leaf[subject.OU] = "3D485NHW29"'
           codesign --verify --deep --strict -R="$REQUIREMENT" "$MP/Vorssaint.app"
           xcrun stapler validate "$MP/Vorssaint.app"
+          CATALOG='Contents/Resources/Metadata.appintents/extract.actionsdata'
+          cmp "build/stage/Vorssaint.app/$CATALOG" "$MP/Vorssaint.app/$CATALOG"
 
       - name: Release notes from CHANGELOG
         id: notes
