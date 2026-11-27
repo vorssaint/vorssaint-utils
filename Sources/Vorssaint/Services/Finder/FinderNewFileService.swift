@@ -47,15 +47,19 @@ enum FinderNewFileService {
     /// Finder Sync enablement is a PlugInKit user election, not a TCC grant.
     /// Only an explicit Clear all permissions/uninstall may change it.
     static func clearExtensionPermission() -> Bool {
-        guard extensionEnabled else { return true }
         #if VORSSAINT_DEVELOPMENT
         let id = "com.vorssaint.utils.dev.finder-new-file"
         #else
         let id = "com.vorssaint.utils.finder-new-file"
         #endif
+        // Use the exact identifier and verify the system election, rather
+        // than relying on a potentially stale FinderSync enablement query.
         let result = Shell.run("/usr/bin/pluginkit", ["-e", "ignore", "-i", id])
-        guard result.status == 0, !extensionEnabled else {
-            NSLog("Vorssaint could not confirm that its Finder extension was disabled: %@", result.output)
+        let state = Shell.run("/usr/bin/pluginkit", ["-m", "-Av", "-i", id])
+        guard result.status == 0, state.status == 0,
+              FinderNewFileExtensionElection.isIgnored(state.output, identifier: id) else {
+            NSLog("Vorssaint Finder extension reset could not be confirmed (change=%d, query=%d): %@ %@",
+                  result.status, state.status, result.output, state.output)
             return false
         }
         return true

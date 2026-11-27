@@ -5,6 +5,24 @@ import Foundation
 
 enum FinderNewFileTests {
     static func run(_ suite: TestSuite) {
+        let extensionID = "com.vorssaint.utils.dev.finder-new-file"
+        func ignored(_ output: String) -> Bool {
+            FinderNewFileExtensionElection.isIgnored(output, identifier: extensionID)
+        }
+        suite.expect(ignored("-    \(extensionID)(1.0)\tUUID\t/path\n (1 plug-in)"),
+                     "the exact extension has an ignore election")
+        suite.expect(!ignored("+    \(extensionID)(1.0)\n (1 plug-in)")
+                     && !ignored("?    \(extensionID)(1.0)\n (1 plug-in)")
+                     && !ignored("     \(extensionID)(1.0)\n (1 plug-in)"),
+                     "enabled, unknown and unmarked elections cannot confirm a reset")
+        suite.expect(ignored("-    \(extensionID)(1.0)\n=    \(extensionID)(0.9)\n (2 plug-ins)")
+                     && !ignored("-    \(extensionID)(1.0)\n+    \(extensionID)(0.9)\n (2 plug-ins)"),
+                     "superseded copies are harmless but enabled copies are not")
+        suite.expect(ignored(" (0 plug-ins)") && ignored("")
+                     && !ignored("unexpected response")
+                     && !ignored("-    com.vorssaint.utils.finder-new-file(1.0)\n (1 plug-in)"),
+                     "only a successful empty or exact-identifier query confirms no active extension")
+
         suite.expect(FinderNewFileKind.selection(nil) == FinderNewFileKind.defaultKinds,
                      "new file defaults include Office formats")
         suite.expect(FinderNewFileKind.selection("xlsx,unknown,txt,txt") == [.text, .excel],

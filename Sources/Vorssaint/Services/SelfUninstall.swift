@@ -250,8 +250,14 @@ enum SelfUninstall {
     /// id is a constant, so there is nothing to inject.
     @discardableResult
     private static func resetTCC() -> Bool {
-        guard Shell.run("/usr/bin/tccutil", ["reset", "All", bundleID]).status == 0 else { return false }
-        return FinderNewFileService.clearExtensionPermission()
+        let tcc = Shell.run("/usr/bin/tccutil", ["reset", "All", bundleID])
+        // Independent permission systems: attempt both even on a partial
+        // reset, but report success only if both operations succeeded.
+        let finder = FinderNewFileService.clearExtensionPermission()
+        if tcc.status != 0 {
+            NSLog("Vorssaint TCC reset failed: %@", tcc.output)
+        }
+        return tcc.status == 0 && finder
     }
 
     private static func removePreferences() {

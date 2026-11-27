@@ -12,7 +12,7 @@ Up to 32 custom entries are supported. Each template can be up to 64 MB. The hos
 
 ## Permissions and removal
 
-Clear all permissions suspends new file actions, clears the host's TCC grants, and disables this app variant's Finder extension through the system's PlugInKit user election. The document configuration stays intact; re-enable the extension explicitly in System Settings to use the menu again. A failed disablement is reported as an incomplete reset. Full uninstall also removes the shared menu snapshot and the private template store with the app's other preferences and Application Support data. The command-line uninstaller scopes the same extension disablement and snapshot cleanup to the release app. Neither a settings restore nor a normal feature toggle changes the system's Finder extension election.
+Clear all permissions suspends new file actions, clears the host's TCC grants, and disables this app variant's Finder extension through the system's PlugInKit user election. The document configuration stays intact; re-enable the extension explicitly in System Settings to use the menu again. Both permission systems are attempted even when the TCC reset fails. Disablement is confirmed by reading the exact extension's PlugInKit election; a failed or unknown result is reported as an incomplete reset. Full uninstall also removes the shared menu snapshot and the private template store with the app's other preferences and Application Support data. The command-line uninstaller scopes the same extension disablement and snapshot cleanup to the release app. Neither a settings restore nor a normal feature toggle changes the system's Finder extension election.
 
 ## Security and development
 

@@ -145,8 +145,8 @@ enum SelfUninstallContract {
         Host.clearPermissions { cleared = $0 }
         DispatchQueue.main.flush()
         suite.expect(cleared == false
-                        && events == ["suspend", "sleep", "fan", "login", "rule", "tccutil", "refresh permissions", "restore keep awake", "finder resume", "resume features", "resume brightness"],
-                     "a failed TCC reset reports partial clear and restores closed-lid mode, found \(events)")
+                        && events == ["suspend", "sleep", "fan", "login", "rule", "tccutil", "finder reset", "refresh permissions", "restore keep awake", "finder resume", "resume features", "resume brightness"],
+                     "a failed TCC reset still attempts the Finder reset and reports partial clear, found \(events)")
 
         reset(allowRule: true)
         finderResetAllowed = false
@@ -186,7 +186,7 @@ enum SelfUninstallContract {
         Host.uninstallCompletely { failure = $0 }
         DispatchQueue.main.flush()
         suite.expect(failure == "rule kept"
-                        && events == ["suspend", "spaces", "sleep", "rule", "fan registration", "fan", "tccutil", "restore fan registration", "restore keep awake", "refresh permissions", "finder resume", "resume features", "resume brightness"],
+                        && events == ["suspend", "spaces", "sleep", "rule", "fan registration", "fan", "tccutil", "finder reset", "restore fan registration", "restore keep awake", "refresh permissions", "finder resume", "resume features", "resume brightness"],
                      "a failed permission reset restores the prior fan helper and keeps login, found \(events)")
 
         reset(allowRule: true)
@@ -196,7 +196,7 @@ enum SelfUninstallContract {
         Host.uninstallCompletely { failure = $0 }
         DispatchQueue.main.flush()
         suite.expect(failure == "rule kept\nfan unavailable"
-                        && events == ["suspend", "spaces", "sleep", "rule", "fan registration", "fan", "tccutil", "restore fan registration", "restore keep awake", "refresh permissions", "finder resume", "resume features", "resume brightness"],
+                        && events == ["suspend", "spaces", "sleep", "rule", "fan registration", "fan", "tccutil", "finder reset", "restore fan registration", "restore keep awake", "refresh permissions", "finder resume", "resume features", "resume brightness"],
                      "failed fan registration tells the user the helper is unavailable, found \(events)")
 
         reset(allowRule: true)
@@ -206,7 +206,7 @@ enum SelfUninstallContract {
         Host.uninstallCompletely { failure = $0 }
         DispatchQueue.main.flush()
         suite.expect(failure == "rule kept"
-                        && events == ["suspend", "spaces", "sleep", "rule", "fan registration", "fan", "tccutil", "restore keep awake", "refresh permissions", "finder resume", "resume features", "resume brightness"],
+                        && events == ["suspend", "spaces", "sleep", "rule", "fan registration", "fan", "tccutil", "finder reset", "restore keep awake", "refresh permissions", "finder resume", "resume features", "resume brightness"],
                      "a failed reset does not register a helper the user never had, found \(events)")
 
         reset(allowRule: true)

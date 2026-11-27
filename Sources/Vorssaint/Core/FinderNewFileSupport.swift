@@ -280,6 +280,25 @@ struct FinderNewFileRequest: Codable, Equatable {
 
 /// Presentation preferences only. This domain is readable by the sandboxed
 /// extension but never grants the authority to write a file.
+/// Interpret the documented PlugInKit election markers for our exact identifier.
+enum FinderNewFileExtensionElection {
+    static func isIgnored(_ output: String, identifier: String) -> Bool {
+        let lines = output.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        let matches = lines.filter { line in
+            line.dropFirst().trimmingCharacters(in: .whitespaces).hasPrefix(identifier + "(")
+                || line.hasPrefix(identifier + "(")
+        }
+        if matches.isEmpty {
+            // A successful query with no registered copies needs no reset.
+            return lines.allSatisfy { $0.isEmpty || $0 == "(0 plug-ins)" }
+        }
+        // Superseded copies aren't active; the selected copy must be ignored.
+        return matches.contains { $0.hasPrefix("-") }
+            && matches.allSatisfy { $0.hasPrefix("-") || $0.hasPrefix("=") }
+    }
+}
+
 enum FinderNewFileExchange {
     private static var menuDomain: CFString {
         #if VORSSAINT_DEVELOPMENT
