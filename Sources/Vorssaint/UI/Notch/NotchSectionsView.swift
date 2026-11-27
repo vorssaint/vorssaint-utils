@@ -19,11 +19,15 @@ struct NotchSectionsView: View {
     private static let pitch = NotchLayout.sectionTileHeight + NotchLayout.sectionSpacing
 
     var body: some View {
-        Group {
+        // The gallery stays mounted under the empty state. Swapping one for
+        // the other rebuilt the island's top row, and the search field in it
+        // took focus again with its text selected, so the next key replaced
+        // the query.
+        gallery
+        .accessibilityHidden(sections.isEmpty)
+        .overlay {
             if sections.isEmpty {
                 NotchEmptyView(symbol: "magnifyingglass", message: FeatureStrings.clipboard(l10n.language).noResults)
-            } else {
-                gallery
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

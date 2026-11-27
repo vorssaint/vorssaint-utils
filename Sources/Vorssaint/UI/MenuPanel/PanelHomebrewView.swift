@@ -211,13 +211,9 @@ struct PanelHomebrewView: View {
 
     private var installedControls: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Picker("", selection: $filter) {
-                Text("\(l10n.s.homebrewAll) \(homebrew.installed.count)").tag(PanelHomebrewFilter.all)
-                Text("\(l10n.s.homebrewCasks) \(installedCaskCount)").tag(PanelHomebrewFilter.cask)
-                Text("\(l10n.s.homebrewFormulas) \(installedFormulaCount)").tag(PanelHomebrewFilter.formula)
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
+            PanelHomebrewFilterPicker(selection: $filter, strings: l10n.s,
+                                      totalCount: homebrew.installed.count,
+                                      caskCount: installedCaskCount, formulaCount: installedFormulaCount)
 
             HStack(spacing: 7) {
                 Button {
@@ -793,14 +789,6 @@ struct PanelHomebrewView: View {
 private enum PanelHomebrewMode: String, CaseIterable, Identifiable {
     case search
     case installed
-
-    var id: String { rawValue }
-}
-
-private enum PanelHomebrewFilter: String, CaseIterable, Identifiable {
-    case all
-    case cask
-    case formula
 
     var id: String { rawValue }
 }

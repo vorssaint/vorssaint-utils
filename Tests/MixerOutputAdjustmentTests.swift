@@ -1141,15 +1141,43 @@ enum MixerOutputAdjustmentContract {
                          "a rejected or acknowledged-but-ignored level never unmutes the old high volume")
         }
 
-        speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: true)
-        speakers.volumeOnUnmute = 80
-        sliderDone = nil
-        mixer.requestOutputAdjustment(volume: 0.05) { sliderDone = $0 }
-        speakers.finish()
-        suite.expect(sliderDone == false && speakers.writes == [
-            SpeakerWrite(volumeCode, 5), SpeakerWrite(muteCode, 2), SpeakerWrite(muteCode, 1)]
-                     && speakers.nativeMuted == true,
-                     "firmware that restores the old high level on unmute is muted again")
+        for (rejectsMute, rejectsLevel, ignoresLevel) in [
+            (false, false, false), (true, false, false), (true, true, false), (true, false, true)
+        ] {
+            speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: true)
+            speakers.volumeOnUnmute = 80
+            speakers.rejectMute = rejectsMute
+            var checkedLevel = false
+            speakers.afterUnmute = { [weak speakers] in
+                speakers?.rejectVolume = rejectsLevel
+                speakers?.ignoreVolume = ignoresLevel
+            }
+            speakers.onRead = { [weak speakers] code in
+                if code == volumeCode, speakers?.writes.count == 4 { checkedLevel = true }
+            }
+            sliderDone = nil
+            mixer.requestOutputAdjustment(volume: 0.05) { sliderDone = $0 }
+            speakers.finish()
+            let level = SpeakerWrite(volumeCode, 5)
+            let fallback = rejectsMute ? [level] : []
+            suite.expect(sliderDone == false && speakers.writes == [level, SpeakerWrite(muteCode, 2), SpeakerWrite(muteCode, 1)] + fallback
+                         && speakers.singleAttemptWrites == fallback && checkedLevel == (rejectsMute && !rejectsLevel)
+                         && speakers.nativeMuted == !rejectsMute && speakers.raw == (rejectsMute && !rejectsLevel && !ignoresLevel ? 5 : 80),
+                         "a loud unmute fails even if the single recovery write is accepted, ignored or rejected")
+        }
+
+        for (restored, maximum): (UInt16, UInt16) in [(2, 100), (0, 100), (80, 200)] {
+            speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: true)
+            speakers.volumeOnUnmute = restored
+            speakers.rejectMute = true
+            speakers.afterUnmute = { [weak speakers] in speakers?.maximum = maximum }
+            sliderDone = nil
+            mixer.requestOutputAdjustment(volume: 0.05) { sliderDone = $0 }
+            speakers.finish()
+            suite.expect(sliderDone == false && speakers.raw == restored && speakers.writes == [
+                SpeakerWrite(volumeCode, 5), SpeakerWrite(muteCode, 2), SpeakerWrite(muteCode, 1)],
+                         "recovery never raises a lower level or guesses a volume from a default or changed range")
+        }
 
         speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: true)
         var firstSlider: Bool?
@@ -1162,24 +1190,27 @@ enum MixerOutputAdjustmentContract {
                      "a superseded level cannot unmute while a lower slider setting waits for the bus")
 
         speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: nil)
-        speakers.raw = 2 // The physical monitor was turned down after the panel opened.
-        mixer.requestOutputMuteToggle()
+        var muteResult: Mixer.OutputKeyResult?
+        mixer.requestOutputMuteToggle { muteResult = $0 }
+        // Also exercise the explicit panel setter, which can bypass the toggle.
+        sliderDone = nil
+        mixer.requestOutputAdjustment(volume: 0, muted: true) { sliderDone = $0 }
         speakers.finish()
-        suite.expect(speakers.raw == 0 && mixer.systemOutputMuted == true && mixer.systemOutputVolume == 0,
-                     "a volume-only monitor silences through its confirmed volume")
-        mixer.requestOutputMuteToggle()
+        suite.expect(muteResult == .fallback && sliderDone == false && speakers.writes.isEmpty
+                     && mixer.systemOutputMuted == nil && mixer.systemOutputVolume == 0.8,
+                     "a volume-only monitor offers no mute and rejects an explicit mute request")
+        mixer.requestOutputAdjustment(volume: 0) { sliderDone = $0 }
         speakers.finish()
-        suite.expect(speakers.writes == [SpeakerWrite(volumeCode, 0), SpeakerWrite(volumeCode, 2)]
-                     && mixer.systemOutputVolume == 0.02 && mixer.systemOutputMuted == false,
-                     "software unmute restores exactly the last physical level read at mute time")
-        speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: false, unmutedReads: 0)
-        mixer.requestOutputMuteToggle()
+        suite.expect(sliderDone == true && speakers.writes == [SpeakerWrite(volumeCode, 0)]
+                     && mixer.systemOutputMuted == nil && mixer.systemOutputVolume == 0,
+                     "a volume-only slider confirms the zero setting without claiming silence")
+        mixer.requestOutputAdjustment(volume: 0.02)
+        var unsupportedUnmute: Bool?
+        mixer.requestOutputAdjustment(muted: false) { unsupportedUnmute = $0 }
         speakers.finish()
-        mixer.requestOutputMuteToggle()
-        speakers.finish()
-        suite.expect(speakers.writes == [SpeakerWrite(volumeCode, 0), SpeakerWrite(volumeCode, 80), SpeakerWrite(muteCode, 2)]
-                     && mixer.systemOutputMuted == false,
-                     "a mute that reads 0 is volume-only, but leaving zero still unmutes a monitor latched silent there")
+        suite.expect(unsupportedUnmute == false && speakers.writes == [SpeakerWrite(volumeCode, 0), SpeakerWrite(volumeCode, 2)]
+                     && mixer.systemOutputVolume == 0.02 && mixer.systemOutputMuted == nil,
+                     "an unsupported unmute cannot supersede a pending positive volume setting")
         speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 0, muted: false, unmutedReads: 0)
         speakers.nativeMuted = true
         firstSlider = nil
@@ -1188,6 +1219,7 @@ enum MixerOutputAdjustmentContract {
         mixer.requestOutputAdjustment(volume: 0.05) { firstSlider = $0 }
         speakers.finish()
         suite.expect(firstSlider == false && lastSlider == true && speakers.nativeMuted == false
+                     && mixer.systemOutputMuted == nil
                      && speakers.writes == [SpeakerWrite(volumeCode, 5), SpeakerWrite(volumeCode, 10), SpeakerWrite(muteCode, 2)],
                      "a newer slider level finishes the unmute interrupted after the first level write")
 
@@ -1206,22 +1238,13 @@ enum MixerOutputAdjustmentContract {
         suite.expect(sliderDone == true && speakers.nativeMuted == false && speakers.refreshes == 0,
                      "a monitor discovered while muted can confirm release with zero")
         speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 0, muted: nil)
-        var muteResult: Mixer.OutputKeyResult?
+        muteResult = nil
         mixer.requestOutputMuteToggle { muteResult = $0 }
         suite.expect(muteResult == .fallback && speakers.writes.isEmpty && mixer.systemOutputMuted == nil,
-                     "zero without a known restore level cannot unmute to a guessed volume")
+                     "zero on a volume-only monitor cannot unmute to a guessed volume")
         mixer.requestOutputStep(level: { $0 + 0.01 }, raises: true)
         speakers.finish()
-        suite.expect(speakers.raw == 1, "a fine raise at zero remains available without a restore level")
-        speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 2, muted: nil)
-        mixer.requestOutputMuteToggle()
-        speakers.finish()
-        speakers.maximum = 20
-        var changedRange: Mixer.OutputKeyResult?
-        mixer.requestOutputMuteToggle { changedRange = $0 }
-        speakers.finish()
-        suite.expect(changedRange == .unconfirmed && speakers.raw == 0 && speakers.writes.count == 1,
-                     "a new device range cannot inherit the old raw restore value")
+        suite.expect(speakers.raw == 1, "a fine raise at zero remains available on a volume-only monitor")
 
         speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 1, maximum: 20, muted: false)
         for _ in 0..<3 { mixer.requestOutputStep(level: { $0 + 0.01 }, raises: true) }

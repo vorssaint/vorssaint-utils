@@ -6,7 +6,7 @@ import Foundation
 /// The coding agents whose session logs the island reads. Their names are
 /// product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, copilot
+    case claude, codex, opencode, copilot, cursor
 
     var id: String { rawValue }
 
@@ -16,6 +16,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
         case .copilot: return "GitHub Copilot"
+        case .cursor: return "Cursor"
         }
     }
 
@@ -25,11 +26,12 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .opencode: return "terminal"
         case .copilot: return "infinity"
+        case .cursor: return "cursorarrow"
         }
     }
 
     /// Whether the provider records a plan allowance in its local logs.
-    var reportsLimits: Bool { self != .copilot }
+    var reportsLimits: Bool { self != .copilot && self != .cursor }
 }
 
 /// Token counts in the shape both logs can be reduced to. `input` excludes
@@ -66,8 +68,8 @@ struct AgentTokens: Equatable {
 /// One billed model response.
 struct AgentUsageRecord: Equatable {
     let provider: AgentProvider
-    let date: Date
-    let model: String
+    var date: Date
+    var model: String
     let project: String
     let session: String
     /// Model requests represented by this record; checkpoints may hold several.
@@ -157,5 +159,5 @@ enum AgentUsageEvent: Equatable {
     case finished(provider: AgentProvider, duration: TimeInterval, cost: Double, tokens: Int, project: String)
     case limitWarning(provider: AgentProvider, window: AgentLimitWindow)
     case limitReset(provider: AgentProvider, window: AgentLimitWindow)
-    case budgetReached(spent: Double, budget: Double)
+    case budgetReached(spent: Double, budget: Double, partial: Bool)
 }

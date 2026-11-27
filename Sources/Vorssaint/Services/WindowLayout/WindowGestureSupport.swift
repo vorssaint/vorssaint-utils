@@ -1204,3 +1204,34 @@ enum WindowDirectionalModifierCancellation {
         return cancelled
     }
 }
+
+/// The persistent pointer tap watches only the events its active features use.
+struct WindowLayoutPointerDemand: OptionSet {
+    let rawValue: Int
+
+    static let gesture = Self(rawValue: 1 << 0)
+    static let edgeSnap = Self(rawValue: 1 << 1)
+
+    private static let gestureMask: CGEventMask = [
+        CGEventType.leftMouseDown, .leftMouseDragged, .leftMouseUp,
+        .rightMouseDown, .rightMouseDragged, .rightMouseUp,
+    ].reduce(0) { $0 | (CGEventMask(1) << $1.rawValue) }
+
+    private static let edgeSnapMask: CGEventMask = [
+        CGEventType.leftMouseDown, .leftMouseDragged, .leftMouseUp, .flagsChanged,
+    ].reduce(0) { $0 | (CGEventMask(1) << $1.rawValue) }
+
+    var eventMask: CGEventMask {
+        var mask: CGEventMask = 0
+        if contains(.gesture) { mask |= Self.gestureMask }
+        if contains(.edgeSnap) { mask |= Self.edgeSnapMask }
+        return mask
+    }
+
+    func observes(_ type: CGEventType) -> Bool {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            return !isEmpty
+        }
+        return eventMask & (CGEventMask(1) << type.rawValue) != 0
+    }
+}

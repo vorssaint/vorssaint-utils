@@ -195,11 +195,12 @@ struct QuickTogglesList: View {
                            visibility: visibilityBinding(item))
         case .micMute:
             UtilityActionButton(title: micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName,
-                                caption: l10n.s.micMuteCaption,
-                                systemImage: micMute.isMuted ? "mic.slash.fill" : "mic",
+                                caption: micMute.warning?.message ?? l10n.s.micMuteCaption,
+                                systemImage: micMute.controlSymbol,
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: $showMicMute,
+                                needsAttention: micMute.warning != nil,
                                 shortcutHint: shortcutHint(.micMute),
                                 action: {
                                     MicMuteService.shared.toggle()

@@ -46,8 +46,7 @@ enum ShortcutRecordingTap {
         drainWatchdog = nil
         drainingKeyCode = nil
         heldKeyCode = nil
-        superKeyTap = nil
-        superState.reset()
+        resetSuperKey()
         // Registered before the Accessibility check: ShortcutCapture.begin() has
         // already switched the global shortcuts off, and the resign must give them back.
         if !observingSession {
@@ -193,6 +192,12 @@ enum ShortcutRecordingTap {
         runLoopSource = nil
     }
 
+    /// A keyboard can disappear on wake and return under the same event tap.
+    static func resetSuperKey() {
+        superKeyTap = nil
+        superState.reset()
+    }
+
     private static func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if SessionActivity.shared.isActive, AXIsProcessTrusted(), let tap {
@@ -213,20 +218,20 @@ enum ShortcutRecordingTap {
                 superState.reset()
                 superKeyTap = keyboard
             }
-            if keyboard != nil {
-                let superEvent: SuperKeySupport.Event
-                if keyCode == SuperKeySupport.triggerKeyCode {
-                    let timestamp = EventTimestamp.nanoseconds(of: event)
-                    superEvent = type == .keyDown
-                        ? .triggerDown(
-                            isRepeat: isRepeat,
-                            hasPrimaryModifiers: !GlobalShortcutModifiers(cgFlags: event.flags).isEmpty,
-                            timestamp: timestamp
-                        )
-                        : .triggerUp(timestamp: timestamp)
-                } else {
-                    superEvent = .otherKey
-                }
+            let superEvent: SuperKeySupport.Event
+            if keyCode == SuperKeySupport.triggerKeyCode {
+                let timestamp = EventTimestamp.nanoseconds(of: event)
+                superEvent = type == .keyDown
+                    ? .triggerDown(
+                        isRepeat: isRepeat,
+                        hasPrimaryModifiers: !GlobalShortcutModifiers(cgFlags: event.flags).isEmpty,
+                        timestamp: timestamp
+                    )
+                    : .triggerUp(timestamp: timestamp)
+            } else {
+                superEvent = .otherKey
+            }
+            if superState.shouldCapture(superEvent, enabled: keyboard != nil) {
                 switch superState.decide(superEvent) {
                 case .swallow, .soloTap(repeated: _), .soloHold(repeated: _): return nil
                 case .addModifiers: heldModifiers = SuperKeyService.shared.modifiers

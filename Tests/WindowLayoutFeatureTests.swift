@@ -20,6 +20,27 @@ enum WindowLayoutFeatureTests {
         WindowEdgeSnapRestoreTests.run(suite)
         WindowGestureApplyRuntimeTests.run(suite)
         WindowGestureTargetRuntimeTests.run(suite)
+        let leftButton: [CGEventType] = [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
+        let rightButton: [CGEventType] = [.rightMouseDown, .rightMouseDragged, .rightMouseUp]
+        let pointerCases: [(demand: WindowLayoutPointerDemand, events: [CGEventType])] = [
+            ([], []),
+            (.gesture, leftButton + rightButton),
+            (.edgeSnap, leftButton + [.flagsChanged]),
+            ([.gesture, .edgeSnap], leftButton + rightButton + [.flagsChanged]),
+        ]
+        let inputTypes = leftButton + rightButton
+            + [.flagsChanged, .mouseMoved, .keyDown, .scrollWheel, .otherMouseDown]
+        for (demand, events) in pointerCases {
+            let expectedMask = events.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
+            suite.expect(demand.eventMask == expectedMask,
+                "pointer demand \(demand.rawValue) subscribes only to the events its features use")
+            suite.expect(inputTypes.allSatisfy { demand.observes($0) == events.contains($0) },
+                "pointer demand \(demand.rawValue) handles exactly the subscribed input types")
+            for disabled in [CGEventType.tapDisabledByTimeout, .tapDisabledByUserInput] {
+                suite.expect(demand.observes(disabled) == !demand.isEmpty,
+                    "pointer demand \(demand.rawValue) receives disable notice \(disabled.rawValue) only while active")
+            }
+        }
         let modifierTrigger = WindowDirectionalTrigger(storageValue: "modifiers:control+command")
         suite.expect(modifierTrigger?.displayString == "⌃⌘"
                 && modifierTrigger?.storageValue == "modifiers:control+command",

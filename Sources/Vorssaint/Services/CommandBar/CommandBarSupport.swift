@@ -194,7 +194,7 @@ enum CommandBarSearch {
     /// installed app carries a left-to-right mark in front of its name, and a
     /// single invisible character was enough to stop the app from being an
     /// exact match for its own name and sink it below everything else.
-    private static func strippingInvisibles(_ value: String) -> String {
+    static func strippingInvisibles(_ value: String) -> String {
         guard value.unicodeScalars.contains(where: isInvisible) else { return value }
         return String(String.UnicodeScalarView(value.unicodeScalars.filter { !isInvisible($0) }))
     }

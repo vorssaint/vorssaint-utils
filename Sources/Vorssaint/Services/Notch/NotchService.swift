@@ -11,6 +11,7 @@ struct NotchNotice: Equatable {
     let title: String
     let detail: String
     let symbol: String
+    var accessibilityDetail: String? = nil
     var level: Double? = nil
     var notification: NotchNotificationContent? = nil
     var notificationID: UUID? = nil
@@ -89,7 +90,7 @@ struct NotchNotice: Equatable {
     var cameraGap: CGFloat { event == .battery ? 16 : readsFromEnds ? 6 : 0 }
 
     var accessibilityText: String {
-        notification?.accessibilityText ?? [title, detail].filter { !$0.isEmpty }.joined(separator: ", ")
+        notification?.accessibilityText ?? [title, accessibilityDetail ?? detail].filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
     /// Room a closed notice keeps inside its curved ends, which a side as
@@ -276,6 +277,15 @@ final class NotchService: ObservableObject {
     private var volumeBaseline: Double?
     private var muteBaseline: Bool?
     private var volumeDeviceUID: String?
+    private struct NativeVolumeKey {
+        let key: PreciseVolumeMediaKey
+        let volume: Double
+        let muted: Bool?
+        let lifetime: UUID
+        let generation: Int
+        let expiresAt: TimeInterval
+    }
+    private var pendingNativeVolumeKey: NativeVolumeKey?
     /// System uptime until which a level change counts as the island's own,
     /// for the output volume and the keyboard light each.
     private var ownLevelAdjustmentUntil: [NotchEvent: TimeInterval] = [:]
@@ -899,18 +909,17 @@ final class NotchService: ObservableObject {
     /// first read, when the page fills the island with its progress.
     private func agentsContentHeight(width: CGFloat) -> CGFloat? {
         let usage = AgentUsageService.shared.snapshot
-        let enabled = NotchAgentSupport.providers()
         // Added Codex accounts have cards before, or without, any log.
         let accounts = NotchAgentSupport.showsCodexAccounts() ? CodexProfileLimitsService.shared.states.map(\.id) : []
         let claudeProfile = AgentUsageService.shared.claudeProfile
         let claudeAccount = claudeProfile.isDefault ? nil : claudeProfile.id
         guard usage.loaded || !accounts.isEmpty else { return nil }
-        let providers = enabled.filter { usage.seen.contains($0) || ($0 == .codex && !accounts.isEmpty)
-            || ($0 == .claude && claudeAccount != nil) }
+        let providers = NotchAgentSupport.pageProviders(snapshot: usage, hasCodexAccounts: !accounts.isEmpty,
+                                                        hasClaudeAccount: claudeAccount != nil)
         guard !providers.isEmpty else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
             NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts,
-                                    claudeAccount: claudeAccount),
+                                    claudeAccount: claudeAccount, snapshot: usage),
             width: width))
     }
     var expandedGeometry: NotchGeometry {
@@ -4254,7 +4263,7 @@ final class NotchService: ObservableObject {
             // ending, the first read landing, which agents have cards, and
             // which are working, since each one's mark widens the strip.
             AgentUsageService.shared.$snapshot
-                .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider))) }
+                .map { ($0.loaded, $0.live.isEmpty, $0.seen, $0.cursorProjectsFound, Set($0.live.map(\.provider))) }
                 .removeDuplicates(by: ==)
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
@@ -4373,15 +4382,17 @@ final class NotchService: ObservableObject {
             show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
                              detail: text.limitRenewed, symbol: "arrow.clockwise", agent: provider, mascot: .celebrate))
             reactMascot(.celebrate)
-        case .budgetReached(let spent, _):
-            show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
-                             symbol: "dollarsign.circle.fill"))
+        case .budgetReached(let spent, _, let partial):
+            let amount = AgentFormat.cost(spent, partial: partial)
+            show(NotchNotice(event: .agents, title: text.budgetTitle, detail: amount, symbol: "dollarsign.circle.fill",
+                             accessibilityDetail: text.costDescription(amount, partial: partial)))
         }
     }
 
     /// Shows the output's current level. False when there is no level to show.
     @discardableResult
     func showCurrentVolume() -> Bool {
+        pendingNativeVolumeKey = nil
         let mixer = AppVolumeMixer.shared
         guard let volume = mixer.systemOutputVolume else { return false }
         return showVolume(volume, muted: mixer.systemOutputMuted)
@@ -4392,6 +4403,7 @@ final class NotchService: ObservableObject {
     /// keyboard's write that follows a moment later, leave the open island's
     /// top row in view instead of covering it with the same level.
     func noteOwnLevelAdjustment(_ event: NotchEvent) {
+        if event == .volume { pendingNativeVolumeKey = nil }
         ownLevelAdjustmentUntil[event] = ProcessInfo.processInfo.systemUptime + 1
     }
 
@@ -4400,6 +4412,7 @@ final class NotchService: ObservableObject {
     }
 
     private func bindVolumeEvents() {
+        pendingNativeVolumeKey = nil
         let mixer = AppVolumeMixer.shared
         volumeDeviceUID = mixer.currentOutputDeviceUID
         volumeBaseline = mixer.systemOutputVolume
@@ -4410,6 +4423,7 @@ final class NotchService: ObservableObject {
                 self.volumeDeviceUID = deviceUID
                 self.volumeBaseline = nil
                 self.muteBaseline = nil
+                self.pendingNativeVolumeKey = nil
             })
             .receive(on: DispatchQueue.main)
             .sink { [weak self, weak mixer] _ in
@@ -4421,12 +4435,51 @@ final class NotchService: ObservableObject {
             .store(in: &subscriptions)
     }
 
+    /// A native press has no level to show yet. Allow its next matching
+    /// change to announce even when the hardware reports less than a fine step.
+    func noteNativeVolumeKey(_ key: PreciseVolumeMediaKey) {
+        pendingNativeVolumeKey = nil
+        let mixer = AppVolumeMixer.shared
+        guard key != .play, volumeBaseline != nil, let device = volumeDeviceUID,
+              device == mixer.currentOutputDeviceUID, let volume = mixer.systemOutputVolume, volume.isFinite else { return }
+        pendingNativeVolumeKey = NativeVolumeKey(key: key, volume: volume, muted: mixer.systemOutputMuted,
+                                                lifetime: mixer.currentOutputControlLifetime,
+                                                generation: mixer.currentOutputKeyGeneration,
+                                                expiresAt: ProcessInfo.processInfo.systemUptime + 1)
+    }
+
+    private func confirmsNativeVolumeKey(volume: Double, muted: Bool?) -> Bool {
+        guard let press = pendingNativeVolumeKey else { return false }
+        let mixer = AppVolumeMixer.shared
+        guard mixer.currentOutputControlLifetime == press.lifetime,
+              mixer.currentOutputKeyGeneration == press.generation,
+              ProcessInfo.processInfo.systemUptime < press.expiresAt else {
+            pendingNativeVolumeKey = nil
+            return false
+        }
+        // A publication already queued when the key arrived can repeat the
+        // starting level. It says nothing about the effect of this press.
+        guard volume != press.volume || muted != press.muted else { return false }
+        pendingNativeVolumeKey = nil
+        let before = press.muted == true ? 0 : press.volume
+        let after = muted == true ? 0 : volume
+        switch press.key {
+        case .volumeUp: return after > before
+        case .volumeDown: return after < before
+        case .mute: return muted != nil && press.muted != nil && muted != press.muted
+        case .play: return false
+        }
+    }
+
     private func volumeChanged(_ volume: Double?, muted: Bool?) {
         defer { volumeBaseline = volume; muteBaseline = muted }
-        guard volumeDeviceUID != nil, let volume, let baseline = volumeBaseline,
-              volume != baseline || (muteBaseline != nil && muted != muteBaseline) else { return }
-        // Volume keys still announce themselves through showCurrentVolume.
-        guard !ownsLevelAdjustment(.volume) else { return }
+        guard volumeDeviceUID != nil, let volume, let baseline = volumeBaseline else {
+            pendingNativeVolumeKey = nil
+            return
+        }
+        let nativeKey = confirmsNativeVolumeKey(volume: volume, muted: muted)
+        guard nativeKey || volume != baseline || (muteBaseline != nil && muted != muteBaseline) else { return }
+        guard nativeKey || !ownsLevelAdjustment(.volume) else { return }
         // A level the output set on its own carries no news: adaptive volume
         // rides the level for as long as the room is noisy, and each step
         // used to reschedule the indicator's dismissal, so it never left the
@@ -4434,7 +4487,7 @@ final class NotchService: ObservableObject {
         // brightness change raises no notice of its own. Muting always
         // reports, and so does a key step.
         let muteChanged = muteBaseline != nil && muted != muteBaseline
-        if !muteChanged {
+        if !nativeKey && !muteChanged {
             let origin = NotchSupport.volumeChangeOrigin(
                 from: baseline, to: volume,
                 sinceRide: ProcessInfo.processInfo.systemUptime - lastVolumeRide)
@@ -4443,7 +4496,7 @@ final class NotchService: ObservableObject {
                 return
             }
         }
-        lastVolumeRide = -.infinity
+        if !nativeKey { lastVolumeRide = -.infinity }
         showVolume(volume, muted: muted)
     }
 
@@ -4460,11 +4513,16 @@ final class NotchService: ObservableObject {
         if let output, output.isHeadphones {
             symbol = NotchAccessorySupport.symbol(for: .audio, name: output.name)
         } else {
-            symbol = value == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill"
+            let showsMute = muted == true || (!mixer.outputIsMonitorSpeakers && value == 0)
+            symbol = showsMute ? "speaker.slash.fill" : "speaker.wave.2.fill"
         }
-        return show(NotchNotice(event: .volume, title: FeatureStrings.notch(L10n.shared.language).volume,
-                                detail: "\(Int((value * 100).rounded()))%",
-                                symbol: symbol, level: value))
+        let language = L10n.shared.language
+        let percent = Int((value * 100).rounded())
+        return show(NotchNotice(event: .volume, title: FeatureStrings.notch(language).volume,
+                                detail: "\(percent)%", symbol: symbol,
+                                accessibilityDetail: muted == true
+                                    ? FeatureStrings.brightness(language).mutedVolumeDescription(percent: percent) : nil,
+                                level: value))
     }
 
     /// The Command Bar borrows a Latin layout while it is up and gives it
