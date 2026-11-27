@@ -340,6 +340,21 @@ enum FanControlPolicy {
         return levels.max()
     }
 
+    /// How fast the card's fan icon turns at full speed, in turns per second.
+    static let iconMaximumRevolutionsPerSecond = 2.0
+
+    /// The card's fan icon follows the fans' measured share of their maximum
+    /// speed: still at 0 RPM, and two turns a second at full speed.
+    static func iconRevolutionsPerSecond(fans: [FanControlFanReading]) -> Double {
+        let shares = fans.compactMap { fan -> Double? in
+            guard validReading(fan.actualRPM), fan.maximumRPM.isFinite,
+                  fan.maximumRPM > 0 else { return nil }
+            return min(1, fan.actualRPM / fan.maximumRPM)
+        }
+        guard !shares.isEmpty else { return 0 }
+        return iconMaximumRevolutionsPerSecond * shares.reduce(0, +) / Double(shares.count)
+    }
+
     static func interpolatedCoolingLevel(points: [FanControlCurvePoint],
                                          temperature: Double) -> Int {
         guard let first = points.first, let last = points.last else {

@@ -1059,6 +1059,24 @@ enum FeatureCatalogTests {
                 && FanControlPolicy.interpolatedCoolingLevel(points: defaultCurve.points,
                                                              temperature: 80) == 100,
                "the default curve starts at 50 degrees, reaches maximum at 70 and rounds safely up")
+        func fan(_ index: Int, actual: Double, maximum: Double = 6_000) -> FanControlFanReading {
+            FanControlFanReading(index: index, actualRPM: actual, minimumRPM: 1_200,
+                                 maximumRPM: maximum, targetRPM: actual,
+                                 isManuallyControlled: false)
+        }
+        suite.expect(FanControlPolicy.iconRevolutionsPerSecond(fans: []) == 0
+                && FanControlPolicy.iconRevolutionsPerSecond(fans: [fan(0, actual: 0)]) == 0
+                && FanControlPolicy.iconRevolutionsPerSecond(fans: [fan(0, actual: 6_000)]) == 2
+                && FanControlPolicy.iconRevolutionsPerSecond(fans: [fan(0, actual: 3_000)]) == 1
+                && FanControlPolicy.iconRevolutionsPerSecond(fans: [fan(0, actual: 1_500),
+                                                                    fan(1, actual: 4_500)]) == 1,
+               "the fan icon turns with the fans' measured share of full speed and stands still at 0 RPM")
+        suite.expect(FanControlPolicy.iconRevolutionsPerSecond(fans: [fan(0, actual: 9_000)]) == 2
+                && FanControlPolicy.iconRevolutionsPerSecond(fans: [fan(0, actual: .nan)]) == 0
+                && FanControlPolicy.iconRevolutionsPerSecond(fans: [fan(0, actual: 3_000, maximum: 0)]) == 0
+                && FanControlPolicy.iconRevolutionsPerSecond(fans: [fan(0, actual: .nan),
+                                                                    fan(1, actual: 6_000)]) == 2,
+               "the fan icon caps at full speed and ignores readings that cannot be measured")
         let coolingTemperature = [
             FanControlTemperatureReading(source: .hottestSoC, celsius: 59),
         ]

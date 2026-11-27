@@ -221,12 +221,12 @@ struct FanControlCardContent: View {
     private var statusHeader: some View {
         let cooling = snapshot.isCooling && !systemControlUnconfirmed
         return HStack(spacing: 8) {
-            Image(systemName: cooling ? "fanblades.fill" : "fanblades")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(cooling ? AnyShapeStyle(Color.cyan) : AnyShapeStyle(Color.secondary))
-                .symbolEffect(.variableColor.iterative, options: .repeating,
-                              isActive: cooling)
-                .frame(width: 24)
+            SpinningIcon(
+                systemName: cooling ? "fanblades.fill" : "fanblades",
+                color: cooling ? .systemCyan : .secondaryLabelColor,
+                revolutionsPerSecond: FanControlPolicy.iconRevolutionsPerSecond(fans: snapshot.fans)
+            )
+            .frame(width: 24, height: 22)
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 5) {
@@ -423,5 +423,118 @@ struct FanControlCardContent: View {
         guard FanControlPolicy.validCurves(curves) else { return false }
         let available = snapshot.availableTemperatureSources
         return curves.allSatisfy { available.contains($0.sensor) }
+    }
+
+    /// The card's fan turns at a pace that follows the fans' measured speed.
+    /// Core Animation turns it outside the app's main thread, so a busy panel
+    /// does not stall it, and a new pace continues from the current angle.
+    private struct SpinningIcon: NSViewRepresentable {
+        let systemName: String
+        let color: NSColor
+        let revolutionsPerSecond: Double
+        @SwiftUI.Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        func makeNSView(context: Context) -> SpinningSymbolView {
+            SpinningSymbolView()
+        }
+
+        func updateNSView(_ view: SpinningSymbolView, context: Context) {
+            view.update(systemName: systemName, color: color,
+                        revolutionsPerSecond: reduceMotion ? 0 : revolutionsPerSecond)
+        }
+    }
+
+    final class SpinningSymbolView: NSView {
+        private let symbolLayer = CALayer()
+        private var systemName = ""
+        private var color = NSColor.secondaryLabelColor
+        private var revolutionsPerSecond = 0.0
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            wantsLayer = true
+            symbolLayer.contentsGravity = .center
+            symbolLayer.speed = 0
+            layer?.addSublayer(symbolLayer)
+        }
+
+        required init?(coder: NSCoder) { nil }
+
+        override var isFlipped: Bool { true }
+
+        func update(systemName: String, color: NSColor, revolutionsPerSecond: Double) {
+            if systemName != self.systemName || color != self.color {
+                self.systemName = systemName
+                self.color = color
+                drawSymbol()
+            }
+            self.revolutionsPerSecond = revolutionsPerSecond
+            applySpeed()
+        }
+
+        override func layout() {
+            super.layout()
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            symbolLayer.bounds = bounds
+            symbolLayer.position = CGPoint(x: bounds.midX, y: bounds.midY)
+            CATransaction.commit()
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            drawSymbol()
+            applySpeed()
+        }
+
+        override func viewDidChangeBackingProperties() {
+            super.viewDidChangeBackingProperties()
+            drawSymbol()
+        }
+
+        override func viewDidChangeEffectiveAppearance() {
+            super.viewDidChangeEffectiveAppearance()
+            drawSymbol()
+        }
+
+        private func drawSymbol() {
+            let configuration = NSImage.SymbolConfiguration(pointSize: 17, weight: .semibold)
+                .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
+            guard let image = NSImage(systemSymbolName: systemName, accessibilityDescription: nil)?
+                .withSymbolConfiguration(configuration) else { return }
+            let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            effectiveAppearance.performAsCurrentDrawingAppearance {
+                symbolLayer.contents = image.layerContents(forContentsScale: scale)
+            }
+            symbolLayer.contentsScale = scale
+            CATransaction.commit()
+        }
+
+        private func applySpeed() {
+            if symbolLayer.animation(forKey: "spin") == nil {
+                let spin = CABasicAnimation(keyPath: "transform.rotation.z")
+                spin.fromValue = 0
+                spin.toValue = -2 * Double.pi
+                spin.duration = 1
+                spin.repeatCount = .infinity
+                spin.isRemovedOnCompletion = false
+                symbolLayer.add(spin, forKey: "spin")
+            }
+            let speed = Float(max(0, revolutionsPerSecond))
+            guard speed != symbolLayer.speed else { return }
+            // Keep the layer's local time continuous across the change, so the
+            // blades carry on from their current angle at the new pace.
+            let parentTime = symbolLayer.superlayer?.convertTime(CACurrentMediaTime(), from: nil)
+                ?? CACurrentMediaTime()
+            let localTime = symbolLayer.convertTime(parentTime, from: symbolLayer.superlayer)
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            symbolLayer.timeOffset = localTime
+            symbolLayer.beginTime = parentTime
+            symbolLayer.speed = speed
+            CATransaction.commit()
+        }
     }
 }
