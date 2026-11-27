@@ -253,6 +253,9 @@ final class NotchService: ObservableObject {
             || (expanded && showingAppPanel && WallpaperService.shared.isChoosingSource)
             || (expanded && !showingSections && selected == .calendar && Permissions.shared.keepsCalendarPrompt)
             || (expanded && !showingSections && selected == .files && fileInteractionActive)
+            // AirDrop's window is drawn by macOS, so a click in it, such as
+            // choosing the device, would read as a click away.
+            || (expanded && !showingSections && selected == .files && ShelfSharePresenter.isSending)
             || CameraPreviewService.shared.keepsNotchPermissionPrompt
             || (expanded && !showingSections && selected == .tools && (QuickLauncherService.shared.activeUtility != nil || QuickLauncherService.shared.isEditing))
     }
@@ -1512,6 +1515,9 @@ final class NotchService: ObservableObject {
 
     func collapse() {
         guard captureControls == nil, !heldDrag else { return }
+        // Closed on purpose, by Escape or the notch: a send that never
+        // reported back must not keep the next opening from closing on a click.
+        ShelfSharePresenter.forgetSending()
         let closeCapture = detachCaptureIfClosingOnCollapse()
         let closesCommandBar = showingCommandBar
         hoverState.close(pointerInside: windowHost?.containsHover(NSEvent.mouseLocation) == true)
@@ -3810,6 +3816,7 @@ final class NotchService: ObservableObject {
             self?.schedulePreferenceSync()
         }
         observe(.default, .menuPanelWillShow) { [weak self] in self?.collapse() }
+        observe(.default, .shelfAirDropDidFinish) { [weak self] in self?.airDropDidFinish() }
         observe(.default, NSWindow.didBecomeKeyNotification) { [weak self] in self?.syncPanelKey() }
         observe(.default, NSWindow.didResignKeyNotification) { [weak self] in self?.syncPanelKey() }
         session.onConsole = SessionActivity.shared.isActive
@@ -4026,6 +4033,13 @@ final class NotchService: ObservableObject {
             if click, !islandWindow { self.clickedElsewhere() }
             return event
         }) { eventMonitors.append(token) }
+    }
+
+    /// The island stayed open for AirDrop's window; once it has sent or was
+    /// cancelled, the island closes with it.
+    private func airDropDidFinish() {
+        guard expanded, !showingSections, selected == .files, !ShelfSharePresenter.isSending else { return }
+        collapse()
     }
 
     /// A screenshot preview closes through its controller, which keeps it
