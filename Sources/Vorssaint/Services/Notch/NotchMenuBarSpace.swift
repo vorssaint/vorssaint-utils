@@ -35,7 +35,9 @@ enum NotchMenuBarSpace {
         if #available(macOS 27, *) { requiresExtras = true } else { requiresExtras = false }
         guard let measured = NotchMenuBarLayout.statusFrames(
             screen: geometry.screen, barHeight: geometry.menuBarHeight, windows: statusItems,
-            requiresExtras: requiresExtras, extras: { NotchStatusItemOwners.shared.frames(reader: reader) }),
+            requiresExtras: requiresExtras, extras: { bar in
+                NotchStatusItemOwners.shared.frames(reader: reader, modernBar: requiresExtras ? bar : nil)
+            }),
               reader.timeRemaining > 0 else { return nil }
         return NotchMenuBarLayout.measuredSideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
                                                    barHeight: geometry.menuBarHeight, menuItems: menuItems,
@@ -45,11 +47,17 @@ enum NotchMenuBarSpace {
 
 /// Geometry-only reads, all sharing one deadline across every app, child and attribute.
 struct NotchMenuBarAXReader {
+    typealias CopyAttribute = (AXUIElement, CFString, UnsafeMutablePointer<CFTypeRef?>) -> AXError
+
     let primaryTop: CGFloat
     let deadline: TimeInterval
-    init(primaryTop: CGFloat, deadline: TimeInterval = ProcessInfo.processInfo.systemUptime + 0.30) {
+    private let copyAttribute: CopyAttribute
+
+    init(primaryTop: CGFloat, deadline: TimeInterval = ProcessInfo.processInfo.systemUptime + 0.30,
+         copyAttribute: @escaping CopyAttribute = AXUIElementCopyAttributeValue) {
         self.primaryTop = primaryTop
         self.deadline = deadline
+        self.copyAttribute = copyAttribute
     }
     var timeRemaining: TimeInterval { deadline - ProcessInfo.processInfo.systemUptime }
 
@@ -58,7 +66,7 @@ struct NotchMenuBarAXReader {
         guard remaining > 0.001 else { return (.cannotComplete, nil) }
         AXUIElementSetMessagingTimeout(element, Float(min(0.05, remaining)))
         var result: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(element, attribute as CFString, &result)
+        let status = copyAttribute(element, attribute as CFString, &result)
         return timeRemaining > 0 ? (status, result) : (.cannotComplete, nil)
     }
 
@@ -111,11 +119,9 @@ final class NotchStatusItemOwners: @unchecked Sendable {
     private static let minimumSearchInterval: TimeInterval = 3
     private static let messagingTimeout: Float = 0.05
 
-    private let lock = NSLock()
-    private var owners: [pid_t]?
-    /// Owners that also draw items in their own windows (the system agent).
-    private var hosts: Set<pid_t> = []
     private static let windowHostBundleID = "com.apple.MenuBarAgent"
+    private let lock = NSLock()
+    private var discovery: Discovery?
     private var searchedRunning: Set<pid_t> = []
     private var searchedAt = Date.distantPast
     private var searching = false
@@ -123,35 +129,83 @@ final class NotchStatusItemOwners: @unchecked Sendable {
 
     /// Status item frames in the same flipped coordinates as the menus, or
     /// nil while the owners are unknown or a read runs out of time.
-    fileprivate func frames(reader: NotchMenuBarAXReader) -> [CGRect]? {
-        guard let (owners, hosts) = currentOwners() else { return nil }
-        var frames: [CGRect] = []
-        for pid in owners {
-            let app = AXUIElementCreateApplication(pid)
-            guard let items = reader.extras(app),
-                  let measured = NotchMenuBarLayout.completeFrames(items, limit: 128, read: reader.frame)
-            else { return nil }
-            frames += measured
-        }
-        for pid in hosts {
-            // Live Activities live in the agent's windows even when its extras bar has no items.
+    fileprivate func frames(reader: NotchMenuBarAXReader, modernBar: CGRect?) -> [CGRect]? {
+        guard let discovery = currentOwners() else { return nil }
+        var hostWindows: [AXUIElement] = []
+        for pid in discovery.hosts {
             let app = AXUIElementCreateApplication(pid)
             guard let windows = reader.children(app, attribute: kAXWindowsAttribute), windows.count <= 32 else { return nil }
+            hostWindows += windows
+        }
+        return discovery.frames(windows: hostWindows, modernBar: modernBar,
+            extras: { reader.extras(AXUIElementCreateApplication($0)) },
+            children: { reader.children($0) }, frame: reader.frame,
+            role: { reader.value($0, kAXRoleAttribute) as? String })
+    }
+
+    struct Discovery {
+        private(set) var owners: [pid_t] = []
+        private(set) var hosts: Set<pid_t> = []
+        private var hasUnresolvedApps = false
+
+        mutating func record(pid: pid_t, isHost: Bool, result: AXError, hasBar: Bool, previous: Set<pid_t>) {
+            if isHost { hosts.insert(pid) }
+            if isHost || (result == .success && hasBar) {
+                owners.append(pid)
+            } else if result != .attributeUnsupported && result != .noValue {
+                if previous.contains(pid) { owners.append(pid) }
+                else { hasUnresolvedApps = true }
+            }
+        }
+
+        func frames<Item>(windows: [Item], modernBar: CGRect?, extras: (pid_t) -> [Item]?,
+                          children: (Item) -> [Item]?, frame: (Item) -> CGRect?, role: (Item) -> String?) -> [CGRect]? {
+            var needsHostBar = hasUnresolvedApps
+            var frames: [CGRect] = []
+            for pid in owners {
+                guard let items = extras(pid) else {
+                    guard modernBar != nil else { return nil }
+                    needsHostBar = true
+                    continue
+                }
+                // Once an owner lists its items, each one must be accounted for.
+                guard let measured = NotchMenuBarLayout.completeFrames(items, limit: 128, read: frame) else { return nil }
+                frames += measured
+            }
+            let requiredBar = needsHostBar ? modernBar : nil
+            var measuredBar = false
             for window in windows {
-                guard let children = reader.children(window), children.count <= 128 else { return nil }
-                for item in children {
-                    guard let role = reader.value(item, kAXRoleAttribute) as? String else { return nil }
-                    if role == kAXMenuBarItemRole as String {
-                        guard let frame = reader.frame(item) else { return nil }
-                        frames.append(frame)
+                let bounds = requiredBar == nil ? nil : frame(window)
+                if let bar = requiredBar, let bounds, !bounds.intersects(bar) { continue }
+                guard let items = children(window), items.count <= 128 else { return nil }
+                if let bar = requiredBar, !items.isEmpty {
+                    guard let bounds else { return nil }
+                    if abs(bounds.minX - bar.minX) <= 1, abs(bounds.maxX - bar.maxX) <= 1,
+                       abs(bounds.maxY - bar.maxY) <= 1, bounds.minY <= bar.midY, bounds.height <= bar.height + 2 {
+                        // The host lays out one direct child per slot, including items
+                        // whose app did not answer. A slot can be a group or have no role.
+                        guard let slots = NotchMenuBarLayout.completeFrames(items, limit: 128, read: frame) else { return nil }
+                        if slots.contains(where: { bar.contains(CGPoint(x: $0.midX, y: $0.midY)) }) { measuredBar = true }
+                        frames += slots
+                        continue
+                    }
+                }
+                // Live Activities can also appear as menu bar items in the agent's windows.
+                for item in items {
+                    guard let itemRole = role(item) else { return nil }
+                    if itemRole == kAXMenuBarItemRole as String {
+                        guard let rect = frame(item) else { return nil }
+                        frames.append(rect)
                     }
                 }
             }
+            // A readable owner's extras alone cannot vouch for an app that timed out.
+            guard requiredBar == nil || measuredBar else { return nil }
+            return frames
         }
-        return frames
     }
 
-    private func currentOwners() -> ([pid_t], Set<pid_t>)? {
+    private func currentOwners() -> Discovery? {
         let running = Set(NSWorkspace.shared.runningApplications.map(\.processIdentifier))
         lock.lock(); defer { lock.unlock() }
         let elapsed = Date().timeIntervalSince(searchedAt)
@@ -162,31 +216,23 @@ final class NotchStatusItemOwners: @unchecked Sendable {
             queue.async { [self] in search() }
         }
         guard running == searchedRunning else { return nil }
-        return owners.map { ($0, hosts) }
+        return discovery
     }
 
     private func search() {
         let apps = NSWorkspace.shared.runningApplications
-        var found: [pid_t] = []
-        var foundHosts: Set<pid_t> = []
+        let previous = lock.withLock { Set(discovery?.owners ?? []) }
+        var found = Discovery()
         for app in apps where !app.isTerminated {
             let element = AXUIElementCreateApplication(app.processIdentifier)
             AXUIElementSetMessagingTimeout(element, Self.messagingTimeout)
-            if app.bundleIdentifier == Self.windowHostBundleID { foundHosts.insert(app.processIdentifier) }
             var bar: CFTypeRef?
             let result = AXUIElementCopyAttributeValue(element, kAXExtrasMenuBarAttribute as CFString, &bar)
-            if foundHosts.contains(app.processIdentifier) || (result == .success && bar != nil) {
-                found.append(app.processIdentifier)
-            } else if result != .attributeUnsupported && result != .noValue {
-                // A previously measured owner that times out must not disappear from the occupied area.
-                if lock.withLock({ owners?.contains(app.processIdentifier) == true }) {
-                    found.append(app.processIdentifier)
-                }
-            }
+            found.record(pid: app.processIdentifier, isHost: app.bundleIdentifier == Self.windowHostBundleID,
+                         result: result, hasBar: bar != nil, previous: previous)
         }
         lock.lock()
-        owners = found
-        hosts = foundHosts
+        discovery = found
         searchedRunning = Set(apps.map(\.processIdentifier))
         searchedAt = Date()
         searching = false

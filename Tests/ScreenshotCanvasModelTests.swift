@@ -25,7 +25,7 @@ enum ScreenshotCanvasModelTests {
         var cropSelectionOrigin: CGRect?
         var cropLoupePoint: CGPoint?
         let currentDisplayZoom: CGFloat = 1
-        var editingTextID: UUID?
+        var editingText = ""
         var newTextID: UUID?
         var cropDraft: CGRect?
         let scale: CGFloat = 1
@@ -47,7 +47,15 @@ enum ScreenshotCanvasModelTests {
         /// states sharing one capture are charged once.
         static var undoByteBudget = 256 << 20
         static let undoAnnotationBytes = 512
-        var canUndo = false, canRedo = false, isDirty = false
+        var isDirty = false
+        weak var cleanImage: CGImage?
+        var cleanAnnotations: [ScreenshotSupport.SavedAnnotation] = []
+        let backdropStyle = ScreenshotSupport.BackdropStyle()
+        var cleanBackdropStyle = ScreenshotSupport.BackdropStyle()
+        let watermarkStyle = ScreenshotSupport.WatermarkStyle()
+        var cleanWatermarkStyle = ScreenshotSupport.WatermarkStyle()
+        let annotationShadowsEnabled = false, spotlightDimStrength: CGFloat = 0.5
+        var cleanAnnotationShadowsEnabled = false, cleanSpotlightDimStrength: CGFloat = 0.5
         var textSelectionAnchor: CGPoint?
         var selectedWordIndexes: [Int] = []
         var activeHandle: ScreenshotSupport.Handle?
@@ -63,7 +71,25 @@ enum ScreenshotCanvasModelTests {
         @discardableResult
         func ensureBlurSample(_ style: ScreenshotSupport.BlurStyleID, level: Int) -> Bool { true }
         func pruneCarriedRuns() {}
-        func refreshDirtyState() {}
+    }
+
+    struct CloseController {
+        struct NSWindow {}
+
+        final class NSAlert {
+            static var response = NSApplication.ModalResponse.alertSecondButtonReturn
+            static var shown = 0
+            var messageText = "", informativeText = ""
+            var alertStyle: AppKit.NSAlert.Style = .warning
+            func addButton(withTitle title: String) {}
+            func runModal() -> NSApplication.ModalResponse {
+                Self.shown += 1
+                return Self.response
+            }
+        }
+
+        let model: Host
+        let strings = FeatureStrings.screenshot(.enUS)
     }
 
     /// Command-V with a pasteboard lane that waits until the test runs it
@@ -129,6 +155,81 @@ enum ScreenshotCanvasModelTests {
         host.leaveCanvasExpansion()
         suite.expect(host.tool == .select && host.imageSize == CGSize(width: 40, height: 40),
                      "escape in expand canvas at rest leaves the tool like crop, without changing the canvas")
+    }
+
+    private static func closingWithInlineText(_ suite: TestSuite) {
+        let model = Host(image: frame(width: 240, height: 100))
+        model.markExported()
+        model.tool = .text
+        let controller = CloseController(model: model)
+        let window = CloseController.NSWindow()
+        typealias Alert = CloseController.NSAlert
+        Alert.response = .alertSecondButtonReturn
+        Alert.shown = 0
+        func tapText() {
+            let point = CGPoint(x: 20, y: 20)
+            model.beginDrag(at: point)
+            model.endDrag(at: point, isTap: true)
+        }
+
+        tapText()
+        guard let emptyID = model.editingTextID else {
+            suite.expect(false, "the text tool opens an inline draft")
+            return
+        }
+        for blank in ["", " \t\n"] {
+            model.editingText = blank
+            suite.expect(controller.windowShouldClose(window) && Alert.shown == 0,
+                         "an empty or whitespace-only first caption closes without a discard prompt")
+            suite.expect(!model.canUndo && !model.canRedo, "a blank first caption has no history action")
+        }
+        model.commitText(emptyID)
+        suite.expect(model.annotations.isEmpty && !model.canUndo && !model.isDirty,
+                     "submitting the empty caption leaves the capture and its history clean")
+
+        tapText()
+        guard let id = model.editingTextID else {
+            suite.expect(false, "the text tool can start a new caption after an empty one")
+            return
+        }
+        model.editingText = "First"
+        suite.expect(!controller.windowShouldClose(window) && Alert.shown == 1
+                     && model.editingTextID == id && model.editingText == "First"
+                     && model.annotations.first?.text == "" && model.undoStack.isEmpty && !model.isDirty,
+                     "canceling red-button close preserves the first unsubmitted caption for further typing")
+        model.editingText += " caption "
+        suite.expect(model.canUndo && !model.canRedo, "Undo is available before the first caption is submitted")
+        model.commitText(id)
+        suite.expect(model.annotations.map(\.text) == ["First caption"] && model.undoStack.count == 1,
+                     "submitting after cancel keeps the continued caption as one edit")
+        model.undo()
+        suite.expect(model.annotations.isEmpty && !model.canUndo && !model.isDirty,
+                     "undoing the caption returns to the original clean capture")
+        tapText()
+        guard let secondID = model.editingTextID else {
+            suite.expect(false, "another caption can be started after undo")
+            return
+        }
+        model.editingText = "Replacement"
+        suite.expect(model.canUndo && !model.canRedo, "a pending replacement can be undone and would discard redo")
+        model.editingText = "  "
+        suite.expect(!model.canUndo && model.canRedo, "clearing the replacement preserves redo")
+        model.commitText(secondID)
+        model.redo()
+        suite.expect(model.annotations.map(\.text) == ["First caption"] && model.isDirty
+                     && !controller.windowShouldClose(window) && Alert.shown == 2,
+                     "redo restores the completed caption and ordinary unsaved changes still prompt")
+
+        model.markExported()
+        tapText()
+        suite.expect(model.editingTextID == id && model.editingText == "First caption"
+                     && controller.windowShouldClose(window) && Alert.shown == 2,
+                     "reopening an exported caption loads its text and closes without a discard prompt")
+        model.editingText = ""
+        Alert.response = .alertFirstButtonReturn
+        suite.expect(controller.windowShouldClose(window) && Alert.shown == 3
+                     && model.annotations.first?.text == "First caption",
+                     "confirming discard allows closing with a pending deletion of an exported caption")
     }
 
     /// A frame of `width`×`height` from a plain context, cheap to fill.
@@ -333,6 +434,7 @@ enum ScreenshotCanvasModelTests {
 
     static func run(_ suite: TestSuite) {
         historyStopsByBytes(suite)
+        closingWithInlineText(suite)
         if ProcessInfo.processInfo.environment["VORSSAINT_SCREENSHOT_MEMORY_SMOKE"] == "1" {
             largeCanvasHistory(suite)
         }

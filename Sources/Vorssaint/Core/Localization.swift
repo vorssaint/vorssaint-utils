@@ -364,10 +364,15 @@ struct Strings {
     let micMuteName: String
     let micUnmuteName: String
     let micMuteCaption: String
+    let micMuteFollowCallAppsToggle: String
+    let micMuteFollowCallAppsCaption: String
     let micMutedHUD: String
     let micUnmutedHUD: String
     let micMutePartialHUD: String
     let micUnmutePartialHUD: String
+    let micRestoreExhaustedHUD: String
+    let micManualRestore: String
+    let micManualRestoreChecked: String
     let micMuteMenuBarToggle: String
     let micMuteMenuBarCaption: String
     let pastePlainName: String
@@ -1534,11 +1539,16 @@ extension Strings {
         colorPickerPickNow: "Capturar cor",
         micMuteName: "Silenciar microfone",
         micUnmuteName: "Reativar microfone",
-        micMuteCaption: "Usa os controles de silenciamento ou volume de entrada de cada microfone. A Siri e alguns apps ainda podem ouvir você. Não bloqueia todo acesso ao microfone.",
+        micMuteCaption: "Tenta acionar as chaves de silenciamento disponíveis e zerar o volume das entradas que permitem ajuste. Um aviso indica que algum microfone pode continuar captando. A Siri e alguns apps ainda podem ouvir você.",
+        micMuteFollowCallAppsToggle: "Permitir que apps de chamada reativem o microfone",
+        micMuteFollowCallAppsCaption: "Quando um app está gravando e o microfone em uso é reativado, o Vorssaint restaura todos os microfones que silenciou. Um ajuste automático de ganho também pode causar isso.",
         micMutedHUD: "Silenciamento ativado",
         micUnmutedHUD: "Silenciamento desativado",
-        micMutePartialHUD: "Alguns microfones não puderam ser silenciados",
-        micUnmutePartialHUD: "Alguns microfones continuam silenciados",
+        micMutePartialHUD: "Não foi possível confirmar o silenciamento em todos os microfones",
+        micUnmutePartialHUD: "Não foi possível confirmar a restauração de todos os microfones",
+        micRestoreExhaustedHUD: "Não foi possível confirmar a restauração automática. Confira se o microfone está mudo e ajuste o volume de entrada no mixer.",
+        micManualRestore: "Não foi possível confirmar todos os ajustes do microfone. Confira o botão de mudo e o nível de entrada de cada canal. Se precisar, use o mixer ou os ajustes de Som.",
+        micManualRestoreChecked: "Já conferi o microfone",
         micMuteMenuBarToggle: "Mostrar na barra de menus enquanto ativo",
         micMuteMenuBarCaption: "O microfone vermelho na barra de menus indica que o recurso está ativo. Isso não garante que todos os apps deixem de captar áudio.",
         pastePlainName: "Colar como texto puro",
@@ -2322,7 +2332,7 @@ extension Strings {
         cleanerCatDeveloper: "Lixo de desenvolvimento",
         cleanerCatTrash: "Lixeira",
         cleanerLeftoversNote: "Encontrados por análise e começam desmarcados. Confira o caminho antes de marcar.",
-        cleanerLoginItemsNote: "A entrada em Itens de Início some depois de reiniciar o Mac.",
+        cleanerLoginItemsNote: "Itens que exigem autorização de administrador ficam no lugar. Depois de remover um item, pode ser preciso reiniciar o Mac para atualizar a lista.",
         cleanerTrashNote: "Esvaziar a Lixeira é permanente.",
         cleanerCatDeviceBackups: "Backups de iPhone",
         cleanerDeviceBackupsCaption: "Backups antigos de iPhone e iPad ocupam boa parte do que o macOS chama de Outros. Remova só os que você não precisa mais; um novo backup é feito quando o aparelho for conectado de novo.",
@@ -2665,11 +2675,16 @@ extension Strings {
         colorPickerPickNow: "Pick color",
         micMuteName: "Mute microphone",
         micUnmuteName: "Unmute microphone",
-        micMuteCaption: "Uses each microphone’s mute or input-volume controls. Siri and some apps may still hear you. This is not a privacy lock.",
+        micMuteCaption: "Tries to engage each available mute switch and set each adjustable input volume to zero. A warning means an input may still be live. Siri and some apps may still hear you.",
+        micMuteFollowCallAppsToggle: "Allow call apps to unmute the microphone",
+        micMuteFollowCallAppsCaption: "If a microphone reopens while an app is recording from it, Vorssaint restores all microphones it muted. An automatic gain change can also trigger this.",
         micMutedHUD: "Mic Mute on",
         micUnmutedHUD: "Mic Mute off",
-        micMutePartialHUD: "Some microphones could not be muted",
-        micUnmutePartialHUD: "Some microphones are still muted",
+        micMutePartialHUD: "Couldn’t confirm mute on every microphone",
+        micUnmutePartialHUD: "Couldn’t confirm every microphone was restored",
+        micRestoreExhaustedHUD: "Automatic restore could not be confirmed. Check the microphone’s mute switch and adjust its input volume in the mixer.",
+        micManualRestore: "Some microphone settings could not be verified. Check the mute switch and each channel’s input level. Use the mixer or Sound settings as needed.",
+        micManualRestoreChecked: "I’ve checked the microphone",
         micMuteMenuBarToggle: "Show in the menu bar while Mic Mute is on",
         micMuteMenuBarCaption: "The red mic in the menu bar indicates that Mic Mute is on. It does not guarantee that all apps stop capturing audio.",
         pastePlainName: "Paste as plain text",
@@ -3453,7 +3468,7 @@ extension Strings {
         cleanerCatDeveloper: "Developer junk",
         cleanerCatTrash: "Trash",
         cleanerLeftoversNote: "Found by analysis and left unchecked. Check the path before ticking.",
-        cleanerLoginItemsNote: "The entry under Login Items disappears after restarting the Mac.",
+        cleanerLoginItemsNote: "Items that need administrator approval stay in place. After an item is removed, you may need to restart your Mac to refresh the list.",
         cleanerTrashNote: "Emptying the Trash is permanent.",
         cleanerCatDeviceBackups: "iPhone backups",
         cleanerDeviceBackupsCaption: "Old iPhone and iPad backups take a big slice of the storage macOS calls Other. Remove only the ones you no longer need; a new backup is made when you plug the device in again.",

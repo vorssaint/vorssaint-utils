@@ -20,6 +20,7 @@ enum NotchAgentTests {
         codexParsing(suite)
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
+        CursorAgentTests.run(suite)
         HarnessReaderContractTests.run(suite)
         timestamps(suite)
         summary(suite)
@@ -136,15 +137,68 @@ enum NotchAgentTests {
                         && abs((AgentPricing.cost(writes, model: "gpt-5.5").cost ?? 0) - 0.5) < 0.000001,
                      "cache writes bill at their own rate where a model has one, and as input otherwise")
         var longFast = AgentBillable(tokens: AgentTokens(input: 300_000, output: 1000))
-        longFast.fast = true
+        longFast.serviceTier = .fast
         suite.expectClose(AgentPricing.cost(longFast, model: "gpt-6-astra").cost ?? -1,
                           (300_000 * 10 * 4 + 1000 * 50 * 3) / 1_000_000,
                           "a long prompt on the fast tier pays both premiums")
         suite.expectClose(AgentPricing.cost(AgentBillable(tokens: AgentTokens(input: 272_000)), model: "gpt-6-astra").cost ?? -1,
                           2.72, "the long-context premium starts past its threshold")
+        // OpenAI's Ultrafast list price starts at midnight Pacific on March 1, 2027.
+        let listStartsAt = Date(timeIntervalSince1970: 1_803_888_000)
+        let promotion = listStartsAt.addingTimeInterval(-1)
+        for (model, shortCost, longCost, hasFast) in [("gpt-6.2-astra", 1.52, 3.010016, true),
+                                                      ("gpt-6.2-sol", 0.38, 0.752504, true),
+                                                      ("gpt-6.2-astra-law", 1.52, 3.010016, false)] {
+            var request = AgentBillable(tokens: AgentTokens(input: 160_000, cacheWrite: 12_000, cacheRead: 100_000, output: 1500))
+            request.longCacheWrite = 2000
+            suite.expectClose(AgentPricing.cost(request, model: model).cost ?? -1, shortCost,
+                              "\(model) bills both cache write durations at 272K prompt tokens", tol: 0.000001)
+            request.serviceTier = .ultrafast
+            let short = AgentPricing.cost(request, model: model, at: promotion)
+            if hasFast {
+                suite.expectClose(short.cost ?? -1, shortCost * 3, "\(model) bills the Ultrafast promotion at 272K")
+                suite.expectClose(short.savings, model == "gpt-6.2-sol" ? 0.57 : 2.28, "\(model) applies the promotion to cache savings")
+            } else {
+                suite.expect(short.cost == nil && short.savings == 0, "Astra Law has no published Ultrafast rate")
+            }
+            request.serviceTier = .standard
+            request.tokens.input += 1
+            suite.expectClose(AgentPricing.cost(request, model: model).cost ?? -1, longCost,
+                              "\(model) bills the entire request at long-context rates above 272K", tol: 0.000001)
+            request.serviceTier = .fast
+            if hasFast {
+                suite.expectClose(AgentPricing.cost(request, model: model).cost ?? -1, longCost * 2, "\(model) applies the Fast rate")
+                request.serviceTier = .ultrafast
+                let snapshot = "\(model)-2026-11-24"
+                suite.expectClose(AgentPricing.cost(request, model: snapshot, at: promotion).cost ?? -1,
+                                  longCost * 3, "\(model) applies the promotion before midnight Pacific", tol: 0.000001)
+                suite.expectClose(AgentPricing.cost(request, model: snapshot, at: listStartsAt).cost ?? -1,
+                                  longCost * 6, "\(model) applies the list rate at midnight Pacific", tol: 0.000001)
+                suite.expect(AgentPricing.cost(request, model: model).cost == nil, "dated rates require a response time")
+                request.hasEventTimestamp = false
+                suite.expect(AgentPricing.cost(request, model: model, at: promotion).cost == nil,
+                             "a substitute file date cannot choose the Ultrafast rate")
+            } else {
+                suite.expect(AgentPricing.cost(request, model: "\(model)-2026-11-24").cost == nil,
+                             "Astra Law and its snapshots have no published Fast rate")
+            }
+            request.serviceTier = .unknown
+            suite.expect(AgentPricing.cost(request, model: model, at: listStartsAt).cost == nil,
+                         "\(model) leaves an unknown service tier unpriced")
+        }
+        // Global Standard promotional rates: https://developers.openai.com/api/docs/pricing.md
+        let rosalind = AgentBillable(tokens: AgentTokens(input: 170_000, cacheWrite: 2_000, cacheRead: 100_000, output: 1_000))
+        suite.expectClose(AgentPricing.cost(rosalind, model: "gpt-6-rosalind").cost ?? -1, 1.875,
+                          "Rosalind bills the promotional rates including 30-minute cache writes")
+        var law = AgentBillable(tokens: AgentTokens(input: 172_000, cacheRead: 100_000, output: 1_000))
+        suite.expectClose(AgentPricing.cost(law, model: "gpt-6-astra-law").cost ?? -1, 1.87,
+                          "Astra Law bills short-context rates at exactly 272K prompt tokens")
+        law.tokens.input += 1
+        suite.expectClose(AgentPricing.cost(law, model: "gpt-6-astra-law").cost ?? -1, 3.71502,
+                          "Astra Law bills long-context rates for the whole request above 272K")
         let plain = AgentBillable(tokens: AgentTokens(input: 1_000_000))
         var fast = plain
-        fast.fast = true
+        fast.serviceTier = .fast
         var domestic = plain
         domestic.domestic = true
         suite.expect(AgentPricing.cost(fast, model: "claude-opus-5").cost == 10
@@ -196,8 +250,10 @@ enum NotchAgentTests {
     private static func priceJSON(schema: String = "1", updated: String = "2026-09-22",
                                   claude: String = #"{"id":"claude-opus-5","input":5,"output":25,"cacheRead":0.5,"cacheWrite":6.25,"cacheWriteLong":10}"#,
                                   codex: String = #"{"id":"gpt-6-astra","input":10,"output":50,"cacheRead":1}"#,
+                                  tiered: String? = nil,
                                   extra: String = "") -> Data {
-        Data(#"{"schema":\#(schema),"updated":"\#(updated)"\#(extra),"claude":{"webSearch":0.01,"usOnlyMultiplier":1.1,"models":[\#(claude)],"plans":[{"match":"max_20x","name":"Max 20×","monthly":200}]},"codex":{"models":[\#(codex)],"plans":[{"match":"plus","name":"Plus","monthly":20}]}}"#.utf8)
+        let section = tiered.map { #","tieredModels":\#($0)"# } ?? ""
+        return Data(#"{"schema":\#(schema),"updated":"\#(updated)"\#(extra),"claude":{"webSearch":0.01,"usOnlyMultiplier":1.1,"models":[\#(claude)],"plans":[{"match":"max_20x","name":"Max 20×","monthly":200}]},"codex":{"models":[\#(codex)]\#(section),"plans":[{"match":"plus","name":"Plus","monthly":20}]}}"#.utf8)
     }
 
     private static func priceList(_ suite: TestSuite, shipped: AgentPriceList) {
@@ -225,6 +281,12 @@ enum NotchAgentTests {
             priceJSON(claude: #"{"id":"claude-opus-5","input":5,"output":25,"cacheRead":0.5,"fastMultiplier":50}"#),
             priceJSON(codex: #"{"id":"gpt-6-astra","input":10,"output":50,"cacheRead":1,"longContext":{"above":5,"inputMultiplier":2,"outputMultiplier":1.5}}"#),
             priceJSON(codex: #"{"id":"gpt-6-astra","input":10,"output":50,"cacheRead":1,"longContext":true}"#),
+            priceJSON(tiered: "null"),
+            priceJSON(tiered: #"[{"id":"gpt-6-astra","input":1,"output":2,"cacheRead":0}]"#),
+            priceJSON(tiered: #"[{"id":"gpt-6.2-sol","input":2,"output":10,"cacheRead":0.1,"ultrafast":{"promotionalMultiplier":true,"listMultiplier":6,"listStartsAt":"2027-03-01T08:00:00Z"}}]"#),
+            priceJSON(tiered: #"[{"id":"gpt-6.2-sol","input":2,"output":10,"cacheRead":0.1,"ultrafast":{"promotionalMultiplier":3,"listMultiplier":11,"listStartsAt":"2027-03-01T08:00:00Z"}}]"#),
+            priceJSON(tiered: #"[{"id":"gpt-6.2-sol","input":2,"output":10,"cacheRead":0.1,"ultrafast":{"promotionalMultiplier":3,"listMultiplier":6,"listStartsAt":"2027-02-30T08:00:00Z"}}]"#),
+            priceJSON(codex: #"{"id":"gpt-6.2-sol","input":2,"output":10,"cacheRead":0.1,"ultrafast":{"promotionalMultiplier":3,"listMultiplier":6,"listStartsAt":"2027-03-01T08:00:00Z"}}"#),
             Data("not json".utf8), Data(repeating: 0x20, count: AgentPriceList.maximumSize + 1),
         ]
         suite.expect(refused.allSatisfy { AgentPriceList.decode($0) == nil },
@@ -234,6 +296,30 @@ enum NotchAgentTests {
         suite.expect(AgentPriceList.newer(early, late) == late && AgentPriceList.newer(late, early) == late
                         && AgentPriceList.newer(nil, early) == early && AgentPriceList.newer(early, nil) == early,
                      "the newer of the shipped and downloaded lists wins")
+        let astra = #"{"id":"gpt-6.2-astra","input":8,"output":40,"cacheRead":0.4}"#
+        let extended = AgentPriceList.decode(priceJSON(tiered: "[\(astra)]"))
+        let corrected = AgentPriceList.decode(priceJSON(codex: #"{"id":"gpt-6-astra","input":7,"output":50,"cacheRead":1}"#))
+        let merged = AgentPriceList.newer(extended, corrected)
+        suite.expect(merged?.codex.map(\.price.input) == [7, 8] && corrected?.tieredModelCount == nil,
+                     "a same-day legacy cache keeps its price correction and gains the bundled tiered models")
+        let withdrawn = AgentPriceList.decode(priceJSON(tiered: "[]"))
+        suite.expect(withdrawn?.tieredModelCount == 0 && AgentPriceList.newer(extended, withdrawn) == withdrawn,
+                     "an explicitly empty download withdraws the bundled tiered models")
+        suite.expect(AgentPricing.price(for: "gpt-6.2-astra-law", in: extended ?? .empty) == nil,
+                     "a withdrawn Law variant cannot fall back to the parent model's tiers")
+        // Earlier releases only read codex.models. No GPT-6.2 family can match in that view.
+        var legacy = shipped
+        legacy.codex.removeLast(legacy.tieredModelCount ?? 0)
+        legacy.tieredModelCount = nil
+        if let existing = shipped.codex.last {
+            var fullCache = legacy
+            fullCache.codex = [existing] + (1..<500).map { AgentPriceList.Model(id: "model-\($0)", price: existing.price) }
+            suite.expect(AgentPriceList.newer(shipped, fullCache) == fullCache,
+                         "a full legacy cache keeps every existing rate when the additional models cannot fit")
+        }
+        let tieredIDs = ["gpt-6.2-astra", "gpt-6.2-sol", "gpt-6.2-astra-law"]
+        suite.expect(tieredIDs.allSatisfy { AgentPricing.price(for: $0, in: shipped) != nil && AgentPricing.price(for: $0, in: legacy) == nil },
+                     "all three GPT-6.2 entries are isolated from readers that cannot distinguish Ultrafast")
         suite.expect(!AgentPricing.install(shipped), "installing the list in use changes nothing")
 
         // A newer list prices the history again.
@@ -590,9 +676,9 @@ enum NotchAgentTests {
         }
         suite.expectClose(fastStore.records.first?.cost ?? -1, 2 * (usage?.cost ?? 0),
                           "the fast tier Codex records doubles the response's price")
-        suite.expect(AgentLogParser.fastTier("priority") && AgentLogParser.fastTier("Fast") && !AgentLogParser.fastTier("default")
-                        && !AgentLogParser.fastTier("flex"),
-                     "fast mode is recognized by both of its names")
+        suite.expect(AgentLogParser.serviceTier("priority") == .fast && AgentLogParser.serviceTier("Fast") == .fast
+                        && AgentLogParser.serviceTier("default") == .standard && AgentLogParser.serviceTier("flex") == .unknown,
+                     "Fast aliases, Standard and unsupported tiers remain distinct")
 
         // Older logs carry running totals only.
         var legacy = AgentLogState()
@@ -2302,6 +2388,7 @@ enum NotchAgentTests {
                                                   limits: [:], live: [], plans: [:], providers: [.claude, .codex],
                                                   now: now, calendar: calendar)
         suite.expect(!unpriced.usage(.today).fullyPriced && unpriced.usage(.today).total.unpriced == 1
+                        && AgentFormat.cost(unpriced, for: .today, locale: Locale(identifier: "en_US")) == "≥ $2.00"
                         && unpriced.usage(.today).models.first?.name == "Opus 5",
                      "an unpriced model makes totals a minimum and ranks fall back to tokens")
         let claudeOnly = AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:],
@@ -2490,6 +2577,14 @@ enum NotchAgentTests {
             for focus in NotchAgentLimitFocus.allCases {
                 let empty = AgentUsageSnapshot()
                 let sample = NotchAgentSupport.stripSampleSnapshot(empty, provider: provider, focus: focus, now: now)
+                if provider == .cursor {
+                    suite.expect(sample.limits.isEmpty
+                                    && NotchAgentSupport.stripReading(sample, readout: .limit, display: .remaining, now: now) == "12:34"
+                                    && NotchAgentSupport.stripReading(sample, readout: .cost, display: .remaining, now: now) == "—"
+                                    && NotchAgentSupport.stripReading(sample, readout: .tokens, display: .remaining, now: now) == "—",
+                                 "the Cursor preview shows elapsed time and leaves unavailable usage readings empty")
+                    continue
+                }
                 let used = focus == .session ? 0.32 : 0.57
                 suite.expect(NotchAgentSupport.stripReading(sample, readout: .limit, display: .used, focus: focus, now: now)
                                 == AgentFormat.percent(used),
@@ -2506,6 +2601,17 @@ enum NotchAgentTests {
             }
         }
         let short = snapshot([session(.claude, startedAgo: 754)])
+        var mixed = short
+        mixed.live.append(AgentLiveSession(id: "cursor", provider: .cursor, started: now, lastActivity: now,
+                                           model: "", project: "", tokens: AgentTokens(), cost: 0))
+        suite.expect(NotchAgentSupport.stripReading(mixed, readout: .cost, display: .remaining, now: now) == "≥ " + AgentFormat.cost(4.56)
+                        && NotchAgentSupport.stripReading(mixed, readout: .tokens, display: .remaining, now: now) == "≥ " + AgentFormat.tokens(300),
+                     "live totals show a lower bound when Cursor runs alongside a metered provider")
+        mixed.live[0].cost = 0
+        mixed.live[0].tokens = AgentTokens()
+        suite.expect(NotchAgentSupport.stripReading(mixed, readout: .cost, display: .remaining, now: now) == "—"
+                        && NotchAgentSupport.stripReading(mixed, readout: .tokens, display: .remaining, now: now) == "—",
+                     "while Cursor works, a metered turn without any usage yet cannot give a positive lower bound")
         let long = snapshot([session(.claude, startedAgo: 3723), session(.codex, startedAgo: 60)])
         suite.expect(NotchAgentSupport.stripReading(short, readout: .elapsed, display: .remaining, now: now) == "12:34"
                         && NotchAgentSupport.stripReading(long, readout: .elapsed, display: .remaining, now: now) == "1:02:03",
@@ -3169,10 +3275,21 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .cursor], "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor], "Copilot keeps its own preference")
+        var installed = AgentUsageSnapshot(loaded: true)
+        installed.cursorProjectsFound = true
+        suite.expect(NotchAgentSupport.pageProviders(snapshot: installed, hasCodexAccounts: false, hasClaudeAccount: false,
+                                                     in: defaults) == [.cursor],
+                     "the grid and its window can show Cursor before the first recorded turn")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsCursor)
+        installed.seen.insert(.cursor)
+        suite.expect(NotchAgentSupport.pageProviders(snapshot: installed, hasCodexAccounts: false, hasClaudeAccount: true,
+                                                     in: defaults) == [.claude],
+                     "an existing directory or prior activity cannot bring a disabled Cursor back onto the page")
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
@@ -3186,7 +3303,7 @@ enum NotchAgentTests {
                      "alerts follow their switches and a budget must be positive")
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
-                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot,
+                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsCursor,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
@@ -3217,6 +3334,30 @@ enum NotchAgentTests {
                      "the resets card belongs to Codex and leaves with it")
         suite.expect(NotchAgentSupport.tiles(cards: [.limits, .resets, .spend], providers: [.copilot]) == [spend],
                      "a Copilot-only dashboard never offers unavailable limits or Codex account resets")
+        let cursorCards = NotchAgentSupport.tiles(cards: NotchAgentCard.allCases, providers: [.cursor])
+        suite.expect(cursorCards.map(\.card) == [.live] && NotchAgentSupport.contentHeight([cursorCards]) == NotchAgentSupport.cardHeight
+                        && NotchAgentSupport.tiles(cards: [.spend, .projects], providers: [.cursor]).isEmpty,
+                     "Cursor alone shows the Now card at its ordinary height and respects hiding it")
+        var cursorHistory = AgentUsageSnapshot()
+        let usage = AgentTotals(tokens: AgentTokens(output: 7), requests: 1)
+        cursorHistory.days = [AgentBucket(start: Date(), byProvider: [.claude: usage])]
+        suite.expect(NotchAgentSupport.tiles(cards: NotchAgentCard.allCases, providers: [.cursor], snapshot: cursorHistory)
+                        .map(\.card) == [.live], "another provider's usage cannot unlock Cursor history")
+        cursorHistory.days[0].byProvider[.cursor] = usage
+        suite.expect(NotchAgentSupport.tiles(cards: NotchAgentCard.allCases, providers: [.cursor], snapshot: cursorHistory)
+                        .map(\.card) == [.spend, .live, .trend, .models, .projects, .activity],
+                     "recorded Cursor tokens enable history without offering plan limits or resets")
+        let allProviders = AgentProvider.allCases
+        let active = AgentLiveSession(id: "active", provider: .cursor, started: .now, lastActivity: .now,
+                                      model: "", project: "demo", tokens: AgentTokens(), cost: 0)
+        for count in 4...5 {
+            let providers = Array(allProviders.suffix(count))
+            let idle = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers)
+            let live = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers, snapshot: AgentUsageSnapshot(live: [active]))
+            suite.expect(NotchAgentSupport.contentHeight([idle]) >= 44 + 15 * CGFloat(count) + 5 * CGFloat(count - 1)
+                            && NotchAgentSupport.contentHeight([live]) == NotchAgentSupport.cardHeight,
+                         "the Now card fits all \(count) idle rows and returns to its regular height while working")
+        }
         suite.expect(NotchAgentSupport.rows([limits, codex, spend, trend], width: 424) == [[limits, codex], [spend], [trend]]
                         && NotchAgentSupport.rows([limits, trend, codex], width: 424) == [[limits], [trend], [codex]],
                      "cards pair in reading order, and charts and lone cards take the row")
@@ -3243,6 +3384,12 @@ enum NotchAgentTests {
     }
 
     private static func formatting(_ suite: TestSuite) {
+        for language in AppLanguage.allCases {
+            let copy = FeatureStrings.notchAgents(language)
+            let lists = [copy.hubDescription, copy.settingsDescription, copy.empty, FeatureStrings.notchEditor(language).agentsSummary]
+            suite.expect(lists.allSatisfy { $0.components(separatedBy: "Cursor").count == 2 },
+                         "each provider list names Cursor once in \(language.rawValue)")
+        }
         let english = Locale(identifier: "en_US")
         let portuguese = Locale(identifier: "pt_BR")
         suite.expect(AgentFormat.tokens(950, locale: english) == "950" && AgentFormat.tokens(4_280, locale: english) == "4.2K"
@@ -3258,17 +3405,16 @@ enum NotchAgentTests {
         suite.expect(AgentFormat.day(Date(timeIntervalSince1970: 1_790_035_200), locale: english) == "Sep 22, 2026",
                      "the price list's day reads the same in every time zone")
 
-        func openCodeCardCost(unpriced: Int, cost: Double) -> String {
-            if unpriced > 0 {
-                return cost > 0 ? "≥ " + AgentFormat.cost(cost, locale: english) : "—"
-            }
-            return AgentFormat.cost(cost, locale: english)
-        }
-        suite.expect(openCodeCardCost(unpriced: 0, cost: 12.5) == "$12.50"
-                        && openCodeCardCost(unpriced: 1, cost: 12.5) == "≥ $12.50"
-                        && openCodeCardCost(unpriced: 2, cost: 0) == "—"
-                        && openCodeCardCost(unpriced: 0, cost: 0) == "$0.00",
-                     "OpenCode limits card formats unpriced costs as lower bound or em dash")
+        suite.expect(AgentFormat.cost(12.5, locale: english) == "$12.50"
+                        && AgentFormat.cost(12.5, partial: true, locale: portuguese) == "≥ $12,50"
+                        && AgentFormat.cost(100.60, partial: true, locale: english) == "≥ $100"
+                        && AgentFormat.cost(100.60, locale: english) == "$101"
+                        && AgentFormat.cost(0.019, partial: true, locale: english) == "≥ $0.01"
+                        && AgentFormat.cost(0.019, locale: english) == "$0.02"
+                        && AgentFormat.cost(0.009, partial: true, locale: portuguese) == "> $0,00"
+                        && AgentFormat.cost(0, partial: true, locale: english) == "—"
+                        && AgentFormat.cost(0, locale: english) == "$0.00",
+                     "partial costs never round a lower bound up, even below one cent, and a known zero keeps its value")
     }
 }
 
