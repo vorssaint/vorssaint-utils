@@ -267,7 +267,7 @@ enum SettingsDirectory {
             .init([notch.width, notch.maximumHeight], notch: .layout, when: state.customSize),
             .init([notch.cameraFit, notch.hideMenuBarGap, notch.width, notch.height],
                   notch: .layout, when: state.hardware.notchedDisplay),
-            .init([notch.withoutNotch], notch: .layout, when: state.hardware.plainDisplay),
+            .init([notch.withoutNotch, notch.horizontalPosition], notch: .layout, when: state.hardware.plainDisplay),
             .init([notch.capsuleFit, notch.width, notch.height, notch.fromTop],
                   notch: .layout, when: state.hardware.plainDisplay && state.capsule),
             .init([activities.keepAwakeActivity], notch: .module(.controls)),

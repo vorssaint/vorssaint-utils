@@ -1657,6 +1657,9 @@ final class NotchService: ObservableObject {
                 self.removeHoverExitMonitors()
                 if UserDefaults.standard.bool(forKey: DefaultsKey.notchHoverExpands) {
                     self.open(takeFocus: false)
+                    if self.geometry.horizontalPosition != 0 {
+                        self.syncHoverExitMonitoring(entered: false, point: NSEvent.mouseLocation)
+                    }
                 } else {
                     self.mutatePresentation(transitionContent: .reveal) { self.peeking = true }
                     self.provideHapticFeedback()
@@ -3319,7 +3322,8 @@ final class NotchService: ObservableObject {
         let hasMenuBar = NSScreen.screensHaveSeparateSpaces || NSScreen.withMenuBar == screen
         guard NotchSupport.coversMenus() || !hasMenuBar else { return nil }
         return NotchMenuBarLayout.sideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
-                                           barHeight: geometry.menuBarHeight, occupied: [])
+                                           barHeight: geometry.menuBarHeight, occupied: [], anchorX: geometry.anchorX,
+                                           horizontalPosition: geometry.horizontalPosition)
     }
 
     private func makeMirror(geometry: NotchGeometry, size: CGSize) -> NotchMirror {
@@ -3490,7 +3494,8 @@ final class NotchService: ObservableObject {
             // would leave it, over whatever menus and status items are there.
             stopMenuSpaceMonitoring()
             applyMenuSpace(NotchMenuBarLayout.sideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
-                                                       barHeight: geometry.menuBarHeight, occupied: []))
+                                                       barHeight: geometry.menuBarHeight, occupied: [], anchorX: geometry.anchorX,
+                                                       horizontalPosition: geometry.horizontalPosition))
             return
         }
         guard AXIsProcessTrusted() else {
@@ -3702,7 +3707,8 @@ final class NotchService: ObservableObject {
                              capsuleFit: NotchCapsuleFit.current(),
                              hideMenuBarGap: UserDefaults.standard.bool(forKey: DefaultsKey.notchHideMenuBarGap),
                              outline: UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled),
-                             barEdge: 1 / max(1, screen.backingScaleFactor))
+                             barEdge: 1 / max(1, screen.backingScaleFactor),
+                             horizontalPosition: UserDefaults.standard.double(forKey: DefaultsKey.notchHorizontalPosition))
     }
 
     private func updateFullscreenVisibility(displayID: CGDirectDisplayID) {

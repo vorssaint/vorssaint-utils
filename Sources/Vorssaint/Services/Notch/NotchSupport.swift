@@ -1654,6 +1654,12 @@ enum NotchSupport {
     }
 
     static let toolColumns = 5
+    static let horizontalPositionRange = -100.0...100.0
+
+    static func sanitizedHorizontalPosition(_ value: Double) -> Double {
+        NotchSize.clamped(value, to: horizontalPositionRange, fallback: 0)
+    }
+
     static let defaultHoverDelay = 0.25
     static let hoverDelayRange = 0.10...1.0
 
@@ -2235,6 +2241,8 @@ struct NotchNoticeWings: Equatable {
 
 struct NotchGeometry: Equatable {
     let screen: CGRect
+    let horizontalPosition: CGFloat
+    static let screenEdgeInset: CGFloat = 4
     /// How far the island's centre sits right of the camera's: a closed
     /// notice reaches further toward its wider side. Zero everywhere else.
     var surfaceShift: CGFloat = 0
@@ -2282,7 +2290,8 @@ struct NotchGeometry: Equatable {
          menuBarHeight: CGFloat = 24, compactSideRoom: CGFloat? = nil,
          customWidth: Double = NotchSize.defaultWidth, customHeight: Double = NotchSize.defaultHeight,
          cameraFit: NotchCameraFit = .zero, silhouette: NotchSilhouette = .notch, capsuleFit: NotchCapsuleFit = .zero,
-         hideMenuBarGap: Bool = false, outline: Bool = false, barEdge: CGFloat = 0) {
+         hideMenuBarGap: Bool = false, outline: Bool = false, barEdge: CGFloat = 0,
+         horizontalPosition: Double = 0) {
         self.screen = screen
         self.layout = layout
         self.customWidth = NotchSize.clamped(customWidth, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth)
@@ -2329,13 +2338,15 @@ struct NotchGeometry: Equatable {
         }
         self.menuBarHeight = max(cameraHeight, barHeight)
         self.compactSideRoom = compactSideRoom
+        self.horizontalPosition = safeAreaTop.isFinite && safeAreaTop <= 0
+            ? CGFloat(NotchSupport.sanitizedHorizontalPosition(horizontalPosition) / 100) : 0
     }
 
     /// The island floats in the menu bar instead of hanging from the top edge.
     var floats: Bool { floatingGap != nil }
 
     func hasSameMenuBar(as other: NotchGeometry) -> Bool {
-        screen == other.screen && cameraWidth == other.cameraWidth && physicalCamera == other.physicalCamera
+        screen == other.screen && horizontalPosition == other.horizontalPosition && cameraWidth == other.cameraWidth && physicalCamera == other.physicalCamera
             && menuBarHeight == other.menuBarHeight && isNotched == other.isNotched
     }
 
@@ -2825,14 +2836,32 @@ struct NotchGeometry: Equatable {
                height: max(0, size.height - headerTopInset - headerChromeHeight))
     }
     var appPanelSize: CGSize { contentSize(for: expandedSize(module: .tools, panel: true)) }
-    func frame(for size: CGSize) -> CGRect {
-        CGRect(x: screen.midX + surfaceShift - size.width / 2,
+    var anchorX: CGFloat { anchorX(for: cameraWidth) }
+
+    func anchorX(for width: CGFloat, gutter: CGFloat = 0) -> CGFloat {
+        screen.midX + horizontalPosition * horizontalTravel(for: width, gutter: gutter)
+    }
+
+    private func horizontalTravel(for width: CGFloat, gutter: CGFloat) -> CGFloat {
+        max(0, (screen.width - width) / 2 - Self.screenEdgeInset - gutter)
+    }
+
+    func constrainedCenter(_ center: CGFloat, width: CGFloat, gutter: CGFloat = 0) -> CGFloat {
+        guard horizontalPosition != 0 else { return center }
+        let travel = horizontalTravel(for: width, gutter: gutter)
+        return min(screen.midX + travel, max(screen.midX - travel, center))
+    }
+
+    func frame(for size: CGSize, gutter: CGFloat = 0) -> CGRect {
+        let center = constrainedCenter(anchorX(for: size.width, gutter: gutter) + surfaceShift,
+                                       width: size.width, gutter: gutter)
+        return CGRect(x: center - size.width / 2,
                y: screen.maxY - floatingDrop - size.height,
                width: size.width, height: size.height)
     }
 
-    func contains(_ point: CGPoint, in size: CGSize) -> Bool {
-        let frame = self.frame(for: size)
+    func contains(_ point: CGPoint, in size: CGSize, gutter: CGFloat = 0) -> Bool {
+        let frame = self.frame(for: size, gutter: gutter)
         // Match the flipped native view: the top edge belongs to the island.
         return CGRect(origin: .zero, size: size).contains(
             CGPoint(x: point.x - frame.minX, y: frame.maxY - point.y))
@@ -3026,18 +3055,21 @@ struct NotchMotionTimeline: Equatable {
     /// When its latest move began, and the size there.
     private(set) var begin: CFTimeInterval
     private(set) var start: CGSize
-    /// A width easing without a swing, and how far the centre still sat from
-    /// its new one. A motion with either is never carried on.
     let steady: Bool
-    let offset: CGFloat
+    private(set) var offset: CGFloat
+    let dampedHorizontal: Bool
+    private var offsetBegin: CFTimeInterval
 
-    init(from: CGSize, to: CGSize, begin: CFTimeInterval, steady: Bool = false, offset: CGFloat = 0) {
+    init(from: CGSize, to: CGSize, begin: CFTimeInterval, steady: Bool = false, offset: CGFloat = 0,
+         dampedHorizontal: Bool = false) {
         width = [Leg(begin: begin, from: from.width, to: to.width)]
         height = [Leg(begin: begin, from: from.height, to: to.height)]
         self.begin = begin
         start = from
         self.steady = steady
         self.offset = offset
+        self.dampedHorizontal = dampedHorizontal
+        offsetBegin = begin
     }
 
     var target: CGSize { CGSize(width: width.last?.to ?? start.width, height: height.last?.to ?? start.height) }
@@ -3047,26 +3079,34 @@ struct NotchMotionTimeline: Equatable {
     }
 
     func offset(at time: CFTimeInterval) -> CGFloat {
-        NotchMotion.offset(at: time - begin, from: start, to: target, start: offset, steady: steady)
+        if dampedHorizontal {
+            return offset * CGFloat(1 - NotchMotion.shrinkingWidth.progress(at: time - offsetBegin))
+        }
+        return NotchMotion.offset(at: time - begin, from: start, to: target, start: offset, steady: steady)
     }
 
     /// The same motion with its latest move beginning at `time`: Core
     /// Animation starts a motion when it reaches the screen, not when it is made.
-    func rebased(to time: CFTimeInterval) -> NotchMotionTimeline {
+    func rebased(to time: CFTimeInterval, preservingPhase: Bool = false) -> NotchMotionTimeline {
+        let delay = time - begin
         func moved(_ legs: [Leg]) -> [Leg] {
-            legs.map { $0.begin == begin ? Leg(begin: time, from: $0.from, to: $0.to) : $0 }
+            legs.map { leg in
+                guard preservingPhase || leg.begin == begin else { return leg }
+                return Leg(begin: leg.begin + delay, from: leg.from, to: leg.to)
+            }
         }
         var rebased = self
         rebased.width = moved(width)
         rebased.height = moved(height)
+        if preservingPhase || offsetBegin == begin { rebased.offsetBegin += delay }
         rebased.begin = time
         return rebased
     }
 
     /// This motion headed for `size` from `time` on, or nil when a side turns
-    /// back, or the motion eases without a swing or moves its centre.
+    /// back. A separate offset toward a screen edge keeps its own timing.
     func continued(to size: CGSize, at time: CFTimeInterval) -> NotchMotionTimeline? {
-        guard !steady, offset == 0, let width = continued(width, to: size.width, at: time),
+        guard !steady, offset == 0 || dampedHorizontal, let width = continued(width, to: size.width, at: time),
               let height = continued(height, to: size.height, at: time) else { return nil }
         var next = self
         next.width = width
@@ -3074,6 +3114,32 @@ struct NotchMotionTimeline: Equatable {
         next.begin = time
         next.start = self.size(at: time)
         return next
+    }
+
+    /// Keep the horizontal phase of a continued resize, starting exactly at
+    /// the width and offset displayed by Core Animation.
+    func alignedHorizontally(width drawnWidth: CGFloat, offset drawnOffset: CGFloat) -> NotchMotionTimeline {
+        var aligned = self
+        let end = target.width
+        let remaining = end - start.width
+        let drawnRemaining = end - drawnWidth
+        if abs(remaining) > NotchMotion.settledDistance && remaining * drawnRemaining > 0 {
+            let scale = drawnRemaining / remaining
+            aligned.width = width.map { Leg(begin: $0.begin, from: end + ($0.from - end) * scale,
+                                            to: end + ($0.to - end) * scale) }
+        } else {
+            aligned.width = [Leg(begin: begin, from: drawnWidth, to: end)]
+        }
+        aligned.start.width = drawnWidth
+
+        let fraction = CGFloat(1 - NotchMotion.shrinkingWidth.progress(at: begin - offsetBegin))
+        if fraction > 0.01 && offset * drawnOffset > 0 {
+            aligned.offset = drawnOffset / fraction
+        } else {
+            aligned.offset = drawnOffset
+            aligned.offsetBegin = begin
+        }
+        return aligned
     }
 
     /// Sizes at a steady rate from its latest move until every side stays
@@ -3086,7 +3152,8 @@ struct NotchMotionTimeline: Equatable {
         while time < 2 {
             let size = size(at: begin + time)
             if abs(size.width - target.width) > NotchMotion.settledDistance
-                || abs(size.height - target.height) > NotchMotion.settledDistance {
+                || abs(size.height - target.height) > NotchMotion.settledDistance
+                || abs(offset(at: begin + time)) > NotchMotion.settledDistance {
                 duration = time + step
             }
             time += step
@@ -3101,12 +3168,14 @@ struct NotchMotionTimeline: Equatable {
         guard let first = legs.first, let last = legs.last else { return 0 }
         let value = legs.reduce(first.from) { value, leg in
             guard leg.from != leg.to else { return value }
-            let spring = NotchMotion.spring(from: leg.from, to: leg.to, width: width, steady: steady)
+            let spring = dampedHorizontal && width && !steady ? NotchMotion.shrinkingWidth
+                : NotchMotion.spring(from: leg.from, to: leg.to, width: width, steady: steady)
             return value + (leg.to - leg.from) * CGFloat(spring.progress(at: time - leg.begin))
         }
         // Swings that happen to coincide still pass the target no further
         // than one does, so the display keeps its free margin.
-        return max(0, min(value, max(first.from, last.to) + NotchMotion.overshootLimit))
+        let overshoot = dampedHorizontal && width ? 0 : NotchMotion.overshootLimit
+        return max(0, min(value, max(first.from, last.to) + overshoot))
     }
 
     private func continued(_ legs: [Leg], to end: CGFloat, at time: CFTimeInterval) -> [Leg]? {
@@ -3186,28 +3255,33 @@ enum NotchMenuBarLayout {
     }
 
     static func measuredSideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,
-                                 menuItems: [CGRect], statusItems: [CGRect], physicalCamera: CGRect? = nil) -> CGFloat? {
+                                 menuItems: [CGRect], statusItems: [CGRect], physicalCamera: CGRect? = nil,
+                                 anchorX: CGFloat? = nil, horizontalPosition: CGFloat = 0) -> CGFloat? {
         let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)
         guard menuItems.contains(where: { !$0.intersection(bar).isEmpty }) else { return nil }
         let visibleStatus = statusItems.filter { physicalCamera?.contains($0.intersection(bar)) != true }
         return sideRoom(screen: screen, cameraWidth: cameraWidth, barHeight: barHeight,
-                        occupied: menuItems + visibleStatus)
+                        occupied: menuItems + visibleStatus, anchorX: anchorX, horizontalPosition: horizontalPosition)
     }
 
     static func sideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,
-                         occupied: [CGRect]) -> CGFloat? {
+                         occupied: [CGRect], anchorX: CGFloat? = nil, horizontalPosition: CGFloat = 0) -> CGFloat? {
         let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)
-        let camera = CGRect(x: screen.midX - cameraWidth / 2, y: bar.minY,
+        let camera = CGRect(x: (anchorX ?? screen.midX) - cameraWidth / 2, y: bar.minY,
                             width: cameraWidth, height: barHeight)
-        var left = screen.minX + 8
-        var right = screen.maxX - 8
+        let inset: CGFloat = horizontalPosition == 0 ? 8 : NotchGeometry.screenEdgeInset
+        var left = screen.minX + inset
+        var right = screen.maxX - inset
         for rect in occupied where rect.intersects(bar) {
             guard rect.minX.isFinite, rect.maxX.isFinite, rect.width > 0 else { return nil }
             if rect.intersects(camera) { return nil }
             if rect.maxX <= camera.minX { left = max(left, rect.maxX + 8) }
             if rect.minX >= camera.maxX { right = min(right, rect.minX - 8) }
         }
-        return max(0, min(camera.minX - left, right - camera.maxX))
+        // A displaced surface grows more toward the middle of the display.
+        let leading = horizontalPosition > -1 ? (camera.minX - left) / (1 + horizontalPosition) : .infinity
+        let trailing = horizontalPosition < 1 ? (right - camera.maxX) / (1 - horizontalPosition) : .infinity
+        return max(0, min(leading, trailing))
     }
 }
 

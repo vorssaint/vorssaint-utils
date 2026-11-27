@@ -7,6 +7,99 @@ import AppKit
 import SwiftUI
 
 enum NotchTests {
+    private static func horizontalPositionContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: -1920, y: 80, width: 1920, height: 1080)
+        let center = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0)
+        let gutter = NotchQuickAccessLayout.gutter
+        let edge = NotchGeometry.screenEdgeInset
+        for shape: NotchSilhouette in [.notch, .capsule] {
+            for position in [-100.0, 100.0] {
+                let placed = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0,
+                                           silhouette: shape, horizontalPosition: position)
+                let closed = placed.restingSize(showsContent: false)
+                for size in [closed, placed.collapsed, placed.peek, placed.expanded, placed.noticeSize(wingWidth: 2000)] {
+                    let frame = placed.frame(for: size)
+                    let inset = position < 0 ? frame.minX - screen.minX : screen.maxX - frame.maxX
+                    suite.expect(abs(inset - edge) < 0.01 && screen.contains(frame),
+                                 "a shifted \(shape.rawValue) reaches the chosen screen edge at each size")
+                }
+                let openFrame = placed.frame(for: placed.expanded, gutter: gutter)
+                let panel = openFrame.insetBy(dx: -gutter, dy: 0)
+                let panelInset = position < 0 ? panel.minX - screen.minX : screen.maxX - panel.maxX
+                suite.expect(abs(panelInset - edge) < 0.01 && screen.contains(panel),
+                             "the open island keeps space for its floating buttons")
+                let closedFrame = placed.frame(for: closed)
+                let oldTarget = CGPoint(x: screen.midX, y: closedFrame.midY)
+                let newTarget = CGPoint(x: closedFrame.midX, y: closedFrame.midY)
+                suite.expect(placed.contains(newTarget, in: closed) && !placed.contains(oldTarget, in: closed)
+                             && !placed.hasSameMenuBar(as: center),
+                             "moving the island moves its click target and invalidates the old menu measurements")
+            }
+        }
+
+        let moved = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, horizontalPosition: -100)
+        let halfway = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, horizontalPosition: -50)
+        suite.expect(abs(halfway.anchorX - (center.anchorX + moved.anchorX) / 2) < 0.01,
+                     "partial movement uses the same share of the available distance")
+        let menu = CGRect(x: screen.minX + 340, y: screen.maxY - 24, width: 180, height: 24)
+        let status = CGRect(x: screen.midX - 16, y: menu.minY, width: 32, height: menu.height)
+        func room(for geometry: NotchGeometry, menuItems: [CGRect]) -> CGFloat? {
+            NotchMenuBarLayout.measuredSideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
+                barHeight: geometry.menuBarHeight, menuItems: menuItems, statusItems: [status],
+                anchorX: geometry.anchorX, horizontalPosition: geometry.horizontalPosition)
+        }
+        let roomAtEdge = room(for: moved, menuItems: [menu]) ?? 0
+        let strip = CGSize(width: moved.cameraWidth + roomAtEdge * 2, height: moved.stripHeight)
+        suite.expect(room(for: center, menuItems: [menu]) == nil && roomAtEdge > 0
+                     && abs(moved.frame(for: strip).maxX - (menu.minX - 8)) < 0.01,
+                     "menu clearance accounts for a strip growing inward as it widens at the edge")
+        suite.expect(room(for: moved, menuItems: [menu.offsetBy(dx: -340, dy: 0)]) == nil,
+                     "a menu overlapping the selected edge still takes priority")
+
+        let camera = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179)
+        let unchanged = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179, horizontalPosition: -100)
+        suite.expect(camera == unchanged, "an actual camera housing keeps the island centred on its display")
+        let narrowScreen = CGRect(x: 200, y: 0, width: 640, height: 480)
+        let narrow = NotchGeometry(screen: narrowScreen, safeAreaTop: 0, cameraWidth: 0, horizontalPosition: 100)
+        suite.expect(narrow.anchorX(for: 620, gutter: gutter) == narrowScreen.midX,
+                     "a surface without space to travel remains centred")
+        let invalid = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, horizontalPosition: .nan)
+        suite.expect(invalid == center, "a non-finite setting restores the original centred geometry")
+
+        let closed = moved.restingSize(showsContent: false)
+        let open = moved.expanded
+        let opening = NotchMotionTimeline(from: closed, to: open, begin: 10, offset: -gutter, dampedHorizontal: true)
+        let offsets = (0...60).map { opening.offset(at: 10 + Double($0) / 100) }
+        let frames = opening.frames()
+        suite.expect(offsets.first == -gutter && offsets.allSatisfy { $0 <= 0 }
+                     && zip(offsets, offsets.dropFirst()).allSatisfy { $0 <= $1 }
+                     && abs(opening.offset(at: 10 + frames.duration)) < 0.5,
+                     "the slide at the edge eases inward without bouncing or snapping at the end")
+        let arrived = 10.12
+        let taller = CGSize(width: open.width, height: open.height + 80)
+        if let continued = opening.continued(to: taller, at: arrived) {
+            suite.expect(continued.offset(at: arrived + 0.04) == opening.offset(at: arrived + 0.04),
+                         "a layout measurement during opening preserves the ongoing horizontal slide")
+            let drawnWidth = continued.start.width - 6
+            let drawnOffset = continued.offset(at: arrived) - 4
+            let aligned = continued.alignedHorizontally(width: drawnWidth, offset: drawnOffset)
+            suite.expect(abs(aligned.size(at: arrived).width - drawnWidth) < 0.001
+                         && abs(aligned.offset(at: arrived) - drawnOffset) < 0.001,
+                         "a retarget uses the displayed width and offset even when Core Animation is one frame behind")
+            let rightEdges = (0...80).map { step in
+                let time = arrived + Double(step) / 100
+                return aligned.size(at: time).width + aligned.offset(at: time)
+            }
+            suite.expect(zip(rightEdges, rightEdges.dropFirst()).allSatisfy { $0 <= $1 }
+                         && rightEdges.allSatisfy { $0 <= taller.width },
+                         "the inner edge never overshoots or turns back after a layout update")
+        } else {
+            suite.expect(false, "an edge opening can carry motion into a taller page")
+        }
+        suite.expect(opening.continued(to: closed, at: arrived) == nil,
+                     "an edge opening can reverse from its currently drawn frame")
+    }
+
     private static func railContracts(_ suite: TestSuite) {
         let domain = "com.vorssaint.tests.notch-fan-only"
         let defaults = UserDefaults(suiteName: domain)!
@@ -1843,6 +1936,7 @@ enum NotchTests {
 
     static func run(_ suite: TestSuite) {
         shortcutContracts(suite)
+        horizontalPositionContracts(suite)
         let previewStrip: CGFloat = 37
         suite.expect(NotchTranslucentTint.opacity(atDepth: previewStrip, stripHeight: previewStrip,
                                                   openness: 1, increasedContrast: false) == 1

@@ -292,12 +292,14 @@ enum SettingsBackupSupport {
         return result
     }
 
-    /// A display mode this version does not offer, such as one kept by an
-    /// earlier development build, restores as the automatic choice.
+    /// Keep the display choice and the shared position valid on another Mac.
     private static func portableNotchDisplay(_ settings: [String: Any]) -> [String: Any] {
         var result = settings
         if let mode = result[DefaultsKey.notchDisplay] as? String, NotchDisplay(rawValue: mode) == nil {
             result[DefaultsKey.notchDisplay] = NotchDisplay.automatic.rawValue
+        }
+        if let position = result[DefaultsKey.notchHorizontalPosition] as? Double {
+            result[DefaultsKey.notchHorizontalPosition] = NotchSupport.sanitizedHorizontalPosition(position)
         }
         return result
     }
