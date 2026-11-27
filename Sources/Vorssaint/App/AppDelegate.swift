@@ -91,6 +91,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // quitting to relaunch under the new name, so skip the rest of startup.
         if BundleMigration.run() { return }
 
+        // Daily network usage (Today / 7 / 30 days) for the Network card.
+        NetworkUsageRecorder.shared.start()
+
         DispatchQueue.global(qos: .utility).async {
             RecorderGIFWorkspace.sweep()
         }
@@ -334,6 +337,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         ExtraBrightnessService.shared.stop()
         ProcessUsageService.shared.stopNetworkMonitoring(force: true)
+        NetworkUsageRecorder.shared.stop()
         URLCleanerService.shared.stop()
         FocusFollowsMouseService.shared.stop()
         WindowMaximizer.shared.stop()
