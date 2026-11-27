@@ -31,11 +31,12 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
     var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects }
 }
 
-enum LidLogoCuePattern: String, CaseIterable, Identifiable {
-    case single, double
+struct NotchAgentCompletion: Equatable {
+    static let rowHeight: CGFloat = 26
 
-    var id: Self { self }
-    var pulseCount: Int { self == .double ? 2 : 1 }
+    let provider: AgentProvider
+    let project: String
+    let date: Date
 }
 
 /// What the closed island shows beside the camera while an agent works.
@@ -202,13 +203,17 @@ enum NotchAgentSupport {
         return value.isFinite ? min(3600, max(0, value)) : defaultFinishMinimum
     }
 
-    static func lidLogoPattern(in defaults: UserDefaults = .standard) -> LidLogoCuePattern {
-        LidLogoCuePattern(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsLidLogoPattern) ?? "") ?? .single
+    static func lidLogoCueEnabled(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchAgentsPulseLidLogo) && isEnabled(in: defaults)
+            && finishMinimum(in: defaults) != nil
+    }
+
+    static func repeatsLidLogoCue(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchAgentsRepeatLidLogoCue) as? Bool ?? true
     }
 
     static func shouldPulseLidLogo(after duration: TimeInterval, in defaults: UserDefaults = .standard) -> Bool {
-        guard duration.isFinite, defaults.bool(forKey: DefaultsKey.notchAgentsPulseLidLogo),
-              isEnabled(in: defaults), let minimum = finishMinimum(in: defaults)
+        guard duration.isFinite, lidLogoCueEnabled(in: defaults), let minimum = finishMinimum(in: defaults)
         else { return false }
         return duration >= minimum
     }

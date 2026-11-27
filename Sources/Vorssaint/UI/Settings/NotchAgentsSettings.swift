@@ -22,7 +22,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsFinishAlert) private var finishAlert = true
     @AppStorage(DefaultsKey.notchAgentsPulseLidLogo) private var pulseLidLogo = false
-    @AppStorage(DefaultsKey.notchAgentsLidLogoPattern) private var lidLogoPattern = LidLogoCuePattern.single
+    @AppStorage(DefaultsKey.notchAgentsRepeatLidLogoCue) private var repeatLidLogoCue = true
     @AppStorage(DefaultsKey.notchAgentsFinishMinimum) private var finishMinimum = NotchAgentSupport.defaultFinishMinimum
     @AppStorage(DefaultsKey.notchAgentsLimitAlert) private var limitAlert = true
     @AppStorage(DefaultsKey.notchAgentsLimitThreshold) private var limitThreshold = NotchAgentSupport.defaultLimitThreshold
@@ -124,12 +124,15 @@ struct NotchAgentsSettingsControls: View {
                     switchRow("laptopcomputer", text.pulseLidLogo, isOn: $pulseLidLogo)
                         .padding(.leading, settingsRowTextInset)
                     if pulseLidLogo {
-                        SettingsMenuRow(symbol: "waveform", title: text.lidLogoPattern, selection: $lidLogoPattern) {
-                            ForEach(LidLogoCuePattern.allCases) { pattern in
-                                Text(text.lidLogoTitle(pattern)).tag(pattern)
-                            }
+                        switchRow("repeat", text.repeatLidLogoCue, isOn: $repeatLidLogoCue)
+                            .padding(.leading, settingsRowTextInset)
+                        if repeatLidLogoCue {
+                            Text(text.repeatLidLogoCueHint)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.leading, settingsRowTextInset)
                         }
-                        .padding(.leading, settingsRowTextInset)
                     }
                 }
             }
@@ -181,6 +184,9 @@ struct NotchAgentsSettingsControls: View {
         }
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
+        .onChange(of: [finishAlert, pulseLidLogo, repeatLidLogoCue]) { _, _ in
+            NotchService.shared.syncWithPreferences()
+        }
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot),
                        String(cursor), String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
             NotchService.shared.syncWithPreferences()

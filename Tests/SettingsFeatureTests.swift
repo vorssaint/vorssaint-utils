@@ -66,10 +66,17 @@ enum SettingsFeatureTests {
                 .flatMap(\.items).flatMap(\.terms)
                 .filter { $0.shown && $0.feature == .notchAgents }.flatMap(\.titles))
         }
-        let cueTitles: Set<String> = [agents.pulseLidLogo, agents.lidLogoPattern]
+        let cueTitles: Set<String> = [agents.pulseLidLogo, agents.repeatLidLogoCue]
         suite.expect(cueSearchTerms(lidLogo: true).isSuperset(of: cueTitles)
                         && cueSearchTerms(lidLogo: false).isDisjoint(with: cueTitles),
                      "a saved opt-in never exposes search rows on an unsupported Mac")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsPulseLidLogo)
+        suite.expect(cueSearchTerms(lidLogo: true).contains(agents.pulseLidLogo)
+                        && !cueSearchTerms(lidLogo: true).contains(agents.repeatLidLogoCue),
+                     "search offers the opt-in and hides reminder settings until enabled")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsFinishAlert)
+        suite.expect(cueSearchTerms(lidLogo: true).isDisjoint(with: cueTitles),
+                     "search hides lid controls when completion alerts are off")
         defaults.removeObject(forKey: DefaultsKey.notchAgentsFinishAlert)
         defaults.removeObject(forKey: DefaultsKey.notchAgentsPulseLidLogo)
 

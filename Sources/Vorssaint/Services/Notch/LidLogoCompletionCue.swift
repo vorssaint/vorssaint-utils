@@ -33,88 +33,139 @@ final class LidLogoCompletionCue {
 
     nonisolated static var isSupported: Bool { LidLogoFadeClient.available != nil }
 
+    struct Timing {
+        var dim: Double = 1.1
+        var brighten: Double = 1.4
+        var settle: Double = 0.55
+        var cooldown: Duration = .seconds(8)
+        var reminderInterval: Duration = .seconds(25)
+        var reminderLifetime: Duration = .seconds(300)
+    }
+
+    private let timing: Timing
     private let driver: () -> (any LidLogoFading)?
     private let journal: URL?
     private let mayControlLogo: () -> Bool
     private let recoveryCenter: NotificationCenter
-    private var task: Task<Void, Never>?
+    private var breath: Task<Void, Never>?
+    private var reminders: Task<Void, Never>?
+    private var playingReminder = false
     private var nextCue = ContinuousClock.now
     private var recoveryObservers: [NSObjectProtocol] = []
 
     init(driver: @escaping () -> (any LidLogoFading)?, journal: URL?,
          mayControlLogo: @escaping () -> Bool,
-         recoveryCenter: NotificationCenter = NSWorkspace.shared.notificationCenter) {
+         recoveryCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
+         timing: Timing = Timing()) {
         self.driver = driver
         self.journal = journal
         self.mayControlLogo = mayControlLogo
         self.recoveryCenter = recoveryCenter
+        self.timing = timing
     }
 
     private var restorePending: Bool {
         journal.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
     }
 
-    func play(_ pattern: LidLogoCuePattern) {
-        guard task == nil, ContinuousClock.now >= nextCue else { return }
-        if restorePending { recover(); return }
+    func play(repeatReminders: Bool = false, remindersEnabled: @escaping () -> Bool = { true }) {
+        guard reminders == nil, startBreath(reminder: false), repeatReminders else { return }
+        let expires = ContinuousClock.now + timing.reminderLifetime
+        let interval = timing.reminderInterval
+        reminders = Task { [weak self] in
+            defer { if !Task.isCancelled { self?.reminders = nil } }
+            while ContinuousClock.now + interval < expires {
+                do { try await Task.sleep(for: interval) } catch { return }
+                guard !Task.isCancelled, ContinuousClock.now < expires, remindersEnabled(),
+                      self?.startBreath(reminder: true) == true
+                else { return }
+            }
+        }
+    }
+
+    @discardableResult
+    private func startBreath(reminder: Bool) -> Bool {
+        guard breath == nil, ContinuousClock.now >= nextCue else { return false }
+        if restorePending { recover(); return false }
         guard let driver = driver(), driver.canFade, mayControlLogo(), let journal,
               PrivateFileStore.createDirectory(at: journal.deletingLastPathComponent()),
               PrivateFileStore.write(Data(), to: journal)
-        else { return }
+        else { return false }
 
         // Record recovery before the first write. Never touch the persisted logo
         // on/off setting or change the screen's brightness.
-        nextCue = ContinuousClock.now + .seconds(8)
-        startDip(using: driver, remainingDips: pattern.pulseCount)
-    }
-
-    private func startDip(using driver: any LidLogoFading, remainingDips: Int) {
-        switch driver.fadeOut() {
+        observeRecoveryIfNeeded()
+        switch driver.fadeOut(duration: timing.dim) {
         case .unavailable:
             clearRecoveryRecord()
-            return
+            return false
         case .interrupted:
             recover()
-            return
+            return false
         case .started:
-            break
+            nextCue = ContinuousClock.now + timing.cooldown
+            playingReminder = reminder
         }
-        task = Task { [weak self] in
-            do { try await Task.sleep(for: .milliseconds(550)) } catch { return }
-            guard let self, !Task.isCancelled else { return }
-            task = nil
-            restore(duration: 0.85, followingDips: remainingDips - 1)
+        breath = Task { [weak self] in
+            guard let self else { return }
+            do { try await Task.sleep(for: .seconds(timing.dim)) } catch { return }
+            guard !Task.isCancelled else { return }
+            breath = nil
+            restore(duration: timing.brighten)
         }
+        return true
+    }
+
+    func stopReminders() {
+        clearReminderTimer()
+        if playingReminder { cancel() }
     }
 
     func cancel() {
-        task?.cancel()
-        task = nil
+        clearReminderTimer()
+        playingReminder = false
+        breath?.cancel()
+        breath = nil
         recover()
     }
 
     func recover() {
-        guard task == nil else { return }
+        guard breath == nil else { return }
         restore(duration: 0)
     }
 
-    private func restore(duration: Double, followingDips: Int = 0) {
+    private func clearReminderTimer() {
+        reminders?.cancel()
+        reminders = nil
+    }
+
+    private func restore(duration: Double) {
         guard restorePending, let driver = driver() else { return }
         observeRecoveryIfNeeded()
-        guard driver.isAwake, mayControlLogo(),
-              driver.restore(duration: duration)
-        else { return }
+        guard driver.isAwake, mayControlLogo(), driver.restore(duration: duration) else {
+            playingReminder = false
+            clearReminderTimer()
+            return
+        }
 
-        task = Task { [weak self] in
-            do { try await Task.sleep(for: .milliseconds(1100)) } catch { return }
-            guard let self, !Task.isCancelled else { return }
-            task = nil
-            guard driver.isAtBaseline else { return }
-            if followingDips > 0, restorePending, driver.isAwake, driver.canFade, mayControlLogo() {
-                startDip(using: driver, remainingDips: followingDips)
-                return
+        breath = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await Task.sleep(for: .seconds(duration + timing.settle))
+                // A rise from dark can wait for the next display frame. Allow
+                // a late return without writing another hardware command.
+                for _ in 0..<2 where !driver.isAtBaseline {
+                    try await Task.sleep(for: .milliseconds(250))
+                }
+            } catch { return }
+            guard !Task.isCancelled else { return }
+            breath = nil
+            playingReminder = false
+            if driver.isAtBaseline, mayControlLogo(), driver.finishRestore() {
+                clearRecoveryRecord()
+            } else {
+                clearReminderTimer()
             }
-            clearRecoveryRecord()
         }
     }
 
@@ -150,8 +201,9 @@ protocol LidLogoFading: AnyObject {
     @MainActor var isAwake: Bool { get }
     @MainActor var isAtBaseline: Bool { get }
     @MainActor var canFade: Bool { get }
-    @MainActor func fadeOut() -> LidLogoFadeStart
+    @MainActor func fadeOut(duration: Double) -> LidLogoFadeStart
     @MainActor func restore(duration: Double) -> Bool
+    @MainActor func finishRestore() -> Bool
 }
 
 /// Logo fade and keyboard interaction measured in LogoLight's CoreBrightness
@@ -192,11 +244,6 @@ private final class LidLogoFadeClient: LidLogoFading {
         write = unsafeBitCast(method_getImplementation(set), to: Write.self)
         writeKeyboard = unsafeBitCast(method_getImplementation(setKeyboard), to: WriteKeyboard.self)
         copyIDs = unsafeBitCast(method_getImplementation(ids), to: CopyIDs.self)
-        guard fadeFactor != nil,
-              property("LEBacklightMode") is NSNumber,
-              property("DisplayLogicalState") is NSNumber,
-              property("CBClamshellState") is NSNumber
-        else { return nil }
     }
 
     private static func method(_ type: AnyClass, _ selector: Selector,
@@ -245,10 +292,10 @@ private final class LidLogoFadeClient: LidLogoFading {
             && !keyboardIDs().isEmpty
     }
 
-    func fadeOut() -> LidLogoFadeStart {
+    func fadeOut(duration: Double) -> LidLogoFadeStart {
         let ids = keyboardIDs()
         guard !ids.isEmpty else { return .unavailable }
-        guard set(0.9, key: "LEPWMFactorFadeDuration"), set(1, key: "DisplayLogicalState")
+        guard set(NSNumber(value: duration), key: "LEPWMFactorFadeDuration"), set(1, key: "DisplayLogicalState")
         else { return .interrupted }
         // A global Blank also reaches the keyboard. Undo it there immediately.
         var keyboardsRestored = true
@@ -263,8 +310,13 @@ private final class LidLogoFadeClient: LidLogoFading {
     func restore(duration: Double) -> Bool {
         let durationSet = set(NSNumber(value: duration), key: "LEPWMFactorFadeDuration")
         let unblanked = set(2, key: "DisplayLogicalState")
-        let automatic = set(0, key: "LEPWMFactorFadeDuration")
-        return durationSet && unblanked && automatic
+        return durationSet && unblanked
+    }
+
+    func finishRestore() -> Bool {
+        // Resetting the duration before the re-light starts can make the
+        // return snap on instead of fading, especially on a static display.
+        set(0, key: "LEPWMFactorFadeDuration")
     }
 
     private func keyboardIDs() -> [NSNumber] {

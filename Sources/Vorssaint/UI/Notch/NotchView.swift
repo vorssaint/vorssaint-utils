@@ -597,7 +597,9 @@ struct NotchView: View {
             // here would replace.
             case .tools: QuickLauncherView(notchSize: pageSize)
             case .scratchpad: NotchScratchpadView(service: service)
-            case .agents: NotchAgentsView(size: pageSize)
+            case .agents:
+                NotchAgentsView(size: pageSize, completion: service.lastAgentCompletion)
+                    .onAppear { LidLogoCompletionCue.shared.stopReminders() }
             case .watch: NotchWatchView(size: pageSize)
             }
         }

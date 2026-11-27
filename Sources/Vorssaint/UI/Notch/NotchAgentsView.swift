@@ -6,6 +6,7 @@ import SwiftUI
 /// The AI page: cards the person picked, paired across the strip.
 struct NotchAgentsView: View {
     let size: CGSize
+    var completion: NotchAgentCompletion? = nil
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var accounts = CodexProfileLimitsService.shared
     @ObservedObject private var l10n = L10n.shared
@@ -49,6 +50,25 @@ struct NotchAgentsView: View {
     }
 
     var body: some View {
+        VStack(spacing: NotchAgentSupport.spacing) {
+            if let completion { completionRow(completion) }
+            cards
+        }
+        .frame(width: size.width, height: size.height, alignment: .top)
+        .environment(\.locale, l10n.language.formattingLocale())
+        .onAppear {
+            usage.pageDidAppear(preview: preview)
+            accounts.pageDidAppear(preview: preview)
+        }
+        .onDisappear {
+            guard !preview else { return }
+            usage.pageDidDisappear()
+            accounts.pageDidDisappear()
+        }
+    }
+
+    @ViewBuilder private var cards: some View {
+        let reserved = completion == nil ? 0 : NotchAgentCompletion.rowHeight + NotchAgentSupport.spacing
         Group {
             if !usage.snapshot.loaded && codexAccounts.isEmpty {
                 VStack(spacing: 10) {
@@ -63,7 +83,7 @@ struct NotchAgentsView: View {
             } else {
                 let rows = rows
                 TimelineView(.periodic(from: .now, by: 15)) { context in
-                    if NotchAgentSupport.contentHeight(rows) > size.height + 0.5 {
+                    if NotchAgentSupport.contentHeight(rows) > size.height - reserved + 0.5 {
                         ScrollView { grid(rows, now: context.date) }
                             .scrollIndicators(.automatic)
                     } else {
@@ -77,17 +97,33 @@ struct NotchAgentsView: View {
                 })
             }
         }
-        .frame(width: size.width, height: size.height, alignment: .top)
-        .environment(\.locale, l10n.language.formattingLocale())
-        .onAppear {
-            usage.pageDidAppear(preview: preview)
-            accounts.pageDidAppear(preview: preview)
+    }
+
+    private func completionRow(_ completion: NotchAgentCompletion) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark.circle")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text(text.finished(completion.provider.displayName))
+                .fontWeight(.medium)
+                .lineLimit(1)
+            if !completion.project.isEmpty {
+                Text(completion.project)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer(minLength: 4)
+            Text(completion.date.formatted(.dateTime.month(.abbreviated).day().hour().minute()
+                .locale(l10n.language.formattingLocale())))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .layoutPriority(1)
         }
-        .onDisappear {
-            guard !preview else { return }
-            usage.pageDidDisappear()
-            accounts.pageDidDisappear()
-        }
+        .font(.system(size: 11))
+        .padding(.horizontal, 8)
+        .frame(height: NotchAgentCompletion.rowHeight)
+        .accessibilityElement(children: .combine)
     }
 
     private var periodMenu: some View {

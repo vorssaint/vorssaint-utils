@@ -293,7 +293,7 @@ enum SettingsDirectory {
             .init([notchAgents.readout], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLiveActivity)),
             .init([notchAgents.pulseLidLogo], feature: .notchAgents, notch: .module(.agents),
                   when: state.on(DefaultsKey.notchAgentsFinishAlert) && state.hardware.lidLogo),
-            .init([notchAgents.lidLogoPattern, notchAgents.lidLogoSingle, notchAgents.lidLogoDouble],
+            .init([notchAgents.repeatLidLogoCue],
                   feature: .notchAgents, notch: .module(.agents),
                   when: state.on(DefaultsKey.notchAgentsFinishAlert) && state.on(DefaultsKey.notchAgentsPulseLidLogo)
                       && state.hardware.lidLogo),

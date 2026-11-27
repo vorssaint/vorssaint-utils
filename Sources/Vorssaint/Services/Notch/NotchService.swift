@@ -138,6 +138,7 @@ final class NotchService: ObservableObject {
     @Published private(set) var captureSelectionInProgress = false
     @Published var pinned = false
     @Published private(set) var selected: NotchModule = .controls
+    @Published private(set) var lastAgentCompletion: NotchAgentCompletion?
     @Published private(set) var showingAppPanel = false
     @Published private(set) var showingSections = false
     @Published private(set) var sectionQuery = ""
@@ -264,6 +265,11 @@ final class NotchService: ObservableObject {
     private(set) var running = false
     private var session = NotchSessionState()
     private var suspended: Bool { !session.canPresent }
+
+    private var agentsPageVisible: Bool {
+        expanded && selected == .agents && selectedMetric == nil && !showingAppPanel && !showingSections
+            && !showingCommandBar && captureControls == nil && !fullscreenCompact && !suspended
+    }
     @Published private(set) var hiddenInFullscreen = false {
         didSet {
             guard hiddenInFullscreen != oldValue else { return }
@@ -917,7 +923,9 @@ final class NotchService: ObservableObject {
         let providers = NotchAgentSupport.pageProviders(snapshot: usage, hasCodexAccounts: !accounts.isEmpty,
                                                         hasClaudeAccount: claudeAccount != nil)
         guard !providers.isEmpty else { return 0 }
-        return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
+        let completionHeight = lastAgentCompletion == nil ? 0
+            : NotchAgentCompletion.rowHeight + NotchAgentSupport.spacing
+        return completionHeight + NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
             NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts,
                                     claudeAccount: claudeAccount, snapshot: usage),
             width: width))
@@ -1184,9 +1192,17 @@ final class NotchService: ObservableObject {
         // Paused while the island is away, the section still stops at once
         // when it is turned off.
         if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop() }
-        if !NotchAgentSupport.isEnabled() || !UserDefaults.standard.bool(forKey: DefaultsKey.notchAgentsPulseLidLogo)
-            || NotchAgentSupport.finishMinimum() == nil {
+        if !NotchAgentSupport.lidLogoCueEnabled() {
+            if lastAgentCompletion != nil { lastAgentCompletion = nil }
             MainActor.assumeIsolated { LidLogoCompletionCue.shared.cancel() }
+        } else {
+            if let lastAgentCompletion, !NotchAgentSupport.providers().contains(lastAgentCompletion.provider) {
+                self.lastAgentCompletion = nil
+                MainActor.assumeIsolated { LidLogoCompletionCue.shared.stopReminders() }
+            }
+            if !NotchAgentSupport.repeatsLidLogoCue() {
+                MainActor.assumeIsolated { LidLogoCompletionCue.shared.stopReminders() }
+            }
         }
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
@@ -1288,6 +1304,7 @@ final class NotchService: ObservableObject {
     }
 
     func stop(restoreCapture: Bool = true) {
+        if lastAgentCompletion != nil { lastAgentCompletion = nil }
         MainActor.assumeIsolated { LidLogoCompletionCue.shared.cancel() }
         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
         hotkey.unregister()
@@ -3630,6 +3647,7 @@ final class NotchService: ObservableObject {
     /// in use elsewhere, so a capture preview moves to its own window, and a
     /// finished timer waits to ring until the island can be dismissed again.
     private func withdrawFromMissingScreen() {
+        MainActor.assumeIsolated { LidLogoCompletionCue.shared.cancel() }
         let cancelCapture = captureControlsCancel
         endCaptureControls()
         cancelCapture?()
@@ -4373,10 +4391,20 @@ final class NotchService: ObservableObject {
             }
         }
         switch event {
-        case .finished(let provider, let duration, let cost, _, _):
-            if !suspended, NotchAgentSupport.shouldPulseLidLogo(after: duration) {
+        case .finished(let provider, let duration, let cost, _, let project):
+            if !suspended, NotchAgentSupport.shouldPulseLidLogo(after: duration), LidLogoCompletionCue.isSupported {
+                let firstCompletion = lastAgentCompletion == nil
+                lastAgentCompletion = NotchAgentCompletion(provider: provider, project: project, date: Date())
+                if firstCompletion, agentsPageVisible { refreshPresentation() }
                 MainActor.assumeIsolated {
-                    LidLogoCompletionCue.shared.play(NotchAgentSupport.lidLogoPattern())
+                    LidLogoCompletionCue.shared.play(
+                        repeatReminders: !agentsPageVisible && NotchAgentSupport.repeatsLidLogoCue(),
+                        remindersEnabled: { [weak self] in
+                            guard let self else { return false }
+                            return !suspended && !agentsPageVisible && NotchAgentSupport.lidLogoCueEnabled()
+                                && NotchAgentSupport.repeatsLidLogoCue()
+                        }
+                    )
                 }
             }
             show(NotchNotice(event: .agents, title: text.finished(provider.displayName),

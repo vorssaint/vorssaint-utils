@@ -11,7 +11,8 @@ enum LidLogoCompletionCueTests {
         unsupportedHardware(suite)
         unavailableDuringStart(suite)
         resumesRecoveryAfterControllerQuits(suite)
-        doublePulse(suite)
+        slowBreath(suite)
+        reminders(suite)
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder) }
         let journal = folder.appendingPathComponent("lid-logo-restore")
@@ -20,18 +21,18 @@ enum LidLogoCompletionCueTests {
         let cue = LidLogoCompletionCue(driver: { driver }, journal: journal,
                                        mayControlLogo: { !anotherControllerRunning })
 
-        cue.play(.single)
+        cue.play()
         suite.expect(driver.fades == 0 && !driver.hasJournal, "a competing logo controller takes priority")
         anotherControllerRunning = false
         driver.canFade = false
-        cue.play(.single)
+        cue.play()
         suite.expect(driver.fades == 0 && !driver.hasJournal, "an unavailable fade leaves the hardware alone")
 
         driver.canFade = true
-        cue.play(.single)
+        cue.play()
         suite.expect(driver.fades == 1 && driver.recordedBeforeFade,
                      "the logo cue records recovery before changing the light")
-        cue.play(.single)
+        cue.play()
         suite.expect(driver.fades == 1, "coincident notices do not restart an active cue")
 
         driver.isAwake = false
@@ -52,8 +53,8 @@ enum LidLogoCompletionCueTests {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let journal = folder.appendingPathComponent("lid-logo-restore")
         let cue = LidLogoCompletionCue(driver: { nil }, journal: journal, mayControlLogo: { true })
-        cue.play(.single)
-        cue.play(.double)
+        cue.play()
+        cue.play(repeatReminders: true)
         cue.cancel()
         suite.expect(!FileManager.default.fileExists(atPath: folder.path),
                      "an imported opt-in setting on an unsupported Mac creates no recovery state")
@@ -74,7 +75,7 @@ enum LidLogoCompletionCueTests {
         let driver = Driver(journal: journal)
         driver.fadeResult = .unavailable
         let cue = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true })
-        cue.play(.double)
+        cue.play(repeatReminders: true)
         suite.expect(driver.fades == 1 && driver.restores.isEmpty && !driver.hasJournal,
                      "hardware lost after preflight produces neither a restore write nor a lingering record")
     }
@@ -88,7 +89,7 @@ enum LidLogoCompletionCueTests {
         var anotherControllerRunning = false
         let cue = LidLogoCompletionCue(driver: { driver }, journal: journal,
                                        mayControlLogo: { !anotherControllerRunning }, recoveryCenter: center)
-        cue.play(.double)
+        cue.play(repeatReminders: true)
         anotherControllerRunning = true
         cue.cancel()
         suite.expect(driver.hasJournal && driver.restores.isEmpty,
@@ -96,59 +97,75 @@ enum LidLogoCompletionCueTests {
         anotherControllerRunning = false
         center.post(name: NSWorkspace.didTerminateApplicationNotification, object: nil)
         suite.expect(waitUntil { !driver.hasJournal } && driver.restores == [0] && driver.fades == 1,
-                     "quitting the competing app retries recovery without playing the second dip")
+                     "quitting the competing app retries recovery without a reminder")
     }
 
-    private static func doublePulse(_ suite: TestSuite) {
+    private static func slowBreath(_ suite: TestSuite) {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder) }
         let journal = folder.appendingPathComponent("lid-logo-restore")
-
         let driver = Driver(journal: journal)
-        let cue = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true })
-        cue.play(.double)
-        cue.play(.double)
-        suite.expect(driver.fades == 1, "another completion cannot restart a double pulse")
-        suite.expect(waitUntil { driver.fades == 2 } && driver.restores == [0.85] && driver.hasJournal,
-                     "the second dip starts after the first return, with recovery still recorded")
-        suite.expect(waitUntil { !driver.hasJournal } && driver.restores == [0.85, 0.85],
-                     "the full double pulse restores and clears its journal")
+        let timing = LidLogoCompletionCue.Timing(dim: 0.02, brighten: 0.03, settle: 0.02)
+        let cue = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true }, timing: timing)
+        cue.play()
+        suite.expect(driver.dims == [0.02] && driver.hasJournal,
+                     "the breath starts fading down with recovery armed")
+        suite.expect(waitUntil { !driver.hasJournal } && driver.restores == [0.03] && driver.fades == 1
+                        && driver.finishedRestores == 1,
+                     "one breath fades back up and clears its verified recovery record")
+        cue.cancel()
+    }
 
-        let cancelled = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true })
-        cancelled.play(.double)
-        suite.expect(waitUntil { driver.restores.count == 3 },
-                     "the first return has started before cancellation")
-        cancelled.cancel()
-        suite.expect(waitUntil { !driver.hasJournal } && driver.fades == 3 && driver.restores.last == 0,
-                     "canceling the first return restores without scheduling a second dip")
+    private static func reminders(_ suite: TestSuite) {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let journal = folder.appendingPathComponent("lid-logo-restore")
+        let driver = Driver(journal: journal)
+        let timing = LidLogoCompletionCue.Timing(dim: 0.02, brighten: 0.03, settle: 0.02,
+            cooldown: .milliseconds(100), reminderInterval: .milliseconds(240), reminderLifetime: .milliseconds(650))
 
-        let unsettled = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true })
-        unsettled.play(.double)
-        driver.baselineAvailable = false
-        suite.expect(waitUntil { driver.restores.count == 5 }, "the unsettled first dip still attempts to return")
-        let readbacks = driver.baselineChecks
-        suite.expect(waitUntil { driver.baselineChecks > readbacks } && driver.hasJournal && driver.fades == 4,
-                     "a failed brightness readback keeps recovery and skips the second dip")
-        driver.baselineAvailable = true
-        unsettled.recover()
-        suite.expect(waitUntil { !driver.hasJournal }, "recovery can settle the light after the failed readback")
+        let cue = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true }, timing: timing)
+        cue.play(repeatReminders: true)
+        suite.expect(waitUntil { !driver.hasJournal }, "the initial breath finishes before any reminder")
+        cue.play(repeatReminders: true)
+        suite.expect(driver.fades == 1, "a second completion shares the pending reminder")
+        spin(for: 0.77)
+        suite.expect(driver.fades == 3 && driver.restores == [0.03, 0.03, 0.03] && !driver.hasJournal,
+                     "reminders end after the original window and every breath restores")
 
-        var anotherControllerRunning = false
-        let contested = LidLogoCompletionCue(driver: { driver }, journal: journal,
-                                             mayControlLogo: { !anotherControllerRunning })
-        contested.play(.double)
-        suite.expect(waitUntil { driver.restores.count == 7 },
-                     "the first return has started before another controller starts")
-        anotherControllerRunning = true
-        suite.expect(waitUntil { !driver.hasJournal } && driver.fades == 5,
-                     "a competing controller prevents the second dip after a verified return")
+        let acknowledged = LidLogoCompletionCue(driver: { driver }, journal: journal,
+                                                mayControlLogo: { true }, timing: timing)
+        acknowledged.play(repeatReminders: true)
+        suite.expect(waitUntil { driver.fades == 5 } && driver.hasJournal,
+                     "one reminder is playing when the user opens AI Agents")
+        acknowledged.stopReminders()
+        spin(for: 0.54)
+        suite.expect(driver.fades == 5 && driver.restores.last == 0 && !driver.hasJournal,
+                     "acknowledgment restores an active reminder and prevents the next one")
 
-        let interrupted = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true })
-        interrupted.play(.double)
-        suite.expect(waitUntil { driver.fades == 7 }, "the second dip has started before cancellation")
-        interrupted.cancel()
-        suite.expect(waitUntil { !driver.hasJournal } && driver.fades == 7 && driver.restores.last == 0,
-                     "canceling the second dip restores and clears the recovery record")
+        var enabled = true
+        let disabled = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true }, timing: timing)
+        disabled.play(repeatReminders: true, remindersEnabled: { enabled })
+        enabled = false
+        spin(for: 0.36)
+        suite.expect(driver.fades == 6 && !driver.hasJournal,
+                     "a changed preference is checked before the next hardware write")
+
+        let sleeping = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true }, timing: timing)
+        sleeping.play(repeatReminders: true)
+        driver.isAwake = false
+        sleeping.cancel()
+        spin(for: 0.28)
+        suite.expect(driver.fades == 7 && driver.hasJournal, "sleep cancels reminders and leaves recovery pending")
+        driver.isAwake = true
+        sleeping.recover()
+        suite.expect(waitUntil { !driver.hasJournal }, "wake restores before any new cue")
+        spin(for: 0.28)
+        suite.expect(driver.fades == 7, "wake does not replay missed reminders")
+    }
+
+    private static func spin(for seconds: TimeInterval) {
+        RunLoop.current.run(until: Date().addingTimeInterval(seconds))
     }
 
     private static func waitUntil(_ predicate: () -> Bool) -> Bool {
@@ -184,16 +201,13 @@ enum LidLogoCompletionCueTests {
         defaults.set(false, forKey: AppFeature.notchAgents.availabilityKey)
         suite.expect(!NotchAgentSupport.shouldPulseLidLogo(after: 90, in: defaults),
                      "uninstalling Agents also turns off the physical cue")
-        suite.expect(NotchAgentSupport.lidLogoPattern(in: defaults) == .single
-                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsLidLogoPattern] as? String == "single",
-                     "existing preferences and the registered default give one pulse")
-        defaults.set("unknown", forKey: DefaultsKey.notchAgentsLidLogoPattern)
-        suite.expect(NotchAgentSupport.lidLogoPattern(in: defaults) == .single,
-                     "unknown values fall back to one pulse")
-        defaults.set("double", forKey: DefaultsKey.notchAgentsLidLogoPattern)
-        suite.expect(NotchAgentSupport.lidLogoPattern(in: defaults) == .double
-                        && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchAgentsLidLogoPattern),
-                     "the double pulse setting is read back and portable")
+        suite.expect(NotchAgentSupport.repeatsLidLogoCue(in: defaults)
+                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsRepeatLidLogoCue] as? Bool == true,
+                     "reminders are on by default after opting into the lid cue")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsRepeatLidLogoCue)
+        suite.expect(!NotchAgentSupport.repeatsLidLogoCue(in: defaults)
+                        && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchAgentsRepeatLidLogoCue),
+                     "the reminder setting can be disabled and is portable")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchAgentsPulseLidLogo] as? Bool == false,
                      "a physical cue is opt-in")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchAgentsPulseLidLogo),
@@ -212,15 +226,17 @@ enum LidLogoCompletionCueTests {
         var canFade = true
         var restoreSucceeds = true
         var fadeResult = LidLogoFadeStart.started
-        var fades = 0
+        var dims: [Double] = []
+        var fades: Int { dims.count }
         var recordedBeforeFade = false
         var restores: [Double] = []
+        var finishedRestores = 0
         var hasJournal: Bool { FileManager.default.fileExists(atPath: journal.path) }
 
         init(journal: URL) { self.journal = journal }
 
-        func fadeOut() -> LidLogoFadeStart {
-            fades += 1
+        func fadeOut(duration: Double) -> LidLogoFadeStart {
+            dims.append(duration)
             recordedBeforeFade = hasJournal
             return fadeResult
         }
@@ -228,6 +244,11 @@ enum LidLogoCompletionCueTests {
         func restore(duration: Double) -> Bool {
             restores.append(duration)
             return restoreSucceeds
+        }
+
+        func finishRestore() -> Bool {
+            finishedRestores += 1
+            return true
         }
     }
 }

@@ -63,9 +63,8 @@ struct NotchAgentStrings {
     let alerts: String
     let finishAlert: String
     let pulseLidLogo: String
-    let lidLogoPattern: String
-    let lidLogoSingle: String
-    let lidLogoDouble: String
+    let repeatLidLogoCue: String
+    let repeatLidLogoCueHint: String
     let finishAfter: String
     let anyLength: String
     let limitAlert: String
@@ -151,13 +150,6 @@ struct NotchAgentStrings {
         case .projects: return projectsCard
         case .activity: return activityCard
         case .resets: return resetsCard
-        }
-    }
-
-    func lidLogoTitle(_ pattern: LidLogoCuePattern) -> String {
-        switch pattern {
-        case .single: lidLogoSingle
-        case .double: lidLogoDouble
         }
     }
 
@@ -262,9 +254,8 @@ extension NotchAgentStrings {
         alerts: "Alerts",
         finishAlert: "When a task finishes",
         pulseLidLogo: "Pulse the lid logo",
-        lidLogoPattern: "Light pattern",
-        lidLogoSingle: "Single pulse",
-        lidLogoDouble: "Double pulse",
+        repeatLidLogoCue: "Repeat for up to 5 minutes",
+        repeatLidLogoCueHint: "Opening AI Agents stops the reminders.",
         finishAfter: "For tasks longer than",
         anyLength: "Any length",
         limitAlert: "Near a plan limit",
@@ -365,9 +356,8 @@ extension NotchAgentStrings {
         alerts: "Сповіщення",
         finishAlert: "Коли завдання завершено",
         pulseLidLogo: "Пульсація логотипа на кришці",
-        lidLogoPattern: "Ритм підсвічування",
-        lidLogoSingle: "Один імпульс",
-        lidLogoDouble: "Два імпульси",
+        repeatLidLogoCue: "Повторювати до 5 хвилин",
+        repeatLidLogoCueHint: "Відкрийте розділ «ШІ-агенти», щоб зупинити нагадування.",
         finishAfter: "Для завдань довших за",
         anyLength: "Будь-яка тривалість",
         limitAlert: "Поблизу ліміту плану",
@@ -468,9 +458,8 @@ extension NotchAgentStrings {
         alerts: "Alertas",
         finishAlert: "Quando uma tarefa terminar",
         pulseLidLogo: "Pulsar o logotipo da tampa",
-        lidLogoPattern: "Padrão da luz",
-        lidLogoSingle: "Um pulso",
-        lidLogoDouble: "Dois pulsos",
+        repeatLidLogoCue: "Repetir por até 5 minutos",
+        repeatLidLogoCueHint: "Abra Agentes de IA para interromper os lembretes.",
         finishAfter: "Para tarefas com mais de",
         anyLength: "Qualquer duração",
         limitAlert: "Perto de um limite do plano",
@@ -571,9 +560,8 @@ extension NotchAgentStrings {
         alerts: "Avisos",
         finishAlert: "Cuando termine una tarea",
         pulseLidLogo: "Hacer pulsar el logotipo de la tapa",
-        lidLogoPattern: "Patrón de luz",
-        lidLogoSingle: "Un pulso",
-        lidLogoDouble: "Dos pulsos",
+        repeatLidLogoCue: "Repetir durante un máximo de 5 minutos",
+        repeatLidLogoCueHint: "Abre Agentes de IA para detener los recordatorios.",
         finishAfter: "Para tareas de más de",
         anyLength: "Cualquier duración",
         limitAlert: "Cerca de un límite del plan",
@@ -674,9 +662,8 @@ extension NotchAgentStrings {
         alerts: "Upozornenia",
         finishAlert: "Keď sa úloha dokončí",
         pulseLidLogo: "Pulzovanie loga na veku",
-        lidLogoPattern: "Vzor svetla",
-        lidLogoSingle: "Jeden pulz",
-        lidLogoDouble: "Dva pulzy",
+        repeatLidLogoCue: "Opakovať najviac 5 minút",
+        repeatLidLogoCueHint: "Otvorte sekciu AI agenti a pripomienky sa zastavia.",
         finishAfter: "Pri úlohách dlhších ako",
         anyLength: "Ľubovoľná dĺžka",
         limitAlert: "Blízko limitu plánu",
@@ -777,9 +764,8 @@ extension NotchAgentStrings {
         alerts: "Hinweise",
         finishAlert: "Wenn eine Aufgabe fertig ist",
         pulseLidLogo: "Logo am Deckel pulsieren lassen",
-        lidLogoPattern: "Lichtmuster",
-        lidLogoSingle: "Ein Impuls",
-        lidLogoDouble: "Zwei Impulse",
+        repeatLidLogoCue: "Bis zu 5 Minuten wiederholen",
+        repeatLidLogoCueHint: "Beim Öffnen von KI-Agenten enden die Erinnerungen.",
         finishAfter: "Bei Aufgaben länger als",
         anyLength: "Jede Dauer",
         limitAlert: "Nahe an einem Planlimit",
@@ -880,9 +866,8 @@ extension NotchAgentStrings {
         alerts: "Alertes",
         finishAlert: "Quand une tâche se termine",
         pulseLidLogo: "Faire pulser le logo du capot",
-        lidLogoPattern: "Motif lumineux",
-        lidLogoSingle: "Une pulsation",
-        lidLogoDouble: "Deux pulsations",
+        repeatLidLogoCue: "Répéter pendant 5 minutes au maximum",
+        repeatLidLogoCueHint: "Ouvrez Agents IA pour arrêter les rappels.",
         finishAfter: "Pour les tâches de plus de",
         anyLength: "Toute durée",
         limitAlert: "Près d’une limite du forfait",
@@ -983,9 +968,8 @@ extension NotchAgentStrings {
         alerts: "Avvisi",
         finishAlert: "Quando un’attività finisce",
         pulseLidLogo: "Fai pulsare il logo sul coperchio",
-        lidLogoPattern: "Schema luminoso",
-        lidLogoSingle: "Un impulso",
-        lidLogoDouble: "Due impulsi",
+        repeatLidLogoCue: "Ripeti per un massimo di 5 minuti",
+        repeatLidLogoCueHint: "Apri Agenti IA per interrompere i promemoria.",
         finishAfter: "Per attività più lunghe di",
         anyLength: "Qualsiasi durata",
         limitAlert: "Vicino a un limite del piano",
@@ -1086,9 +1070,8 @@ extension NotchAgentStrings {
         alerts: "Уведомления",
         finishAlert: "Когда задача завершена",
         pulseLidLogo: "Пульсация логотипа на крышке",
-        lidLogoPattern: "Ритм подсветки",
-        lidLogoSingle: "Один импульс",
-        lidLogoDouble: "Два импульса",
+        repeatLidLogoCue: "Повторять до 5 минут",
+        repeatLidLogoCueHint: "Откройте раздел «ИИ-агенты», чтобы прекратить напоминания.",
         finishAfter: "Для задач дольше",
         anyLength: "Любой длительности",
         limitAlert: "Около лимита тарифа",
@@ -1189,9 +1172,8 @@ extension NotchAgentStrings {
         alerts: "Uyarılar",
         finishAlert: "Bir görev bittiğinde",
         pulseLidLogo: "Kapaktaki logonun ışığını yakıp söndür",
-        lidLogoPattern: "Işık deseni",
-        lidLogoSingle: "Tek darbe",
-        lidLogoDouble: "Çift darbe",
+        repeatLidLogoCue: "En fazla 5 dakika tekrarla",
+        repeatLidLogoCueHint: "Hatırlatmaları durdurmak için YZ Ajanları bölümünü açın.",
         finishAfter: "Şundan uzun görevler için",
         anyLength: "Her süre",
         limitAlert: "Plan sınırına yaklaşınca",
@@ -1292,9 +1274,8 @@ extension NotchAgentStrings {
         alerts: "通知",
         finishAlert: "タスクが完了したとき",
         pulseLidLogo: "天板のロゴを明滅させる",
-        lidLogoPattern: "点滅パターン",
-        lidLogoSingle: "1回",
-        lidLogoDouble: "2回",
+        repeatLidLogoCue: "最大5分間繰り返す",
+        repeatLidLogoCueHint: "AIエージェントを開くと、リマインダーが止まります。",
         finishAfter: "対象のタスクの長さ",
         anyLength: "すべて",
         limitAlert: "プラン上限に近づいたとき",
@@ -1395,9 +1376,8 @@ extension NotchAgentStrings {
         alerts: "알림",
         finishAlert: "작업이 끝났을 때",
         pulseLidLogo: "덮개 로고를 부드럽게 점멸",
-        lidLogoPattern: "조명 패턴",
-        lidLogoSingle: "한 번",
-        lidLogoDouble: "두 번",
+        repeatLidLogoCue: "최대 5분 동안 반복",
+        repeatLidLogoCueHint: "AI 에이전트를 열면 알림이 중지됩니다.",
         finishAfter: "다음보다 긴 작업",
         anyLength: "모든 길이",
         limitAlert: "플랜 한도에 가까울 때",
@@ -1498,9 +1478,8 @@ extension NotchAgentStrings {
         alerts: "提醒",
         finishAlert: "任务完成时",
         pulseLidLogo: "让顶盖标志缓慢闪烁",
-        lidLogoPattern: "灯光模式",
-        lidLogoSingle: "单次脉冲",
-        lidLogoDouble: "双次脉冲",
+        repeatLidLogoCue: "最多重复提醒 5 分钟",
+        repeatLidLogoCueHint: "打开 AI 智能体即可停止提醒。",
         finishAfter: "任务时长超过",
         anyLength: "任意时长",
         limitAlert: "接近套餐额度时",
@@ -1601,9 +1580,8 @@ extension NotchAgentStrings {
         alerts: "提醒",
         finishAlert: "任務完成時",
         pulseLidLogo: "讓上蓋標誌緩慢閃爍",
-        lidLogoPattern: "燈光模式",
-        lidLogoSingle: "單次脈衝",
-        lidLogoDouble: "雙次脈衝",
+        repeatLidLogoCue: "最多重複提醒 5 分鐘",
+        repeatLidLogoCueHint: "開啟 AI 代理即可停止提醒。",
         finishAfter: "任務時間超過",
         anyLength: "任何長度",
         limitAlert: "接近方案額度時",
@@ -1704,9 +1682,8 @@ extension NotchAgentStrings {
         alerts: "提示",
         finishAlert: "任務完成時",
         pulseLidLogo: "讓上蓋標誌緩慢閃爍",
-        lidLogoPattern: "燈光模式",
-        lidLogoSingle: "單次脈衝",
-        lidLogoDouble: "雙次脈衝",
+        repeatLidLogoCue: "最多重複提示 5 分鐘",
+        repeatLidLogoCueHint: "開啟 AI 代理即可停止提示。",
         finishAfter: "任務時間超過",
         anyLength: "任何長度",
         limitAlert: "接近計劃額度時",
