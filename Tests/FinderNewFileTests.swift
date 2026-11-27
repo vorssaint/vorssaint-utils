@@ -21,7 +21,11 @@ enum FinderNewFileTests {
                          && !strings.cancel.isEmpty && !strings.manage.isEmpty && !strings.error.isEmpty
                          && !strings.extensionName.isEmpty && !strings.extensionEnabled.isEmpty
                          && !strings.extensionDisabled.isEmpty && !strings.extensionHelp.isEmpty
-                         && strings.extensionEnabled != strings.extensionDisabled,
+                         && strings.extensionEnabled != strings.extensionDisabled
+                         && !strings.customTitle.isEmpty && !strings.addItem.isEmpty
+                         && !strings.menuName.isEmpty && !strings.fileName.isEmpty && !strings.suffixLabel.isEmpty
+                         && !strings.templateLabel.isEmpty && !strings.emptyTemplate.isEmpty
+                         && !strings.templateHelp.isEmpty && !strings.invalidItem.isEmpty,
                          "localized Finder labels are complete: \(language)")
         }
 

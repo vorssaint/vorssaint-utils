@@ -17,6 +17,15 @@ struct FinderNewFileStrings {
     let error: String
     let text: String
     let page: String
+    let customTitle: String
+    let addItem: String
+    let menuName: String
+    let fileName: String
+    let suffixLabel: String
+    let templateLabel: String
+    let emptyTemplate: String
+    let templateHelp: String
+    let invalidItem: String
 
     static let supportedCodes = Set(table.keys)
 
@@ -39,7 +48,16 @@ struct FinderNewFileStrings {
             cancel: "Cancel",
             error: "Could not create the file",
             text: "Text document",
-            page: "Finder"
+            page: "Finder",
+            customTitle: "Custom documents",
+            addItem: "Add document",
+            menuName: "Menu name",
+            fileName: "File name",
+            suffixLabel: "Extension",
+            templateLabel: "Template",
+            emptyTemplate: "Empty file",
+            templateHelp: "Choose a regular file up to 64 MB. A private copy is stored on this Mac. Without a template, an empty file is created.",
+            invalidItem: "Enter a menu name and a valid file name and extension."
         ),
         "pt-BR": .init(
             title: "Novo arquivo",
@@ -53,7 +71,16 @@ struct FinderNewFileStrings {
             cancel: "Cancelar",
             error: "Não foi possível criar o arquivo",
             text: "Documento de texto",
-            page: "Finder"
+            page: "Finder",
+            customTitle: "Documentos personalizados",
+            addItem: "Adicionar documento",
+            menuName: "Nome no menu",
+            fileName: "Nome do arquivo",
+            suffixLabel: "Extensão",
+            templateLabel: "Modelo",
+            emptyTemplate: "Arquivo vazio",
+            templateHelp: "Escolha um arquivo de até 64 MB. Uma cópia privada é armazenada neste Mac. Sem modelo, será criado um arquivo vazio.",
+            invalidItem: "Informe um nome no menu, um nome de arquivo e uma extensão válidos."
         ),
         "tr": .init(
             title: "Yeni dosya",
@@ -67,7 +94,16 @@ struct FinderNewFileStrings {
             cancel: "Vazgeç",
             error: "Dosya oluşturulamadı",
             text: "Metin belgesi",
-            page: "Finder"
+            page: "Finder",
+            customTitle: "Özel belgeler",
+            addItem: "Belge ekle",
+            menuName: "Menü adı",
+            fileName: "Dosya adı",
+            suffixLabel: "Uzantı",
+            templateLabel: "Şablon",
+            emptyTemplate: "Boş dosya",
+            templateHelp: "En fazla 64 MB boyutunda normal bir dosya seçin. Bu Mac’te özel bir kopya saklanır. Şablon yoksa boş dosya oluşturulur.",
+            invalidItem: "Bir menü adı, geçerli dosya adı ve uzantı girin."
         ),
         "ru": .init(
             title: "Новый файл",
@@ -81,7 +117,16 @@ struct FinderNewFileStrings {
             cancel: "Отмена",
             error: "Не удалось создать файл",
             text: "Текстовый документ",
-            page: "Finder"
+            page: "Finder",
+            customTitle: "Пользовательские документы",
+            addItem: "Добавить документ",
+            menuName: "Название в меню",
+            fileName: "Имя файла",
+            suffixLabel: "Расширение",
+            templateLabel: "Шаблон",
+            emptyTemplate: "Пустой файл",
+            templateHelp: "Выберите обычный файл размером до 64 МБ. На этом Mac сохраняется личная копия. Без шаблона создаётся пустой файл.",
+            invalidItem: "Укажите название в меню, допустимое имя файла и расширение."
         ),
         "es": .init(
             title: "Nuevo archivo",
@@ -95,7 +140,16 @@ struct FinderNewFileStrings {
             cancel: "Cancelar",
             error: "No se pudo crear el archivo",
             text: "Documento de texto",
-            page: "Finder"
+            page: "Finder",
+            customTitle: "Documentos personalizados",
+            addItem: "Añadir documento",
+            menuName: "Nombre del menú",
+            fileName: "Nombre del archivo",
+            suffixLabel: "Extensión",
+            templateLabel: "Plantilla",
+            emptyTemplate: "Archivo vacío",
+            templateHelp: "Elige un archivo de hasta 64 MB. Se guarda una copia privada en este Mac. Sin plantilla, se crea un archivo vacío.",
+            invalidItem: "Introduce un nombre de menú, un nombre de archivo y una extensión válidos."
         ),
         "sk": .init(
             title: "Nový súbor",
@@ -109,7 +163,16 @@ struct FinderNewFileStrings {
             cancel: "Zrušiť",
             error: "Súbor sa nepodarilo vytvoriť",
             text: "Textový dokument",
-            page: "Finder"
+            page: "Finder",
+            customTitle: "Vlastné dokumenty",
+            addItem: "Pridať dokument",
+            menuName: "Názov v ponuke",
+            fileName: "Názov súboru",
+            suffixLabel: "Prípona",
+            templateLabel: "Šablóna",
+            emptyTemplate: "Prázdny súbor",
+            templateHelp: "Vyberte bežný súbor do 64 MB. Súkromná kópia sa uloží na tomto Macu. Bez šablóny sa vytvorí prázdny súbor.",
+            invalidItem: "Zadajte názov v ponuke, platný názov súboru a príponu."
         ),
         "de": .init(
             title: "Neue Datei",
@@ -123,7 +186,16 @@ struct FinderNewFileStrings {
             cancel: "Abbrechen",
             error: "Datei konnte nicht erstellt werden",
             text: "Textdokument",
-            page: "Finder"
+            page: "Finder",
+            customTitle: "Eigene Dokumente",
+            addItem: "Dokument hinzufügen",
+            menuName: "Menüname",
+            fileName: "Dateiname",
+            suffixLabel: "Dateiendung",
+            templateLabel: "Vorlage",
+            emptyTemplate: "Leere Datei",
+            templateHelp: "Wähle eine normale Datei bis 64 MB. Eine private Kopie wird auf diesem Mac gespeichert. Ohne Vorlage wird eine leere Datei erstellt.",
+            invalidItem: "Gib einen Menünamen sowie einen gültigen Dateinamen und eine gültige Endung ein."
         ),
         "fr": .init(
             title: "Nouveau fichier",
@@ -137,7 +209,16 @@ struct FinderNewFileStrings {
             cancel: "Annuler",
             error: "Impossible de créer le fichier",
             text: "Document texte",
-            page: "Finder"
+            page: "Finder",
+            customTitle: "Documents personnalisés",
+            addItem: "Ajouter un document",
+            menuName: "Nom du menu",
+            fileName: "Nom du fichier",
+            suffixLabel: "Extension",
+            templateLabel: "Modèle",
+            emptyTemplate: "Fichier vide",
+            templateHelp: "Choisissez un fichier ordinaire de 64 Mo maximum. Une copie privée est conservée sur ce Mac. Sans modèle, un fichier vide est créé.",
+            invalidItem: "Saisissez un nom de menu, un nom de fichier et une extension valides."
         ),
         "it": .init(
             title: "Nuovo file",
@@ -151,7 +232,16 @@ struct FinderNewFileStrings {
             cancel: "Annulla",
             error: "Impossibile creare il file",
             text: "Documento di testo",
-            page: "Finder"
+            page: "Finder",
+            customTitle: "Documenti personalizzati",
+            addItem: "Aggiungi documento",
+            menuName: "Nome nel menu",
+            fileName: "Nome del file",
+            suffixLabel: "Estensione",
+            templateLabel: "Modello",
+            emptyTemplate: "File vuoto",
+            templateHelp: "Scegli un file di massimo 64 MB. Una copia privata viene conservata su questo Mac. Senza modello viene creato un file vuoto.",
+            invalidItem: "Inserisci un nome nel menu, un nome di file e un’estensione validi."
         ),
         "ja": .init(
             title: "新規ファイル",
@@ -165,7 +255,16 @@ struct FinderNewFileStrings {
             cancel: "キャンセル",
             error: "ファイルを作成できませんでした",
             text: "テキスト書類",
-            page: "Finder"
+            page: "Finder",
+            customTitle: "カスタム書類",
+            addItem: "書類を追加",
+            menuName: "メニュー名",
+            fileName: "ファイル名",
+            suffixLabel: "拡張子",
+            templateLabel: "テンプレート",
+            emptyTemplate: "空のファイル",
+            templateHelp: "64 MB 以下の通常のファイルを選択してください。この Mac に非公開のコピーを保存します。テンプレートがない場合は空のファイルを作成します。",
+            invalidItem: "メニュー名と有効なファイル名および拡張子を入力してください。"
         ),
         "ko": .init(
             title: "새로운 파일",
@@ -179,7 +278,16 @@ struct FinderNewFileStrings {
             cancel: "취소",
             error: "파일을 생성할 수 없음",
             text: "텍스트 문서",
-            page: "Finder"
+            page: "Finder",
+            customTitle: "사용자 설정 문서",
+            addItem: "문서 추가",
+            menuName: "메뉴 이름",
+            fileName: "파일 이름",
+            suffixLabel: "확장자",
+            templateLabel: "템플릿",
+            emptyTemplate: "빈 파일",
+            templateHelp: "64 MB 이하의 일반 파일을 선택하세요. 이 Mac에 비공개 복사본을 저장합니다. 템플릿이 없으면 빈 파일이 생성됩니다.",
+            invalidItem: "메뉴 이름과 유효한 파일 이름 및 확장자를 입력하세요."
         ),
         "uk": .init(
             title: "Новий файл",
@@ -193,7 +301,16 @@ struct FinderNewFileStrings {
             cancel: "Скасувати",
             error: "Не вдалося створити файл",
             text: "Текстовий документ",
-            page: "Finder"
+            page: "Finder",
+            customTitle: "Власні документи",
+            addItem: "Додати документ",
+            menuName: "Назва в меню",
+            fileName: "Ім’я файлу",
+            suffixLabel: "Розширення",
+            templateLabel: "Шаблон",
+            emptyTemplate: "Порожній файл",
+            templateHelp: "Виберіть звичайний файл розміром до 64 МБ. Приватна копія зберігається на цьому Mac. Без шаблону створюється порожній файл.",
+            invalidItem: "Введіть назву в меню, допустиме ім’я файлу та розширення."
         ),
         "zh-Hans": .init(
             title: "新建文件",
@@ -207,7 +324,16 @@ struct FinderNewFileStrings {
             cancel: "取消",
             error: "无法新建文件",
             text: "文本文档",
-            page: "访达"
+            page: "访达",
+            customTitle: "自定义文档",
+            addItem: "添加文档",
+            menuName: "菜单名称",
+            fileName: "文件名",
+            suffixLabel: "后缀名",
+            templateLabel: "模板",
+            emptyTemplate: "空白文件",
+            templateHelp: "选择不超过 64 MB 的普通文件。模板副本保存在本机；不选择模板时创建空白文件。",
+            invalidItem: "请输入菜单名称以及有效的文件名和后缀名。"
         ),
         "zh-TW": .init(
             title: "新增檔案",
@@ -221,7 +347,16 @@ struct FinderNewFileStrings {
             cancel: "取消",
             error: "無法建立檔案",
             text: "文字文件",
-            page: "Finder"
+            page: "Finder",
+            customTitle: "自訂文件",
+            addItem: "新增文件",
+            menuName: "選單名稱",
+            fileName: "檔案名稱",
+            suffixLabel: "副檔名",
+            templateLabel: "範本",
+            emptyTemplate: "空白檔案",
+            templateHelp: "選擇不超過 64 MB 的一般檔案。範本副本儲存在此 Mac；未選擇範本時建立空白檔案。",
+            invalidItem: "請輸入選單名稱及有效的檔案名稱與副檔名。"
         ),
         "zh-HK": .init(
             title: "新增檔案",
@@ -235,7 +370,16 @@ struct FinderNewFileStrings {
             cancel: "取消",
             error: "無法建立檔案",
             text: "文字文件",
-            page: "Finder"
+            page: "Finder",
+            customTitle: "自訂文件",
+            addItem: "新增文件",
+            menuName: "選單名稱",
+            fileName: "檔案名稱",
+            suffixLabel: "副檔名",
+            templateLabel: "範本",
+            emptyTemplate: "空白檔案",
+            templateHelp: "選擇不超過 64 MB 的一般檔案。範本副本儲存在此 Mac；未選擇範本時建立空白檔案。",
+            invalidItem: "請輸入選單名稱及有效的檔案名稱與副檔名。"
         ),
     ]
 }

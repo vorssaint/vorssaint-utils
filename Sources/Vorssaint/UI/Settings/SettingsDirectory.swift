@@ -515,7 +515,9 @@ enum SettingsDirectory {
                                          [FeatureStrings.finderRename(language).enableLabel]),
                                          (.finderNewFile,
                                           [finderNewFile.title, finderNewFile.enable, finderNewFile.manage,
-                                            finderNewFile.extensionName]
+                                            finderNewFile.extensionName, finderNewFile.customTitle, finderNewFile.addItem,
+                                            finderNewFile.menuName, finderNewFile.fileName, finderNewFile.suffixLabel,
+                                            finderNewFile.templateLabel]
                                             + FinderNewFileKind.allCases.map { $0.title(finderNewFile) }),
                                        ]),
                 SettingsDirectoryItem(page: .shelf, title: s.shelfName, icon: "tray.full",

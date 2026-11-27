@@ -4,6 +4,12 @@ An optional feature in Features → Clipboard & Files → New File. Install it i
 
 The menu appears on a supported folder background (including the Desktop) or a single selected item. A selected ordinary folder is the destination; a selected file uses its enclosing folder. Multiple selections and packages are not used as ambiguous destinations. The host revalidates the destination and uses exclusive writes and numbered names. Office and iWork files use bundled blank templates. Settings follow the app language and are included in settings backup.
 
+## Custom documents
+
+Add a custom document in the Finder settings section. Set the menu name, base filename and optional suffix (with or without the leading dot). Choose a regular file as a template, or leave it empty to create a zero-byte file. Menu entries can be edited and removed. Existing files are never overwritten; a repeated filename gets a numbered suffix.
+
+Up to 32 custom entries are supported. Each template can be up to 64 MB. The host imports a private copy via the existing PrivateFileStore, so moving or deleting the original template does not affect creation. Templates are stored under the app variant's Application Support directory, not in its signed bundle. Only menu IDs and labels are shared with the extension. The normal settings backup includes custom entry definitions, not the user's private template contents. After moving settings to another Mac, reselect any missing templates; creation fails rather than silently writing an empty file.
+
 ## Security and development
 
 Developer and release builds use the same one-click path. The sandboxed Finder Sync extension opens the containing app without activating it. The host captures the OS-provided Apple event sender audit token while handling the event and checks that the sender's running code matches the exact code-directory hash of the installed embedded extension. Unauthenticated events, including forged external URLs, are rejected; there is no confirmation fallback. The host additionally validates the file kind, directory, feature and extension state, request expiration and per-process replay protection. Successful creation is silent. Write errors are presented in the host.
@@ -18,4 +24,4 @@ Only menu presentation data is shared through a dedicated read-only preferences 
 - With the extension disabled, install and enable the feature: check the orange warning in the feature hub and the Finder settings section. Enable the extension in System Settings, return to the app, and verify the warning changes to a green check while the management button remains. Toggle the extension in System Settings, then return to the app to confirm the state refreshes. Turn off the feature switch and verify the extension management entry remains available. Disable the extension again and confirm the warning returns. Check the other app variant independently.
 - Verify local signing, ad-hoc signing and Developer ID signing separately. Launch Services must preserve the extension's sender audit token in the host's open-URL callback. If a genuine menu click is rejected, inspect the host's "rejected unauthenticated Apple event" log; do not loosen the sender check or accept arbitrary URLs.
 - Verify an externally constructed create URL cannot create a file, even with a valid payload. Replay the same authenticated request and verify only one file is created.
-- Inline Finder rename and custom templates are outside this change; only part of issue #399 is addressed.
+- Verify custom document addition, editing, removal, blank creation, multi-dot or empty suffix, copied template bytes, same-name collisions, and missing templates. Verify all languages and settings backup metadata. Inline Finder rename remains outside this change.
