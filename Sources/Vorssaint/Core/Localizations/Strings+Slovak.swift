@@ -622,6 +622,7 @@ extension Strings {
         mixerOutputUnavailable: "Výstup nie je dostupný",
         mixerOutputFallback: "Kým sa toto zariadenie nevráti, používa sa predvolené.",
         mixerBypassedCaption: "Táto aplikácia si spravuje zvuk sama.",
+        mixerOtherAudioName: "Ostatné / Systémový zvuk",
         mixerOutputTooltip: "Vybrať výstup",
         mixerAirPlayChooseSpeaker: "Vybrať reproduktor AirPlay…",
         mixerSystemOutputTitle: "Výstup",

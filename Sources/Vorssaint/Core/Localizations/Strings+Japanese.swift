@@ -622,6 +622,7 @@ extension Strings {
         mixerOutputUnavailable: "出力を利用できません",
         mixerOutputFallback: "このデバイスが戻るまでデフォルトを使用します。",
         mixerBypassedCaption: "このアプリは自身でオーディオを管理します。",
+        mixerOtherAudioName: "その他 / システムオーディオ",
         mixerOutputTooltip: "出力を選択",
         mixerAirPlayChooseSpeaker: "AirPlayスピーカーを選択…",
         mixerSystemOutputTitle: "出力",

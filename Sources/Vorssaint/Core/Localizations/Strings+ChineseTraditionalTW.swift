@@ -623,6 +623,7 @@ extension Strings {
         mixerOutputUnavailable: "輸出不可用",
         mixerOutputFallback: "此裝置重新可用前，使用預設輸出。",
         mixerBypassedCaption: "此 App 自行管理音訊。",
+        mixerOtherAudioName: "其他 / 系統音訊",
         mixerOutputTooltip: "選擇輸出",
         mixerAirPlayChooseSpeaker: "選擇 AirPlay 揚聲器…",
         mixerSystemOutputTitle: "輸出",

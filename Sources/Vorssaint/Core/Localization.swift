@@ -802,6 +802,7 @@ struct Strings {
     let mixerOutputUnavailable: String
     let mixerOutputFallback: String
     let mixerBypassedCaption: String
+    let mixerOtherAudioName: String
     let mixerOutputTooltip: String
     let mixerAirPlayChooseSpeaker: String
     let mixerSystemOutputTitle: String
@@ -1963,6 +1964,7 @@ extension Strings {
         mixerOutputUnavailable: "Saída indisponível",
         mixerOutputFallback: "Usando o padrão até esse dispositivo voltar.",
         mixerBypassedCaption: "Este app controla o próprio áudio.",
+        mixerOtherAudioName: "Outros / Áudio do sistema",
         mixerOutputTooltip: "Escolher saída",
         mixerAirPlayChooseSpeaker: "Escolher alto-falante AirPlay…",
         mixerSystemOutputTitle: "Saída",
@@ -3099,6 +3101,7 @@ extension Strings {
         mixerOutputUnavailable: "Output unavailable",
         mixerOutputFallback: "Using default until this device returns.",
         mixerBypassedCaption: "This app manages its own audio.",
+        mixerOtherAudioName: "Other / System audio",
         mixerOutputTooltip: "Choose output",
         mixerAirPlayChooseSpeaker: "Choose AirPlay speaker…",
         mixerSystemOutputTitle: "Output",

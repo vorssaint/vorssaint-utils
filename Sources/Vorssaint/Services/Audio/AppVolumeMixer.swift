@@ -1656,6 +1656,9 @@ final class AppVolumeMixer: ObservableObject {
         /// Persistence ids the list must leave out: the apps the user hid,
         /// plus the Finder while its toggle is off (issue #300).
         let hiddenRowIDs: Set<String>
+        /// Localized label for the row of audio no regular app owns, read on
+        /// the main thread because the row is built on `halQueue`.
+        let otherAudioName: String
         let ownPid: pid_t
     }
 
@@ -1716,6 +1719,7 @@ final class AppVolumeMixer: ObservableObject {
             hiddenRowIDs: MixerRoutingSupport.hiddenRowIDs(
                 hiddenApps: savedHiddenApps(),
                 showFinder: UserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder)),
+            otherAudioName: L10n.shared.s.mixerOtherAudioName,
             ownPid: ProcessInfo.processInfo.processIdentifier)
 
         halQueue.async { [weak self] in
@@ -1929,9 +1933,13 @@ final class AppVolumeMixer: ObservableObject {
         var playing: Set<pid_t> = []
         var bypassed: Set<pid_t> = []
         var bundleHints: [pid_t: String] = [:]
+        var unownedAudioObjects: [AudioObjectID] = []
         for object in processObjects {
             var pid: pid_t = -1
             guard Self.read(object, kAudioProcessPropertyPID, &pid), pid > 0, pid != request.ownPid else { continue }
+
+            var running: UInt32 = 0
+            _ = Self.read(object, kAudioProcessPropertyIsRunningOutput, &running)
 
             // Show every regular app that holds an audio connection, not only
             // the ones making sound this instant, so apps are adjustable before
@@ -1939,7 +1947,12 @@ final class AppVolumeMixer: ObservableObject {
             // Keyed by the owner's real pid: the app's own processIdentifier
             // is -1 for some apps and would merge them (issue #3929).
             guard let owner = ResponsibleProcess.regularAppOwnerPid(of: pid),
-                  let app = NSRunningApplication(processIdentifier: owner) else { continue }
+                  let app = NSRunningApplication(processIdentifier: owner) else {
+                if running != 0 {
+                    unownedAudioObjects.append(object)
+                }
+                continue
+            }
             let name = ResponsibleProcess.displayName(pid: owner, fallback: app.localizedName ?? "pid \(owner)")
             // Bypassed apps still get a row — hiding them read
             // as a bug (issue #177) — but they are never tapped: volume
@@ -1952,8 +1965,6 @@ final class AppVolumeMixer: ObservableObject {
                 bypassed.insert(owner)
             }
 
-            var running: UInt32 = 0
-            _ = Self.read(object, kAudioProcessPropertyIsRunningOutput, &running)
             if running != 0 { playing.insert(owner) }
 
             groups[owner, default: []].append(object)
@@ -2004,6 +2015,34 @@ final class AppVolumeMixer: ObservableObject {
                                  volume: isBypassed ? 1 : (storedVolume(for: identity,
                                                                        saved: request.savedVolumes,
                                                                        session: request.sessionVolumes) ?? 1)))
+        }
+        if !unownedAudioObjects.isEmpty {
+            let identity = MixerRoutingSupport.otherAudioRowIdentity
+            if !MixerRoutingSupport.isHiddenFromMixer(persistenceID: identity.persistenceID,
+                                                      hiddenIDs: request.hiddenRowIDs) {
+                let route = storedRoute(for: identity,
+                                        saved: request.savedOutputs,
+                                        session: request.sessionRoutes)
+                next.append(MixerApp(id: identity.rowID,
+                                     persistenceID: identity.persistenceID,
+                                     ownerPid: 0,
+                                     name: request.otherAudioName,
+                                     audioObjects: Array(Set(unownedAudioObjects)).sorted(),
+                                     isPlaying: true,
+                                     isBypassed: false,
+                                     supportsVolumeOverride: false,
+                                     selectedOutputDeviceUID: route,
+                                     effectiveOutputDeviceUID: MixerRoutingSupport.effectiveDeviceUID(
+                                        selectedUID: route,
+                                        availableUIDs: availableUIDs,
+                                        defaultUID: defaultUID),
+                                     outputDeviceUnavailable: MixerRoutingSupport.selectedDeviceUnavailable(
+                                        selectedUID: route,
+                                        availableUIDs: availableUIDs),
+                                     volume: storedVolume(for: identity,
+                                                          saved: request.savedVolumes,
+                                                          session: request.sessionVolumes) ?? 1))
+            }
         }
         return next
     }
