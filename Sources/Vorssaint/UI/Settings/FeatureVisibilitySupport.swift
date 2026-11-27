@@ -8,7 +8,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch, notchMascot
+    case instantSpaces, mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch, notchMascot
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -324,6 +324,7 @@ extension AppFeature {
     /// Settings destination before the project compiles.
     var settingsDestination: FeatureSettingsDestination {
         switch self {
+        case .instantSpaces: return FeatureSettingsDestination(.instantSpaces)
         case .switcher: return FeatureSettingsDestination(.switcher, sectionAnchor: .switcher)
         case .dockPreview: return FeatureSettingsDestination(.dock, sectionAnchor: .dock)
         case .dockClick: return FeatureSettingsDestination(.dock, sectionAnchor: .dockClick)
@@ -460,6 +461,7 @@ enum FeatureVisibilitySupport {
         case .monitor: return monitorFeatures
         case .mouse: return [.scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .scrollSpeed, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
                              .middleClick, .mouseClickDebounce]
+        case .instantSpaces: return [.instantSpaces]
         case .switcher: return [.switcher]
         case .dock: return [.dockPreview, .dockClick, .spacesOrder]
         case .windowLayout: return [.windowLayout, .windowMaximizer]

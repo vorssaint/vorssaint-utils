@@ -59,6 +59,7 @@ enum ReleaseChangeAliases {
 
     static func aliases(for feature: AppFeature) -> [Alias] {
         switch feature {
+        case .instantSpaces: return ["instant spaces", "instant space switch", "instant trackpad swipe"]
         case .switcher: return ["window switcher", "app switcher", "switcher"]
         case .dockPreview: return ["dock preview", "dock previews"]
         case .dockClick: return ["dock clicks", "dock click", "click the dock icon", "dock icon", "dock actions"]
