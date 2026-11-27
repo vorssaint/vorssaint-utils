@@ -240,6 +240,29 @@ enum ShelfInteractionSupport {
         removeAfterDrop && !dragIncludesPinned && !dragIncludesPackageContent
     }
 
+    /// What a drag out of the Shelf offers another app. Pinned items and
+    /// package contents stay copy-only whatever the preference. Files cut in
+    /// from Finder, or the "always move" preference, offer only a move, so the
+    /// destination cannot fall back to a copy across volumes. Only a drag of
+    /// files does: text and links keep the shipped offer. Holding Option still
+    /// copies: a move-only offer would make the destination refuse it.
+    static func dragOutOffer(mode: ShelfDragOutMode, removeAfterDrop: Bool,
+                             dragIncludesPinned: Bool, dragIncludesPackageContent: Bool,
+                             dragHoldsOnlyFiles: Bool, dragIsCut: Bool,
+                             optionHeld: Bool) -> ShelfDragOutOffer {
+        if dragIncludesPinned || dragIncludesPackageContent { return .copy }
+        if dragHoldsOnlyFiles && (dragIsCut || mode == .move) { return optionHeld ? .copy : .move }
+        if mode == .copy { return .copy }
+        return offersMoveOutside(removeAfterDrop: removeAfterDrop, dragIncludesPinned: false,
+                                 dragIncludesPackageContent: false) ? .copyOrMove : .copy
+    }
+
+    /// A drag counts as cut only when every file in it was cut in, so a
+    /// mixed drag never moves a file the user meant to copy.
+    static func dragIsCut(fileIDs: [UUID], cutIDs: Set<UUID>) -> Bool {
+        !fileIDs.isEmpty && fileIDs.allSatisfy(cutIDs.contains)
+    }
+
     /// Only ancestors count: a whole package or a symlink itself can move.
     /// Resolve the parent so a directory symlink cannot hide package contents.
     static func isInsidePackage(_ url: URL, isPackage: (URL) -> Bool) -> Bool {
@@ -575,6 +598,32 @@ enum ShelfEdgeDragSupport {
     }
 }
 
+/// What a Finder file dropped on the Shelf becomes. `cut` works like Cut in
+/// Finder: the file stays where it is until it is dragged out, then moves.
+enum ShelfDropInMode: String {
+    case copy, cut
+}
+
+/// What a file dragged out of the Shelf does at its destination.
+enum ShelfDragOutMode: String {
+    /// The destination decides: Finder moves on the same volume, copies across.
+    case auto
+    case copy
+    case move
+}
+
+enum ShelfDragOutOffer: Equatable {
+    case copy, copyOrMove, move
+
+    var operation: NSDragOperation {
+        switch self {
+        case .copy: return .copy
+        case .copyOrMove: return [.copy, .move]
+        case .move: return .move
+        }
+    }
+}
+
 /// Where the menu bar drop zone docks the shelf.
 enum ShelfDockPlacement: String {
     case menuBar, topCenter
@@ -689,6 +738,9 @@ struct ShelfPersistedItem: Codable, Equatable {
     /// Kept after a drag-out and a Clear all. Nil rather than false when
     /// unpinned, so the common case adds nothing to the saved blob.
     var pinned: Bool?
+    /// A file cut in from Finder: it moves when dragged out. Nil rather than
+    /// false otherwise, like `pinned`; older versions ignore it and copy.
+    var cut: Bool?
 
     init(id: UUID,
          kind: Kind,
@@ -698,7 +750,8 @@ struct ShelfPersistedItem: Codable, Equatable {
          path: String? = nil,
          bookmark: Data? = nil,
          children: [ShelfPersistedItem]? = nil,
-         pinned: Bool? = nil) {
+         pinned: Bool? = nil,
+         cut: Bool? = nil) {
         self.id = id
         self.kind = kind
         self.title = title
@@ -708,6 +761,7 @@ struct ShelfPersistedItem: Codable, Equatable {
         self.bookmark = bookmark
         self.children = children
         self.pinned = pinned == true ? true : nil
+        self.cut = cut == true ? true : nil
     }
 }
 
@@ -718,7 +772,7 @@ struct ShelfPersistedItem: Codable, Equatable {
 // drops instead of losing the whole shelf.
 extension ShelfPersistedItem {
     private enum CodingKeys: String, CodingKey {
-        case id, kind, title, text, url, path, bookmark, children, pinned
+        case id, kind, title, text, url, path, bookmark, children, pinned, cut
     }
 
     init(from decoder: Decoder) throws {
@@ -732,7 +786,8 @@ extension ShelfPersistedItem {
                   bookmark: try container.decodeIfPresent(Data.self, forKey: .bookmark),
                   children: try container.decodeIfPresent([FailableShelfPersistedItem].self, forKey: .children)?
                       .compactMap(\.value),
-                  pinned: try container.decodeIfPresent(Bool.self, forKey: .pinned))
+                  pinned: try container.decodeIfPresent(Bool.self, forKey: .pinned),
+                  cut: try container.decodeIfPresent(Bool.self, forKey: .cut))
     }
 }
 
@@ -905,7 +960,7 @@ enum ShelfPersistenceSupport {
                 remainingLeaves -= 1
                 result.append(ShelfPersistedItem(id: item.id, kind: .file, title: keptTitle,
                                                  path: keptPath, bookmark: item.bookmark,
-                                                 pinned: item.pinned))
+                                                 pinned: item.pinned, cut: item.cut))
             case .text:
                 guard let text = item.text,
                       !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }

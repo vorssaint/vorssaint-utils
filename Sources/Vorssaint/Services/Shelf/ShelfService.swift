@@ -139,6 +139,12 @@ final class ShelfService: ObservableObject {
     @Published private(set) var pinnedIDs: Set<UUID> = [] {
         didSet { schedulePersist() }
     }
+    /// Files cut in from Finder. They stay in their folder until dragged out
+    /// of the Shelf, and that drag moves them, like Cut and Paste in Finder.
+    /// Saved with the items.
+    private(set) var cutIDs: Set<UUID> = [] {
+        didSet { schedulePersist() }
+    }
     /// The item most recently put on the shelf, so the tiles can scroll it
     /// into view. Not persisted: it means "just now", and a relaunch has no
     /// just now.
@@ -231,6 +237,11 @@ final class ShelfService: ObservableObject {
     private var dragSourceBundleIdentifier: String?
     private var activeInternalDragIDs: [UUID] = []
     private var internalDragHoldsPackageContent = false
+    private var internalDragIsCut = false
+    private var internalDragHoldsOnlyFiles = false
+    /// Whether AppKit last asked for the offer outside the app, so a drop on
+    /// one of Vorssaint's own windows never counts as a move out.
+    private var internalDragLeftApp = false
     private weak var internalDragWindow: NSWindow?
     private var internalDragWasMerged = false
     /// The edge (and screen) a drag is currently dwelling near, before it has
@@ -1450,6 +1461,13 @@ final class ShelfService: ObservableObject {
         activeInternalDragIDs = draggedItems.map(\.id)
         internalDragWasMerged = false
         internalDragHoldsPackageContent = containsPackageContent
+        let fileIDs = draggedItems.compactMap { item -> UUID? in
+            if case .file = item.payload { return item.id }
+            return nil
+        }
+        internalDragHoldsOnlyFiles = !fileIDs.isEmpty && fileIDs.count == draggedItems.count
+        internalDragIsCut = ShelfInteractionSupport.dragIsCut(fileIDs: fileIDs, cutIDs: cutIDs)
+        internalDragLeftApp = false
     }
 
     /// Where a tile drag is now, so the island can step aside once its
@@ -1464,6 +1482,9 @@ final class ShelfService: ObservableObject {
         defer {
             activeInternalDragIDs = []
             internalDragHoldsPackageContent = false
+            internalDragIsCut = false
+            internalDragHoldsOnlyFiles = false
+            internalDragLeftApp = false
             internalDragWasMerged = false
             if let window = internalDragWindow, window === NotchService.shared.presentationWindow {
                 NotchService.shared.fileDragChanged(false, internalDrag: true)
@@ -1476,10 +1497,14 @@ final class ShelfService: ObservableObject {
 
     /// Completes a tile drag in one place so removal, dismissal, pinning and
     /// internal Shelf merges cannot drift apart across the AppKit views.
-    func completeInternalDrag(dropAccepted: Bool) {
+    /// `moved` is whether the drop ended as a move.
+    func completeInternalDrag(dropAccepted: Bool, moved: Bool = false) {
         let notch = NotchService.shared
         let source = internalDragWindow
         let fromNotch = source != nil && source === notch.presentationWindow
+        // Files another app moved away would leave tiles pointing at nothing:
+        // they leave whatever "Remove items after dropping" says.
+        let movedFiles = moved && internalDragLeftApp
         let draggedIDs = finishInternalDrag(dropAccepted: dropAccepted)
         endInteraction()
         guard !draggedIDs.isEmpty else { return }
@@ -1489,7 +1514,7 @@ final class ShelfService: ObservableObject {
         if ShelfInteractionSupport.shouldRemoveAfterDrag(
             dropAccepted: dropAccepted,
             draggedItemCount: removableIDs.count,
-            removeAfterDrop: defaults.bool(forKey: DefaultsKey.shelfRemoveAfterDrop)) {
+            removeAfterDrop: defaults.bool(forKey: DefaultsKey.shelfRemoveAfterDrop) || movedFiles) {
             removeItems(removableIDs)
         }
         if ShelfInteractionSupport.shouldCloseAfterDrag(
@@ -1513,14 +1538,22 @@ final class ShelfService: ObservableObject {
     /// the app; otherwise a destination may move it and leave a stale saved
     /// URL. Internal drops remain moves so stacking still works naturally.
     func sourceOperationMask(for context: NSDraggingContext) -> NSDragOperation {
+        internalDragLeftApp = context == .outsideApplication
         if context == .withinApplication { return .move }
+        return internalDragOutOffer().operation
+    }
+
+    private func internalDragOutOffer() -> ShelfDragOutOffer {
         let protected = protectedIDs
-        return ShelfInteractionSupport.offersMoveOutside(
-            removeAfterDrop: UserDefaults.standard.bool(forKey: DefaultsKey.shelfRemoveAfterDrop),
+        let defaults = UserDefaults.standard
+        return ShelfInteractionSupport.dragOutOffer(
+            mode: ShelfDragOutMode(rawValue: defaults.string(forKey: DefaultsKey.shelfDragOutMode) ?? "") ?? .auto,
+            removeAfterDrop: defaults.bool(forKey: DefaultsKey.shelfRemoveAfterDrop),
             dragIncludesPinned: activeInternalDragIDs.contains(where: protected.contains),
-            dragIncludesPackageContent: internalDragHoldsPackageContent)
-            ? [.copy, .move]
-            : .copy
+            dragIncludesPackageContent: internalDragHoldsPackageContent,
+            dragHoldsOnlyFiles: internalDragHoldsOnlyFiles,
+            dragIsCut: internalDragIsCut,
+            optionHeld: NSEvent.modifierFlags.contains(.option))
     }
 
     var isInternalDragActive: Bool {
@@ -1556,7 +1589,24 @@ final class ShelfService: ObservableObject {
         startContentThumbnails(for: additions)
         lastAddedID = dragItems(for: additions).last?.id
         addSerial &+= 1
+        markDroppedFilesCut(additions)
         return true
+    }
+
+    /// While the Shelf cuts, the files a drop brings in are marked to move on
+    /// their way out. Files the Shelf stores itself (received promises) are
+    /// already its own and stay as they are, and a file in a folder that
+    /// cannot change (a disk image, a locked share) could never move.
+    private func markDroppedFilesCut(_ additions: [Item]) {
+        guard UserDefaults.standard.string(forKey: DefaultsKey.shelfDropInMode) == ShelfDropInMode.cut.rawValue
+        else { return }
+        let ids = dragItems(for: additions).compactMap { item -> UUID? in
+            guard case let .file(url) = item.payload, !isShelfOwnedFile(url),
+                  FileManager.default.isWritableFile(atPath: url.deletingLastPathComponent().path)
+            else { return nil }
+            return item.id
+        }
+        if !ids.isEmpty { cutIDs.formUnion(ids) }
     }
 
     func canAcceptPasteboard(_ pasteboard: NSPasteboard) -> Bool {
@@ -1566,9 +1616,15 @@ final class ShelfService: ObservableObject {
     }
 
     func accept(pasteboard: NSPasteboard) -> Bool {
+        appendItems(from: pasteboard) != nil
+    }
+
+    /// The items a pasteboard added, or nil when it added nothing.
+    private func appendItems(from pasteboard: NSPasteboard) -> [Item]? {
         let additions = items(from: pasteboard)
-        guard !additions.isEmpty else { return false }
-        return append(additions.count == 1 ? additions[0] : batchItem(children: additions))
+        guard !additions.isEmpty,
+              append(additions.count == 1 ? additions[0] : batchItem(children: additions)) else { return nil }
+        return additions
     }
 
 
@@ -1579,8 +1635,16 @@ final class ShelfService: ObservableObject {
               UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return false }
         let receivers = filePromiseReceivers(from: pasteboard)
         return receivers.isEmpty
-            ? accept(pasteboard: pasteboard)
+            ? acceptDropped(pasteboard: pasteboard)
             : beginPromisedFileReceive(receivers, additions: nonPromisedItems(from: pasteboard), mergeInto: nil)
+    }
+
+    /// A plain drop adds what `accept(pasteboard:)` would, cut in while the
+    /// Shelf cuts. Content added any other way is never cut.
+    private func acceptDropped(pasteboard: NSPasteboard) -> Bool {
+        guard let additions = appendItems(from: pasteboard) else { return false }
+        markDroppedFilesCut(additions)
+        return true
     }
 
     func accept(draggingInfo: NSDraggingInfo) -> Bool {
@@ -1667,6 +1731,7 @@ final class ShelfService: ObservableObject {
                 added = self.mergeExternalItems(receivedItems, into: targetID)
             } else {
                 added = self.append(receivedItems.count == 1 ? receivedItems[0] : self.batchItem(children: receivedItems))
+                if added { self.markDroppedFilesCut(receivedItems) }
             }
             if !added { ShelfFilePromiseTransfer.discard(result.urls, in: store) }
             let strings = ShelfPromiseDeliveryStrings.localized(L10n.shared.language)
@@ -2307,6 +2372,8 @@ final class ShelfService: ObservableObject {
         expandedBatches.formIntersection(batchIDs(in: items))
         let survivingPins = pinnedIDs.intersection(survivingIDs)
         if survivingPins != pinnedIDs { pinnedIDs = survivingPins }
+        let survivingCuts = cutIDs.intersection(survivingIDs)
+        if survivingCuts != cutIDs { cutIDs = survivingCuts }
     }
 
     private func leafIDs(in items: [Item]) -> Set<UUID> {
@@ -2373,7 +2440,8 @@ final class ShelfService: ObservableObject {
 
     private func persistItems() {
         let pinned = pinnedIDs
-        let persisted = items.map { Self.persistedItem(from: $0, pinnedIDs: pinned) }
+        let cut = cutIDs
+        let persisted = items.map { Self.persistedItem(from: $0, pinnedIDs: pinned, cutIDs: cut) }
         Self.persistQueue.async {
             guard let data = try? JSONEncoder().encode(persisted) else { return }
             UserDefaults.standard.set(data, forKey: DefaultsKey.shelfItems)
@@ -2432,6 +2500,9 @@ final class ShelfService: ObservableObject {
                     let restoredPins = Self.pinnedIDs(in: sanitized)
                         .intersection(self.allIDs(in: keptRestored))
                     if !restoredPins.isEmpty { self.pinnedIDs.formUnion(restoredPins) }
+                    let restoredCuts = Self.cutIDs(in: sanitized)
+                        .intersection(self.allIDs(in: keptRestored))
+                    if !restoredCuts.isEmpty { self.cutIDs.formUnion(restoredCuts) }
                     self.startContentThumbnails(for: keptRestored)
                 }
                 // A store this build could not read whole is not an empty
@@ -2456,12 +2527,14 @@ final class ShelfService: ObservableObject {
         }
     }
 
-    private static func persistedItem(from item: Item, pinnedIDs: Set<UUID>) -> ShelfPersistedItem {
+    private static func persistedItem(from item: Item, pinnedIDs: Set<UUID>,
+                                      cutIDs: Set<UUID>) -> ShelfPersistedItem {
         let pinned = pinnedIDs.contains(item.id)
         switch item.payload {
         case let .file(url):
             return ShelfPersistedItem(id: item.id, kind: .file, title: item.title,
-                                      path: url.path, bookmark: item.bookmark, pinned: pinned)
+                                      path: url.path, bookmark: item.bookmark, pinned: pinned,
+                                      cut: cutIDs.contains(item.id))
         case let .text(text):
             return ShelfPersistedItem(id: item.id, kind: .text, title: item.title, text: text,
                                       pinned: pinned)
@@ -2470,7 +2543,9 @@ final class ShelfService: ObservableObject {
                                       url: url.absoluteString, pinned: pinned)
         case let .batch(children):
             return ShelfPersistedItem(id: item.id, kind: .batch, title: item.title,
-                                      children: children.map { persistedItem(from: $0, pinnedIDs: pinnedIDs) },
+                                      children: children.map {
+                                          persistedItem(from: $0, pinnedIDs: pinnedIDs, cutIDs: cutIDs)
+                                      },
                                       pinned: pinned)
         }
     }
@@ -2479,6 +2554,13 @@ final class ShelfService: ObservableObject {
         persisted.reduce(into: Set<UUID>()) { ids, item in
             if item.pinned == true { ids.insert(item.id) }
             ids.formUnion(pinnedIDs(in: item.children ?? []))
+        }
+    }
+
+    private static func cutIDs(in persisted: [ShelfPersistedItem]) -> Set<UUID> {
+        persisted.reduce(into: Set<UUID>()) { ids, item in
+            if item.cut == true { ids.insert(item.id) }
+            ids.formUnion(cutIDs(in: item.children ?? []))
         }
     }
 

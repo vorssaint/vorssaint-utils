@@ -220,6 +220,8 @@ enum DefaultsKey {
     static let shelfEdgeDragEnabled = "shelfEdgeDragEnabled"
     static let shelfCloseAfterDrop = "shelfCloseAfterDrop"
     static let shelfRemoveAfterDrop = "shelfRemoveAfterDrop"
+    static let shelfDropInMode = "shelfDropInMode"         // ShelfDropInMode raw value
+    static let shelfDragOutMode = "shelfDragOutMode"       // ShelfDragOutMode raw value
     static let shelfClearOnClose = "shelfClearOnClose"
     static let shelfShortcutAddsFinderSelection = "shelfShortcutAddsFinderSelection"
     static let shelfAutomaticExclusions = "shelfAutomaticExclusions" // [bundle id] blocks automatic opening only
@@ -1424,6 +1426,10 @@ enum Defaults {
         // keeps the value shipped releases always had.
         DefaultsKey.shelfCloseAfterDrop: false,
         DefaultsKey.shelfRemoveAfterDrop: true,
+        // Copy in and let the destination decide on the way out: what
+        // shipped releases always did.
+        DefaultsKey.shelfDropInMode: ShelfDropInMode.copy.rawValue,
+        DefaultsKey.shelfDragOutMode: ShelfDragOutMode.auto.rawValue,
         DefaultsKey.shelfClearOnClose: false,
         DefaultsKey.shelfShortcutAddsFinderSelection: false,
         DefaultsKey.shelfAutomaticExclusions: [String](),

@@ -43,7 +43,7 @@ enum ShelfDropRoutingContract {
         var deliveredItems: [String] = []
         func filePromiseReceivers(from board: NSPasteboard) -> [Int] { promises }
         func nonPromisedItems(from board: NSPasteboard) -> [String] { ordinaryItems }
-        func accept(pasteboard: NSPasteboard) -> Bool { ordinaryAccepts += 1; return accepts }
+        func acceptDropped(pasteboard: NSPasteboard) -> Bool { ordinaryAccepts += 1; return accepts }
         func beginPromisedFileReceive(_ receivers: [Int], additions: [String], mergeInto target: UUID?) -> Bool {
             promisedAccepts += 1
             deliveredItems = additions

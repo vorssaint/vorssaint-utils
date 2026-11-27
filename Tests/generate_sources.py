@@ -1600,6 +1600,8 @@ def main():
           + declaration(shelf, "    struct Item:")
           + "var items: [Item] = []\nvar selection: Set<UUID> = []\n"
           + "var activeInternalDragIDs: [UUID] = []\nvar internalDragHoldsPackageContent = false\n"
+          + "var cutIDs: Set<UUID> = []\nvar internalDragIsCut = false\n"
+          + "var internalDragHoldsOnlyFiles = false\nvar internalDragLeftApp = false\n"
           + "static let dragFileQueue = DispatchQueue(label: \"shelf-drag-test\")\n"
           + "weak var internalDragWindow: NSWindow?\nvar internalDragWasMerged = false\n"
           + "var panel: NSWindow?\nvar dockedPanel: NSWindow?\n"
@@ -1622,7 +1624,7 @@ def main():
               "    private static func readDragFiles(", "    func finishPreparingDrag(",
               "    private static func resolvedBookmarkPath(",
               "    private static func rebookedItem(", "    func pasteboardWriter(",
-              "    func sourceOperationMask("])
+              "    func sourceOperationMask(", "    private func internalDragOutOffer("])
           + declaration(shelf, "    func beginInternalDrag(")
           + declaration(shelf, "    func internalDragMoved(")
           + declaration(shelf, "    func finishInternalDrag(")
