@@ -70,6 +70,24 @@ enum FinderNewFileTests {
             suite.expect(customFirst.lastPathComponent == "main.py" && customSecond.lastPathComponent == "main 2.py",
                          "custom filename and suffix use exclusive numbered creation")
             suite.expect(try Data(contentsOf: customFirst).isEmpty, "custom blank file is empty")
+            var noSuffix = custom
+            noSuffix.filename = ".env"
+            noSuffix.suffix = ""
+            let hidden = try FinderNewFileCreator.create(noSuffix, in: directory, templateDirectory: nil)
+            suite.expect(hidden.lastPathComponent == ".env", "extensionless hidden filename supported")
+            var compound = custom
+            compound.filename = "config"
+            compound.suffix = "local.json"
+            let compoundFile = try FinderNewFileCreator.create(compound, in: directory, templateDirectory: nil)
+            suite.expect(compoundFile.lastPathComponent == "config.local.json", "compound suffix supported")
+            let oldSnapshot = Data(#"{"enabled":true,"language":"en-US","selection":"txt"}"#.utf8)
+            let old = try JSONDecoder().decode(FinderNewFileSnapshot.self, from: oldSnapshot)
+            suite.expect(old.customMenu.isEmpty && old.kinds == [.text], "old menu snapshots remain readable")
+            let snapshot = FinderNewFileSnapshot(enabled: true, language: "en-US", selection: "",
+                                                  customItems: [custom.menuItem])
+            let snapshotData = try JSONEncoder().encode(snapshot)
+            suite.expect(!String(decoding: snapshotData, as: UTF8.self).contains("filename"),
+                         "extension snapshot contains presentation fields only")
             var invalid = custom
             invalid.filename = "../outside"
             suite.expect(invalid.normalized == nil, "reject path traversal in custom filename")

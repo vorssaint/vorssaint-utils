@@ -63,13 +63,17 @@ enum FinderNewFileTemplateStore {
     static func read(_ url: URL) throws -> Data {
         let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
         guard values.isRegularFile == true, values.isSymbolicLink != true,
-              let size = values.fileSize, size <= FinderNewFileCustomItem.maximumTemplateBytes else {
-            throw CocoaError(.fileReadUnknown)
-        }
+              let size = values.fileSize else { throw CocoaError(.fileReadUnknown) }
+        guard size <= FinderNewFileCustomItem.maximumTemplateBytes else { throw CocoaError(.fileReadTooLarge) }
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
-        let data = try handle.read(upToCount: FinderNewFileCustomItem.maximumTemplateBytes + 1) ?? Data()
-        guard data.count <= FinderNewFileCustomItem.maximumTemplateBytes else { throw CocoaError(.fileReadTooLarge) }
+        var data = Data()
+        let limit = FinderNewFileCustomItem.maximumTemplateBytes
+        while let chunk = try handle.read(upToCount: min(1024 * 1024, limit - data.count + 1)),
+              !chunk.isEmpty {
+            data.append(chunk)
+            guard data.count <= limit else { throw CocoaError(.fileReadTooLarge) }
+        }
         return data
     }
 

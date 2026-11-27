@@ -40,7 +40,6 @@ struct FinderNewFileSettings: View {
         }
         .settingsFormSectionAnchor(.finderNewFile)
         .onChange(of: selection) { _, _ in FinderNewFileService.syncWithPreferences() }
-        .onChange(of: customRaw) { _, _ in FinderNewFileService.syncWithPreferences() }
         .sheet(item: $editing) { item in
             FinderNewFileCustomEditor(draft: item) { saved in
                 save(saved)
@@ -121,11 +120,18 @@ struct FinderNewFileSettings: View {
 /// Edits a draft, committing preferences and template imports only on Save.
 private struct FinderNewFileCustomEditor: View {
     @ObservedObject private var l10n = L10n.shared
-    @State var draft: FinderNewFileCustomItem
+    @State private var draft: FinderNewFileCustomItem
     @State private var selectedFile: URL?
     @State private var error: String?
     let save: (FinderNewFileCustomItem) -> Void
     let cancel: () -> Void
+
+    init(draft: FinderNewFileCustomItem, save: @escaping (FinderNewFileCustomItem) -> Void,
+         cancel: @escaping () -> Void) {
+        _draft = State(initialValue: draft)
+        self.save = save
+        self.cancel = cancel
+    }
 
     private var strings: FinderNewFileStrings { FeatureStrings.finderNewFile(l10n.language) }
 

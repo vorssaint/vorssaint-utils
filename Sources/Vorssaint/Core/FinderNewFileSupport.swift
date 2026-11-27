@@ -125,7 +125,7 @@ struct FinderNewFileSnapshot: Codable {
     var kinds: [FinderNewFileKind] { FinderNewFileKind.selection(selection) }
 }
 
-/// A short-lived request carries only the selected directory and document kind.
+/// A short-lived request carries the selected directory and a built-in kind or custom item ID.
 /// The host separately authenticates the system-provided Apple event sender.
 struct FinderNewFileRequest: Codable, Equatable {
     let id: UUID
