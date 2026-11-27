@@ -19,6 +19,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var limitFocus = NotchAgentLimitFocus.mostUsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLiveActivity) private var liveActivity = true
+    @AppStorage(DefaultsKey.notchAgentsBreatheLidLogo) private var breatheLidLogo = false
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsFinishAlert) private var finishAlert = true
     @AppStorage(DefaultsKey.notchAgentsPulseLidLogo) private var pulseLidLogo = false
@@ -107,6 +108,10 @@ struct NotchAgentsSettingsControls: View {
                                       provider: claude ? .claude : codex ? .codex : opencode ? .opencode
                                         : copilot ? .copilot : .cursor)
                     .padding(.leading, settingsRowTextInset)
+            }
+
+            if LidLogoCompletionCue.isSupported {
+                switchRow("laptopcomputer", text.breatheLidLogo, isOn: $breatheLidLogo)
             }
 
             Divider()

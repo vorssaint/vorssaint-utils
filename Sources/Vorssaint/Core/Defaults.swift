@@ -947,6 +947,7 @@ enum DefaultsKey {
     static let notchAgentsLimitDisplay = "notchAgentsLimitDisplay"
     static let notchAgentsLimitFocus = "notchAgentsLimitFocus"
     static let notchAgentsLiveActivity = "notchAgentsLiveActivity"
+    static let notchAgentsBreatheLidLogo = "notchAgentsBreatheLidLogo"
     static let notchAgentsReadout = "notchAgentsReadout"
     static let notchAgentsFinishAlert = "notchAgentsFinishAlert"
     static let notchAgentsPulseLidLogo = "notchAgentsPulseLidLogo"
@@ -1560,6 +1561,7 @@ enum Defaults {
         DefaultsKey.notchAgentsLimitDisplay: NotchAgentLimitDisplay.remaining.rawValue,
         DefaultsKey.notchAgentsLimitFocus: NotchAgentLimitFocus.mostUsed.rawValue,
         DefaultsKey.notchAgentsLiveActivity: true,
+        DefaultsKey.notchAgentsBreatheLidLogo: false,
         DefaultsKey.notchAgentsReadout: NotchAgentReadout.elapsed.rawValue,
         DefaultsKey.notchAgentsFinishAlert: true,
         DefaultsKey.notchAgentsPulseLidLogo: false,

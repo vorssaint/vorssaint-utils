@@ -49,7 +49,7 @@ final class LidLogoCompletionCue {
     private let recoveryCenter: NotificationCenter
     private var breath: Task<Void, Never>?
     private var reminders: Task<Void, Never>?
-    private enum CueKind { case completion, reminder }
+    private enum CueKind { case completion, reminder, working }
 
     private var playing: CueKind?
     private var queuedCompletion: CueKind?
@@ -107,6 +107,11 @@ final class LidLogoCompletionCue {
             }
             return false
         }
+        if playing == .working {
+            queuedCompletion = kind
+            stopWorkingBreath()
+            return true
+        }
         if breath != nil {
             queuedCompletion = kind
             return true
@@ -128,8 +133,21 @@ final class LidLogoCompletionCue {
         queuedStart = nil
     }
 
+    var allowsWorkingBreathing: Bool { mayControlLogo() }
+
+    func playWorkingBreath(timing: Timing) -> LidLogoWorkingCue.StartResult {
+        guard queuedCompletion == nil, breath == nil else { return .busy }
+        // Reverse before the slower dim command could take the logo all the way down.
+        return startBreath(.working, timing: timing, pulses: 1, dimFadeDuration: 11) ? .started : .unavailable
+    }
+
+    func stopWorkingBreath() {
+        guard playing == .working else { return }
+        stopBreath(duration: 0.4)
+    }
+
     @discardableResult
-    private func startBreath(_ kind: CueKind, timing: Timing, pulses: Int) -> Bool {
+    private func startBreath(_ kind: CueKind, timing: Timing, pulses: Int, dimFadeDuration: Double? = nil) -> Bool {
         guard breath == nil else { return false }
         if restorePending { recover(); return false }
         guard let driver = driver(), driver.canFade, mayControlLogo(), let journal,
@@ -140,7 +158,7 @@ final class LidLogoCompletionCue {
         // Record recovery before the first write. Never touch the persisted logo
         // on/off setting or change the screen's brightness.
         observeRecoveryIfNeeded()
-        switch driver.fadeOut(duration: timing.dim) {
+        switch driver.fadeOut(duration: dimFadeDuration ?? timing.dim) {
         case .unavailable:
             clearRecoveryRecord()
             return false
@@ -178,11 +196,11 @@ final class LidLogoCompletionCue {
         stopBreath()
     }
 
-    private func stopBreath() {
+    private func stopBreath(duration: Double = 0) {
         playing = nil
         breath?.cancel()
         breath = nil
-        recover()
+        restore(duration: duration, timing: timing)
     }
 
     func recover() {

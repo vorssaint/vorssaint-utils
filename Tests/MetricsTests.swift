@@ -138,7 +138,10 @@ struct MetricsTests {
             ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
             ("agents", {
                 NotchAgentTests.run(suite)
-                MainActor.assumeIsolated { LidLogoCompletionCueTests.run(suite) }
+                MainActor.assumeIsolated {
+                    LidLogoCompletionCueTests.run(suite)
+                    LidLogoWorkingCueTests.run(suite)
+                }
             }),
             ("features", {
                 FeatureCatalogTests.run(suite)

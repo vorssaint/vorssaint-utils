@@ -78,6 +78,11 @@ enum SettingsFeatureTests {
         suite.expect(cueSearchTerms(lidLogo: true).isDisjoint(with: cueTitles),
                      "search hides lid controls when completion alerts are off")
         defaults.removeObject(forKey: DefaultsKey.notchAgentsFinishAlert)
+        defaults.set(false, forKey: DefaultsKey.notchAgentsLiveActivity)
+        suite.expect(cueSearchTerms(lidLogo: true).contains(agents.breatheLidLogo)
+                        && !cueSearchTerms(lidLogo: false).contains(agents.breatheLidLogo),
+                     "working lid controls follow hardware support independently of alerts and the live strip")
+        defaults.removeObject(forKey: DefaultsKey.notchAgentsLiveActivity)
         defaults.removeObject(forKey: DefaultsKey.notchAgentsPulseLidLogo)
 
         for (language, strings) in LocalizationTests.languages {

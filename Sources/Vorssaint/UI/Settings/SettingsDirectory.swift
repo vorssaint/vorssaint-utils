@@ -291,6 +291,8 @@ enum SettingsDirectory {
                    notchAgents.limitsAs, notchAgents.limitFocus, notchAgents.liveActivity, notchAgents.finishAlert,
                    notchAgents.limitAlert, notchAgents.budget, notchAgents.priceUpdates], feature: .notchAgents, notch: .module(.agents)),
             .init([notchAgents.readout], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLiveActivity)),
+            .init([notchAgents.breatheLidLogo], feature: .notchAgents, notch: .module(.agents),
+                  when: state.hardware.lidLogo),
             .init([notchAgents.pulseLidLogo], feature: .notchAgents, notch: .module(.agents),
                   when: state.on(DefaultsKey.notchAgentsFinishAlert) && state.hardware.lidLogo),
             .init([notchAgents.repeatLidLogoCue],

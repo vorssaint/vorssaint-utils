@@ -266,6 +266,15 @@ final class NotchService: ObservableObject {
     private(set) var running = false
     private var session = NotchSessionState()
     private var suspended: Bool { !session.canPresent }
+    private var workingLidLogoControllerAvailable = false
+    private lazy var workingLidLogoCue = MainActor.assumeIsolated {
+        LidLogoWorkingCue(
+            startBreath: {
+                LidLogoCompletionCue.shared.playWorkingBreath(timing: .init(dim: 2.6, brighten: 2.8, settle: 0.55))
+            },
+            stopBreath: { LidLogoCompletionCue.shared.stopWorkingBreath() }
+        )
+    }
 
     var agentsPageVisible: Bool {
         expanded && selected == .agents && selectedMetric == nil && !showingAppPanel && !showingSections
@@ -1240,6 +1249,7 @@ final class NotchService: ObservableObject {
         showsOnAllDisplays = displayPreference == .all
         updateFullscreenDisplays()
         updateScreen()
+        syncWorkingLidLogoCue()
         syncAppFullscreenMonitoring()
         syncPointerFollowing()
         syncGestures()
@@ -1350,6 +1360,7 @@ final class NotchService: ObservableObject {
     }
 
     private func tearDownPresentation() {
+        MainActor.assumeIsolated { workingLidLogoCue.stop() }
         cancelRelocation()
         screenRefreshWork?.cancel(); screenRefreshWork = nil
         stopAppFullscreenMonitoring()
@@ -3855,14 +3866,20 @@ final class NotchService: ObservableObject {
         session.locked = (CGSessionCopyCurrentDictionary() as? [String: Any])?["CGSSessionScreenIsLocked"] as? Bool ?? false
         let workspace = NSWorkspace.shared.notificationCenter
         observe(workspace, NSWorkspace.accessibilityDisplayOptionsDidChangeNotification) { [weak self] in
+            self?.syncWorkingLidLogoCue()
             self?.schedulePreferenceSync()
+        }
+        observe(.default, .NSProcessInfoPowerStateDidChange) { [weak self] in
+            self?.syncWorkingLidLogoCue()
         }
         observe(workspace, NSWorkspace.activeSpaceDidChangeNotification) { [weak self] in
             self?.fullscreenEnvironmentDidChange()
         }
         for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
             observe(workspace, name) { [weak self] in
-                guard let self, self.menuSpaceTimer != nil else { return }
+                guard let self else { return }
+                self.syncWorkingLidLogoCue()
+                guard self.menuSpaceTimer != nil else { return }
                 self.applyMenuSpace(nil)
                 self.invalidateMenuSpace()
             }
@@ -4301,6 +4318,12 @@ final class NotchService: ObservableObject {
             NotchDownloadService.shared.onFailure = { [weak self] in self?.reactMascot(.confused) }
         }
         if modules.contains(.agents) {
+            AgentUsageService.shared.$snapshot
+                .map { $0.live.map(\.lastActivity).max() }
+                .removeDuplicates()
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in self?.syncWorkingLidLogoCue(recheckController: false) }
+                .store(in: &subscriptions)
             // Only what changes the island's size or strip: a turn starting or
             // ending, the first read landing, which agents have cards, and
             // which are working, since each one's mark widens the strip.
@@ -4393,6 +4416,24 @@ final class NotchService: ObservableObject {
         }
         // The companion loves being plugged in, so it listens for the charger too.
         if NotchSupport.routes(.battery) || idleContent == .battery || NotchMascotSupport.isEnabled() { startPower() }
+    }
+
+    private func syncWorkingLidLogoCue(recheckController: Bool = true) {
+        MainActor.assumeIsolated {
+            guard running, displayID != nil, !suspended, NotchAgentSupport.breathesLidLogo(),
+                  LidLogoCompletionCue.isSupported, !ProcessInfo.processInfo.isLowPowerModeEnabled,
+                  !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            else { workingLidLogoCue.stop(); return }
+            // Refresh the application list on environment changes, not on transcript updates.
+            // The shared hardware controller also checks before each write.
+            if recheckController {
+                workingLidLogoControllerAvailable = LidLogoCompletionCue.shared.allowsWorkingBreathing
+            }
+            guard workingLidLogoControllerAvailable else { workingLidLogoCue.stop(); return }
+            workingLidLogoCue.update(expires: LidLogoWorkingCue.expiration(
+                for: AgentUsageService.shared.snapshot.live, enabledProviders: NotchAgentSupport.providers()
+            ))
+        }
     }
 
     private func showAgentEvent(_ event: AgentUsageEvent) {

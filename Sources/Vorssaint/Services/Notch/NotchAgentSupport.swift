@@ -241,6 +241,10 @@ enum NotchAgentSupport {
             && finishMinimum(in: defaults) != nil
     }
 
+    static func breathesLidLogo(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchAgentsBreatheLidLogo) && isEnabled(in: defaults)
+    }
+
     static func repeatsLidLogoCue(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: DefaultsKey.notchAgentsRepeatLidLogoCue) as? Bool ?? true
     }

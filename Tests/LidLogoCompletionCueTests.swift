@@ -142,6 +142,35 @@ enum LidLogoCompletionCueTests {
                      "a later finish is unseen again")
     }
 
+    private static func workingPreemption(_ suite: TestSuite) {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let journal = folder.appendingPathComponent("lid-logo-restore")
+        let driver = Driver(journal: journal)
+        let timing = LidLogoCompletionCue.Timing(dim: 0.02, brighten: 0.03, settle: 0.02)
+        let cue = LidLogoCompletionCue(driver: { driver }, journal: journal, mayControlLogo: { true }, timing: timing)
+
+        driver.canFade = false
+        suite.expect(cue.playWorkingBreath(timing: timing) == .unavailable && driver.fades == 0,
+                     "an unavailable logo reports a different outcome than completion contention")
+        driver.canFade = true
+        suite.expect(cue.playWorkingBreath(timing: timing) == .started, "the working breath can claim idle hardware")
+        cue.cancelCompletion()
+        suite.expect(driver.restores.isEmpty, "turning off completion effects leaves a working breath in progress")
+        cue.play()
+        suite.expect(driver.restores == [0.4] && cue.playWorkingBreath(timing: timing) == .busy,
+                     "a completion eases out of a working breath before claiming the logo")
+        suite.expect(waitUntil { driver.finishedRestores == 3 } && driver.restores == [0.4, 0.03, 0.03]
+                        && driver.dims == [11, 0.02, 0.02] && !driver.hasJournal,
+                     "the shorter working fade reverses, followed by a full-depth completion pair")
+        suite.expect(cue.playWorkingBreath(timing: timing) == .started,
+                     "completion cooldown does not block working")
+        cue.stopWorkingBreath()
+        suite.expect(driver.restores.last == 0.4, "normal working stop eases the logo back up")
+        cue.cancel()
+        suite.expect(driver.restores.last == 0, "global cancellation restores immediately during a working release")
+    }
+
     private static func reminders(_ suite: TestSuite) {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder) }
