@@ -13,6 +13,7 @@ enum HarnessReaderContractTests {
         openCodeGolden(suite)
         copilotGolden(suite)
         cursorGolden(suite)
+        kimiGolden(suite)
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
@@ -166,5 +167,65 @@ enum HarnessReaderContractTests {
         suite.expect(reader.parse(end, state: &state, now: now)
                         == [.turnEnded(now, completed: true, duration: nil)] && !state.turnOpen,
                      "a Cursor turn_ended finishes its turn")
+    }
+
+    private static func kimiGolden(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 0)
+        var state = AgentLogState()
+        KimiReader.adopt(
+            path: "/Users/me/.kimi-code/sessions/wm_1/session_abc/agents/main/wire.jsonl",
+            into: &state)
+        let reader = AgentProvider.kimi.reader
+        suite.expect(state.session == "session_abc",
+                     "a Kimi wire path names the session")
+        let snapshot = line(#"{"type":"changeNotifier.snapshot","workspacePrimaryByWorkspace":{"wm_1":"/Users/me/code/app"}}"#)
+        suite.expect(reader.parse(snapshot, state: &state, now: now).isEmpty && state.project == "app",
+                     "a Kimi workspace snapshot names the project without a turn")
+        let prompt = line(#"{"type":"turn.prompt","time":1790088000000,"turnId":"t1","origin":{"kind":"user"},"input":"private"}"#)
+        suite.expect(reader.parse(prompt, state: &state, now: now)
+                        == [.turnBegan(Date(timeIntervalSince1970: 1_790_088_000))] && state.turnOpen,
+                     "a Kimi user prompt opens its turn")
+        let injected = line(#"{"type":"turn.prompt","time":1790088001000,"turnId":"t2","origin":{"kind":"system"},"input":"private"}"#)
+        suite.expect(reader.parse(injected, state: &state, now: now).isEmpty && state.turnOpen,
+                     "an injected Kimi prompt never touches the turn")
+        let usage = line(#"{"type":"usage.record","time":1790088010000,"model":"kimi-code/k3-256k","usage":{"inputOther":1200,"inputCacheCreation":300,"inputCacheRead":5000,"output":800},"usageScope":"turn"}"#)
+        let entries = reader.parse(usage, state: &state, now: now)
+        guard case .usage(let key, let record, _)? = entries.first(where: {
+            if case .usage = $0 { return true }
+            return false
+        }) else {
+            suite.expect(false, "a Kimi usage record counts its request")
+            return
+        }
+        suite.expect(key == "kimi:session_abc:1790088010000" && record.model == "kimi-code/k3-256k"
+                        && record.session == "session_abc" && record.project == "app"
+                        && state.model == "kimi-code/k3-256k",
+                     "a Kimi usage record is keyed by its moment and names its model, session and project")
+        suite.expect(record.tokens == AgentTokens(input: 1200, cacheWrite: 300, cacheRead: 5000, output: 800, reasoning: 0),
+                     "fresh, cache write, cache read and output are read from the record")
+        let zero = line(#"{"type":"usage.record","time":1790088011000,"model":"kimi-code/k3-256k","usage":{"inputOther":0,"inputCacheCreation":0,"inputCacheRead":0,"output":0}}"#)
+        suite.expect(reader.parse(zero, state: &state, now: now).isEmpty,
+                     "a zero Kimi usage record never counts")
+        let repeated = line(#"{"type":"context.append_loop_event","time":1790088011000,"event":{"type":"step.end","finishReason":"end_turn","usage":{"inputOther":1200,"output":800}}}"#)
+        suite.expect(reader.parse(repeated, state: &state, now: now).isEmpty,
+                     "usage a step repeats never counts twice")
+        let step = line(#"{"type":"context.append_loop_event","time":1790088012000,"event":{"type":"step.end","finishReason":"tool_use"}}"#)
+        suite.expect(reader.parse(step, state: &state, now: now)
+                        == [.turnActive(Date(timeIntervalSince1970: 1_790_088_012))] && state.turnOpen,
+                     "a Kimi step expecting tools keeps the turn active")
+        let end = line(#"{"type":"turn.ended","time":1790088020000,"turnId":"t1","reason":"completed","durationMs":20000}"#)
+        suite.expect(reader.parse(end, state: &state, now: now)
+                        == [.turnEnded(Date(timeIntervalSince1970: 1_790_088_020), completed: true, duration: 20)]
+                        && !state.turnOpen,
+                     "a Kimi turn ending finishes its turn with its duration")
+        let stray = line(#"{"type":"turn.ended","time":1790088021000,"turnId":"t3","reason":"completed"}"#)
+        suite.expect(reader.parse(stray, state: &state, now: now).isEmpty,
+                     "a Kimi turn ending without an open turn stays quiet")
+        let failed = line(#"{"type":"turn.prompt","time":1790088022000,"turnId":"t4","origin":{"kind":"user"},"input":"private"}"#)
+        _ = reader.parse(failed, state: &state, now: now)
+        let failedEnd = line(#"{"type":"turn.ended","time":1790088025000,"turnId":"t4","reason":"failed","durationMs":3000}"#)
+        suite.expect(reader.parse(failedEnd, state: &state, now: now)
+                        == [.turnEnded(Date(timeIntervalSince1970: 1_790_088_025), completed: false, duration: 3)],
+                     "a failed Kimi turn ends unfinished")
     }
 }

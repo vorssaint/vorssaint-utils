@@ -135,6 +135,12 @@ enum AgentUsageReadTests {
                 #"{"id":"end","timestamp":\#(timestamp),"type":"assistant.turn_end","data":{"turnId":"0"}}"#,
                 #"{"id":"usage","timestamp":\#(timestamp),"type":"session.shutdown","data":{"modelMetrics":{"gpt-6-sol":{"requests":{"count":1},"tokenDetails":{"input":{"tokenCount":10},"cache_read":{"tokenCount":20},"cache_write":{"tokenCount":0},"output":{"tokenCount":5}},"usage":{"reasoningTokens":2}}}}}"#,
                 #"{"id":"final-checkpoint","timestamp":\#(timestamp),"type":"session.usage_checkpoint","data":{}}"#
+            ]),
+            (.kimi, [
+                #"{"type":"turn.prompt","time":\#(Int(timestamp * 1000)),"turnId":"t1","origin":{"kind":"user"},"input":"work"}"#,
+                #"{"type":"usage.record","time":\#(Int(timestamp * 1000) + 1000),"model":"kimi-code/k3-256k","usage":{"inputOther":10,"inputCacheCreation":0,"inputCacheRead":0,"output":2},"usageScope":"turn"}"#,
+                #"{"type":"usage.record","time":\#(Int(timestamp * 1000) + 2000),"model":"kimi-code/k3-256k","usage":{"inputOther":10,"inputCacheCreation":0,"inputCacheRead":0,"output":5},"usageScope":"turn"}"#,
+                #"{"type":"turn.ended","time":\#(Int(timestamp * 1000) + 20000),"turnId":"t1","reason":"completed","durationMs":20000}"#
             ])
         ]
         for (provider, lines) in cases {
@@ -152,6 +158,7 @@ enum AgentUsageReadTests {
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
                 case .cursor: entries += AgentLogParser.parseCursor(line, state: &cursor.state, now: now)
+                case .kimi: entries += AgentLogParser.parseKimi(line, state: &cursor.state, now: now)
                 }
             }
             if provider == .copilot {
@@ -453,7 +460,9 @@ enum AgentUsageReadTests {
                 suite.expect(false, "the startup fixture has a root for \(provider)")
                 return
             }
-            let file = root.url.appending(path: "session/events.jsonl")
+            let file = provider == .kimi
+                ? root.url.appending(path: "wm_1/session_s/agents/main/wire.jsonl")
+                : root.url.appending(path: "session/events.jsonl")
             do {
                 try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)

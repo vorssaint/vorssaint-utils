@@ -243,6 +243,15 @@ enum AgentLogParser {
         CopilotReader().parse(line, state: &state, now: now)
     }
 
+    // MARK: Kimi Code
+
+    /// Kimi Code session wires under `~/.kimi-code/sessions`, one per
+    /// workspace's session: turn edges and per-request usage are taken;
+    /// prompts, replies, reasoning and tool output are not.
+    static func parseKimi(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        KimiReader().parse(line, state: &state, now: now)
+    }
+
     // MARK: Cursor
 
     /// Cursor agent transcripts under `~/.cursor/projects`. Only turn edges

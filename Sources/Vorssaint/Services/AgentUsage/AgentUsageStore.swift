@@ -641,7 +641,7 @@ struct AgentLogRoot: Equatable {
         } : []
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
          (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
-         (.cursor, ".cursor/projects")].compactMap { provider, path in
+         (.cursor, ".cursor/projects"), (.kimi, ".kimi-code/sessions")].compactMap { provider, path in
             guard providers.contains(provider) else { return nil }
             return AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
@@ -675,6 +675,12 @@ struct AgentLogRoot: Equatable {
             guard (3...4).contains(parts.count), !parts[0].isEmpty, !parts[0].hasPrefix("."),
                   parts[1] == "agent-transcripts", !parts[2].isEmpty, !parts[2].hasPrefix(".") else { return false }
             return parts.count == 3 || parts[3] == parts[2] + ".jsonl"
+        }
+        // Only the main agent's wire tracks a turn: a session's other agents
+        // are its subagents, and their work belongs to the main one's turn.
+        if provider == .kimi {
+            return parts.count == 5 && parts[0].hasPrefix("wm_") && parts[1].hasPrefix("session_")
+                && parts[2] == "agents" && parts[3] == "main" && parts[4] == "wire.jsonl"
         }
         return true
     }
@@ -812,6 +818,7 @@ final class AgentLogCursor {
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
         if provider == .cursor { CursorReader.adopt(path: path, into: &state) }
+        if provider == .kimi { KimiReader.adopt(path: path, into: &state) }
     }
 
     /// The log whose turn a Codex subagent's responses count toward. It can
@@ -885,6 +892,7 @@ final class AgentLogCursor {
         cursorPrefix = CursorTranscriptPrefix()
         cachedCoverage = nil
         if provider == .cursor { CursorReader.adopt(path: path, into: &state) }
+        if provider == .kimi { KimiReader.adopt(path: path, into: &state) }
         fingerprinted = nil
         codexParentSearch = -1
     }
