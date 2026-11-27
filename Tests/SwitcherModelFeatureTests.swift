@@ -882,7 +882,7 @@ enum SwitcherModelFeatureTests {
                "an App Switcher appearance delay outside the range is clamped to it")
         suite.expectClose(SwitcherSupport.appearanceDelay(milliseconds: 125), 0.125,
                     "the stored App Switcher milliseconds drive the panel timer in seconds")
-        suite.expect(SwitcherSupport.usesIconRowLayout(iconRowMode: false, simpleMode: true),
+        suite.expect(SwitcherLayout(iconRowMode: false, simpleMode: true).usesIconRow,
                "App Switcher simple mode always uses the app icon row")
         suite.expect(SwitcherSupport.usesWindowRow(simpleMode: true,
                                              mergeWindowsByApp: false,

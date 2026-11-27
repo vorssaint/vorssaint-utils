@@ -74,19 +74,14 @@ struct SwitcherView: View {
     @EnvironmentObject private var switcher: AppSwitcher
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
-    @AppStorage(DefaultsKey.switcherIconRowMode) private var iconRowMode = false
-    @AppStorage(DefaultsKey.switcherSimpleMode) private var simpleMode = false
     @AppStorage(DefaultsKey.switcherInstantSelection) private var instantSelection = false
-    @AppStorage(DefaultsKey.switcherMergeTabs) private var mergeWindowsByApp = false
     @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var currentSpaceOnly = false
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var showsShortcutHints = true
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherWindowShortcut) private var switcherWindowShortcutStorage = GlobalShortcut.switcherWindowDefault.storageValue
 
     var body: some View {
-        if SwitcherSupport.usesIconRowLayout(iconRowMode: iconRowMode,
-                                             simpleMode: simpleMode),
-           !switcher.windows.isEmpty {
+        if switcher.usesIconRowLayout, !switcher.windows.isEmpty {
             iconRowPanel
         } else {
             standardPanel
@@ -255,11 +250,8 @@ struct SwitcherView: View {
         return simpleMode ? switcher.iconRowLayout.simplePanelSize : switcher.iconRowLayout.panelSize
     }
 
-    private var usesWindowRow: Bool {
-        SwitcherSupport.usesWindowRow(simpleMode: simpleMode,
-                                      mergeWindowsByApp: mergeWindowsByApp,
-                                      sessionScope: switcher.sessionScope)
-    }
+    private var simpleMode: Bool { switcher.simpleModeEnabled }
+    private var usesWindowRow: Bool { switcher.usesWindowRow }
 
     private var shortcutHintBar: some View {
         let shortcut = GlobalShortcut(storageValue: switcherShortcutStorage) ?? .switcherDefault

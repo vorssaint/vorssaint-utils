@@ -188,11 +188,24 @@ enum SwitcherAllWindowsTests {
                      "uninstalling the switcher also removes the new shortcut")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [role.storageKey, DefaultsKey.switcherAllWindowsShortcutEnabled]),
                      "the shortcut and opt-in travel in settings backups")
+        let layoutKey = DefaultsKey.switcherWindowLayout
+        let storedLayout = defaults[layoutKey] as? String
+        suite.expect(storedLayout == "" && SettingsBackupSupport.exportKeys().contains(layoutKey),
+                     "window layout defaults to app layout and travels in settings backups")
+        for storedValue in [storedLayout ?? "", "unknown-layout"] {
+            let windowLayout = SwitcherLayout(rawValue: storedValue)
+            for scope in [SwitcherSessionScope.allApps, .frontmostApp, .allWindows] {
+                suite.expect(SwitcherLayout.forSession(scope, appLayout: .icons, windowLayout: windowLayout) == .icons,
+                             "\(scope) falls back to the existing layout for an unset or unknown override")
+            }
+        }
         let english = FeatureStrings.switcherShortcuts(.enUS)
         for language in AppLanguage.allCases {
             let text = FeatureStrings.switcherShortcuts(language)
             suite.expect(!text.allWindows.isEmpty && !text.allWindowsCaption.isEmpty,
                          "all windows has complete labels in \(language.rawValue)")
+            suite.expect([text.appLayout, text.windowLayout, text.windowLayoutCaption, text.sameAsAppLayout]
+                .allSatisfy { !$0.isEmpty }, "layout settings have complete labels in \(language.rawValue)")
             if language != .enUS {
                 suite.expect(text.allWindows != english.allWindows && text.allWindowsCaption != english.allWindowsCaption,
                              "all windows is translated in \(language.rawValue)")

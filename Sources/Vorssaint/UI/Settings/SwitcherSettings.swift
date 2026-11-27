@@ -17,6 +17,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherTakeOverSystemShortcuts) private var switcherTakeOverSystemShortcuts = false
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
+    @AppStorage(DefaultsKey.switcherWindowLayout) private var switcherWindowLayout = ""
     @AppStorage(DefaultsKey.switcherMergeTabs) private var switcherMergeTabs = false
     @AppStorage(DefaultsKey.switcherWindowlessApps) private var switcherWindowlessApps = SwitcherWindowlessApps.fallback.rawValue
     @AppStorage(DefaultsKey.switcherMinimizedPlacement) private var switcherMinimizedPlacement = WindowSwitchMinimizedPlacement.normal.rawValue
@@ -79,7 +80,7 @@ struct SwitcherSettings: View {
                         }
                     }
                     if !permissions.screenRecording,
-                       SwitcherSupport.capturesPreviews(simpleMode: switcherSimpleMode) {
+                       SwitcherSupport.capturesPreviews(simpleMode: switcherSimpleMode, windowLayout: windowLayout) {
                         SettingsCard {
                             PermissionRow(kind: .screenRecording)
                         }
@@ -97,9 +98,14 @@ struct SwitcherSettings: View {
 
     // MARK: - App switcher
 
-    private var layout: SwitcherLayout {
-        if switcherSimpleMode { return .simple }
-        return switcherIconRowMode ? .icons : .windows
+    private var appLayout: SwitcherLayout {
+        SwitcherLayout(iconRowMode: switcherIconRowMode, simpleMode: switcherSimpleMode)
+    }
+
+    private var windowLayout: SwitcherLayout? { SwitcherLayout(rawValue: switcherWindowLayout) }
+
+    private var windowLayoutSelection: Binding<String> {
+        Binding(get: { windowLayout?.rawValue ?? "" }, set: { switcherWindowLayout = $0 })
     }
 
     private func choose(_ layout: SwitcherLayout) {
@@ -117,7 +123,8 @@ struct SwitcherSettings: View {
     }
 
     private var switcherCard: some View {
-        SettingsCard(title: l10n.s.switcherSection) {
+        let text = FeatureStrings.switcherShortcuts(l10n.language)
+        return SettingsCard(title: l10n.s.switcherSection) {
             SettingsRow(symbol: "rectangle.on.rectangle", title: l10n.s.switcherEnable,
                         caption: l10n.s.switcherEnableCaption) {
                 Toggle(l10n.s.switcherEnable, isOn: $switcherEnabled)
@@ -128,19 +135,19 @@ struct SwitcherSettings: View {
             }
             Group {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(FeatureStrings.notchEditor(l10n.language).layout)
+                    Text(text.appLayout)
                         .font(.subheadline.weight(.medium))
                     HStack(spacing: 10) {
                         SwitcherLayoutChoice(layout: .windows, title: pages.switcherLayoutWindows,
-                                             caption: pages.switcherLayoutWindowsCaption, selected: layout == .windows) {
+                                             caption: pages.switcherLayoutWindowsCaption, selected: appLayout == .windows) {
                             choose(.windows)
                         }
                         SwitcherLayoutChoice(layout: .icons, title: pages.switcherLayoutIcons,
-                                             caption: l10n.s.switcherIconRowModeCaption, selected: layout == .icons) {
+                                             caption: l10n.s.switcherIconRowModeCaption, selected: appLayout == .icons) {
                             choose(.icons)
                         }
                         SwitcherLayoutChoice(layout: .simple, title: pages.switcherLayoutSimple,
-                                             caption: l10n.s.switcherSimpleModeCaption, selected: layout == .simple) {
+                                             caption: l10n.s.switcherSimpleModeCaption, selected: appLayout == .simple) {
                             choose(.simple)
                         }
                     }
@@ -163,10 +170,8 @@ struct SwitcherSettings: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 SettingsRow(symbol: "macwindow.on.rectangle",
-                            title: FeatureStrings.switcherShortcuts(l10n.language).allWindows,
-                            caption: FeatureStrings.switcherShortcuts(l10n.language).allWindowsCaption) {
-                    Toggle(FeatureStrings.switcherShortcuts(l10n.language).allWindows,
-                           isOn: $allWindowsShortcutEnabled)
+                            title: text.allWindows, caption: text.allWindowsCaption) {
+                    Toggle(text.allWindows, isOn: $allWindowsShortcutEnabled)
                         .labelsHidden()
                         .onChange(of: allWindowsShortcutEnabled) { _, _ in
                             AppSwitcher.shared.syncWithPreferences()
@@ -175,6 +180,21 @@ struct SwitcherSettings: View {
                 if allWindowsShortcutEnabled {
                     ShortcutPreferenceRow(role: .switcherAllWindows,
                                           isEnabled: switcherEnabled) {
+                        AppSwitcher.shared.syncWithPreferences()
+                    }
+                }
+                SettingsRow(symbol: "rectangle.on.rectangle", title: text.windowLayout,
+                            caption: text.windowLayoutCaption) {
+                    Picker(text.windowLayout, selection: windowLayoutSelection) {
+                        Text(text.sameAsAppLayout).tag("")
+                        Text(pages.switcherLayoutWindows).tag(SwitcherLayout.windows.rawValue)
+                        Text(pages.switcherLayoutIcons).tag(SwitcherLayout.icons.rawValue)
+                        Text(pages.switcherLayoutSimple).tag(SwitcherLayout.simple.rawValue)
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .fixedSize()
+                    .onChange(of: switcherWindowLayout) { _, _ in
                         AppSwitcher.shared.syncWithPreferences()
                     }
                 }
@@ -247,7 +267,7 @@ struct SwitcherSettings: View {
                         caption: l10n.s.switcherSearchPinCaption) {
                 Toggle(l10n.s.switcherSearchPin, isOn: $switcherSearchPinEnabled).labelsHidden()
             }
-            if switcherSimpleMode || switcherIconRowMode {
+            if appLayout.usesIconRow || windowLayout?.usesIconRow == true {
                 SettingsRow(symbol: "keyboard", title: l10n.s.switcherShowShortcutHints,
                             caption: l10n.s.switcherShowShortcutHintsCaption) {
                     Toggle(l10n.s.switcherShowShortcutHints, isOn: $switcherShowShortcutHints).labelsHidden()
@@ -565,10 +585,4 @@ private struct SwitcherLayoutChoice: View {
                     .strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 1.5)
             }
     }
-}
-
-/// The three ways the switcher can look; `simple` wins over `icons` when
-/// both keys are set, as the switcher itself decides.
-private enum SwitcherLayout: Hashable {
-    case windows, icons, simple
 }
