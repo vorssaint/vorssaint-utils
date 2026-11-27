@@ -1059,6 +1059,27 @@ enum FeatureCatalogTests {
                 && FanControlPolicy.interpolatedCoolingLevel(points: defaultCurve.points,
                                                              temperature: 80) == 100,
                "the default curve starts at 50 degrees, reaches maximum at 70 and rounds safely up")
+        func operatingPoint(_ temperature: Double) -> (temperature: Double, level: Double)? {
+            FanControlPolicy.curveOperatingPoint(points: defaultCurve.points, temperature: temperature)
+        }
+        func marks(_ temperature: Double, at expected: (Double, Double)) -> Bool {
+            guard let point = operatingPoint(temperature) else { return false }
+            return abs(point.temperature - expected.0) < 1e-9 && abs(point.level - expected.1) < 1e-9
+        }
+        suite.expect(marks(60, at: (60, 50))
+                && marks(61.5, at: (61.5, 57.5))
+                && FanControlPolicy.interpolatedCoolingLevel(points: defaultCurve.points,
+                                                             temperature: 61.5) == 60
+                && marks(40, at: (40, 0))
+                && marks(80, at: (80, 100)),
+               "the curve editor marks a reading on the drawn line, between the stepped levels the curve asks for")
+        suite.expect(marks(12, at: (20, 0))
+                && marks(118, at: (110, 100))
+                && operatingPoint(0) == nil
+                && operatingPoint(.nan) == nil
+                && operatingPoint(130) == nil
+                && FanControlPolicy.curveOperatingPoint(points: [], temperature: 60) == nil,
+               "the curve editor keeps the reading marker on the graph and drops readings no curve would use")
         let coolingTemperature = [
             FanControlTemperatureReading(source: .hottestSoC, celsius: 59),
         ]
