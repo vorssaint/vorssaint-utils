@@ -525,3 +525,40 @@ extension KeepAwakeAutomationStrings {
         automationCaptionAll: "Запускається лише коли всі обрані умови активні."
     )
 }
+
+extension FeatureStrings {
+    static func clamshellMute(_ language: AppLanguage) -> (title: String, caption: String) {
+        switch language {
+        case .enUS:
+            return ("Mute when lid closes", "While closed-lid mode is active, mute audio on close and restore the previous mute state on open.")
+        case .ptBR:
+            return ("Silenciar ao fechar a tampa", "Com o modo de tampa fechada ativo, silencia o áudio ao fechar a tampa e restaura o estado anterior ao abri-la.")
+        case .tr:
+            return ("Kapak kapanınca sesi kapat", "Kapalı kapak modu etkinken kapak kapatıldığında sesi kapatır, açıldığında önceki sessiz durumunu geri yükler.")
+        case .ru:
+            return ("Выключать звук при закрытии крышки", "В режиме работы с закрытой крышкой выключает звук при закрытии и восстанавливает прежнее состояние звука при открытии.")
+        case .es:
+            return ("Silenciar al cerrar la tapa", "Con el modo de tapa cerrada activo, silencia el audio al cerrar la tapa y restaura el estado de silencio anterior al abrirla.")
+        case .sk:
+            return ("Stlmiť zvuk pri zatvorení veka", "Keď je aktívny režim so zatvoreným vekom, pri zatvorení stlmí zvuk a pri otvorení obnoví predchádzajúci stav stlmenia.")
+        case .de:
+            return ("Beim Zuklappen stummschalten", "Schaltet im Betrieb mit geschlossenem Deckel den Ton beim Zuklappen stumm und stellt beim Aufklappen den vorherigen Stummschaltungszustand wieder her.")
+        case .fr:
+            return ("Couper le son à la fermeture du capot", "Lorsque le mode capot fermé est actif, coupe le son à la fermeture et rétablit l’état précédent du son à l’ouverture.")
+        case .it:
+            return ("Disattiva l’audio alla chiusura del coperchio", "Quando la modalità a coperchio chiuso è attiva, disattiva l’audio alla chiusura e ripristina lo stato precedente alla riapertura.")
+        case .ja:
+            return ("蓋を閉じると消音", "蓋を閉じても動作するモードで消音し、開くと以前の消音状態に戻します。")
+        case .ko:
+            return ("덮개를 닫으면 음소거", "덮개 닫힘 유지 모드에서 소리를 끄고, 다시 열면 이전 음소거 상태로 복원합니다.")
+        case .uk:
+            return ("Вимикати звук при закритті кришки", "У режимі роботи із закритою кришкою вимикає звук при закритті та відновлює попередній стан звуку при відкритті.")
+        case .zhHans:
+            return ("合上盖子时静音", "在合盖运行模式下，合上盖子时静音，打开后恢复之前的静音状态。")
+        case .zhTW:
+            return ("闔上蓋子時靜音", "在闔蓋運作模式下，闔上蓋子時靜音，打開後恢復先前的靜音狀態。")
+        case .zhHK:
+            return ("合上蓋子時靜音", "在合蓋運作模式下，合上蓋子時靜音，打開後還原之前的靜音狀態。")
+        }
+    }
+}

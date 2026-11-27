@@ -69,6 +69,16 @@ final class KeepAwakeManager: ObservableObject {
         }
     }
 
+    @Published var muteOnLidClose: Bool {
+        didSet {
+            guard muteOnLidClose != oldValue else { return }
+            UserDefaults.standard.set(muteOnLidClose, forKey: DefaultsKey.clamshellMuteOnClose)
+            syncLidDimmingObserver()
+        }
+    }
+
+    private var lidMutedOutput: (device: UInt32, muted: Bool)?
+
     var onSessionEnded: ((EndReason) -> Void)?
 
     private var systemAssertion = IOPMAssertionID(0)
@@ -116,6 +126,7 @@ final class KeepAwakeManager: ObservableObject {
 
     private init() {
         clamshellPreferred = UserDefaults.standard.bool(forKey: DefaultsKey.clamshellPreferred)
+        muteOnLidClose = UserDefaults.standard.bool(forKey: DefaultsKey.clamshellMuteOnClose)
         dimScreenOnLidClose = UserDefaults.standard.bool(forKey: DefaultsKey.dimScreenOnLidClose)
         refreshPasswordlessStatus()
         // Every settings write announces itself, including the ones made from
@@ -1128,9 +1139,11 @@ final class KeepAwakeManager: ObservableObject {
     /// the mode ending, the same way `BrightnessService`'s own deferred
     /// display restoration outlives whatever asked for it.
     private func syncLidDimmingObserver() {
+        syncLidMute()
         let armed = clamshellActive && dimScreenOnLidClose
         if !armed { applyDimmingAction(LidDimmingSupport.restoring(saved: savedDisplayBrightness)) }
-        guard armed || savedDisplayBrightness != nil else {
+        guard armed || (clamshellActive && muteOnLidClose)
+                || savedDisplayBrightness != nil || lidMutedOutput != nil else {
             if lidDimmingNotification != 0 { IOObjectRelease(lidDimmingNotification) }
             lidDimmingNotification = 0
             if let lidDimmingNotificationPort { IONotificationPortDestroy(lidDimmingNotificationPort) }
@@ -1170,7 +1183,11 @@ final class KeepAwakeManager: ObservableObject {
     /// callback already queued when the feature was torn down: it lands here
     /// as a no-op instead of acting on a mode that already ended.
     private func lidStateMayHaveChangedForDimming() {
-        guard (clamshellActive && dimScreenOnLidClose) || savedDisplayBrightness != nil else { return }
+        syncLidMute()
+        guard (clamshellActive && dimScreenOnLidClose) || savedDisplayBrightness != nil else {
+            syncLidDimmingObserver()
+            return
+        }
         let closed = BrightnessService.lidClosed() ?? false
         guard closed != lidClosedForDimming else { return }
         lidClosedForDimming = closed
@@ -1180,6 +1197,28 @@ final class KeepAwakeManager: ObservableObject {
             }
         } else {
             applyDimmingAction(LidDimmingSupport.restoring(saved: savedDisplayBrightness))
+        }
+    }
+
+    /// Shares the existing lid observer with display dimming. The captured
+    /// state belongs to one output device, even if the default output changes.
+    private func syncLidMute() {
+        let enabled = clamshellActive && muteOnLidClose
+        if enabled {
+            guard let closed = BrightnessService.lidClosed() else { return }
+            if closed {
+                guard lidMutedOutput == nil,
+                      let device = AppVolumeMixer.defaultOutputDeviceID(),
+                      let muted = AppVolumeMixer.outputMuted(for: device) else { return }
+                if AppVolumeMixer.setOutputMuted(true, for: device) {
+                    lidMutedOutput = (device, muted)
+                }
+                return
+            }
+        }
+        guard let saved = lidMutedOutput else { return }
+        if AppVolumeMixer.setOutputMuted(saved.muted, for: saved.device) {
+            lidMutedOutput = nil
         }
     }
 

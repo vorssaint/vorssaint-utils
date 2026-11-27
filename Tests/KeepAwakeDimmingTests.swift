@@ -22,6 +22,88 @@ enum KeepAwakeDimmingTests {
     }
 
     static func run(expect: (Bool, String) -> Void) {
+        expect(Defaults.registeredDefaults[DefaultsKey.clamshellMuteOnClose] as? Bool == false,
+               "closed-lid mute is opt-in")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.clamshellMuteOnClose),
+               "closed-lid mute preference is included in settings backup")
+        let english = FeatureStrings.clamshellMute(.enUS)
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.clamshellMute(language)
+            expect(!strings.title.isEmpty && !strings.caption.isEmpty,
+                   "closed-lid mute has a title and caption in \(language.rawValue)")
+            if language != .enUS {
+                expect(strings.title != english.title && strings.caption != english.caption,
+                       "closed-lid mute is translated instead of falling back to English in \(language.rawValue)")
+            }
+        }
+        let disabled = C.reset()
+        disabled.clamshellActive = true
+        disabled.syncLidMute()
+        expect(C.AppVolumeMixer.writes.isEmpty, "disabled mute never changes audio")
+        let inactive = C.reset()
+        inactive.muteOnLidClose = true
+        expect(C.AppVolumeMixer.writes.isEmpty, "mute does not run without an active closed-lid session")
+        let unreadable = C.reset()
+        unreadable.clamshellActive = true
+        C.AppVolumeMixer.readable = false
+        unreadable.muteOnLidClose = true
+        expect(C.AppVolumeMixer.writes.isEmpty && unreadable.lidMutedOutput == nil,
+               "an unreadable mute state is not overwritten")
+        let failedMute = C.reset()
+        failedMute.clamshellActive = true
+        C.AppVolumeMixer.succeeds = false
+        failedMute.muteOnLidClose = true
+        expect(failedMute.lidMutedOutput == nil, "failed muting does not record a restoration it cannot own")
+        C.AppVolumeMixer.succeeds = true
+        C.DimmingObserver.callback?(); C.drain()
+        expect(C.AppVolumeMixer.muted && failedMute.lidMutedOutput != nil,
+               "a later lid notification retries failed muting")
+        let staleCallback = C.DimmingObserver.callback
+        failedMute.muteOnLidClose = false
+        staleCallback?(); C.drain()
+        expect(!C.AppVolumeMixer.muted, "a queued callback cannot remute after the option is disabled")
+        for originallyMuted in [false, true] {
+            let audio = C.reset()
+            C.BrightnessService.lid = false
+            C.AppVolumeMixer.muted = originallyMuted
+            audio.clamshellActive = true
+            audio.muteOnLidClose = true
+            expect(C.AppVolumeMixer.writes.isEmpty, "arming with the lid open leaves audio alone")
+            C.BrightnessService.lid = true
+            C.DimmingObserver.callback?(); C.drain()
+            C.DimmingObserver.callback?(); C.drain()
+            expect(C.AppVolumeMixer.muted && C.AppVolumeMixer.writes.count == 1,
+                   "closing mutes once without overwriting the saved state")
+            C.BrightnessService.lid = false
+            C.DimmingObserver.callback?(); C.drain()
+            expect(C.AppVolumeMixer.muted == originallyMuted && audio.lidMutedOutput == nil,
+                   "opening restores the original mute state, including originally muted audio")
+        }
+        for endSession in [false, true] {
+            let audio = C.reset()
+            audio.clamshellActive = true
+            audio.muteOnLidClose = true
+            expect(C.AppVolumeMixer.muted, "enabling while already closed mutes immediately")
+            if endSession { audio.clamshellActive = false } else { audio.muteOnLidClose = false }
+            expect(!C.AppVolumeMixer.muted && audio.lidMutedOutput == nil,
+                   "ending the session or disabling the option restores audio")
+        }
+        let retryAudio = C.reset()
+        retryAudio.clamshellActive = true
+        retryAudio.muteOnLidClose = true
+        C.AppVolumeMixer.succeeds = false
+        retryAudio.muteOnLidClose = false
+        expect(retryAudio.lidMutedOutput != nil && C.DimmingObserver.callback != nil,
+               "failed restoration retains its snapshot and observer for a retry")
+        C.AppVolumeMixer.succeeds = true
+        C.AppVolumeMixer.device = 2
+        C.DimmingObserver.callback?(); C.drain()
+        expect(C.AppVolumeMixer.writes.last?.0 == 1 && retryAudio.lidMutedOutput == nil,
+               "restoration targets the captured device rather than a new default output")
+
+        expect(C.DimmingObserver.callback == nil,
+               "the observer stops after a pending mute restoration succeeds")
+
         let alreadyClosed = C.reset()
         alreadyClosed.isActive = true
         alreadyClosed.clamshellActive = true
