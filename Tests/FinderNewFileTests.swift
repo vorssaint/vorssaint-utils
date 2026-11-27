@@ -145,7 +145,31 @@ enum FinderNewFileTests {
             custom.template = try FinderNewFileTemplateStore.importFile(source, into: store, container: directory)
             try FileManager.default.removeItem(at: source)
             let copy = try FinderNewFileCreator.create(custom, in: directory, templateDirectory: store)
+            suite.expect(copy.lastPathComponent == "main 3.py",
+                         "imported template uses configured name and suffix, not source.txt")
             suite.expect(try Data(contentsOf: copy) == contents, "imported template survives source removal")
+
+            var defaultNamed = custom
+            defaultNamed.filename = "Untitled"
+            defaultNamed.suffix = "log"
+            let defaultCopy = try FinderNewFileCreator.create(defaultNamed, in: directory, templateDirectory: store)
+            suite.expect(defaultCopy.lastPathComponent == "Untitled.log",
+                         "Untitled is a valid explicit filename with imported content")
+            var extensionless = custom
+            extensionless.filename = "Makefile"
+            extensionless.suffix = ""
+            let extensionlessCopy = try FinderNewFileCreator.create(extensionless, in: directory, templateDirectory: store)
+            suite.expect(extensionlessCopy.lastPathComponent == "Makefile",
+                         "template extension is not inherited by extensionless output")
+            var builtInWithTemplate = edited
+            builtInWithTemplate.filename = "Custom Report"
+            builtInWithTemplate.template = custom.template
+            let builtInCopy = try FinderNewFileCreator.create(builtInWithTemplate, in: directory,
+                                                             templateDirectory: store, bundledTemplates: templates)
+            suite.expect(builtInCopy.lastPathComponent == "Custom Report.docx",
+                         "built-in entries also use configured names with imported templates")
+            suite.expect(try Data(contentsOf: builtInCopy) == contents,
+                         "imported content takes precedence over bundled content")
             FinderNewFileTemplateStore.remove(custom.template!, from: store)
             do {
                 _ = try FinderNewFileCreator.create(custom, in: directory, templateDirectory: store)

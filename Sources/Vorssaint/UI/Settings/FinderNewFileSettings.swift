@@ -281,13 +281,8 @@ private struct FinderNewFileDocumentEditor: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         selectedFile = url
         error = nil
-        let base = url.deletingPathExtension().lastPathComponent
-        // Changing a template on an existing entry must not change its name.
-        if isNew {
-            if menuName.isEmpty { menuName = base }
-            if draft.filename == "Untitled" || draft.filename.isEmpty { draft.filename = base }
-            if draft.suffix.isEmpty { draft.suffix = url.pathExtension }
-        }
+        // A template supplies content only. Never change the independently
+        // configured menu name, filename or suffix, even on a new entry.
     }
 
     private func commit() {
