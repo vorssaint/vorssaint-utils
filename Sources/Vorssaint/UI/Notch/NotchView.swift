@@ -597,7 +597,14 @@ struct NotchView: View {
             // here would replace.
             case .tools: QuickLauncherView(notchSize: pageSize)
             case .scratchpad: NotchScratchpadView(service: service)
-            case .agents: NotchAgentsView(size: pageSize)
+            case .agents:
+                NotchAgentsView(size: pageSize, completions: service.agentCompletions,
+                                completionPageVisible: service.agentsPageVisible,
+                                acknowledgeCompletion: service.acknowledgeAgentCompletion)
+                    .onChange(of: service.agentsPageVisible, initial: true) {
+                        service.stopAgentCompletionReminders()
+                    }
+                    .onDisappear { service.discardViewedAgentCompletions() }
             case .watch: NotchWatchView(size: pageSize)
             }
         }
