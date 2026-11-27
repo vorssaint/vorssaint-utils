@@ -114,7 +114,7 @@ enum SelfUninstallContract {
         Host.clearPermissions { cleared = $0 }
         DispatchQueue.main.flush()
         suite.expect(cleared == true
-                        && events == ["suspend", "sleep", "fan", "login", "rule", "tccutil", "finder reset", "refresh permissions", "restore keep awake", "finder resume", "resume brightness"],
+                        && events == ["suspend", "finder reset", "sleep", "fan", "login", "rule", "tccutil", "refresh permissions", "restore keep awake", "finder resume", "resume brightness"],
                      "a mouse journal kept for a disconnected device does not block clearing permissions, found \(events)")
 
         reset(allowRule: true)
@@ -122,22 +122,22 @@ enum SelfUninstallContract {
         Host.clearPermissions { cleared = $0 }
         DispatchQueue.main.flush()
         suite.expect(cleared == false
-                        && events == ["suspend", "sleep", "refresh permissions", "finder resume", "resume features", "resume brightness"],
-                     "failed sleep restoration keeps the recovery rule and permissions, found \(events)")
+                        && events == ["suspend", "finder reset", "sleep", "refresh permissions", "finder resume", "resume features", "resume brightness"],
+                     "failed sleep restoration keeps the recovery rule and TCC grants, but still clears Finder enablement, found \(events)")
 
         reset(allowRule: true)
         detachAllowed = false
         Host.clearPermissions { cleared = $0 }
         DispatchQueue.main.flush()
         suite.expect(cleared == false
-                        && events == ["suspend", "sleep", "fan", "restore keep awake", "refresh permissions", "finder resume", "resume features", "resume brightness"],
-                     "failed system detach keeps the recovery rule and rearms closed-lid mode, found \(events)")
+                        && events == ["suspend", "finder reset", "sleep", "fan", "restore keep awake", "refresh permissions", "finder resume", "resume features", "resume brightness"],
+                     "failed system detach keeps the recovery rule, rearms closed-lid mode and still clears Finder enablement, found \(events)")
 
         reset(allowRule: false)
         Host.clearPermissions { cleared = $0 }
         DispatchQueue.main.flush()
         suite.expect(cleared == false
-                        && events == ["suspend", "sleep", "fan", "login", "rule", "tccutil", "finder reset", "refresh permissions", "restore keep awake", "finder resume", "resume features", "resume brightness"],
+                        && events == ["suspend", "finder reset", "sleep", "fan", "login", "rule", "tccutil", "refresh permissions", "restore keep awake", "finder resume", "resume features", "resume brightness"],
                      "a refused password request reports partial clear and restores closed-lid mode, found \(events)")
 
         reset(allowRule: true)
@@ -145,7 +145,7 @@ enum SelfUninstallContract {
         Host.clearPermissions { cleared = $0 }
         DispatchQueue.main.flush()
         suite.expect(cleared == false
-                        && events == ["suspend", "sleep", "fan", "login", "rule", "tccutil", "finder reset", "refresh permissions", "restore keep awake", "finder resume", "resume features", "resume brightness"],
+                        && events == ["suspend", "finder reset", "sleep", "fan", "login", "rule", "tccutil", "refresh permissions", "restore keep awake", "finder resume", "resume features", "resume brightness"],
                      "a failed TCC reset still attempts the Finder reset and reports partial clear, found \(events)")
 
         reset(allowRule: true)
@@ -153,14 +153,14 @@ enum SelfUninstallContract {
         Host.clearPermissions { cleared = $0 }
         DispatchQueue.main.flush()
         suite.expect(cleared == false
-                        && events == ["suspend", "sleep", "fan", "login", "rule", "tccutil", "finder reset", "refresh permissions", "restore keep awake", "finder resume", "resume features", "resume brightness"],
+                        && events == ["suspend", "finder reset", "sleep", "fan", "login", "rule", "tccutil", "refresh permissions", "restore keep awake", "finder resume", "resume features", "resume brightness"],
                      "failure to disable the Finder extension is a partial permission reset")
 
         reset(allowRule: true)
         Host.clearPermissions { cleared = $0 }
         DispatchQueue.main.flush()
         suite.expect(cleared == true
-                        && events == ["suspend", "sleep", "fan", "login", "rule", "tccutil", "finder reset", "refresh permissions", "restore keep awake", "finder resume", "resume brightness"],
+                        && events == ["suspend", "finder reset", "sleep", "fan", "login", "rule", "tccutil", "refresh permissions", "restore keep awake", "finder resume", "resume brightness"],
                      "clear permissions succeeds when the rule and permissions are removed, found \(events)")
 
         reset(allowRule: false)
@@ -186,7 +186,7 @@ enum SelfUninstallContract {
         Host.uninstallCompletely { failure = $0 }
         DispatchQueue.main.flush()
         suite.expect(failure == "rule kept"
-                        && events == ["suspend", "spaces", "sleep", "rule", "fan registration", "fan", "tccutil", "finder reset", "restore fan registration", "restore keep awake", "refresh permissions", "finder resume", "resume features", "resume brightness"],
+                        && events == ["suspend", "spaces", "sleep", "rule", "fan registration", "fan", "finder reset", "tccutil", "restore fan registration", "restore keep awake", "refresh permissions", "finder resume", "resume features", "resume brightness"],
                      "a failed permission reset restores the prior fan helper and keeps login, found \(events)")
 
         reset(allowRule: true)
@@ -196,7 +196,7 @@ enum SelfUninstallContract {
         Host.uninstallCompletely { failure = $0 }
         DispatchQueue.main.flush()
         suite.expect(failure == "rule kept\nfan unavailable"
-                        && events == ["suspend", "spaces", "sleep", "rule", "fan registration", "fan", "tccutil", "finder reset", "restore fan registration", "restore keep awake", "refresh permissions", "finder resume", "resume features", "resume brightness"],
+                        && events == ["suspend", "spaces", "sleep", "rule", "fan registration", "fan", "finder reset", "tccutil", "restore fan registration", "restore keep awake", "refresh permissions", "finder resume", "resume features", "resume brightness"],
                      "failed fan registration tells the user the helper is unavailable, found \(events)")
 
         reset(allowRule: true)
@@ -206,7 +206,7 @@ enum SelfUninstallContract {
         Host.uninstallCompletely { failure = $0 }
         DispatchQueue.main.flush()
         suite.expect(failure == "rule kept"
-                        && events == ["suspend", "spaces", "sleep", "rule", "fan registration", "fan", "tccutil", "finder reset", "restore keep awake", "refresh permissions", "finder resume", "resume features", "resume brightness"],
+                        && events == ["suspend", "spaces", "sleep", "rule", "fan registration", "fan", "finder reset", "tccutil", "restore keep awake", "refresh permissions", "finder resume", "resume features", "resume brightness"],
                      "a failed reset does not register a helper the user never had, found \(events)")
 
         reset(allowRule: true)
@@ -223,7 +223,7 @@ enum SelfUninstallContract {
         Host.uninstallCompletely { failure = $0 }
         DispatchQueue.main.flush()
         suite.expect(failure == nil
-                        && events == ["suspend", "spaces", "sleep", "rule", "fan registration", "fan", "tccutil", "finder reset", "login", "preferences", "trash"],
+                        && events == ["suspend", "spaces", "sleep", "rule", "fan registration", "fan", "finder reset", "tccutil", "login", "preferences", "trash"],
                      "a full uninstall detaches the fan helper before permission reset and login afterward, found \(events)")
 
         reset(allowRule: true)

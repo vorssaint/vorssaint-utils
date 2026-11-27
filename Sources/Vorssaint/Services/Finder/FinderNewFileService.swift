@@ -54,6 +54,7 @@ enum FinderNewFileService {
         #endif
         // Use the exact identifier and verify the system election, rather
         // than relying on a potentially stale FinderSync enablement query.
+        NSLog("Vorssaint Finder extension reset: requesting ignore election for %@", id)
         let result = Shell.run("/usr/bin/pluginkit", ["-e", "ignore", "-i", id])
         let state = Shell.run("/usr/bin/pluginkit", ["-m", "-Av", "-i", id])
         guard result.status == 0, state.status == 0,
@@ -62,6 +63,7 @@ enum FinderNewFileService {
                   result.status, state.status, result.output, state.output)
             return false
         }
+        NSLog("Vorssaint Finder extension reset: ignore election confirmed for %@", id)
         return true
     }
 

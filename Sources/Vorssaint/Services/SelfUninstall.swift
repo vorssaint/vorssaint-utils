@@ -40,13 +40,18 @@ enum SelfUninstall {
             // for a disconnected device to be restored.
             _ = suspendInputInterceptors()
             DispatchQueue.global(qos: .userInitiated).async {
+                // Finder's user election is independent of TCC and the
+                // system helpers. Clear it even when a later recovery step
+                // fails, and before revoking the host's privacy grants.
+                let finderReset = FinderNewFileService.clearExtensionPermission()
                 guard restoreSleepBeforeRemoval() else { stop(); return }
                 guard detachFromSystem() else {
                     stop(sleepRestored: true)
                     return
                 }
                 removeSudoersRuleIfPresent { ruleRemoved in    // may show one admin prompt
-                    let reset = resetTCC()
+                    let tccReset = resetTCC()
+                    let reset = finderReset && tccReset
                     DispatchQueue.main.async {
                         // The published permissions still say granted. Read the
                         // reset state now, or a grant made before the next poll
@@ -109,7 +114,9 @@ enum SelfUninstall {
                         stop(L10n.shared.s.advancedUninstallFailedBody, sleepRestored: true)
                         return
                     }
-                    guard resetTCC() else {
+                    let finderReset = FinderNewFileService.clearExtensionPermission()
+                    let tccReset = resetTCC()
+                    guard finderReset && tccReset else {
                         // The app stays installed, so restore a helper that was
                         // registered before the attempted uninstall.
                         let fanReady = !fanHelperWasRegistered
@@ -251,13 +258,10 @@ enum SelfUninstall {
     @discardableResult
     private static func resetTCC() -> Bool {
         let tcc = Shell.run("/usr/bin/tccutil", ["reset", "All", bundleID])
-        // Independent permission systems: attempt both even on a partial
-        // reset, but report success only if both operations succeeded.
-        let finder = FinderNewFileService.clearExtensionPermission()
         if tcc.status != 0 {
             NSLog("Vorssaint TCC reset failed: %@", tcc.output)
         }
-        return tcc.status == 0 && finder
+        return tcc.status == 0
     }
 
     private static func removePreferences() {
