@@ -472,6 +472,14 @@ enum SettingsFeatureTests {
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: allDisplaysBackup)?[DefaultsKey.notchDisplay] as? String
                     == NotchDisplay.all.rawValue,
                "a backup keeps the choice of every display")
+        for (stored, expected) in [(-140.0, -100.0), (42.0, 42.0), (200.0, 100.0)] {
+            let positionBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+                key == DefaultsKey.notchHorizontalPosition ? stored : nil
+            }
+            suite.expect(SettingsBackupSupport.sanitizedSettings(from: positionBackup)?[
+                DefaultsKey.notchHorizontalPosition] as? Double == expected,
+                "display position travels with settings and stays inside the supported range")
+        }
         suite.expect(backupKeys.contains(DefaultsKey.cleaningModeKeepScreenVisible),
                "the cleaning mode keep screen visible choice travels with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.appearance),

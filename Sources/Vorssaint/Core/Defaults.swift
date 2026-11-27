@@ -956,6 +956,7 @@ enum DefaultsKey {
     static let notchAgentsPriceUpdates = "notchAgentsPriceUpdates"
     static let notchEnabled = "notchEnabled"
     static let notchDisplay = "notchDisplay"
+    static let notchHorizontalPosition = "notchHorizontalPosition"
     // How the island looks on a display without a camera housing.
     static let notchSilhouette = "notchSilhouette"
     // The capsule's size and place, fitted by hand on such a display.
@@ -1576,6 +1577,7 @@ enum Defaults {
         DefaultsKey.notchWatchCondition: NotchWatchCondition.changes.rawValue,
         DefaultsKey.notchEnabled: false,
         DefaultsKey.notchDisplay: NotchDisplay.automatic.rawValue,
+        DefaultsKey.notchHorizontalPosition: 0.0,
         DefaultsKey.notchSilhouette: NotchSilhouette.capsule.rawValue,
         DefaultsKey.notchCapsuleFitWidth: 0.0,
         DefaultsKey.notchCapsuleFitHeight: 0.0,

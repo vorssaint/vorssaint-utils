@@ -39,6 +39,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchMascotPalette) private var mascotPalette = NotchMascotPalette.pearl.rawValue
     @AppStorage(DefaultsKey.notchMascotSide) private var mascotSide = NotchMascotSide.left.rawValue
     @AppStorage(DefaultsKey.notchDisplay) private var display = NotchDisplay.automatic.rawValue
+    @AppStorage(DefaultsKey.notchHorizontalPosition) private var horizontalPosition = 0.0
     @AppStorage(DefaultsKey.notchSilhouette) private var silhouette = NotchSilhouette.capsule.rawValue
     @AppStorage(DefaultsKey.notchOpenOnHover) private var hover = false
     @AppStorage(DefaultsKey.notchShortcutEnabled) private var shortcutEnabled = false
@@ -110,6 +111,7 @@ struct NotchSettings: View {
     @State private var draggingModule: NotchModule?
     @State private var draggingControl: NotchControlItem?
     @State private var preferredPlayers: [NotchPreferredPlayer.Choice]?
+    @State private var hasDisplayWithoutNotch = NotchSupport.hasDisplayWithoutNotch
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     private var text: NotchStrings { FeatureStrings.notch(l10n.language) }
@@ -179,6 +181,9 @@ struct NotchSettings: View {
         .onChange(of: configuration) { _, _ in sync() }
         .onChange(of: accessData) { _, _ in NotchService.shared.syncWithPreferences() }
         .onChange(of: browserCovers) { _, _ in NotchMusicService.shared.syncBrowserCovers() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
+            hasDisplayWithoutNotch = NotchSupport.hasDisplayWithoutNotch
+        }
         .onChange(of: tab) { _, _ in draggingModule = nil; draggingControl = nil }
         .onAppear(perform: revealDestination)
         .onChange(of: router.requestID) { _, _ in revealDestination() }
@@ -252,12 +257,13 @@ struct NotchSettings: View {
                     .disabled(liquidGlassIsOn)
             }
             // Only a display without a camera can float the island.
-            if NotchSupport.hasDisplayWithoutNotch {
+            if hasDisplayWithoutNotch {
                 SettingsCard(title: text.withoutNotch) {
                     HStack(spacing: 10) {
                         silhouetteChoice(.capsule, title: text.capsuleShape)
                         silhouetteChoice(.notch, title: text.notchShape)
                     }
+                    horizontalPositionControl
                     // An island kept on a camera, or away with the lid closed,
                     // shows neither shape, so the card says where to change that.
                     if enabled, !NotchService.reachesDisplayWithoutNotch(NotchDisplay(rawValue: display) ?? .automatic) {
@@ -298,6 +304,29 @@ struct NotchSettings: View {
                     }
                     Text(text.cameraFitHint).font(.caption).foregroundStyle(.secondary)
                 }
+            }
+        }
+    }
+
+    private var horizontalPositionControl: some View {
+        let position = Binding(get: { NotchSupport.sanitizedHorizontalPosition(horizontalPosition) },
+                               set: { horizontalPosition = NotchSupport.sanitizedHorizontalPosition($0).rounded() })
+        let formatted = (position.wrappedValue / 100).formatted(.percent
+            .sign(strategy: .always(includingZero: false)).precision(.fractionLength(0))
+            .locale(Locale(identifier: l10n.language.rawValue)))
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(text.horizontalPosition).accessibilityHidden(true)
+                Spacer(minLength: 8)
+                Button(text.centerPosition) { position.wrappedValue = 0 }
+                    .disabled(horizontalPosition == 0)
+            }
+            HStack(spacing: 12) {
+                Slider(value: position, in: NotchSupport.horizontalPositionRange) {
+                    Text(text.horizontalPosition)
+                }.labelsHidden().accessibilityValue(formatted)
+                Text(formatted).monospacedDigit().foregroundStyle(.secondary)
+                    .frame(width: 54, alignment: .trailing).accessibilityHidden(true)
             }
         }
     }

@@ -41,7 +41,8 @@ enum NotchMenuBarSpace {
               reader.timeRemaining > 0 else { return nil }
         return NotchMenuBarLayout.measuredSideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
                                                    barHeight: geometry.menuBarHeight, menuItems: menuItems,
-                                                   statusItems: measured, physicalCamera: geometry.physicalCamera)
+                                                   statusItems: measured, physicalCamera: geometry.physicalCamera,
+                                                   anchorX: geometry.anchorX, horizontalPosition: geometry.horizontalPosition)
     }
 }
 
