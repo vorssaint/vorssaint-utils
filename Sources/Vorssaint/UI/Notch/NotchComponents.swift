@@ -76,6 +76,134 @@ struct NotchMeter: View {
     }
 }
 
+private struct NotchFluidBarFillShape: Shape {
+    var fraction: Double
+    var minWidth: CGFloat
+
+    var animatableData: Double {
+        get { fraction }
+        set { fraction = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let clamped = fraction.isFinite ? min(1, max(0, fraction)) : 0
+        guard clamped > 0.0001 else { return Path() }
+        let width = min(rect.width, max(minWidth, rect.width * CGFloat(clamped)))
+        return Capsule(style: .continuous).path(in: CGRect(x: 0, y: 0, width: width, height: rect.height))
+    }
+}
+
+private struct NotchFluidTipDotShape: Shape {
+    var fraction: Double
+    var minWidth: CGFloat
+
+    var animatableData: Double {
+        get { fraction }
+        set { fraction = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let clamped = fraction.isFinite ? min(1, max(0, fraction)) : 0
+        let width = min(rect.width, max(minWidth, rect.width * CGFloat(clamped)))
+        let dotSize = max(2.5, rect.height - 1)
+        guard clamped > 0.0001, width > rect.height * 1.6 else { return Path() }
+        let x = width - dotSize - 1
+        let y = (rect.height - dotSize) * 0.5
+        return Path(ellipseIn: CGRect(x: x, y: y, width: dotSize, height: dotSize))
+    }
+}
+
+/// Luminous prism bar used for Audio (Volume/Mute) and Brightness /
+/// Keyboard-Light HUD overlays inside the notch.
+struct NotchPrismLevelBar: View {
+    let value: Double
+    let kind: NotchLevelBarKind
+    var muted: Bool = false
+    var height: CGFloat = 5
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let fraction = muted ? 0.0 : (value.isFinite ? min(1, max(0, value)) : 0)
+        let prism = NotchLevelPrismPalette.palette(for: kind, muted: muted)
+        let gradient = LinearGradient(
+            colors: [prism.trail.color, prism.lead.color, prism.core.color],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        ZStack(alignment: .leading) {
+            Capsule(style: .continuous)
+                .fill(.white.opacity(0.14))
+                .overlay {
+                    Capsule(style: .continuous)
+                        .strokeBorder(.white.opacity(0.10), lineWidth: 0.5)
+                }
+            if muted && kind == .volume {
+                GeometryReader { proxy in
+                    Capsule(style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [prism.trail.color.opacity(0.45), prism.lead.color.opacity(0.55)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(height * 1.4, proxy.size.width * 0.08))
+                        .shadow(color: prism.lead.color.opacity(0.55), radius: 3)
+                }
+            } else {
+                ZStack {
+                    NotchFluidBarFillShape(fraction: fraction, minWidth: height)
+                        .fill(gradient)
+                        .shadow(color: prism.lead.color.opacity(0.65), radius: 4, x: 0, y: 0)
+                    NotchFluidTipDotShape(fraction: fraction, minWidth: height)
+                        .fill(Color.white.opacity(0.9))
+                }
+            }
+        }
+        .frame(height: height)
+        .animation(reduceMotion ? nil : .interpolatingSpring(stiffness: 240, damping: 27), value: fraction)
+        .accessibilityHidden(true)
+    }
+
+    static func levelKind(for event: NotchEvent) -> NotchLevelBarKind? {
+        switch event {
+        case .volume: return .volume
+        case .brightness: return .brightness
+        case .keyboardLight: return .keyboardLight
+        default: return nil
+        }
+    }
+
+    static func usesPrismBars() -> Bool {
+        NotchLightsSupport.isEnabled() && NotchLightsSupport.tracksLevelBars()
+    }
+
+    static func displaySymbol(for notice: NotchNotice) -> String {
+        guard usesPrismBars(), let level = notice.level else { return notice.symbol }
+        switch notice.event {
+        case .volume:
+            guard notice.symbol == "speaker.wave.2.fill" || notice.symbol == "speaker.slash.fill" else {
+                return notice.symbol
+            }
+            if level <= 0.001 { return "speaker.slash.fill" }
+            if level < 0.34 { return "speaker.wave.1.fill" }
+            if level < 0.67 { return "speaker.wave.2.fill" }
+            return "speaker.wave.3.fill"
+        case .brightness:
+            guard notice.symbol == "sun.max.fill" else { return notice.symbol }
+            return level < 0.5 ? "sun.min.fill" : "sun.max.fill"
+        default:
+            return notice.symbol
+        }
+    }
+
+    static func accentColor(for notice: NotchNotice) -> Color {
+        guard usesPrismBars(), let kind = levelKind(for: notice.event) else { return .white }
+        let muted = kind == .volume && (notice.level ?? 0) <= 0.001
+        return NotchLevelPrismPalette.palette(for: kind, muted: muted).lead.color
+    }
+}
+
 /// A clock's digits roll into the next reading, downward while it counts
 /// down and upward while it counts up; Reduce Motion changes them in place.
 struct NotchRollingDigits: ViewModifier {

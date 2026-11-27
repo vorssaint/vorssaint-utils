@@ -15,6 +15,8 @@ struct NotchLayoutEditor: View {
     /// dims the button or brings it back.
     @ObservedObject private var features = FeatureRuntime.shared
     @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
+    @AppStorage(DefaultsKey.notchLightsEnabled) private var lightsEnabled = true
+    @AppStorage(DefaultsKey.notchOutlineTheme) private var outlineTheme = NotchOutlineTheme.adaptive.rawValue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var addingSide: NotchQuickAccessSide?
     @State private var editingID: UUID?
@@ -54,7 +56,10 @@ struct NotchLayoutEditor: View {
                                 .overlay {
                                     // A capsule's outline goes all the way round.
                                     if outlineEnabled {
-                                        shape.stroke(.white.opacity(0.65), lineWidth: 2).clipShape(shape)
+                                        let strokeColor = lightsEnabled
+                                            ? (NotchOutlineTheme(rawValue: outlineTheme)?.palette.primary.color ?? .white)
+                                            : .white
+                                        shape.stroke(strokeColor.opacity(0.75), lineWidth: 2).clipShape(shape)
                                             .mask(Rectangle().padding(.top, previewGeometry.floats ? 0 : 1))
                                     }
                                 }
