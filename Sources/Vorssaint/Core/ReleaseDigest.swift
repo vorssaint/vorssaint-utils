@@ -200,7 +200,7 @@ enum WhatsNewInfo {
         "scrollInverter", "scrollHorizontal", "focusFollowsMouse", "smoothScroll", "linearScroll",
         "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick", "mouseClickDebounce",
         "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
-        "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "finderNewFile", "shelf", "urlCleaner",
+        "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
         "diskImageInstaller",
         "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
         "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
