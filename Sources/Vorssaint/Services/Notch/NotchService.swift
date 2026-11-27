@@ -849,7 +849,8 @@ final class NotchService: ObservableObject {
                         fileMediaHeight: !choosingFileDropDestination && AppFeature.mediaTools.isAvailable
                             && NotchFileToolsService.shared.mediaPresented ? NotchFileToolsService.shared.mediaContentHeight : nil,
                         toolCount: launcher.isEditing || launcher.activeUtility != nil ? nil : launcher.visibleItems.count,
-                        capturePreviewHeight: captureContent == nil ? nil : captureContentHeight)
+                        capturePreviewHeight: captureContent == nil ? nil : captureContentHeight,
+                        panelContentHeight: showingAppPanel ? DiskAnalyzerService.shared.islandContentHeight : nil)
     }
 
     /// The open island as Settings previews a section: at rest, with no
@@ -886,7 +887,7 @@ final class NotchService: ObservableObject {
 
     private func pageSize(in geometry: NotchGeometry, module: NotchModule, detail: Bool, panel: Bool,
                           detailHeight: CGFloat?, musicExtraHeight: CGFloat, fileMediaHeight: CGFloat?, toolCount: Int?,
-                          capturePreviewHeight: CGFloat?) -> CGSize {
+                          capturePreviewHeight: CGFloat?, panelContentHeight: CGFloat? = nil) -> CGSize {
         let controls = NotchSupport.controls()
         let sliders = controls.filter(\.isLevel).count
         let shortcuts = controls.filter { !$0.isLevel && $0 != .music }.count
@@ -902,7 +903,8 @@ final class NotchService: ObservableObject {
                                      timerMode: NotchTimerService.shared.session.hasSession
                                         ? NotchTimerService.shared.session.mode : NotchTimerSupport.savedMode(),
                                      agentsHeight: module == .agents && !detail && !panel
-                                        ? agentsContentHeight(width: geometry.contentWidth) : nil)
+                                        ? agentsContentHeight(width: geometry.contentWidth) : nil,
+                                     panelContentHeight: panelContentHeight)
     }
 
     /// The AI page is as tall as the cards it shows; nil while the logs are

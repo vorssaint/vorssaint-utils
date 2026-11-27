@@ -759,6 +759,16 @@ enum CommandBarCatalog {
                 icon: .symbol("sparkle"),
                 run: { _ in openSettings(at: .cleaner) }))
         }
+        if AppFeature.diskAnalyzer.isAvailable {
+            let diskStrings = FeatureStrings.diskAnalyzer(language)
+            entries.append(CommandBarEntry(
+                id: "action.diskAnalyzer",
+                title: diskStrings.pageTitle,
+                subtitle: area(.diskAnalyzer, under: diskStrings.pageTitle),
+                keywords: diskStrings.panelCaption,
+                icon: .symbol("square.grid.3x3.fill"),
+                run: { _ in DiskAnalyzerService.shared.presentInMenuPanel() }))
+        }
         if AppFeature.uninstaller.isAvailable {
             entries.append(CommandBarEntry(
                 id: "action.uninstaller",
@@ -927,6 +937,7 @@ enum CommandBarCatalog {
         // so its preferences get their own navigation row.
         let navigationActions: [SettingsPage: String] = [
             .general: "action.openSettings", .cleaner: "action.cleaner", .uninstaller: "action.uninstaller",
+            .diskAnalyzer: "action.diskAnalyzer",
         ]
         return rows.compactMap { item in
             let keywords = SettingsSearchSupport.commandKeywords([item.title] + (labels[item.id] ?? []))

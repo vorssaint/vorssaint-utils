@@ -31,6 +31,7 @@ final class PanelInteractionState {
             || HomebrewManager.shared.operationStatus?.isActive == true
             || cleanerIsRunning
             || uninstallerIsRunning
+            || diskAnalyzerIsScanning
     }
 
     private var cleanerIsRunning: Bool {
@@ -45,6 +46,10 @@ final class PanelInteractionState {
         case .scanning, .removing: return true
         case .empty, .results, .done: return false
         }
+    }
+
+    private var diskAnalyzerIsScanning: Bool {
+        DiskAnalyzerService.shared.phase == .scanning
     }
 
     /// The screen the menu bar icon is on, so the panel caps its height against

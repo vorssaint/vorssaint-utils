@@ -2735,13 +2735,19 @@ struct NotchGeometry: Equatable {
                       fileMediaHeight: CGFloat? = nil, systemCards: Int = 6, toolCount: Int? = 8,
                       capturePreviewHeight: CGFloat? = nil,
                       timerHasSession: Bool = false, timerMode: NotchTimerMode = .timer,
-                      agentsHeight: CGFloat? = nil) -> CGSize {
+                      agentsHeight: CGFloat? = nil,
+                      panelContentHeight: CGFloat? = nil) -> CGSize {
         let budget = contentBudget
         let showsCapturePreview = module == .captures && !detail && capturePreviewHeight != nil
         let showsFileMedia = module == .files && !detail && fileMediaHeight != nil
         let contentHeight: CGFloat
         if detail, !panel, let detailHeight {
             contentHeight = min(pageBudget, max(0, detailHeight) + 4)
+        } else if panel, let panelContentHeight {
+            // Hosted utilities such as Disk Analyzer grow past the usual page
+            // when their content needs the room; custom height and the display
+            // still bound the silhouette below.
+            contentHeight = max(0, panelContentHeight)
         } else if detail || panel {
             contentHeight = pageBudget
         } else if showsFileMedia {
