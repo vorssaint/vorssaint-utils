@@ -458,6 +458,13 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     /// typing and Esc work without activating the app.
     private final class KeyableScratchpadPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
+
+        override func nextEvent(matching mask: NSEvent.EventTypeMask, until expiration: Date?,
+                                inMode mode: RunLoop.Mode, dequeue deqFlag: Bool) -> NSEvent? {
+            DragSelectionWheel.nextEvent(matching: mask, dequeue: deqFlag, next: {
+                super.nextEvent(matching: $0, until: expiration, inMode: mode, dequeue: deqFlag)
+            }, scroll: { ($0.window ?? self).sendEvent($0) })
+        }
     }
 
     private func ensurePanel() -> NSPanel {

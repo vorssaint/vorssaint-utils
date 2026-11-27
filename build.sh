@@ -551,6 +551,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/OwnKeyEvent.swift
         Sources/Vorssaint/Services/ScrollWheelSupport.swift
         Sources/Vorssaint/Services/HorizontalWheelScrolling.swift
+        Sources/Vorssaint/UI/DragSelectionWheel.swift
         Sources/Vorssaint/Services/SmoothScrollSupport.swift
         Sources/Vorssaint/Services/MouseAcceleration/MouseAccelerationSupport.swift
         Sources/Vorssaint/Services/FocusFollowsMouse/FocusFollowsMouseSupport.swift

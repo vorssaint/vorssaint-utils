@@ -1038,6 +1038,14 @@ final class NotchPanel: NSPanel, NotchWaveHold {
            handleScroll?(event) == true || HorizontalWheelScrolling.handle(event) { return }
         super.sendEvent(event)
     }
+
+    // The Scratchpad page selects text here too.
+    override func nextEvent(matching mask: NSEvent.EventTypeMask, until expiration: Date?,
+                            inMode mode: RunLoop.Mode, dequeue deqFlag: Bool) -> NSEvent? {
+        DragSelectionWheel.nextEvent(matching: mask, dequeue: deqFlag, next: {
+            super.nextEvent(matching: $0, until: expiration, inMode: mode, dequeue: deqFlag)
+        }, scroll: { ($0.window ?? self).sendEvent($0) })
+    }
 }
 
 /// The notch keeps its existing masked canvas. A separate, transparent sibling
