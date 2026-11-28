@@ -142,7 +142,8 @@ final class FeatureRuntime: ObservableObject {
     /// Replaces the installed set after the first-run picker. It uses the same
     /// availability layer as the hub, so unselected features disappear without
     /// losing any of their settings.
-    func replaceAvailable(with selected: Set<AppFeature>, enabling keys: [String] = []) {
+    func replaceAvailable(with selected: Set<AppFeature>, enabling keys: [String] = [],
+                          preservingEnableSettingsFor bulkAddedFeatures: Set<AppFeature> = []) {
         for key in keys {
             UserDefaults.standard.set(true, forKey: key)
         }
@@ -150,7 +151,7 @@ final class FeatureRuntime: ObservableObject {
         for feature in AppFeature.allCases
         where mayFlip(feature, to: selected.contains(feature)) {
             let joins = selected.contains(feature)
-            if joins {
+            if joins && !bulkAddedFeatures.contains(feature) {
                 feature.enableOnFirstInstall(in: .standard, savedValues: savedValues)
             }
             UserDefaults.standard.set(joins, forKey: feature.availabilityKey)
