@@ -20,6 +20,7 @@ enum MonitorVolumeKeySettingsTests {
             Hardware.reset()
             Keys.DispatchQueue.main = MixerOutputAdjustmentContract.Queue()
             Keys.AppVolumeMixer.shared = MixerOutputAdjustmentContract.Mixer()
+            Keys.AppVolumeMixer.shared.currentOutputDeviceUID = "monitor-output"
             Keys.UserDefaults.precise = false
             Keys.NotchService.shared.shownLevels = []
             tap = Keys.Service()
@@ -53,8 +54,8 @@ enum MonitorVolumeKeySettingsTests {
         service.maximum = 0
         press(.volumeDown)
         service.finish()
-        suite.expect(service.writes.isEmpty && Keys.NotchService.shared.shownLevels.isEmpty,
-                     "a missing range after discovery cannot seed the first key or announce a write")
+        suite.expect(service.writes.isEmpty && Keys.NotchService.shared.shownLevels == [0.01, 0.02],
+                     "a missing range after discovery restores the last known bar without a write")
 
         service = connect(raw: 2)
         press(.volumeUp)
@@ -114,8 +115,8 @@ enum MonitorVolumeKeySettingsTests {
         }
         press(.volumeUp)
         service.finish()
-        suite.expect(service.writes.isEmpty && Keys.NotchService.shared.shownLevels.isEmpty,
-                     "a ceiling lowered after the DDC read also cancels the paced write")
+        suite.expect(service.writes.isEmpty && Keys.NotchService.shared.shownLevels == [0.05, 0.04],
+                     "a ceiling lowered after the DDC read cancels the write and restores the bar")
 
         for (initial, target): (UInt16, UInt16) in [(40, 5), (0, 1)] {
             service = connect(raw: initial, muted: true)

@@ -40,11 +40,14 @@ enum NotchVolumeRoutingTests {
         var shownLevels: [Double] = []
         var nativeKeys: [PreciseVolumeMediaKey] = []
         func noteNativeVolumeKey(_ key: PreciseVolumeMediaKey) { nativeKeys.append(key) }
+        @discardableResult func showVolume(_ volume: Double, muted: Bool?) -> Bool {
+            shownLevels.append(muted == true ? 0 : volume)
+            return true
+        }
         @discardableResult func showCurrentVolume() -> Bool {
             let mixer = AppVolumeMixer.shared
             if let level = mixer.systemOutputVolume {
-                shownLevels.append(mixer.systemOutputMuted == true ? 0 : level)
-                return true
+                return showVolume(level, muted: mixer.systemOutputMuted)
             }
             return false
         }
@@ -65,7 +68,11 @@ enum NotchVolumeRoutingTests {
     }
     class State {
         var monitorVolumeKeysHeld: [BrightnessSupport.VolumeKeyAction: BrightnessSupport.SpeakerTarget] = [:]
-        static func showMonitorFeedback() { NotchService.shared.showCurrentVolume() }
+        var monitorFeedbackPreview: (target: BrightnessSupport.SpeakerTarget, volume: Double, muted: Bool?)?
+        var monitorFeedbackRevision: UInt64 = 0
+        static func showMonitorFeedback(level: Double, muted: Bool?, displayID: CGDirectDisplayID) {
+            NotchService.shared.showVolume(level, muted: muted)
+        }
         var notchKeyGate = NotchVolumeKeyGate()
         var gate = PreciseVolumeRollerGate()
         var keyOwnership = PreciseVolumeKeyOwnership()
@@ -617,9 +624,12 @@ enum NotchVolumeRoutingTests {
         }
         let fine: CGEventFlags = [.maskAlternate, .maskShift]
         suite.expect(monitorPress(0x0a00, flags: fine), "the matched display claims the fine volume key")
+        DispatchQueue.main.runOne()
+        suite.expect(speakers.raw == 2 && NotchService.shared.shownLevels == [0.03],
+                     "monitor volume feedback moves before the DDC queue reads or writes the display")
         speakers.finish()
         suite.expect(speakers.raw == 3 && NotchService.shared.shownLevels == [0.03] && speakers.clicks == 0,
-                     "the monitor shows the confirmed fine level and holds its click until release")
+                     "confirmation leaves the previewed bar in place and holds the click until release")
         speakers.selectedAudioOutput = (32, "Monitor B", "monitor-b")
         speakers.actualDevice = 32
         speakers.audioRoutes[8] = .init(path: "port-b", fingerprint: "fixture-identity",
@@ -655,11 +665,48 @@ enum NotchVolumeRoutingTests {
         speakers.rejectVolume = true
         suite.expect(monitorPress(0x0a00, flags: fine) && monitorPress(0x0b00), "the current target can claim a new press")
         speakers.finish()
-        suite.expect(NotchService.shared.shownLevels.count == 4 && Hardware.writes.isEmpty && speakers.clicks == 2,
-                     "a rejected DDC transaction never announces a level, writes HAL or plays a click")
+        suite.expect(Hardware.writes.isEmpty && speakers.clicks == 2,
+                     "a rejected DDC transaction neither writes HAL nor plays a click")
         DisplaySpeakerVolumeTests.PreciseVolumeRollerService.playVolumeFeedback()
         suite.expect(speakers.clickDeviceUIDs == ["monitor-b", "monitor-b", nil],
                      "ordinary volume feedback uses the default output again")
+
+        service = reset()
+        let rejectedSpeakers = DisplaySpeakerVolumeTests.connect(AppVolumeMixer.shared, raw: 4)
+        AppVolumeMixer.shared.currentOutputDeviceUID = "monitor-output"
+        rejectedSpeakers.rejectVolume = true
+        suite.expect(monitorPress(0x0a00, flags: fine), "the current target can claim a new press")
+        DispatchQueue.main.runOne()
+        suite.expect(NotchService.shared.shownLevels == [0.05],
+                     "a claimed key previews its requested level before the monitor answers")
+        rejectedSpeakers.finish()
+        suite.expect(NotchService.shared.shownLevels == [0.05, 0.04] && Hardware.writes.isEmpty,
+                     "a rejected DDC transaction restores the last known bar without a HAL write")
+
+        service = reset()
+        let coarseSpeakers = DisplaySpeakerVolumeTests.connect(AppVolumeMixer.shared, raw: 2, maximum: 50)
+        suite.expect(service.routeMonitorVolume(NSEvent(data1: 0x0a00), flags: fine),
+                     "a monitor with a coarse DDC range claims volume up")
+        DispatchQueue.main.runOne()
+        suite.expect(NotchService.shared.shownLevels == [0.05] && coarseSpeakers.raw == 2,
+                     "the requested level appears before a coarse monitor writes")
+        coarseSpeakers.finish()
+        suite.expect(NotchService.shared.shownLevels == [0.05, 0.06] && coarseSpeakers.raw == 3,
+                     "the confirmed level corrects a preview rounded by the monitor")
+
+        service = reset()
+        let rapidSpeakers = DisplaySpeakerVolumeTests.connect(AppVolumeMixer.shared, raw: 2)
+        suite.expect(service.routeMonitorVolume(NSEvent(data1: 0x0a00), flags: fine),
+                     "a first key starts a burst")
+        DispatchQueue.main.runOne()
+        suite.expect(service.routeMonitorVolume(NSEvent(data1: 0x0a01), flags: fine),
+                     "a repeated key stays with the same monitor")
+        DispatchQueue.main.runOne()
+        suite.expect(NotchService.shared.shownLevels == [0.03, 0.04] && rapidSpeakers.raw == 2,
+                     "the bar advances for both keys before DDC runs")
+        rapidSpeakers.finish()
+        suite.expect(rapidSpeakers.raw == 4 && NotchService.shared.shownLevels == [0.03, 0.04],
+                     "the completed burst leaves the confirmed bar at its previewed level")
 
         enum ReleaseChange: CaseIterable {
             case defaultBeforeRelease, reusedDeviceID, missingUID, newKeyAfterRead, routeAfterRead, defaultAfterRead
