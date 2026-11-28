@@ -27,6 +27,9 @@ enum FanControlHardwareContract {
         static func isCPUTemperatureKey(_ name: String, platform: CPUTemperaturePlatform) -> Bool {
             name.hasPrefix("TC")
         }
+        static func isGPUTemperatureKey(_ name: String) -> Bool {
+            name.hasPrefix("Tg")
+        }
     }
 
     struct Write {

@@ -770,6 +770,41 @@ enum MetricsFeatureTests {
         ) == nil, "A18 Pro remains unavailable when no CPU sensor answers")
         suite.expect(TemperatureSensorSelector.platform(brandString: "Generic CPU") == .generic,
                "other processors keep the generic CPU sensor path")
+        // MacBook Pro 16-inch, MacBookPro16,1, Core i9-9980HK, macOS 26, read
+        // with --sensors. Intel names the package and die sensors TC0* and
+        // gives one TC<n>C key per physical core; none of the Apple Silicon
+        // families exists on it, and the GPU sensors carry a capital G.
+        let macBookPro16_1IntelSensors: [(key: String, value: Double)] = [
+            ("TC0P", 80.50), ("TC0E", 84.63), ("TC0F", 86.19),
+            ("TC1C", 78.00), ("TC2C", 77.00), ("TC3C", 78.00), ("TC4C", 79.00),
+            ("TC5C", 77.00), ("TC6C", 78.00), ("TC7C", 76.00), ("TC8C", 78.00),
+            ("TCXC", 79.00), ("TCMX", 79.00), ("TCGC", 71.00), ("TCSA", 73.00),
+            ("TG0P", 67.31), ("TB0T", 34.80),
+        ]
+        suite.expect(TemperatureSensorSelector.platform(
+            brandString: "Intel(R) Core(TM) i9-9980HK CPU @ 2.40GHz") == .intel
+                && TemperatureSensorSelector.hasCPUCoreSet(platform: .intel),
+               "an Intel package reads its own sensor family")
+        suite.expect(TemperatureSensorSelector.isCPUTemperatureKey("TC0P", platform: .intel)
+                && TemperatureSensorSelector.isCPUTemperatureKey("TC1C", platform: .intel)
+                && !TemperatureSensorSelector.isCPUTemperatureKey("TG0P", platform: .intel)
+                && !TemperatureSensorSelector.isCPUTemperatureKey("Tp01", platform: .intel),
+               "Intel discovers its TC sensors and keeps the GPU and Apple families out")
+        suite.expect(TemperatureSensorSelector.isGPUTemperatureKey("TG0P")
+                && TemperatureSensorSelector.isGPUTemperatureKey("Tg0D")
+                && !TemperatureSensorSelector.isGPUTemperatureKey("TC0P"),
+               "GPU sensors answer under both the Intel and the Apple spelling")
+        suite.expect(macBookPro16_1IntelSensors.filter {
+            TemperatureSensorSelector.isCPUCoreKey($0.key, platform: .intel)
+        }.map(\.key) == ["TC0P", "TC0E", "TC0F", "TC1C", "TC2C", "TC3C", "TC4C",
+                         "TC5C", "TC6C", "TC7C", "TC8C"],
+               "this Intel layout maps its package sensors and one key per core")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: macBookPro16_1IntelSensors, platform: .intel
+        ) ?? -1, 86.19, "an Intel package shows its hottest die sensor")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: [("TCXC", 79.00), ("TCMX", 78.00), ("TCSA", 73.00)], platform: .intel
+        ) ?? -1, 79.00, "an Intel package whose cores stay silent still reads its aggregates")
         suite.expect(TemperatureSensorSelector.isCPUTemperatureKey("Tf4E", platform: .appleM3Family)
                 && !TemperatureSensorSelector.isCPUTemperatureKey("Tf4E", platform: .appleM4Family)
                 && TemperatureSensorSelector.isCPUTemperatureKey("Tp01", platform: .appleM4Family),
