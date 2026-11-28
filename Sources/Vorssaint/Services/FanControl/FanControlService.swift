@@ -17,7 +17,13 @@ final class FanControlService: ObservableObject {
     static let shared = FanControlService()
 
     @Published private(set) var accessState: AccessState = .notRegistered
-    @Published private(set) var snapshot: FanControlSnapshot = .empty
+    @Published private(set) var snapshot: FanControlSnapshot = .empty {
+        didSet {
+            // Even an empty control reply supersedes the startup RPM preview.
+            if initialFanSpeeds != nil { initialFanSpeeds = nil }
+        }
+    }
+    @Published private(set) var initialFanSpeeds: [Double]? = []
     @Published private(set) var error: FanControlErrorCode?
     @Published private(set) var isWorking = false
     @Published private(set) var interruption: FanControlInterruption? = {
@@ -33,6 +39,7 @@ final class FanControlService: ObservableObject {
     private let probeQueue = DispatchQueue(label: "com.vorssaint.fan-control.probe",
                                            qos: .utility)
     private var probeHardware: FanControlHardware?
+    private var pendingPanelRead: UUID?
     private var connection: NSXPCConnection?
     private var timer: Timer?
     private var panelIsVisible = false
@@ -76,9 +83,7 @@ final class FanControlService: ObservableObject {
             ?? AppInfo.version
     }
 
-    private init() {
-        refreshAccessState()
-    }
+    private init() {}
 
     deinit {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
@@ -140,16 +145,25 @@ final class FanControlService: ObservableObject {
 
     func panelDidDisappear() {
         panelIsVisible = false
+        pendingPanelRead = nil
         stopIdleWorkIfPossible()
     }
 
     func refresh() {
-        guard !checkingUnregister, requestInFlight != .replaceRegistration else { return }
-        refreshAccessState()
-        if accessState == .enabled {
-            requestStatus(checkRegistration: true)
-        } else {
-            refreshLocalProbe()
+        guard !checkingUnregister, requestInFlight != .replaceRegistration, pendingPanelRead == nil else { return }
+        let read = UUID()
+        pendingPanelRead = read
+        let needsFanSpeeds = initialFanSpeeds?.isEmpty == true && error == nil
+        readPanelAccess(includeFanSpeeds: needsFanSpeeds) { state, speeds in
+            guard self.pendingPanelRead == read else { return }
+            self.pendingPanelRead = nil
+            if self.accessState != state { self.accessState = state }
+            if self.initialFanSpeeds != nil, !speeds.isEmpty { self.initialFanSpeeds = speeds }
+            if state == .enabled {
+                self.requestStatus(checkRegistration: true)
+            } else {
+                self.refreshLocalProbe()
+            }
         }
     }
 
@@ -190,6 +204,12 @@ final class FanControlService: ObservableObject {
 
     func applyConfiguration(_ configuration: FanControlConfiguration) {
         guard !isWorking, !awaitingSystemControl else { return }
+        // The panel can show the previous visit's approval while its new
+        // lookup is pending. Confirm access before acting on an explicit Apply.
+        if configuration.mode != .system, accessState == .enabled {
+            refreshAccessState()
+            guard accessState == .enabled else { return }
+        }
         // The user's own choice replaces any resume still waiting to retry.
         cancelResumeRetry(keepingInterruption: interruptedStop != nil)
         applyConfiguration(configuration, resuming: false)
@@ -777,6 +797,7 @@ final class FanControlService: ObservableObject {
     }
 
     private func beginRequest(_ request: FanControlRequest = .read) -> Int {
+        pendingPanelRead = nil
         requestGeneration += 1
         requestInFlight = request
         return requestGeneration
@@ -798,14 +819,19 @@ final class FanControlService: ObservableObject {
     // MARK: - Registration and local reads
 
     private func refreshAccessState() {
-        switch Self.appService.status {
-        case .notRegistered: accessState = .notRegistered
-        case .enabled: accessState = .enabled
-        case .requiresApproval: accessState = .requiresApproval
+        pendingPanelRead = nil
+        accessState = Self.registeredAccessState
+    }
+
+    private static var registeredAccessState: AccessState {
+        switch appService.status {
+        case .notRegistered: return .notRegistered
+        case .enabled: return .enabled
+        case .requiresApproval: return .requiresApproval
         // A bundled daemon can report notFound before its first registration.
         // register() then moves it to the user-approval state.
-        case .notFound: accessState = .notRegistered
-        @unknown default: accessState = .unavailable
+        case .notFound: return .notRegistered
+        @unknown default: return .unavailable
         }
     }
 
@@ -868,11 +894,28 @@ final class FanControlService: ObservableObject {
         }
     }
 
+    // Both reads run on the probe queue. Fan RPM needs only a few known SMC
+    // keys, so the card can display it before temperature discovery finishes.
+    private func readPanelAccess(includeFanSpeeds: Bool,
+                                 completion: @escaping (AccessState, [Double]) -> Void) {
+        probeQueue.async {
+            let state = Self.registeredAccessState
+            let preview = includeFanSpeeds ? try? self.localHardware()?.telemetrySnapshot() : nil
+            let speeds = preview?.fans.map(\.actualRPM) ?? []
+            DispatchQueue.main.async { completion(state, speeds) }
+        }
+    }
+
+    // Accessed only on probeQueue.
+    private func localHardware() -> FanControlHardware? {
+        if probeHardware == nil { probeHardware = FanControlHardware() }
+        return probeHardware
+    }
+
     private func refreshLocalProbe() {
         probeQueue.async {
-            if self.probeHardware == nil { self.probeHardware = FanControlHardware() }
             let result: Result<FanControlSnapshot, FanControlErrorCode>
-            guard let probe = self.probeHardware else {
+            guard let probe = self.localHardware() else {
                 result = .failure(.unsupportedHardware)
                 DispatchQueue.main.async { self.applyProbe(result) }
                 return

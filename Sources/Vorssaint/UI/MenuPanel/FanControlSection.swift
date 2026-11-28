@@ -26,10 +26,11 @@ struct FanControlSection: View {
             FanControlCardContent(strings: strings,
                                   betaLabel: l10n.s.betaBadge,
                                   snapshot: service.snapshot,
-                                  fallbackFanSpeeds: fallbackFanSpeeds,
+                                  fallbackFanSpeeds: displayedFallbackSpeeds,
                                   accessState: service.accessState,
                                   error: service.error,
                                   isWorking: service.isWorking,
+                                  loadingFirstReading: service.initialFanSpeeds != nil && service.error == nil,
                                   systemControlUnconfirmed: service.awaitingSystemControl,
                                   interruption: service.interruption,
                                   mode: modeBinding,
@@ -45,6 +46,11 @@ struct FanControlSection: View {
                 .onDisappear { service.panelDidDisappear() }
                 .onChange(of: resume) { _, _ in service.resumePreferenceDidChange() }
         }
+    }
+
+    private var displayedFallbackSpeeds: [Double] {
+        if !fallbackFanSpeeds.isEmpty { return fallbackFanSpeeds }
+        return service.error == nil ? service.initialFanSpeeds ?? [] : []
     }
 
     private var modeBinding: Binding<FanControlMode> {
@@ -84,6 +90,7 @@ struct FanControlCardContent: View {
     let accessState: FanControlService.AccessState
     let error: FanControlErrorCode?
     let isWorking: Bool
+    let loadingFirstReading: Bool
     let systemControlUnconfirmed: Bool
     let interruption: FanControlInterruption?
     @Binding var mode: FanControlMode
@@ -245,7 +252,7 @@ struct FanControlCardContent: View {
                     .accessibilityIdentifier("fanControl.status")
             }
             Spacer()
-            if isWorking { ProgressView().controlSize(.small) }
+            if isWorking || loadingFirstReading { ProgressView().controlSize(.small) }
         }
     }
 

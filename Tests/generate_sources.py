@@ -680,6 +680,8 @@ def main():
           + "extension FanControlResumeContract {\n"
           + declaration("Sources/Vorssaint/Services/FanControl/FanControlXPC.swift", "enum FanControlIPC {")
           + "final class Service: Fixture {\n"
+          + declaration(fan_control, "    @Published private(set) var snapshot:")
+              .replace("@Published private(set) ", "", 1)
           + declaration(fan_control, "    func applyConfiguration(_ configuration:")
           .replace("applyConfiguration(configuration, resuming:", "sendConfiguration(configuration, resuming:", 1)
           + declaration(fan_control, "    private func applyConfiguration(_ configuration:")
