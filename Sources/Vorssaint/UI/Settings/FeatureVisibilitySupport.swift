@@ -58,7 +58,6 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case cleaningMode
     case soundOutputSwitcher
     case keyboardBrightnessShortcuts
-    case fanControl
     case monitorAlerts
     case windowMaximizer
 
@@ -81,7 +80,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .screenshot, .screenshotScrolling, .screenRecorder, .colorPicker, .screenOCR:
             return .screenshot
         case .keyboardBrightnessShortcuts: return .shortcuts
-        case .fanControl, .monitorAlerts: return .monitor
+        case .monitorAlerts: return .monitor
         case .windowMaximizer: return .windowLayout
         }
     }
@@ -439,7 +438,7 @@ extension AppFeature {
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower, .connectedDevices:
             return FeatureSettingsDestination(.monitor)
         case .fanControl:
-            return FeatureSettingsDestination(.monitor, sectionAnchor: .fanControl)
+            return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         }
     }
 }

@@ -13,7 +13,6 @@ import UniformTypeIdentifiers
 struct PanelLayoutEditor: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
-    @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var order: [PanelSectionID] = PanelLayout.order
@@ -39,7 +38,6 @@ struct PanelLayoutEditor: View {
             }
         }
         .onAppear { order = PanelLayout.order }
-        .onChange(of: showFanControl) { _, _ in order = PanelLayout.order }
     }
 
     /// The picture with its one-line caption under it.
@@ -67,9 +65,6 @@ struct PanelLayoutEditor: View {
                                 isActive: previewSection == id,
                                 isHovered: hovered == id,
                                 isDragging: dragging == id,
-                                // Fan Control is governed by its own toggle on
-                                // Monitor, so it has no separate show/hide here.
-                                showsSwitch: id != .fanControl,
                                 // Keep at least one section visible.
                                 canHide: visibleSections.count > 1,
                                 dragProvider: {
@@ -95,11 +90,7 @@ struct PanelLayoutEditor: View {
     }
 
     private var editableOrder: [PanelSectionID] {
-        order.filter {
-            $0.isAvailable
-                && ($0 != .fanControl || showFanControl)
-                && ($0 != .brightness || brightnessEnabled)
-        }
+        order.filter { $0.isAvailable && ($0 != .brightness || brightnessEnabled) }
     }
 
     /// The tabs the panel would show right now, in order.
@@ -146,7 +137,6 @@ private struct PanelSectionRow: View {
     let isActive: Bool
     let isHovered: Bool
     let isDragging: Bool
-    let showsSwitch: Bool
     let canHide: Bool
     let dragProvider: () -> NSItemProvider
     let onSelect: () -> Void
@@ -155,7 +145,7 @@ private struct PanelSectionRow: View {
     @AppStorage private var shown: Bool
 
     init(id: PanelSectionID, title: String, description: String, isActive: Bool, isHovered: Bool,
-         isDragging: Bool, showsSwitch: Bool, canHide: Bool, dragProvider: @escaping () -> NSItemProvider,
+         isDragging: Bool, canHide: Bool, dragProvider: @escaping () -> NSItemProvider,
          onSelect: @escaping () -> Void, onHover: @escaping (Bool) -> Void,
          onVisibilityChange: @escaping () -> Void) {
         self.id = id
@@ -164,7 +154,6 @@ private struct PanelSectionRow: View {
         self.isActive = isActive
         self.isHovered = isHovered
         self.isDragging = isDragging
-        self.showsSwitch = showsSwitch
         self.canHide = canHide
         self.dragProvider = dragProvider
         self.onSelect = onSelect
@@ -187,9 +176,15 @@ private struct PanelSectionRow: View {
                     .background((shown ? Color.accentColor : Color.secondary).opacity(0.12),
                                 in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.callout.weight(.medium))
-                        .foregroundStyle(shown ? .primary : .secondary)
+                    HStack(spacing: 5) {
+                        Text(title)
+                            .font(.callout.weight(.medium))
+                            .foregroundStyle(shown ? .primary : .secondary)
+                        if id == .fanControl && AppFeature.fanControl.isBeta {
+                            PanelBetaBadge(text: L10n.shared.s.betaBadge)
+                                .help(L10n.shared.s.betaFeatureWarning)
+                        }
+                    }
                     Text(description)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -199,14 +194,12 @@ private struct PanelSectionRow: View {
             }
             .contentShape(Rectangle())
             .onDrag(dragProvider)
-            if showsSwitch {
-                Toggle(title, isOn: $shown)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .disabled(shown && !canHide)
-                    .onChange(of: shown) { _, _ in onVisibilityChange() }
-            }
+            Toggle(title, isOn: $shown)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .disabled(shown && !canHide)
+                .onChange(of: shown) { _, _ in onVisibilityChange() }
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)

@@ -226,6 +226,11 @@ enum SettingsFeatureTests {
         }
 
         let monitor = FeatureSettingsDestination(.monitor)
+        let fan = FeatureStrings.fanControl(.enUS)
+        let menuBar = FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
+        verify(fan.title, opens: menuBar, commandID: "settings.feature.fanControl")
+        verify(fan.menuBarTitle, opens: monitor, commandID: "settings.monitor")
+        verify(fan.menuBarTitle, opens: monitor, commandID: "settings.monitor", shown: false, without: [.fanControl])
         let displays = FeatureStrings.brightness(.enUS)
         for (enabled, speakers) in [(false, true), (true, false), (true, true)] {
             defaults.set(enabled, forKey: DefaultsKey.brightnessControlEnabled)

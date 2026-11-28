@@ -39,7 +39,9 @@ enum SettingsSidebarSupport {
         for feature in preferredFeatures + AppFeature.allCases {
             guard seenFeatures.insert(feature).inserted else { continue }
             let destination = feature.settingsDestination
-            guard destination.page == page, destination.sectionAnchor != nil,
+            // The shared panel editor already has its own Menu bar row.
+            guard destination.page == page, let anchor = destination.sectionAnchor,
+                  anchor != .panelConfiguration,
                   isAvailable(feature) else { continue }
             rows.append(SettingsSidebarItem(id: .feature(feature),
                                             destination: destination,

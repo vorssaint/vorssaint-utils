@@ -323,7 +323,7 @@ enum UpdateFeatureTests {
             isAvailable: { quickToolFeatures.contains($0) },
             featureTitle: { $0.rawValue })
         let generalFeatures: [AppFeature] = [
-            .musicBlock, .mixer, .soundOutputSwitcher, .audioPriority,
+            .musicBlock, .mixer, .soundOutputSwitcher, .audioPriority, .fanControl,
         ]
         let generalRows = SettingsSidebarSupport.items(
             page: .general, title: "General", icon: "gearshape",
@@ -365,9 +365,10 @@ enum UpdateFeatureTests {
             for: FeatureSettingsDestination(.general),
             in: generalRows + [menuBarRow]) == .page(.general)
             && SettingsSidebarSupport.selection(
-                for: menuBarDestination,
-                in: generalRows + [menuBarRow]) == .setting(.panelConfiguration),
-            "General and its menu bar editor keep distinct sidebar selections")
+                for: AppFeature.fanControl.settingsDestination,
+                in: generalRows + [menuBarRow], preferredID: .feature(.fanControl)) == .setting(.panelConfiguration)
+            && toolRow(.fanControl) == nil,
+            "Fan Control selects the existing Menu bar row and General keeps its own selection")
         func pageRow(_ page: SettingsPage) -> SettingsSidebarItem {
             SettingsSidebarItem(id: .page(page), destination: FeatureSettingsDestination(page),
                                 title: "\(page)", icon: "")

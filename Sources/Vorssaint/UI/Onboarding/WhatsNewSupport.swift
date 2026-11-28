@@ -124,7 +124,11 @@ enum WhatsNewSupport {
     static func rowID(for feature: AppFeature, in items: [SettingsSidebarItem]) -> WhatsNewRow.ID {
         let ids = Set(items.map(\.id))
         if ids.contains(.feature(feature)) { return .settings(.feature(feature)) }
-        let page = feature.settingsDestination.page
+        let destination = feature.settingsDestination
+        if let anchor = destination.sectionAnchor, ids.contains(.setting(anchor)) {
+            return .settings(.setting(anchor))
+        }
+        let page = destination.page
         if page == .general { return .general }
         if page != .features, ids.contains(.page(page)) { return .settings(.page(page)) }
         if feature.group == .dynamicIsland, ids.contains(.page(.notch)) { return .settings(.page(.notch)) }
