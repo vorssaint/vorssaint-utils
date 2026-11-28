@@ -28,6 +28,7 @@ struct OnboardingView: View {
     @AppStorage(DefaultsKey.onboardingStep) private var index = 0
     @State private var selectedFeatures: Set<AppFeature>
     @State private var selectedPreset: FeaturePreset?
+    @State private var bulkAddedFeatures: Set<AppFeature> = []
 
     init(mode: OnboardingMode = .full, onFinish: @escaping () -> Void) {
         self.mode = mode
@@ -83,7 +84,8 @@ struct OnboardingView: View {
         switch current {
         case .welcome: WelcomeStep()
         case .purpose: PurposeStep(selectedFeatures: $selectedFeatures,
-                                   selectedPreset: $selectedPreset)
+                                   selectedPreset: $selectedPreset,
+                                   bulkAddedFeatures: $bulkAddedFeatures)
         case .permissions: SelectedPermissionsStep(features: selectedFeatures,
                                                    permissions: setupPermissions)
         case .done: DoneStep()
@@ -118,7 +120,8 @@ struct OnboardingView: View {
                     if current == .purpose {
                         FeatureRuntime.shared.replaceAvailable(
                             with: selectedFeatures,
-                            enabling: selectedPreset?.enableKeys ?? [])
+                            enabling: selectedPreset?.enableKeys ?? [],
+                            preservingEnableSettingsFor: bulkAddedFeatures)
                     }
                     withAnimation(.easeInOut(duration: 0.2)) { index += 1 }
                 }
@@ -215,10 +218,12 @@ private struct PurposeStep: View {
     @ObservedObject private var l10n = L10n.shared
     @Binding var selectedFeatures: Set<AppFeature>
     @Binding var selectedPreset: FeaturePreset?
+    @Binding var bulkAddedFeatures: Set<AppFeature>
 
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
 
     var body: some View {
+        let installable = Set(AppFeature.allCases.filter { $0.installBlockedReason == nil })
         VStack(spacing: 16) {
             StepHeader(icon: "sparkles.rectangle.stack",
                        title: l10n.s.obPurposeTitle,
@@ -238,9 +243,15 @@ private struct PurposeStep: View {
                     .tracking(1)
                 Spacer()
                 Text(String(format: hub.activeCountFormat,
-                            selectedFeatures.count, FeatureRuntime.shared.installableCount))
+                            selectedFeatures.count, installable.count))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                Button(hub.installAllButton) {
+                    bulkAddedFeatures.formUnion(installable.subtracting(selectedFeatures))
+                    selectedFeatures = installable
+                    selectedPreset = nil
+                }
+                .disabled(selectedFeatures == installable)
             }
             .padding(.horizontal, 28)
 
@@ -293,6 +304,7 @@ private struct PurposeStep: View {
         return Button {
             selectedPreset = preset
             selectedFeatures = preset.features
+            bulkAddedFeatures.removeAll()
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: preset.symbolName)
@@ -349,6 +361,7 @@ private struct PurposeStep: View {
                 if feature == .notch {
                     selectedFeatures.subtract(AppFeature.dynamicIslandExtensions)
                 }
+                bulkAddedFeatures.formIntersection(selectedFeatures)
             } else {
                 selectedFeatures.formUnion(feature.initialInstallGroup)
             }
