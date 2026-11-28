@@ -134,7 +134,7 @@ final class StatusItemController {
             button.cell?.usesSingleLineMode = false
             button.target = self
             button.action = #selector(clicked)
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.sendAction(on: StatusItemAnchorSupport.statusItemActionMask)
         }
         refresh()
         syncMonitorMode()
@@ -421,7 +421,7 @@ final class StatusItemController {
     }
 
     @objc private func clicked() {
-        if NSApp.currentEvent?.type == .rightMouseUp {
+        if StatusItemAnchorSupport.isSecondaryStatusClick(NSApp.currentEvent) {
             onRightClick?(statusItem.button)
         } else {
             onLeftClick?()
@@ -726,14 +726,14 @@ final class StatusItemController {
             button.cell?.usesSingleLineMode = true
             button.target = self
             button.action = #selector(metricClicked(_:))
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.sendAction(on: StatusItemAnchorSupport.statusItemActionMask)
             button.identifier = NSUserInterfaceItemIdentifier("\(Self.metricAutosavePrefix).\(group.id)")
         }
         return item
     }
 
     @objc private func metricClicked(_ sender: NSStatusBarButton) {
-        if NSApp.currentEvent?.type == .rightMouseUp {
+        if StatusItemAnchorSupport.isSecondaryStatusClick(NSApp.currentEvent) {
             onRightClick?(sender)
             return
         }
@@ -866,13 +866,13 @@ final class StatusItemController {
             button.cell?.usesSingleLineMode = true
             button.target = self
             button.action = #selector(clipboardPreviewClicked)
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.sendAction(on: StatusItemAnchorSupport.statusItemActionMask)
         }
         return item
     }
 
     @objc private func clipboardPreviewClicked() {
-        if NSApp.currentEvent?.type == .rightMouseUp {
+        if StatusItemAnchorSupport.isSecondaryStatusClick(NSApp.currentEvent) {
             onRightClick?(clipboardPreviewStatusItem?.button)
             return
         }
