@@ -361,30 +361,50 @@ enum SwitcherActivationTests {
         let windowPlan = SwitcherSupport.activationPlan(targetsSpecificWindow: true)
         func select(owner: pid_t = 20) { Activator.activateApp(app, plan: windowPlan, windowID: 77, windowOwnerPID: owner) }
         reset(); select()
-        suite.expect(events == ["owner:20", "front:77", "event:1", "raise:77:20:false"],
+        suite.expect(events == ["owner:20", "front:77", "event:1", "event:2", "raise:77:20:false"],
                      "a delivered window selection raises the exact window without activating every sibling")
         suite.expect(frontOptions == [0x200], "intentional window activation keeps its user-generated front request")
-        // The press that makes the window key must name the window and aim far
-        // past its bottom-right: a point near the frame's corner hits the resize
-        // border, and some apps turn a NaN point into their top-left corner.
-        // Compatibility layers must skip this input path altogether.
+        // The press and release that make the window key must name the window
+        // and aim far past its bottom-right, both on screen and relative to the
+        // window: a point near the frame's corner hits the resize border, and
+        // some apps turn a NaN point into their top-left corner. A press
+        // without its release leaves SDL waiting for it before it captures the
+        // mouse again (issue #3705). Compatibility layers must skip this input
+        // path altogether.
         let windowIDBytes = withUnsafeBytes(of: CGWindowID(77).littleEndian, Array.init)
         let farPointBytes = withUnsafeBytes(of: CGPoint(x: 300_000, y: 300_000), Array.init)
-        suite.expect(records.count == 1 && records.allSatisfy { record in
+        suite.expect(records.map { $0[0x08] } == [1, 2], "the key-making click is a press followed by its release")
+        suite.expect(records.count == 2 && records.allSatisfy { record in
             record[0x04] == 0xf8 && record[0x3a] == 0x10
                 && Array(record[0x3c..<0x40]) == windowIDBytes
+        }, "the press and its release both name the selected window")
+        suite.expect(records.count == 2 && records.allSatisfy { record in
+            Array(record[0x10..<0x20]) == farPointBytes
                 && Array(record[0x20..<0x30]) == farPointBytes
-        }, "the key-making press names the window and points far past its bottom-right")
-        suite.expect(records.map { $0[0x08] } == [1], "the key-making event is a lone press with no release")
+        }, "both screen and window-relative locations of the press and release lie far outside the content")
+        suite.expect(Set(records.map { record -> [UInt8] in
+            var typeless = record
+            typeless[0x08] = 0
+            return typeless
+        }).count == 1, "the release differs from its press by the event type alone")
+        select()
+        suite.expect(records.map { $0[0x08] } == [1, 2, 1, 2], "a repeated focus pass releases every press it sends")
+        reset(); select(owner: 30)
+        suite.expect(events.filter { $0.hasPrefix("owner:") || $0.hasPrefix("event:") }
+                        == ["owner:30", "event:1", "event:2"],
+                     "a helper-owned window receives the press and release through its owner")
         reset(raise: false); select()
         suite.expect(events.contains("activate:20:false"), "a window lost by Accessibility retains cooperative recovery")
         reset(front: .failure); select()
-        suite.expect(!events.contains("event:1") && events.contains("activate:20:false"), "a refused front request uses the previous activation path")
+        suite.expect(records.isEmpty && events.contains("activate:20:false"), "a refused front request uses the previous activation path")
         for down in [CGError.success, .failure] {
-            reset(down: down); select()
-            suite.expect(events.contains("activate:20:false") == (down != .success),
-                         "a refused press triggers recovery")
-            suite.expect(!events.contains("event:2"), "no release is ever posted")
+            for up in [CGError.success, .failure] {
+                reset(down: down, up: up); select()
+                suite.expect(events.contains("activate:20:false") == (down != .success || up != .success),
+                             "either refused event triggers recovery")
+                suite.expect(records.map { $0[0x08] } == [1, 2],
+                             "the release is attempted even when the press was refused")
+            }
         }
         reset(); Bridge.postEventRecord = nil; select()
         suite.expect(!events.contains("front:77") && events.contains("activate:20:false"), "missing event transport cannot claim success")
@@ -464,15 +484,15 @@ enum SwitcherActivationTests {
         }
 
         reset(); select()
-        suite.expect(events == ["owner:20", "front:77", "event:1"]
+        suite.expect(events == ["owner:20", "front:77", "event:1", "event:2"]
                         && Activator.activationAXQueue.pending.count == 1,
                      "exact-window routing returns before remote Accessibility focus")
         Activator.activationAXQueue.drain()
-        suite.expect(events == ["owner:20", "front:77", "event:1", "raise:77:20:false"],
+        suite.expect(events == ["owner:20", "front:77", "event:1", "event:2", "raise:77:20:false"],
                      "the activation lane raises the exact window once it runs")
 
         reset(); selectWithoutGeneration()
-        suite.expect(events == ["owner:20", "front:77", "event:1", "raise:77:20:false"]
+        suite.expect(events == ["owner:20", "front:77", "event:1", "event:2", "raise:77:20:false"]
                         && Activator.activationAXQueue.pending.isEmpty,
                      "an unguarded legacy exact-window call preserves synchronous focus")
         reset(raise: false); selectWithoutGeneration()

@@ -411,15 +411,16 @@ enum SpaceWindowBridge {
     /// window as the one that comes up front, marked as user-initiated. Older
     /// macOS also travels to the window's Space; current macOS ignores the
     /// Space part, which is why SpaceHop verifies the outcome and escalates.
-    /// Native apps also receive a lone press to make the window key, aimed
-    /// far past the bottom-right of any window. Wine must never receive this
-    /// press: a game capturing the mouse treats it as a button held down. A
-    /// point just outside the frame lands on the invisible resize border, and
-    /// the repeated focus pass then finished a resize that dragged the
-    /// window's top-left corner to the screen's own. An all-ones (NaN) point
-    /// is turned back into (0, 0) by some apps, which then click whatever sits
-    /// at their top-left corner; a far positive point keeps any such fallback
-    /// on the opposite corner.
+    /// Native apps also receive a press and its release to make the window
+    /// key, both aimed far past the bottom-right of any window, on screen and
+    /// relative to the window. The release always follows: SDL holds back
+    /// mouse capture after a press outside the content until the button comes
+    /// up (issue #3705). Wine receives neither event. A point just outside the
+    /// frame lands on the invisible resize border, and the repeated focus pass
+    /// then finished a resize that dragged the window's top-left corner to the
+    /// screen's own. An all-ones (NaN) point is turned back into (0, 0) by
+    /// some apps, which then click whatever sits at their top-left corner; a
+    /// far positive point keeps any such fallback on the opposite corner.
     /// Returns false when the window server did not take the request, so the
     /// caller can fall back to app-level activation.
     @discardableResult
@@ -440,11 +441,18 @@ enum SpaceWindowBridge {
         record[0x04] = 0xf8 // declared record length
         record[0x3a] = 0x10
         withUnsafeBytes(of: &targetID) { record.replaceSubrange(0x3c..<0x3c + $0.count, with: $0) }
-        // Window-relative location, far past the bottom-right of any window.
+        // Screen (0x10) and window-relative (0x20) locations, both far past
+        // the bottom-right of any window.
         var farPoint = CGPoint(x: 300_000, y: 300_000)
-        withUnsafeBytes(of: &farPoint) { record.replaceSubrange(0x20..<0x20 + $0.count, with: $0) }
-        record[0x08] = 0x01 // left mouse down alone makes the window key
-        return postEventRecord(&psn, &record) == .success
+        withUnsafeBytes(of: &farPoint) {
+            record.replaceSubrange(0x10..<0x10 + $0.count, with: $0)
+            record.replaceSubrange(0x20..<0x20 + $0.count, with: $0)
+        }
+        record[0x08] = 0x01 // left mouse down
+        let down = postEventRecord(&psn, &record)
+        record[0x08] = 0x02 // left mouse up, even if the down was refused
+        let up = postEventRecord(&psn, &record)
+        return down == .success && up == .success
     }
 
     /// Hands the keyboard to a window and leaves the stacking order alone,
