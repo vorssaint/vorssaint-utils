@@ -9,8 +9,25 @@ struct FanControlCurveEditor: View {
     let snapshot: FanControlSnapshot
     let temperatureUnit: TemperatureUnit
     let disabled: Bool
+    @State private var showRules = false
 
     var body: some View {
+        if showRules {
+            rules
+        } else {
+            ProgressView()
+                .controlSize(.small)
+                .frame(maxWidth: .infinity, minHeight: 92)
+                .task {
+                    // Let the panel draw before laying out up to 80 native steppers.
+                    await Task.yield()
+                    guard !Task.isCancelled else { return }
+                    showRules = true
+                }
+        }
+    }
+
+    private var rules: some View {
         VStack(alignment: .leading, spacing: 9) {
             ForEach(curves.indices, id: \.self) { index in
                 curveRule(at: index)

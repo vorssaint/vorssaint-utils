@@ -156,8 +156,14 @@ enum FanControlResumeContract {
         static var shared = Service()
         static var helperVersion = "bundled"
         static let log = Logger(subsystem: "com.vorssaint.tests", category: "FanControlResume")
+        var pendingPanelRead: UUID?
+        var initialFanSpeeds: [Double]? = []
+        var onReadPanelAccess: ((Bool, @escaping (AccessState, [Double]) -> Void) -> Void)?
+        func readPanelAccess(includeFanSpeeds: Bool, completion: @escaping (AccessState, [Double]) -> Void) {
+            if let onReadPanelAccess { onReadPanelAccess(includeFanSpeeds, completion) }
+            else { completion(Self.appService.status ?? accessState, []) }
+        }
         var accessState = AccessState.enabled
-        var snapshot = FanControlSnapshot.empty
         var error: FanControlErrorCode?
         var statusResponse: FanControlResponse?
         var controller: FanControlRecoveryContract.Controller?
@@ -188,6 +194,7 @@ enum FanControlResumeContract {
             operation(proxy) { completion(self.controller?.statusResponse() ?? self.statusResponse) }
         }
         func refreshAccessState() {
+            pendingPanelRead = nil
             if let status = Self.appService.status { accessState = status }
         }
         func applyConfiguration(_ configuration: FanControlConfiguration, resuming: Bool) {
@@ -236,6 +243,51 @@ enum FanControlResumeContract {
             ProcessInfo.processInfo.thermalState = .nominal
         }
         var storedResume: String? { defaults.string(forKey: DefaultsKey.fanControlResumeConfiguration) }
+
+        reset(resume: false, stored: nil)
+        var panelReads: [(Service.AccessState, [Double]) -> Void] = []
+        service.onReadPanelAccess = { _, reply in panelReads.append(reply) }
+        service.panelDidAppear()
+        service.refresh()
+        suite.expect(panelReads.count == 1 && service.proxy.statusReads == 0 && service.events.isEmpty,
+                     "opening the panel returns while access is pending and shares that lookup with a refresh")
+        service.panelDidDisappear()
+        service.panelDidAppear()
+        panelReads.first?(.enabled, [900])
+        suite.expect(service.initialFanSpeeds == [] && service.proxy.statusReads == 0,
+                     "an old visit cannot update the reopened panel or connect to the helper")
+        panelReads.last?(.notRegistered, [1200])
+        suite.expect(service.initialFanSpeeds == [1200] && service.snapshot.fans.isEmpty
+                        && service.events == ["probe"] && service.proxy.writes.isEmpty,
+                     "early RPM is display-only while the full local snapshot is pending")
+        service.applyStatus(.success(.empty))
+        suite.expect(service.initialFanSpeeds == nil,
+                     "a confirmed System response with empty telemetry retires the startup RPM and spinner")
+
+        for approval: Service.AccessState in [.requiresApproval, .enabled] {
+            reset()
+            service.statusResponse = idleHelper().statusResponse()
+            service.panelDidAppear()
+            service.panelDidDisappear()
+            let savedResume = storedResume
+            Service.appService.status = approval
+            var replyToOpeningRead: ((Service.AccessState, [Double]) -> Void)?
+            service.onReadPanelAccess = { _, reply in replyToOpeningRead = reply }
+            service.panelDidAppear()
+            service.proxy.holdNextApply = true
+            service.applyConfiguration(manual)
+            replyToOpeningRead?(.enabled, [])
+            if approval == .requiresApproval {
+                suite.expect(service.accessState == .requiresApproval && service.proxy.writes.isEmpty
+                                && !defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
+                                && storedResume == savedResume && service.events.isEmpty,
+                             "Apply during reopening honors revoked approval without arming recovery or changing resume")
+            } else {
+                suite.expect(service.proxy.writes == [manual] && service.requestInFlight == .apply
+                                && defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded),
+                             "Apply during reopening still dispatches once when the helper is approved")
+            }
+        }
 
         reset(resume: false, recovery: true)
         Service.recoverIfNeeded()
@@ -880,6 +932,7 @@ enum FanControlResumeContract {
             let card = FanControlCardContent(
                 strings: strings, betaLabel: "Beta", snapshot: service.snapshot, fallbackFanSpeeds: [],
                 accessState: service.accessState, error: service.error, isWorking: service.isWorking,
+                loadingFirstReading: service.initialFanSpeeds != nil && service.error == nil,
                 systemControlUnconfirmed: service.awaitingSystemControl, interruption: service.interruption,
                 mode: mode, coolingLevel: .constant(defaults.values[DefaultsKey.fanControlCoolingLevel] as? Int ?? 100),
                 curves: .constant([FanControlConfiguration.defaultCurve]),
