@@ -90,6 +90,7 @@ struct MenuPanelView: View {
     @State private var metricContentHeight: CGFloat = 0
     @State private var updateBannerHeight: CGFloat = 0
     @State private var selectedSection: PanelSectionID = PanelLayout.order.first ?? .keepAwake
+    @State private var utilitiesReselection = 0
     @State private var selectedMetric: MetricDetailKind?
     @FocusState private var focusedSection: PanelSectionID?
 
@@ -343,7 +344,8 @@ struct MenuPanelView: View {
             if showFanControl, notchSize != nil || panelFocus.popoverIsVisible {
                 FanControlSection(collapsible: collapsible)
             }
-        case .utilities: UtilitiesSection(collapsible: collapsible, startCleaning: startCleaning)
+        case .utilities:
+            UtilitiesSection(collapsible: collapsible, reselection: utilitiesReselection, startCleaning: startCleaning)
         case .controls: QuickControlsSection(collapsible: collapsible)
         case .toggles: QuickTogglesSection(collapsible: collapsible)
         case .wallpaper: if showWallpaper { WallpaperSection(collapsible: collapsible) }
@@ -373,6 +375,7 @@ struct MenuPanelView: View {
             ForEach(visibleSections) { id in
                 let isActive = activeSection == id
                 Button {
+                    if id == .utilities, isActive { utilitiesReselection += 1 }
                     selectedSection = id
                     focusedSection = id
                 } label: {
@@ -590,16 +593,7 @@ struct UtilitiesSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var features = FeatureRuntime.shared
-    @State private var showUninstaller = false
-    @State private var showCleanerPanel = false
-    @State private var showURLCleaner = false
-    @State private var showHomebrewPanel = false
-    @State private var showAppUpdatesPanel = false
-    @State private var showMediaPanel = false
-    @State private var showClipboardPanel = false
-    @State private var showRecentCapturesPanel = false
-    @State private var showWindowLayoutPanel = false
-    @State private var showPortManagerPanel = false
+    @State private var hostedSettingsPage: SettingsPage?
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
@@ -623,60 +617,26 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
     @State private var draggingItem: UtilityPanelItem?
     var collapsible = true
+    let reselection: Int
     var startCleaning: () -> Void
 
     var body: some View {
         PanelSection(.utilities, title: l10n.s.utilitiesSection, collapsible: collapsible,
                      supportsEditing: true,
-                     editButtonVisible: !isHostingUtility,
+                     editButtonVisible: hostedSettingsPage == nil,
                      resetAction: resetPanelDefaults) { editing in
-            if showUninstaller {
-                PanelUninstallerView {
-                    showUninstaller = false
-                }
-            } else if showCleanerPanel {
-                PanelCleanerView {
-                    showCleanerPanel = false
-                }
-            } else if showURLCleaner {
-                PanelURLCleanerView {
-                    showURLCleaner = false
-                }
-            } else if showHomebrewPanel {
-                PanelHomebrewView {
-                    showHomebrewPanel = false
-                }
-            } else if showMediaPanel {
-                PanelMediaView {
-                    PanelInteractionState.shared.viewKeepsPopoverOpen = false
-                    showMediaPanel = false
-                }
-            } else if showClipboardPanel {
-                PanelClipboardView {
-                    PanelInteractionState.shared.viewKeepsPopoverOpen = false
-                    showClipboardPanel = false
-                }
-            } else if showRecentCapturesPanel {
-                PanelRecentCapturesView {
-                    PanelInteractionState.shared.viewKeepsPopoverOpen = false
-                    showRecentCapturesPanel = false
-                }
-            } else if showWindowLayoutPanel {
-                PanelWindowLayoutView {
-                    PanelInteractionState.shared.viewKeepsPopoverOpen = false
-                    showWindowLayoutPanel = false
-                }
-            } else if showAppUpdatesPanel {
-                PanelAppUpdatesView {
-                    PanelInteractionState.shared.viewKeepsPopoverOpen = false
-                    showAppUpdatesPanel = false
-                }
-            } else if showPortManagerPanel {
-                PanelPortManagerView {
-                    PanelInteractionState.shared.viewKeepsPopoverOpen = false
-                    showPortManagerPanel = false
-                }
-            } else {
+            switch hostedSettingsPage {
+            case .uninstaller: PanelUninstallerView(onClose: closeHostedUtility)
+            case .cleaner: PanelCleanerView(onClose: closeHostedUtility)
+            case .urlCleaner: PanelURLCleanerView(onClose: closeHostedUtility)
+            case .homebrew: PanelHomebrewView(onClose: closeHostedUtility)
+            case .media: PanelMediaView(onClose: closeHostedUtility)
+            case .clipboard: PanelClipboardView(onClose: closeHostedUtility)
+            case .screenshot: PanelRecentCapturesView(onClose: closeHostedUtility)
+            case .windowLayout: PanelWindowLayoutView(onClose: closeHostedUtility)
+            case .appUpdates: PanelAppUpdatesView(onClose: closeHostedUtility)
+            case .portManager: PanelPortManagerView(onClose: closeHostedUtility)
+            default:
                 PanelRowGroup(items: items(editing: editing), showsDragHandles: editing) { item in
                     PanelReorderableItem(item: item,
                                          isEnabled: editing,
@@ -687,6 +647,9 @@ struct UtilitiesSection: View {
                     }
                 }
             }
+        }
+        .onChange(of: reselection) { _, _ in
+            if hostedSettingsPage != nil { closeHostedUtility() }
         }
         .onChange(of: hostedUtilityKeepsPopoverOpen) { _, keepsOpen in
             PanelInteractionState.shared.viewKeepsPopoverOpen = keepsOpen
@@ -702,37 +665,15 @@ struct UtilitiesSection: View {
         }
     }
 
-    /// The Settings page that belongs to whichever tool the section is
-    /// showing, derived from the same state as `isHostingUtility` so every
-    /// hosted tool is covered by the one list. Mirrored by the `onChange`
-    /// beside it, and cleared only where this section leaves the screen.
-    private var hostedSettingsPage: SettingsPage? {
-        if showUninstaller { return .uninstaller }
-        if showCleanerPanel { return .cleaner }
-        if showURLCleaner { return .urlCleaner }
-        if showHomebrewPanel { return .homebrew }
-        if showMediaPanel { return .media }
-        if showClipboardPanel { return .clipboard }
-        if showRecentCapturesPanel { return .screenshot }
-        if showWindowLayoutPanel { return .windowLayout }
-        if showAppUpdatesPanel { return .appUpdates }
-        if showPortManagerPanel { return .portManager }
-        return nil
-    }
-
-    /// True while the section is showing one of the tools instead of its own
-    /// list. A hosted tool turns the panel into a work surface, so clicks
-    /// elsewhere in the app must not dismiss it.
-    private var isHostingUtility: Bool {
-        showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
-            || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
-            || showWindowLayoutPanel || showAppUpdatesPanel || showPortManagerPanel
+    private func closeHostedUtility() {
+        PanelInteractionState.shared.viewKeepsPopoverOpen = false
+        hostedSettingsPage = nil
     }
 
     /// Homebrew browsing behaves like an ordinary popover. Other hosted tools
     /// intentionally span interaction with apps and windows outside the panel.
     private var hostedUtilityKeepsPopoverOpen: Bool {
-        isHostingUtility && !showHomebrewPanel
+        hostedSettingsPage != nil && hostedSettingsPage != .homebrew
     }
 
     private var cleaningNeedsAccessibility: Bool {
@@ -796,7 +737,7 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showHomebrew,
                                 action: {
-                                    showHomebrewPanel = true
+                                    hostedSettingsPage = .homebrew
                                 })
         case .appUpdates:
             UtilityActionButton(title: FeatureStrings.appUpdates(l10n.language).pageTitle,
@@ -806,7 +747,7 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showAppUpdates,
                                 action: {
-                                    showAppUpdatesPanel = true
+                                    hostedSettingsPage = .appUpdates
                                 })
         case .media:
             UtilityActionButton(title: l10n.s.mediaName,
@@ -816,7 +757,7 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showMedia,
                                 action: {
-                                    showMediaPanel = true
+                                    hostedSettingsPage = .media
                                 })
         case .clipboard:
             UtilityActionButton(title: FeatureStrings.clipboard(l10n.language).title,
@@ -830,7 +771,7 @@ struct UtilitiesSection: View {
                                 captionStaysVisible: !clipboardEnabled,
                                 shortcutHint: shortcutHint(.clipboard),
                                 action: {
-                                    showClipboardPanel = true
+                                    hostedSettingsPage = .clipboard
                                 })
         case .windowLayout:
             UtilityActionButton(title: FeatureStrings.windowLayout(l10n.language).title,
@@ -840,7 +781,7 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showWindowLayout,
                                 action: {
-                                    showWindowLayoutPanel = true
+                                    hostedSettingsPage = .windowLayout
                                 })
         case .uninstaller:
             UtilityActionButton(title: l10n.s.uninstallerName,
@@ -850,7 +791,7 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showUninstallerAction,
                                 action: {
-                                    showUninstaller = true
+                                    hostedSettingsPage = .uninstaller
                                 })
         case .cleaner:
             UtilityActionButton(title: l10n.s.cleanerName,
@@ -860,7 +801,7 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showCleanerAction,
                                 action: {
-                                    showCleanerPanel = true
+                                    hostedSettingsPage = .cleaner
                                 })
         case .cleanURL:
             UtilityActionButton(title: l10n.s.urlCleanerName,
@@ -870,7 +811,7 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showCleanURL,
                                 action: {
-                                    showURLCleaner = true
+                                    hostedSettingsPage = .urlCleaner
                                 })
         case .cleaning:
             UtilityActionButton(title: l10n.s.cleaningMenuItem,
@@ -1025,7 +966,7 @@ struct UtilitiesSection: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: $showPortManager,
-                                action: { showPortManagerPanel = true })
+                                action: { hostedSettingsPage = .portManager })
         }
     }
 
@@ -1080,7 +1021,7 @@ struct UtilitiesSection: View {
     }
 
     private func showRecentCaptures() {
-        showRecentCapturesPanel = true
+        hostedSettingsPage = .screenshot
     }
 
     private func resetPanelDefaults() {
