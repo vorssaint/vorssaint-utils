@@ -6,8 +6,6 @@ import Foundation
 struct FanControlFeatureStrings {
     let title: String
     let hubDescription: String
-    let showInPanel: String
-    let settingsCaption: String
     let fanNameFormat: String
     let rpmFormat: String
     let allowControl: String
@@ -80,8 +78,6 @@ extension FanControlFeatureStrings {
     static let enUS = FanControlFeatureStrings(
         title: "Fan Control",
         hubDescription: "Control fans manually or with temperature curves while seeing live and target RPM",
-        showInPanel: "Show Fan Control in the panel",
-        settingsCaption: "Adds manual fan speeds and temperature curves to the menu bar panel.",
         fanNameFormat: "Fan %d",
         rpmFormat: "%d RPM",
         allowControl: "Allow fan control",
@@ -131,8 +127,6 @@ extension FanControlFeatureStrings {
     static let ptBR = FanControlFeatureStrings(
         title: "Controle das ventoinhas",
         hubDescription: "Controle manual ou por curvas de temperatura, com RPM atual e RPM-alvo",
-        showInPanel: "Mostrar controle das ventoinhas no painel",
-        settingsCaption: "Adiciona velocidades manuais e curvas de temperatura ao painel.",
         fanNameFormat: "Ventoinha %d",
         rpmFormat: "%d RPM",
         allowControl: "Permitir controle",
@@ -182,8 +176,6 @@ extension FanControlFeatureStrings {
     static let tr = FanControlFeatureStrings(
         title: "Fan denetimi",
         hubDescription: "Canlı ve hedef RPM ile fanları elle veya sıcaklık eğrileriyle denetleyin",
-        showInPanel: "Fan denetimini panelde göster",
-        settingsCaption: "Menü çubuğu paneline elle fan hızı ve sıcaklık eğrileri ekler.",
         fanNameFormat: "Fan %d",
         rpmFormat: "%d RPM",
         allowControl: "Fan denetimine izin ver",
@@ -233,8 +225,6 @@ extension FanControlFeatureStrings {
     static let ru = FanControlFeatureStrings(
         title: "Управление вентиляторами",
         hubDescription: "Ручное управление и температурные кривые с текущими и целевыми оборотами",
-        showInPanel: "Показывать управление вентиляторами на панели",
-        settingsCaption: "Добавляет на панель ручную скорость и температурные кривые.",
         fanNameFormat: "Вентилятор %d",
         rpmFormat: "%d об/мин",
         allowControl: "Разрешить управление",
@@ -284,8 +274,6 @@ extension FanControlFeatureStrings {
     static let es = FanControlFeatureStrings(
         title: "Control de ventiladores",
         hubDescription: "Control manual o por curvas de temperatura con RPM actuales y objetivo",
-        showInPanel: "Mostrar el control de ventiladores en el panel",
-        settingsCaption: "Añade velocidades manuales y curvas de temperatura al panel.",
         fanNameFormat: "Ventilador %d",
         rpmFormat: "%d RPM",
         allowControl: "Permitir control",
@@ -335,8 +323,6 @@ extension FanControlFeatureStrings {
     static let sk = FanControlFeatureStrings(
         title: "Ovládanie ventilátorov",
         hubDescription: "Ovládajte ventilátory ručne alebo pomocou teplotných kriviek a sledujte aktuálne a cieľové otáčky",
-        showInPanel: "Zobraziť ovládanie ventilátorov v paneli",
-        settingsCaption: "Pridá do panela v lište ručné otáčky ventilátorov a teplotné krivky.",
         fanNameFormat: "Ventilátor %d",
         rpmFormat: "%d ot./min",
         allowControl: "Povoliť ovládanie ventilátorov",
@@ -386,8 +372,6 @@ extension FanControlFeatureStrings {
     static let de = FanControlFeatureStrings(
         title: "Lüftersteuerung",
         hubDescription: "Lüfter manuell oder per Temperaturkurve mit Ist- und Ziel-Drehzahl steuern",
-        showInPanel: "Lüftersteuerung im Panel anzeigen",
-        settingsCaption: "Fügt dem Panel manuelle Drehzahlen und Temperaturkurven hinzu.",
         fanNameFormat: "Lüfter %d",
         rpmFormat: "%d U/min",
         allowControl: "Lüftersteuerung erlauben",
@@ -437,8 +421,6 @@ extension FanControlFeatureStrings {
     static let fr = FanControlFeatureStrings(
         title: "Contrôle des ventilateurs",
         hubDescription: "Contrôle manuel ou par courbes de température avec vitesses réelle et cible",
-        showInPanel: "Afficher le contrôle des ventilateurs dans le panneau",
-        settingsCaption: "Ajoute les vitesses manuelles et les courbes de température au panneau.",
         fanNameFormat: "Ventilateur %d",
         rpmFormat: "%d tr/min",
         allowControl: "Autoriser le contrôle",
@@ -488,8 +470,6 @@ extension FanControlFeatureStrings {
     static let it = FanControlFeatureStrings(
         title: "Controllo ventole",
         hubDescription: "Controllo manuale o con curve termiche e RPM attuali e obiettivo",
-        showInPanel: "Mostra il controllo ventole nel pannello",
-        settingsCaption: "Aggiunge velocità manuali e curve di temperatura al pannello.",
         fanNameFormat: "Ventola %d",
         rpmFormat: "%d RPM",
         allowControl: "Consenti controllo",
@@ -539,8 +519,6 @@ extension FanControlFeatureStrings {
     static let ja = FanControlFeatureStrings(
         title: "ファン制御",
         hubDescription: "現在と目標の回転数を確認しながら手動または温度曲線でファンを制御",
-        showInPanel: "ファン制御をパネルに表示",
-        settingsCaption: "手動の回転数と温度曲線をメニューバーパネルに追加します。",
         fanNameFormat: "ファン%d",
         rpmFormat: "%d RPM",
         allowControl: "ファン制御を許可",
@@ -590,8 +568,6 @@ extension FanControlFeatureStrings {
     static let ko = FanControlFeatureStrings(
         title: "팬 제어",
         hubDescription: "현재 및 목표 RPM을 보며 수동 또는 온도 곡선으로 팬 제어",
-        showInPanel: "패널에 팬 제어 표시",
-        settingsCaption: "메뉴 막대 패널에 수동 속도와 온도 곡선을 추가합니다.",
         fanNameFormat: "팬 %d",
         rpmFormat: "%d RPM",
         allowControl: "팬 제어 허용",
@@ -641,8 +617,6 @@ extension FanControlFeatureStrings {
     static let zhHans = FanControlFeatureStrings(
         title: "风扇控制",
         hubDescription: "查看当前和目标转速，并手动或按温度曲线控制风扇",
-        showInPanel: "在面板中显示风扇控制",
-        settingsCaption: "在菜单栏面板中添加手动转速和温度曲线。",
         fanNameFormat: "风扇%d",
         rpmFormat: "%d RPM",
         allowControl: "允许风扇控制",
@@ -692,8 +666,6 @@ extension FanControlFeatureStrings {
     static let zhTW = FanControlFeatureStrings(
         title: "風扇控制",
         hubDescription: "查看目前與目標轉速，並手動或依溫度曲線控制風扇",
-        showInPanel: "在面板中顯示風扇控制",
-        settingsCaption: "在選單列面板中加入手動轉速與溫度曲線。",
         fanNameFormat: "風扇%d",
         rpmFormat: "%d RPM",
         allowControl: "允許風扇控制",
@@ -743,8 +715,6 @@ extension FanControlFeatureStrings {
     static let zhHK = FanControlFeatureStrings(
         title: "風扇控制",
         hubDescription: "查看目前與目標轉速，並手動或依溫度曲線控制風扇",
-        showInPanel: "在面板中顯示風扇控制",
-        settingsCaption: "在選單列面板中加入手動轉速與溫度曲線。",
         fanNameFormat: "風扇%d",
         rpmFormat: "%d RPM",
         allowControl: "允許風扇控制",
@@ -793,8 +763,6 @@ extension FanControlFeatureStrings {
     static let uk = FanControlFeatureStrings(
         title: "Керування вентиляторами",
         hubDescription: "Керуйте вентиляторами вручну або за температурними кривими, бачачи поточні та цільові об/хв",
-        showInPanel: "Показувати керування вентиляторами в панелі",
-        settingsCaption: "Додає ручні швидкості вентиляторів та температурні криві до панелі на смузі меню.",
         fanNameFormat: "Вентилятор %d",
         rpmFormat: "%d об/хв",
         allowControl: "Дозволити керування вентиляторами",

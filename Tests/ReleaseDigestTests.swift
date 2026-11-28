@@ -274,6 +274,7 @@ enum ReleaseDigestTests {
             return SettingsSidebarItem(id: id, destination: destination, title: title, icon: "circle")
         }
         let items = [item(.page(.general), "General"), item(.page(.features), "Features"),
+                     item(.setting(.panelConfiguration), "Menu bar"),
                      item(.page(.notch), "Dynamic Island"), item(.page(.monitor), "System Monitor"),
                      item(.feature(.switcher), "Window switcher"), item(.feature(.mixer), "Volume mixer")]
         func change(_ text: String, _ kind: ReleaseChangeKind, _ features: [AppFeature]) -> ReleaseChange {
@@ -330,6 +331,8 @@ enum ReleaseDigestTests {
 
         suite.expect(WhatsNewSupport.rowID(for: .notchMascot, in: items) == .settings(.page(.notch)),
                      "the companion belongs to the island's row")
+        suite.expect(WhatsNewSupport.rowID(for: .fanControl, in: items) == .settings(.setting(.panelConfiguration)),
+                     "installed Fan Control changes link to the Menu bar settings row")
         suite.expect(WhatsNewSupport.rowID(for: .soundOutputSwitcher, in: items) == .general,
                      "a tool Settings keeps on its General page joins the General row")
         suite.expect(WhatsNewSupport.representedFeature(of: .page(.notch)) == .notch

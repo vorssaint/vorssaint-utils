@@ -2366,7 +2366,7 @@ enum FeatureCatalogTests {
                "every feature anchor belongs to its destination page")
         suite.expect(Set(AppFeature.allCases.compactMap(\.settingsDestination.sectionAnchor))
                 == Set(SettingsSectionAnchor.allCases).subtracting([
-                    .panelConfiguration, .keyboardBrightnessShortcuts, .monitorAlerts, .screenshotScrolling,
+                    .keyboardBrightnessShortcuts, .monitorAlerts, .screenshotScrolling,
                 ])
                 && SettingsSectionAnchor.panelConfiguration.page == .general
                 && SettingsSectionAnchor.keyboardBrightnessShortcuts.page == .shortcuts
@@ -2418,8 +2418,8 @@ enum FeatureCatalogTests {
                "a feature without a separate configuration surface does not show a dead-end link")
         suite.expect(AppFeature.monitorCPU.settingsDestination == FeatureSettingsDestination(.monitor)
                 && AppFeature.fanControl.settingsDestination
-                == FeatureSettingsDestination(.monitor, sectionAnchor: .fanControl),
-               "shared monitor destinations distinguish the dedicated fan controls")
+                == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration),
+               "monitor readings open Monitor and Fan Control opens its Menu bar visibility setting")
         let settingsRouter = SettingsRouter.shared
         let companionRouter = SettingsRouter()
         companionRouter.request(AppFeature.notchMascot.settingsDestination)
