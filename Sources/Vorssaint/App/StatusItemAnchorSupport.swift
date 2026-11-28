@@ -19,6 +19,20 @@ import Foundation
 /// moment its content changes height. Both cases are handled by pinning the
 /// panel to an anchor captured while the bar was still up.
 enum StatusItemAnchorSupport {
+    /// Events that trigger a status bar button's action. Firing on mouse down
+    /// matches native macOS menu bar items instead of waiting for mouse up;
+    /// macOS still intercepts Command-drag reordering before AppKit delivers
+    /// mouse down to the button.
+    static let statusItemActionMask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown]
+
+    /// Whether a status item click should take the secondary (right-click) path
+    /// instead of opening or toggling the primary panel. Accessibility presses
+    /// carry no mouse event and stay on the primary path.
+    static func isSecondaryStatusClick(_ event: NSEvent?) -> Bool {
+        guard let type = event?.type else { return false }
+        return type == .rightMouseDown || type == .rightMouseUp
+    }
+
     /// Slack past the button's half-width before a click counts as drift: a
     /// click anywhere inside the button must never trigger a correction, and
     /// the margin absorbs the item's expanded hit area plus a sloppy click on

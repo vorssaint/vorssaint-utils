@@ -2961,6 +2961,41 @@ enum SwitcherModelFeatureTests {
         suite.expect(statusHitTestCode.contains("clipboardPreviewStatusItem"),
                "status-item hit testing also covers the clipboard preview item")
 
+        // MARK: Status items trigger on mouse down
+
+        let actionMask = StatusItemAnchorSupport.statusItemActionMask
+        suite.expect(actionMask.contains(.leftMouseDown)
+                   && actionMask.contains(.rightMouseDown)
+                   && !actionMask.contains(.leftMouseUp)
+                   && !actionMask.contains(.rightMouseUp),
+               "status items trigger on left and right mouse down rather than waiting for mouse up")
+        let makeStatusMouseEvent: (NSEvent.EventType) -> NSEvent? = { type in
+            NSEvent.mouseEvent(with: type, location: .zero, modifierFlags: [],
+                               timestamp: 0, windowNumber: 0, context: nil,
+                               eventNumber: 0, clickCount: 1, pressure: 1)
+        }
+        let statusKeyEvent = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+                                              timestamp: 0, windowNumber: 0, context: nil,
+                                              characters: " ", charactersIgnoringModifiers: " ",
+                                              isARepeat: false, keyCode: 49)
+        suite.expect(StatusItemAnchorSupport.isSecondaryStatusClick(makeStatusMouseEvent(.rightMouseDown))
+                   && StatusItemAnchorSupport.isSecondaryStatusClick(makeStatusMouseEvent(.rightMouseUp)),
+               "right-click events route to the secondary status item action")
+        suite.expect(!StatusItemAnchorSupport.isSecondaryStatusClick(makeStatusMouseEvent(.leftMouseDown))
+                   && !StatusItemAnchorSupport.isSecondaryStatusClick(makeStatusMouseEvent(.leftMouseUp))
+                   && !StatusItemAnchorSupport.isSecondaryStatusClick(statusKeyEvent)
+                   && !StatusItemAnchorSupport.isSecondaryStatusClick(nil),
+               "left clicks, key events and Accessibility presses stay on the primary status item action")
+        let statusControllerStripped = stripCommentLines(statusControllerSource)
+        let sendActionCalls = statusControllerStripped
+            .components(separatedBy: "button.sendAction(on: StatusItemAnchorSupport.statusItemActionMask)").count - 1
+        let secondaryChecks = statusControllerStripped
+            .components(separatedBy: "StatusItemAnchorSupport.isSecondaryStatusClick(NSApp.currentEvent)").count - 1
+        suite.expect(sendActionCalls == 3 && secondaryChecks == 3
+                   && !statusControllerStripped.contains(".leftMouseUp")
+                   && !statusControllerStripped.contains(".rightMouseUp"),
+               "main, metric and clipboard status items all fire on mouse down and classify right clicks through StatusItemAnchorSupport")
+
         // MARK: The panel surface reaches the popover arrow (issue #1030)
 
         // AppKit hands the hosted panel a safe area for the popover's border and
