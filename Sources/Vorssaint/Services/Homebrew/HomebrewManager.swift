@@ -261,7 +261,10 @@ final class HomebrewManager: ObservableObject {
                 guard let self else { return }
                 guard status == 0,
                       let records = try? HomebrewParser.parseInstalledCaskRecords(output) else {
-                    self.finishOwnershipLoad(path: path, result: .failure(.unavailable))
+                    // A leftover brew that no longer runs, with no Caskroom
+                    // beside it, has no cask that could own this app.
+                    self.finishOwnershipLoad(path: path, result: self.hasCaskroom(brewPath: brewPath)
+                                             ? .failure(.unavailable) : .success(nil))
                     return
                 }
                 let result = HomebrewOwnershipSupport.packageManagingApplication(
@@ -472,6 +475,10 @@ final class HomebrewManager: ObservableObject {
                 self.cancelRequested = false
             }
         }
+    }
+
+    private func hasCaskroom(brewPath: String) -> Bool {
+        FileManager.default.fileExists(atPath: HomebrewCommandBuilder.caskroomPath(brewPath: brewPath))
     }
 
     private func finishOwnershipLoad(path: String, result: Result<HomebrewPackage?, HomebrewOwnershipError>) {

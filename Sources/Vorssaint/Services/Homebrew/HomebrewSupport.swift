@@ -377,6 +377,13 @@ enum HomebrewTerminalScript {
 
 enum HomebrewCommandBuilder {
     static let candidatePaths = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+
+    /// Every installed cask keeps a folder in `<prefix>/Caskroom`, next to the
+    /// prefix's `bin/brew`.
+    static func caskroomPath(brewPath: String) -> String {
+        URL(fileURLWithPath: brewPath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Caskroom").path
+    }
     static let installerCommand = #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#
     static var currentShellPath: String {
         if let shell = getpwuid(getuid())?.pointee.pw_shell {

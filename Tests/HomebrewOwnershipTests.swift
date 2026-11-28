@@ -16,11 +16,13 @@ enum HomebrewOwnershipTests {
     final class Manager {
         typealias DispatchQueue = Queue
         var brewPath: String? = "/opt/homebrew/bin/brew"
+        var caskroom = true
         var ownershipLoads: [String: [(Lookup) -> Void]] = [:]
         var commands: [HomebrewCommand] = []
         var replies: [(Int32, String) -> Void] = []
 
         func detectBrewPath() -> String? { brewPath }
+        func hasCaskroom(brewPath: String) -> Bool { caskroom }
         func run(_ command: HomebrewCommand, completion: @escaping (Int32, String) -> Void) {
             commands.append(command)
             replies.append(completion)
@@ -88,6 +90,16 @@ enum HomebrewOwnershipTests {
         absent.packageManagingApplication(at: app) { answer = $0 }
         suite.expect(isUnmanaged(answer) && absent.commands.isEmpty,
                      "a Mac without Homebrew still supports ordinary removal")
+
+        let leftover = Manager()
+        leftover.caskroom = false
+        leftover.packageManagingApplication(at: app) { answer = $0 }
+        leftover.reply(1, "Error: Homebrew is not installed")
+        suite.expect(isUnmanaged(answer),
+                     "a leftover brew that fails without a Caskroom still supports ordinary removal")
+        suite.expect(HomebrewCommandBuilder.caskroomPath(brewPath: "/opt/homebrew/bin/brew") == "/opt/homebrew/Caskroom"
+                     && HomebrewCommandBuilder.caskroomPath(brewPath: "/usr/local/bin/brew") == "/usr/local/Caskroom",
+                     "the Caskroom sits beside the brew prefix")
 
         guard let records = try? HomebrewParser.parseInstalledCaskRecords(inventory) else {
             suite.expect(false, "valid installed metadata parses")
